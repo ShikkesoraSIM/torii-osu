@@ -10,6 +10,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Online.API;
 using osuTK.Graphics;
@@ -37,12 +38,14 @@ namespace osu.Game.Overlays
 
         private readonly Box background;
         private readonly Container content;
+        private readonly int defaultHue;
 
         protected FullscreenOverlay(OverlayColourScheme colourScheme)
         {
             RecreateHeader();
 
-            ColourProvider = new OverlayColourProvider(colourScheme);
+            defaultHue = colourScheme.GetHue();
+            ColourProvider = new OverlayColourProvider(defaultHue);
 
             RelativeSizeAxes = Axes.Both;
             RelativePositionAxes = Axes.Both;
@@ -74,8 +77,9 @@ namespace osu.Game.Overlays
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            ColourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, defaultHue, CustomUiHueScope.Overlays));
             UpdateColours();
         }
 

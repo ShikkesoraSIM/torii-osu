@@ -3,7 +3,7 @@
   <metadata>
     <id>osu-lazer-gu</id>
     <version>0.0.0</version>
-    <title>osu! GU</title>
+    <title>osu! Torii</title>
     <authors>ppy Pty Ltd, GooGu Team</authors>
     <owners>GooGu Team</owners>
     <projectUrl>https://github.com/shigetiro/osu/</projectUrl>
@@ -11,8 +11,8 @@
     <icon>icon.png</icon>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="file">LICENSE</license>
-    <description>A free-to-win rhythm game. Rhythm is just a *click* away! (GU Version)</description>
-    <releaseNotes>GU version with modifications</releaseNotes>
+    <description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</description>
+    <releaseNotes>Torii version with modifications</releaseNotes>
     <copyright>Copyright (c) 2025 GooGu Team. Based on osu! (c) ppy Pty Ltd, licensed under MIT.</copyright>
     <language>en-AU</language>
   </metadata>

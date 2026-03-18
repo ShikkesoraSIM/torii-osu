@@ -194,6 +194,12 @@ namespace osu.Game.Configuration
             else
                 SetDefault(OsuSetting.UIScale, 1f, 0.8f, 1.6f, 0.01f);
 
+            SetDefault(OsuSetting.CustomUIHueEnabled, false);
+            SetDefault(OsuSetting.CustomUIHue, OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+            SetDefault(OsuSetting.CustomUIHueApplyToMenu, false);
+            SetDefault(OsuSetting.CustomUIHueApplyToOverlays, true);
+            SetDefault(OsuSetting.CustomUIHueApplyToSettingsPanel, true);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -439,6 +445,11 @@ namespace osu.Game.Configuration
         ScalingSizeY,
         ScalingBackgroundDim,
         UIScale,
+        CustomUIHueEnabled,
+        CustomUIHue,
+        CustomUIHueApplyToMenu,
+        CustomUIHueApplyToOverlays,
+        CustomUIHueApplyToSettingsPanel,
         IntroSequence,
         NotifyOnUsernameMentioned,
         NotifyOnPrivateMessage,
@@ -506,7 +517,7 @@ namespace osu.Game.Configuration
         AutomaticallyAdjustBeatmapOffset,
 
         /// <summary>
-        /// Disables automatic updates for the GU version.
+        /// Disables automatic updates for the Torii version.
         /// </summary>
         DisableAutomaticUpdates,
         AllowBenchmarkUnlimitedFrameLimiter,

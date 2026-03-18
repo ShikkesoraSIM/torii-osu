@@ -97,6 +97,8 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader]
         private void load()
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays));
+
             // Required for the pop in/out animation
             RelativePositionAxes = Axes.Both;
 

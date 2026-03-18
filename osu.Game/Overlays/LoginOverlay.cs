@@ -7,6 +7,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osuTK.Graphics;
 using osu.Framework.Graphics.Shapes;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
 using osu.Game.Overlays.Login;
@@ -39,8 +40,10 @@ namespace osu.Game.Overlays
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays));
+
             Children = new Drawable[]
             {
                 new OsuContextMenuContainer

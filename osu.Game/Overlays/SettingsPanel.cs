@@ -19,6 +19,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Overlays.Settings;
@@ -85,8 +86,10 @@ namespace osu.Game.Overlays
         protected virtual IEnumerable<SettingsSection> CreateSections() => null;
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel));
+
             InternalChild = ContentContainer = new NonMaskedContent
             {
                 X = -WIDTH + ExpandedPosition,

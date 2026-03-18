@@ -13,6 +13,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Threading;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
 using osu.Game.Overlays;
@@ -78,8 +79,10 @@ namespace osu.Game.Screens.Footer
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu));
+
             InternalChildren = new Drawable[]
             {
                 background = new Box

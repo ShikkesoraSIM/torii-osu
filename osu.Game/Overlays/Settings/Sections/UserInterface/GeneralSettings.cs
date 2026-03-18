@@ -40,6 +40,39 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     Caption = UserInterfaceStrings.Parallax,
                     Current = config.GetBindable<bool>(OsuSetting.MenuParallax)
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.EnableCustomUIHue,
+                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled),
+                })
+                {
+                    Keywords = [@"colour", @"color", @"hue", @"theme", @"accent"],
+                },
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = UserInterfaceStrings.CustomUIHue,
+                    Current = config.GetBindable<float>(OsuSetting.CustomUIHue),
+                    KeyboardStep = 1f,
+                    LabelFormat = v => $"{v:0}°",
+                })
+                {
+                    Keywords = [@"colour", @"color", @"hue", @"theme", @"accent"],
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.ApplyHueToMenu,
+                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu),
+                }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.ApplyHueToOverlays,
+                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays),
+                }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.ApplyHueToSettingsPanel,
+                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel),
+                }),
                 new SettingsItemV2(new FormSliderBar<double>
                 {
                     Caption = UserInterfaceStrings.HoldToConfirmActivationTime,

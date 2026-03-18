@@ -1,4 +1,4 @@
-name: Build osu! GU
+name: Build osu! Torii
 
 on:
   push:
@@ -444,7 +444,7 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${{ matrix.executable }}" \
             --packAuthors "osu! GooGuTeam" \
-            --packTitle "osu! GU" \
+            --packTitle "osu! Torii" \
             -i "$ICON_FILE" \
             -c "$CHANNEL"
         elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
@@ -454,7 +454,7 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${{ matrix.executable }}" \
             --packAuthors "osu! GooGuTeam" \
-            --packTitle "osu! GU" \
+            --packTitle "osu! Torii" \
             -i "osu.Desktop/lazer.ico" \
             -c "win"
         else
@@ -465,7 +465,7 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${{ matrix.executable }}" \
             --packAuthors "osu! GooGuTeam" \
-            --packTitle "osu! GU" \
+            --packTitle "osu! Torii" \
             -i "osu.Desktop/lazer.ico" \
             -c "linux"
         fi
@@ -606,13 +606,13 @@ jobs:
       with:
         tag_name: ${{ needs.version.outputs.version }}
         target_commitish: ${{ github.sha }}
-        name: osu! GU ${{ needs.version.outputs.version }}
+        name: osu! Torii ${{ needs.version.outputs.version }}
         files: release-files/**
         draft: false
         prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') }}
         generate_release_notes: true
         body: |
-          ## osu! GU ${{ needs.version.outputs.version }}
+          ## osu! Torii ${{ needs.version.outputs.version }}
 
           基于官方 osu!(lazer) 的自定义版本。
 

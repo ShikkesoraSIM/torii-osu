@@ -40,6 +40,31 @@ namespace osu.Game.Localisation
         public static LocalisableString HoldToConfirmActivationTime => new TranslatableString(getKey(@"hold_to_confirm_activation_time"), @"Hold-to-confirm activation time");
 
         /// <summary>
+        /// "Custom UI hue"
+        /// </summary>
+        public static LocalisableString CustomUIHue => new TranslatableString(getKey(@"custom_ui_hue"), @"Custom UI hue");
+
+        /// <summary>
+        /// "Enable custom UI hue"
+        /// </summary>
+        public static LocalisableString EnableCustomUIHue => new TranslatableString(getKey(@"enable_custom_ui_hue"), @"Enable custom UI hue");
+
+        /// <summary>
+        /// "Apply hue to main menu / song select"
+        /// </summary>
+        public static LocalisableString ApplyHueToMenu => new TranslatableString(getKey(@"apply_hue_to_menu"), @"Apply hue to main menu / song select");
+
+        /// <summary>
+        /// "Apply hue to overlays (including beatmap browser)"
+        /// </summary>
+        public static LocalisableString ApplyHueToOverlays => new TranslatableString(getKey(@"apply_hue_to_overlays"), @"Apply hue to overlays (including beatmap browser)");
+
+        /// <summary>
+        /// "Apply hue to settings panel"
+        /// </summary>
+        public static LocalisableString ApplyHueToSettingsPanel => new TranslatableString(getKey(@"apply_hue_to_settings_panel"), @"Apply hue to settings panel");
+
+        /// <summary>
         /// "Main Menu"
         /// </summary>
         public static LocalisableString MainMenuHeader => new TranslatableString(getKey(@"main_menu_header"), @"Main Menu");

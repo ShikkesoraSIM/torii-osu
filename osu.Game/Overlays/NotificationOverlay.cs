@@ -17,6 +17,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Overlays.Notifications;
@@ -71,8 +72,10 @@ namespace osu.Game.Overlays
         private Container mainContent = null!;
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays));
+
             X = WIDTH;
             Width = WIDTH;
             RelativeSizeAxes = Axes.Y;

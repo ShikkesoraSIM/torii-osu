@@ -11,7 +11,7 @@
 
     <!-- Android application properties -->
     <ApplicationId>com.googuteam.osu</ApplicationId>
-    <ApplicationTitle>osu! GU</ApplicationTitle>
+    <ApplicationTitle>osu! Torii</ApplicationTitle>
     <AndroidManifest>AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
   <ItemGroup>

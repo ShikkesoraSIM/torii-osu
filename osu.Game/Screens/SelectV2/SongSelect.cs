@@ -175,6 +175,8 @@ namespace osu.Game.Screens.SelectV2
         [BackgroundDependencyLoader]
         private void load(AudioManager audio, OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu));
+
             errorSample = audio.Samples.Get(@"UI/generic-error");
 
             AddRangeInternal(new Drawable[]

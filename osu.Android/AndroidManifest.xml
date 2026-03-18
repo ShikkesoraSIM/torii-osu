@@ -3,7 +3,7 @@
 	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
 	<application android:allowBackup="true"
 				 android:supportsRtl="true"
-				 android:label="osu! GU"
+				 android:label="osu! Torii"
 				 android:icon="@mipmap/ic_launcher"
 				 android:roundIcon="@mipmap/ic_launcher"
 				 android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
