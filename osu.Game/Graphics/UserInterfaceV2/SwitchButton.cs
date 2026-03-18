@@ -67,6 +67,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
         {
             base.LoadComplete();
 
+            colourProvider.ColoursChanged += updateState;
             Current.BindDisabledChanged(_ => updateState());
             Current.BindValueChanged(_ => updateState(), true);
 
@@ -126,6 +127,14 @@ namespace osu.Game.Graphics.UserInterfaceV2
                 content.ResizeWidthTo(1f, 200, Easing.OutElasticQuarter);
             else
                 content.ResizeWidthTo(0.75f, 120, Easing.OutExpo);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= updateState;
+
+            base.Dispose(isDisposing);
         }
     }
 }

@@ -26,6 +26,8 @@ namespace osu.Game.Graphics.UserInterface
 
         private readonly Box fill;
         private readonly Container main;
+        private OverlayColourProvider? colourProvider;
+        private OsuColour? colours;
 
         public Nub(float expandedSize = DEFAULT_EXPANDED_SIZE)
         {
@@ -57,9 +59,9 @@ namespace osu.Game.Graphics.UserInterface
         [BackgroundDependencyLoader(true)]
         private void load(OverlayColourProvider? colourProvider, OsuColour colours)
         {
-            AccentColour = colourProvider?.Highlight1 ?? colours.Pink;
-            GlowingAccentColour = colourProvider?.Highlight1.Lighten(0.2f) ?? colours.PinkLighter;
-            GlowColour = colourProvider?.Highlight1 ?? colours.PinkLighter;
+            this.colourProvider = colourProvider;
+            this.colours = colours;
+            updateColours();
 
             main.EdgeEffect = new EdgeEffectParameters
             {
@@ -74,7 +76,28 @@ namespace osu.Game.Graphics.UserInterface
         {
             base.LoadComplete();
 
+            if (colourProvider != null)
+                colourProvider.ColoursChanged += updateColours;
+
             Current.BindValueChanged(onCurrentValueChanged, true);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && colourProvider != null)
+                colourProvider.ColoursChanged -= updateColours;
+
+            base.Dispose(isDisposing);
+        }
+
+        private void updateColours()
+        {
+            var provider = colourProvider;
+            var osuColours = colours;
+
+            AccentColour = provider?.Highlight1 ?? osuColours?.Pink ?? Color4.White;
+            GlowingAccentColour = provider?.Highlight1.Lighten(0.2f) ?? osuColours?.PinkLighter ?? Color4.White;
+            GlowColour = provider?.Highlight1 ?? osuColours?.PinkLighter ?? Color4.White;
         }
 
         private bool glowing;
