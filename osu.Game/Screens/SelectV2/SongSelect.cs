@@ -169,6 +169,7 @@ namespace osu.Game.Screens.SelectV2
 
         private Bindable<bool> configBackgroundBlur = null!;
         private Bindable<bool> showConvertedBeatmaps = null!;
+        private Bindable<bool> useStableStyleResultsScreen = null!;
         private IDisposable? customUiHueBinding;
 
         private IDisposable? modSelectOverlayRegistration;
@@ -329,6 +330,7 @@ namespace osu.Game.Screens.SelectV2
             });
 
             showConvertedBeatmaps = config.GetBindable<bool>(OsuSetting.ShowConvertedBeatmaps);
+            useStableStyleResultsScreen = config.GetBindable<bool>(OsuSetting.UseStableStyleResultsScreen);
         }
 
         // Colour scheme for mod overlay is left as default (green) to match mods button.
@@ -1168,7 +1170,7 @@ namespace osu.Game.Screens.SelectV2
             Debug.Assert(Beatmap.Value.BeatmapInfo.Equals(score.BeatmapInfo));
             Debug.Assert(Ruleset.Value.Equals(score.Ruleset));
 
-            this.Push(new SoloResultsScreen(score));
+            this.Push(useStableStyleResultsScreen.Value ? new StableStyleSoloResultsScreen(score) : new SoloResultsScreen(score));
         }
 
         #endregion

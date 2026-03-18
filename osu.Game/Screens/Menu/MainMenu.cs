@@ -39,7 +39,8 @@ using osu.Game.Screens.Edit;
 using osu.Game.Screens.OnlinePlay.DailyChallenge;
 using osu.Game.Screens.OnlinePlay.Multiplayer;
 using osu.Game.Screens.OnlinePlay.Playlists;
-using osu.Game.Screens.SelectV2;
+using StableSoloSongSelect = osu.Game.Screens.Select.StableStyleSoloSongSelect;
+using SoloSongSelectV2 = osu.Game.Screens.SelectV2.SoloSongSelect;
 using osu.Game.Seasonal;
 using osuTK;
 using osuTK.Graphics;
@@ -96,6 +97,7 @@ namespace osu.Game.Screens.Menu
         private Bindable<double> holdDelay;
         private Bindable<bool> loginDisplayed;
         private Bindable<bool> showMobileDisclaimer;
+        private Bindable<bool> useStableStyleSongSelect;
 
         private HoldToExitGameOverlay holdToExitGameOverlay;
 
@@ -124,6 +126,7 @@ namespace osu.Game.Screens.Menu
             holdDelay = config.GetBindable<double>(OsuSetting.UIHoldActivationDelay);
             loginDisplayed = statics.GetBindable<bool>(Static.LoginOverlayDisplayed);
             showMobileDisclaimer = config.GetBindable<bool>(OsuSetting.ShowMobileDisclaimer);
+            useStableStyleSongSelect = config.GetBindable<bool>(OsuSetting.UseStableStyleSongSelect);
 
             if (host.CanExit)
             {
@@ -480,7 +483,7 @@ namespace osu.Game.Screens.Menu
         {
         }
 
-        private void loadSongSelect() => this.Push(new SoloSongSelect());
+        private void loadSongSelect() => this.Push(useStableStyleSongSelect.Value ? new StableSoloSongSelect() : new SoloSongSelectV2());
 
         private void joinOrLeaveMatchmakingQueue() => this.Push(new OnlinePlay.Matchmaking.Intro.ScreenIntro());
 

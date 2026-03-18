@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Logging;
 using osu.Framework.Screens;
@@ -53,6 +54,8 @@ namespace osu.Game.Screens.Play
         [CanBeNull]
         private UserStatisticsWatcher userStatisticsWatcher { get; set; }
 
+        private IBindable<bool> useStableStyleResultsScreen = null!;
+
         private readonly object scoreSubmissionLock = new object();
         private TaskCompletionSource<bool> scoreSubmissionSource;
 
@@ -62,8 +65,10 @@ namespace osu.Game.Screens.Play
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            useStableStyleResultsScreen = config.GetBindable<bool>(OsuSetting.UseStableStyleResultsScreen);
+
             if (DrawableRuleset == null)
             {
                 // base load must have failed (e.g. due to an unknown mod); bail.
@@ -383,10 +388,22 @@ namespace osu.Game.Screens.Play
             return scoreSubmissionSource.Task;
         }
 
-        protected override ResultsScreen CreateResults(ScoreInfo score) => new SoloResultsScreen(score)
+        protected override ResultsScreen CreateResults(ScoreInfo score)
         {
-            AllowRetry = true,
-            IsLocalPlay = true,
-        };
+            if (useStableStyleResultsScreen.Value)
+            {
+                return new StableStyleSoloResultsScreen(score)
+                {
+                    AllowRetry = true,
+                    IsLocalPlay = true,
+                };
+            }
+
+            return new SoloResultsScreen(score)
+            {
+                AllowRetry = true,
+                IsLocalPlay = true,
+            };
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -43,6 +44,7 @@ namespace osu.Game.Screens.Play
 
         private ReplayFailIndicator? failIndicator;
         private PlaybackSettings? playbackSettings;
+        private IBindable<bool> useStableStyleResultsScreen = null!;
 
         protected override bool CheckModsAllowFailure()
         {
@@ -82,6 +84,8 @@ namespace osu.Game.Screens.Play
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
+            useStableStyleResultsScreen = config.GetBindable<bool>(OsuSetting.UseStableStyleResultsScreen);
+
             if (!LoadedBeatmapSuccessfully)
                 return;
 
@@ -107,7 +111,7 @@ namespace osu.Game.Screens.Play
                             return;
 
                         ValidForResume = false;
-                        this.Push(new SoloResultsScreen(Score.ScoreInfo));
+                        this.Push(useStableStyleResultsScreen.Value ? new StableStyleSoloResultsScreen(Score.ScoreInfo) : new SoloResultsScreen(Score.ScoreInfo));
                     }
                 }
             });
@@ -124,12 +128,25 @@ namespace osu.Game.Screens.Play
         // Don't re-import replay scores as they're already present in the database.
         protected override Task ImportScore(Score score) => Task.CompletedTask;
 
-        protected override ResultsScreen CreateResults(ScoreInfo score) => new SoloResultsScreen(score)
+        protected override ResultsScreen CreateResults(ScoreInfo score)
         {
-            // Only show the relevant button otherwise things look silly.
-            AllowWatchingReplay = !isAutoplayPlayback,
-            AllowRetry = isAutoplayPlayback,
-        };
+            if (useStableStyleResultsScreen.Value)
+            {
+                return new StableStyleSoloResultsScreen(score)
+                {
+                    // Only show the relevant button otherwise things look silly.
+                    AllowWatchingReplay = !isAutoplayPlayback,
+                    AllowRetry = isAutoplayPlayback,
+                };
+            }
+
+            return new SoloResultsScreen(score)
+            {
+                // Only show the relevant button otherwise things look silly.
+                AllowWatchingReplay = !isAutoplayPlayback,
+                AllowRetry = isAutoplayPlayback,
+            };
+        }
 
         public bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
         {
