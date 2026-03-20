@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   sentry_release:
+    if: github.repository_owner == 'ppy' && secrets.SENTRY_AUTH_TOKEN != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -19,6 +19,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Checkout osu-framework dependency
+      uses: actions/checkout@v4
+      with:
+        repository: shigetiro/osu-framework
+        fetch-depth: 1
+        path: osu-framework
+
+    - name: Checkout osu-resources dependency
+      uses: actions/checkout@v4
+      with:
+        repository: shigetiro/osu-resources
+        fetch-depth: 1
+        path: osu-resources
+
+    - name: Place dependencies in expected sibling paths
+      shell: bash
+      run: |
+        rm -rf ../osu-framework ../osu-resources
+        mv osu-framework ../osu-framework
+        mv osu-resources ../osu-resources
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
@@ -38,10 +59,10 @@ jobs:
 
     - name: Restore dependencies
       timeout-minutes: 15
-      run: dotnet restore osu.Desktop.slnf --verbosity normal --configfile nuget.config --no-cache
+      run: dotnet restore osu.Desktop/osu.Desktop.csproj --verbosity normal --configfile nuget.config --no-cache
 
     - name: Build project
-      run: dotnet build osu.Desktop.slnf -c Release --no-restore
+      run: dotnet build osu.Desktop/osu.Desktop.csproj -c Release --no-restore
 
     - name: Run tests (if any)
       run: dotnet test osu.Game.Tests/ --no-restore --verbosity normal

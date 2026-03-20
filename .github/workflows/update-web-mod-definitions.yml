@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   update-mod-definitions:
+    if: github.repository_owner == 'ppy' && secrets.OSU_WEB_PULL_REQUEST_PAT != ''
     name: Update osu-web mod definitions
     runs-on: ubuntu-latest
     steps:
