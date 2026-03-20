@@ -1,19 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
-    <id>osu-lazer-gu</id>
+    <id>osu-torii</id>
     <version>0.0.0</version>
     <title>osu! Torii</title>
-    <authors>ppy Pty Ltd, GooGu Team</authors>
-    <owners>GooGu Team</owners>
-    <projectUrl>https://github.com/shigetiro/osu/</projectUrl>
+    <authors>ppy Pty Ltd, Shigetiro, Torii Team</authors>
+    <owners>Torii Team</owners>
+    <projectUrl>https://github.com/ShikkesoraSIM/torii-osu</projectUrl>
     <iconUrl>https://github.com/shigetiro/osu/blob/master/assets/lazer-nuget.png?raw=true</iconUrl>
     <icon>icon.png</icon>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="file">LICENSE</license>
     <description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</description>
     <releaseNotes>Torii version with modifications</releaseNotes>
-    <copyright>Copyright (c) 2025 GooGu Team. Based on osu! (c) ppy Pty Ltd, licensed under MIT.</copyright>
+    <copyright>Copyright (c) 2026 Torii Team. Based on osu! (c) ppy Pty Ltd, with additional work from Shigetiro and GooGuTeam.</copyright>
     <language>en-AU</language>
   </metadata>
   <files>

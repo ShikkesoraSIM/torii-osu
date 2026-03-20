@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</Description>
-    <AssemblyName>osu-gu</AssemblyName>
+    <AssemblyName>osu-torii</AssemblyName>
     <AssemblyTitle>osu!(torii)</AssemblyTitle>
     <Title>osu! Torii</Title>
     <Product>osu!(torii)</Product>
@@ -42,11 +42,11 @@
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <CFBundleName>osu! Torii</CFBundleName>
     <CFBundleDisplayName>osu! Torii</CFBundleDisplayName>
-    <CFBundleIdentifier>sh.ppy.osulazer.gu</CFBundleIdentifier>
+    <CFBundleIdentifier>com.shikkesora.torii</CFBundleIdentifier>
     <CFBundleVersion>0.0.0</CFBundleVersion>
     <CFBundlePackageType>APPL</CFBundlePackageType>
     <CFBundleSignature>????</CFBundleSignature>
-    <CFBundleExecutable>osu-gu</CFBundleExecutable>
+    <CFBundleExecutable>osu-torii</CFBundleExecutable>
     <CFBundleIconFile>lazer.icns</CFBundleIconFile>
     <NSPrincipalClass>NSApplication</NSPrincipalClass>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>

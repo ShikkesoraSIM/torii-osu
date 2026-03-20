@@ -52,7 +52,7 @@ jobs:
             echo "semver=$SEMVER" >> $GITHUB_OUTPUT
             echo "assemblyVersion=$NUMERIC" >> $GITHUB_OUTPUT
             echo "fileVersion=$NUMERIC" >> $GITHUB_OUTPUT
-            # 计算 Android VersionCode - 从版本号中提取数字部分
+            # Compute Android VersionCode from numeric version components.
             VERSION_NUMBERS=$(echo "$SEMVER" | sed 's/-.*$//' | tr -d '.')
             ANDROID_VERSION_CODE="$VERSION_NUMBERS"
             echo "androidVersionCode=$ANDROID_VERSION_CODE" >> $GITHUB_OUTPUT
@@ -88,8 +88,8 @@ jobs:
         echo "assemblyVersion=$NUMERIC" >> $GITHUB_OUTPUT
         echo "fileVersion=$NUMERIC" >> $GITHUB_OUTPUT
         
-        # 计算 Android VersionCode (必须是整数)
-        # 从版本号中提取数字部分，例如: v2025.815.5-lazer -> 2025.815.5 -> 20258155
+        # Compute Android VersionCode (must be an integer).
+        # e.g. v2025.815.5-lazer -> 2025.815.5 -> 20258155
         VERSION_NUMBERS=$(echo "$SEMVER" | sed 's/-.*$//' | tr -d '.')
         ANDROID_VERSION_CODE="$VERSION_NUMBERS"
         echo "androidVersionCode=$ANDROID_VERSION_CODE" >> $GITHUB_OUTPUT
@@ -111,31 +111,31 @@ jobs:
         include:
           - os: windows-latest
             runtime: win-x64
-            artifact-name: osu-gu-windows
-            executable: osu-gu.exe
+            artifact-name: osu-torii-windows
+            executable: osu-torii.exe
           - os: windows-latest
             runtime: win-arm64
-            artifact-name: osu-gu-windows-arm64
-            executable: osu-gu.exe
+            artifact-name: osu-torii-windows-arm64
+            executable: osu-torii.exe
           - os: ubuntu-latest
             runtime: linux-x64
-            artifact-name: osu-gu-linux
-            executable: osu-gu
+            artifact-name: osu-torii-linux
+            executable: osu-torii
           - os: ubuntu-latest
             runtime: linux-arm64
-            artifact-name: osu-gu-linux-arm64
-            executable: osu-gu
+            artifact-name: osu-torii-linux-arm64
+            executable: osu-torii
           - os: ubuntu-latest
             runtime: osx-x64
-            artifact-name: osu-gu-macos-intel
-            executable: osu-gu
+            artifact-name: osu-torii-macos-intel
+            executable: osu-torii
           - os: ubuntu-latest
             runtime: osx-arm64
-            artifact-name: osu-gu-macos-apple-silicon
-            executable: osu-gu
+            artifact-name: osu-torii-macos-apple-silicon
+            executable: osu-torii
           - os: ubuntu-latest
             runtime: android
-            artifact-name: osu-gu-android
+            artifact-name: osu-torii-android
             executable: osu.Android-Signed.apk
 
     steps:
@@ -316,25 +316,25 @@ jobs:
         ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       run: |
         echo "Setting up Android keystore for signing..."
-        # 从 Secrets 中获取 base64 编码的 keystore
+        # Use the base64-encoded keystore from secrets when available.
         if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
           echo "Using keystore from GitHub Secrets"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > osu.keystore
           
-          # 验证解码后的keystore文件
+          # Verify decoded keystore file.
           if [[ ! -f "osu.keystore" ]] || [[ ! -s "osu.keystore" ]]; then
             echo "ERROR: Failed to decode keystore from base64"
             exit 1
           fi
           
-          # 验证keystore密码和别名
+          # Verify keystore credentials.
           if [[ -z "$ANDROID_KEYSTORE_PASSWORD" ]] || [[ -z "$ANDROID_KEY_ALIAS" ]] || [[ -z "$ANDROID_KEY_PASSWORD" ]]; then
             echo "ERROR: Android signing secrets are incomplete!"
             echo "Required secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD"
             exit 1
           fi
           
-          # 测试keystore是否可以访问
+          # Validate keystore access.
           echo "Verifying keystore integrity..."
           keytool -list -keystore osu.keystore -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" || {
             echo "ERROR: Cannot access keystore with provided credentials"
@@ -352,7 +352,7 @@ jobs:
             -alias osu \
             -storepass temp123 \
             -keypass temp123 \
-            -dname "CN=osu-gu-temp,OU=osu-gu,O=osu-gu,L=Unknown,S=Unknown,C=Unknown"
+            -dname "CN=osu-torii-temp,OU=osu-torii,O=osu-torii,L=Unknown,S=Unknown,C=Unknown"
           echo "WARNING: Using temporary keystore! Please configure ANDROID_KEYSTORE_BASE64 secret for production builds."
         fi
 
@@ -367,7 +367,7 @@ jobs:
         echo "Building for runtime: ${{ matrix.runtime }}"
         if [[ "${{ matrix.runtime }}" == "android" ]]; then
           # Build Android APK
-          # 设置签名参数，优先使用 Secrets 中的值，否则使用默认值
+          # Prefer signing values from secrets, fallback to temporary defaults.
           KEYSTORE_PASS="${ANDROID_KEYSTORE_PASSWORD:-temp123}"
           KEY_ALIAS="${ANDROID_KEY_ALIAS:-osu}"
           KEY_PASS="${ANDROID_KEY_PASSWORD:-temp123}"
@@ -377,7 +377,7 @@ jobs:
           echo "Keystore file exists: $(test -f osu.keystore && echo 'Yes' || echo 'No')"
           echo "Using key alias: $KEY_ALIAS"
           
-          # 确保keystore文件存在
+          # Ensure keystore exists before publish.
           if [[ ! -f "osu.keystore" ]]; then
             echo "ERROR: Keystore file not found!"
             exit 1
@@ -411,7 +411,7 @@ jobs:
           echo "Found APK: $APK_FILE"
           cp "$APK_FILE" "publish/${{ matrix.runtime }}/${{ matrix.executable }}"
           
-          # 验证APK是否已签名
+          # Optionally inspect resulting APK metadata.
           if command -v aapt2 &> /dev/null; then
             echo "Verifying APK signature..."
             aapt2 dump badging "publish/${{ matrix.runtime }}/${{ matrix.executable }}" | grep -E "application-label|package" || true
@@ -520,11 +520,11 @@ jobs:
           if [[ "${{ matrix.runtime }}" == "osx-arm64" ]]; then CHANNEL="osx-arm64"; fi
 
           vpk pack \
-            -u "osu-lazer-gu" \
+            -u "osu-torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
-            --packAuthors "osu! GooGuTeam" \
+            --packAuthors "Torii Team" \
             --packTitle "osu! Torii" \
             -i "$ICON_FILE" \
             -c "$CHANNEL"
@@ -532,11 +532,11 @@ jobs:
           CHANNEL="win"
           if [[ "${{ matrix.runtime }}" == "win-arm64" ]]; then CHANNEL="win-arm64"; fi
           vpk pack \
-            -u "osu-lazer-gu" \
+            -u "osu-torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
-            --packAuthors "osu! GooGuTeam" \
+            --packAuthors "Torii Team" \
             --packTitle "osu! Torii" \
             -i "osu.Desktop/lazer.ico" \
             -c "$CHANNEL"
@@ -545,11 +545,11 @@ jobs:
           CHANNEL="linux"
           if [[ "${{ matrix.runtime }}" == "linux-arm64" ]]; then CHANNEL="linux-arm64"; fi
           vpk pack \
-            -u "osu-lazer-gu" \
+            -u "osu-torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
-            --packAuthors "osu! GooGuTeam" \
+            --packAuthors "Torii Team" \
             --packTitle "osu! Torii" \
             -i "osu.Desktop/lazer.ico" \
             -c "$CHANNEL"
@@ -592,13 +592,13 @@ jobs:
         fi
         # Linux AppImage rename if present
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]] && [[ "${{ matrix.runtime }}" == linux-* ]]; then
-          for f in Releases/*.AppImage; do mv -f "$f" "Releases/osu-${{ matrix.runtime }}.AppImage"; done
+          for f in Releases/*.AppImage; do mv -f "$f" "Releases/osu-torii-${{ matrix.runtime }}.AppImage"; done
         fi
         # Android APK rename
         if [[ "${{ matrix.runtime }}" == "android" ]]; then
           mkdir -p Releases
           if [ -f "publish/${{ matrix.runtime }}/${{ matrix.executable }}" ]; then
-            cp "publish/${{ matrix.runtime }}/${{ matrix.executable }}" "Releases/osu-gu.apk"
+            cp "publish/${{ matrix.runtime }}/${{ matrix.executable }}" "Releases/osu-torii.apk"
           fi
         fi
 
@@ -751,60 +751,32 @@ jobs:
         body: |
           ## osu! Torii ${{ needs.version.outputs.version }}
 
-          基于官方 osu!(lazer) 的自定义版本。
+          Custom osu!(lazer) build for the Torii ecosystem.
 
-          ### 下载
+          ### Downloads
+          - **Windows (x64) Installer:** `install-win-x64.exe`
+          - **Windows (ARM64) Installer:** `install-win-arm64.exe`
+          - **Windows Portable (x64):** `portable-win-x64.zip`
+          - **Windows Portable (ARM64):** `portable-win-arm64.zip`
+          - **Linux (x64) AppImage:** `osu-torii-linux-x64.AppImage`
+          - **Linux (ARM64) AppImage:** `osu-torii-linux-arm64.AppImage`
+          - **Linux Portable (x64):** `portable-linux-x64.tar.gz`
+          - **Linux Portable (ARM64):** `portable-linux-arm64.tar.gz`
+          - **macOS (Intel):** `osu.app.Intel.zip`
+          - **macOS (Apple Silicon):** `osu.app.Apple.Silicon.zip`
+          - **macOS Portable (Intel):** `portable-osx-x64.zip`
+          - **macOS Portable (Apple Silicon):** `portable-osx-arm64.zip`
+          - **Android APK:** `osu-torii.apk`
 
-          - **Windows (x64)**: 下载 `osu-gu-windows` 安装程序
-          - **Windows (ARM64)**: 下载 `osu-gu-windows-arm64` 安装程序
-          - **Windows Portable (x64)**: 下载 `portable-win-x64.zip`
-          - **Windows Portable (ARM64)**: 下载 `portable-win-arm64.zip`
-          - **Linux (x64)**: 下载 `osu-gu-linux` 安装包
-          - **Linux (ARM64)**: 下载 `osu-gu-linux-arm64` 安装包
-          - **Linux Portable (x64)**: 下载 `portable-linux-x64.tar.gz`
-          - **Linux Portable (ARM64)**: 下载 `portable-linux-arm64.tar.gz`
-          - **macOS (Intel)**: 下载 `osu-gu-macos-intel` 安装包
-          - **macOS (Apple Silicon)**: 下载 `osu-gu-macos-apple-silicon` 安装包
-          - **macOS Portable (Intel)**: 下载 `portable-osx-x64.zip`
-          - **macOS Portable (Apple Silicon)**: 下载 `portable-osx-arm64.zip`
-          - **Android**: ⚠️ 请访问 [https://lazer.g0v0.top/how-to-join](https://lazer.g0v0.top/how-to-join) 下载可用版本（此处的APK文件因签名问题无法安装）
+          ### Installation Notes
+          1. Download the installer or portable archive for your platform.
+          2. Desktop builds use an isolated data directory (`osu-torii`) to avoid conflicts with official osu!(lazer).
+          3. The `osu://` protocol remains unchanged.
+          4. First launch may take longer due to initial setup.
 
-          ### 安装说明
-
-          **桌面版 (Windows/Linux/macOS)**:
-          1. 下载对应平台的安装程序
-          2. 运行安装程序并按提示安装
-          3. 该版本使用独立数据目录 (`osu-gu`)，不会与官方版本冲突
-          4. 保持使用官方 `osu://` 协议
-
-          **Android 版**:
-          > ⚠️ **重要提示**: 由于签名原因，此处发布的 Android APK 文件无法正常安装。
-          > 
-          > **请访问 [https://lazer.g0v0.top/how-to-join](https://lazer.g0v0.top/how-to-join) 下载可用的 Android 版本。**
-          
-          1. ~~下载 `osu-gu.apk` 文件~~ (此版本无法安装)
-          2. 前往 [https://lazer.g0v0.top/how-to-join](https://lazer.g0v0.top/how-to-join) 获取可用版本
-          3. 在设备上启用"未知来源"安装权限
-          4. 安装从指定页面下载的 APK 文件
-          5. 首次启动可能需要授予存储权限
-
-          ### 平台特殊说明
-
-          **macOS 用户**:
-          - Intel Mac 请下载 `osu-gu-macos-intel`
-          - Apple Silicon Mac (M1/M2/M3) 请下载 `osu-gu-macos-apple-silicon`
-          - 首次运行可能需要在系统偏好设置中允许来自未知开发者的应用
-
-          **Android 用户**:
-          - 需要 Android 5.0 (API 21) 或更高版本
-          - 建议至少 2GB RAM 和 4GB 可用存储空间
-          - 支持 ARM 和 x86 架构
-
-          ### 注意事项
-
-          - 桌面版需要 .NET 8.0 运行时（安装程序会自动检查）
-          - 首次运行可能需要较长时间进行初始化
-
+          ### Platform Notes
+          - **macOS:** If needed, allow the app in System Settings because it is not notarized.
+          - **Android:** If your device rejects the APK due to signature policy, use your server distribution page as fallback.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -816,8 +788,8 @@ jobs:
     - name: Notify build result
       run: |
         if [[ "${{ needs.build.result }}" == "success" ]]; then
-          echo "✅ 构建成功"
+          echo "Build succeeded."
         else
-          echo "❌ 构建失败"
+          echo "Build failed."
           exit 1
         fi
