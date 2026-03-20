@@ -125,11 +125,11 @@ jobs:
             runtime: linux-arm64
             artifact-name: osu-gu-linux-arm64
             executable: osu-gu
-          - os: macos-14
+          - os: ubuntu-latest
             runtime: osx-x64
             artifact-name: osu-gu-macos-intel
             executable: osu-gu
-          - os: macos-14
+          - os: ubuntu-latest
             runtime: osx-arm64
             artifact-name: osu-gu-macos-apple-silicon
             executable: osu-gu
@@ -495,7 +495,7 @@ jobs:
       if: matrix.runtime != 'android'
       shell: bash
       run: |
-        if [[ "${{ matrix.os }}" == macos* ]]; then
+        if [[ "${{ matrix.runtime }}" == osx-* ]]; then
           # Use icns if available, fallback to ico
           ICON_FILE="osu.Desktop/lazer.ico"
           if [ -f "osu.Desktop/lazer.icns" ] && [ -s "osu.Desktop/lazer.icns" ]; then
@@ -517,7 +517,7 @@ jobs:
             --packTitle "osu! Torii" \
             -i "$ICON_FILE" \
             -c "$CHANNEL"
-        elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+        elif [[ "${{ matrix.runtime }}" == win-* ]]; then
           CHANNEL="win"
           if [[ "${{ matrix.runtime }}" == "win-arm64" ]]; then CHANNEL="win-arm64"; fi
           vpk pack \
@@ -549,13 +549,13 @@ jobs:
       run: |
         shopt -s nullglob
         # Windows installer rename to install.exe if present
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+        if [[ "${{ matrix.runtime }}" == win-* ]]; then
           if [ -f "Releases/Setup.exe" ]; then
             mv -f "Releases/Setup.exe" "Releases/install-${{ matrix.runtime }}.exe"
           fi
         fi
         # macOS zip rename if present
-        if [[ "${{ matrix.os }}" == macos* ]]; then
+        if [[ "${{ matrix.runtime }}" == osx-* ]]; then
           if [[ "${{ matrix.runtime }}" == "osx-x64" ]]; then
             for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/osu.app.Intel.zip; done
             # Ensure nupkg channel naming uses osx-x64-full.nupkg
