@@ -6,14 +6,13 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
-using osu.Framework.Localisation;
 using osu.Game.Graphics.Sprites;
 
 namespace osu.Game.Graphics.UserInterfaceV2.FileSelection
 {
     internal partial class OsuDirectorySelectorDirectory : DirectorySelectorDirectory
     {
-        public OsuDirectorySelectorDirectory(DirectoryInfo directory, LocalisableString? displayName = null)
+        public OsuDirectorySelectorDirectory(DirectoryInfo directory, string? displayName = null)
             : base(directory, displayName)
         {
         }
