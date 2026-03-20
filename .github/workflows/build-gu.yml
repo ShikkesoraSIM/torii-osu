@@ -116,27 +116,27 @@ jobs:
           - os: windows-latest
             runtime: win-x64
             artifact-name: osu-gu-windows
-            executable: osu-gu!.exe
+            executable: osu-gu.exe
           - os: windows-latest
             runtime: win-arm64
             artifact-name: osu-gu-windows-arm64
-            executable: osu-gu!.exe
+            executable: osu-gu.exe
           - os: ubuntu-latest
             runtime: linux-x64
             artifact-name: osu-gu-linux
-            executable: osu-gu!
+            executable: osu-gu
           - os: ubuntu-latest
             runtime: linux-arm64
             artifact-name: osu-gu-linux-arm64
-            executable: osu-gu!
+            executable: osu-gu
           - os: macos-13
             runtime: osx-x64
             artifact-name: osu-gu-macos-intel
-            executable: osu-gu!
+            executable: osu-gu
           - os: macos-14
             runtime: osx-arm64
             artifact-name: osu-gu-macos-apple-silicon
-            executable: osu-gu!
+            executable: osu-gu
           - os: ubuntu-latest
             runtime: android
             artifact-name: osu-gu-android
@@ -219,7 +219,7 @@ jobs:
       run: dotnet tool install -g vpk
 
     - name: Create macOS icon (macOS only)
-      if: matrix.os == 'macos-latest'
+      if: startsWith(matrix.os, 'macos-')
       continue-on-error: true
       shell: bash
       run: |
@@ -447,7 +447,7 @@ jobs:
         fi
 
     - name: Set executable permissions (Linux/macOS)
-      if: (matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest') && matrix.runtime != 'android'
+      if: (matrix.os == 'ubuntu-latest' || startsWith(matrix.os, 'macos-')) && matrix.runtime != 'android'
       shell: bash
       run: chmod +x "publish/${{ matrix.runtime }}/${{ matrix.executable }}"
 
@@ -455,7 +455,7 @@ jobs:
       if: matrix.runtime != 'android'
       shell: bash
       run: |
-        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+        if [[ "${{ matrix.os }}" == macos* ]]; then
           # Use icns if available, fallback to ico
           ICON_FILE="osu.Desktop/lazer.ico"
           if [ -f "osu.Desktop/lazer.icns" ] && [ -s "osu.Desktop/lazer.icns" ]; then
@@ -515,7 +515,7 @@ jobs:
           fi
         fi
         # macOS zip rename if present
-        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+        if [[ "${{ matrix.os }}" == macos* ]]; then
           if [[ "${{ matrix.runtime }}" == "osx-x64" ]]; then
             for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/osu.app.Intel.zip; done
             # Ensure nupkg channel naming uses osx-x64-full.nupkg

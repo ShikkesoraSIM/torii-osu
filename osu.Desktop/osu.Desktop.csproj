@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</Description>
-    <AssemblyName>osu-gu!</AssemblyName>
+    <AssemblyName>osu-gu</AssemblyName>
     <AssemblyTitle>osu!(torii)</AssemblyTitle>
     <Title>osu! Torii</Title>
     <Product>osu!(torii)</Product>
@@ -34,7 +34,7 @@
   <ItemGroup Label="Resources">
     <EmbeddedResource Include="lazer.ico" />
   </ItemGroup>
-  <ItemGroup Label="Windows Icons">
+  <ItemGroup Label="Windows Icons" Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
     <Content Include="*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -46,7 +46,7 @@
     <CFBundleVersion>0.0.0</CFBundleVersion>
     <CFBundlePackageType>APPL</CFBundlePackageType>
     <CFBundleSignature>????</CFBundleSignature>
-    <CFBundleExecutable>osu-gu!</CFBundleExecutable>
+    <CFBundleExecutable>osu-gu</CFBundleExecutable>
     <CFBundleIconFile>lazer.icns</CFBundleIconFile>
     <NSPrincipalClass>NSApplication</NSPrincipalClass>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
