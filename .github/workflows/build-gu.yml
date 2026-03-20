@@ -155,7 +155,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: shigetiro/osu-framework
-        ref: 7f72b7b3370ecc47c0a92655f28d973d1ea04267
         fetch-depth: 1
         path: osu-framework
 
@@ -163,7 +162,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: shigetiro/osu-resources
-        ref: 6dd74908dbe7646dab1beba9ed6d3a67767a5174
         fetch-depth: 1
         path: osu-resources
 
