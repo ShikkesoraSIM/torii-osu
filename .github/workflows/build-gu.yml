@@ -443,10 +443,35 @@ jobs:
 
         if [[ ! -f "$PUBLISH_DIR/$EXPECTED" ]]; then
           echo "Expected executable missing: $PUBLISH_DIR/$EXPECTED"
+          CANDIDATE=""
+
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            CANDIDATE=$(find "$PUBLISH_DIR" -maxdepth 1 -type f -name "*.exe" | head -n1)
+            for f in "$PUBLISH_DIR"/*.exe; do
+              if [[ -f "$f" ]]; then
+                CANDIDATE="$f"
+                break
+              fi
+            done
           else
-            CANDIDATE=$(find "$PUBLISH_DIR" -maxdepth 1 -type f -name "osu*" ! -name "*.dll" ! -name "*.deps.json" ! -name "*.runtimeconfig.json" | head -n1)
+            for f in "$PUBLISH_DIR"/*; do
+              [[ -f "$f" ]] || continue
+              name=$(basename "$f")
+              [[ "$name" == osu* ]] || continue
+              [[ "$name" == *.dll ]] && continue
+              [[ "$name" == *.deps.json ]] && continue
+              [[ "$name" == *.runtimeconfig.json ]] && continue
+              CANDIDATE="$f"
+              break
+            done
+
+            if [[ -z "$CANDIDATE" ]]; then
+              for f in "$PUBLISH_DIR"/*; do
+                if [[ -f "$f" ]]; then
+                  CANDIDATE="$f"
+                  break
+                fi
+              done
+            fi
           fi
 
           if [[ -n "$CANDIDATE" ]]; then
