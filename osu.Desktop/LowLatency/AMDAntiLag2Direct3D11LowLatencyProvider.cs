@@ -22,6 +22,7 @@ namespace osu.Desktop.LowLatency
         private IntPtr _deviceHandle;
         private AntiLag2DX11Context _context;
         private bool _initialized;
+        private LatencyMode currentMode = LatencyMode.Off;
 
         /// <summary>
         /// Initialize the AMD Anti-Lag 2 low latency provider with a native device handle.
@@ -54,6 +55,7 @@ namespace osu.Desktop.LowLatency
                 {
                     IsAvailable = true;
                     _initialized = true;
+                    currentMode = LatencyMode.Off;
                     Logger.Log("AMD Anti-Lag 2 initialized successfully.");
                 }
                 else
@@ -79,10 +81,13 @@ namespace osu.Desktop.LowLatency
             if (!IsAvailable || !_initialized)
                 return;
 
+            if (currentMode == mode)
+                return;
+
             try
             {
+                currentMode = mode;
                 bool enable = mode != LatencyMode.Off;
-                bool boost = mode == LatencyMode.Boost;
 
                 // For AMD Anti-Lag 2, we use the Update function
                 // Call just before input polling (this will be handled by the framework)
@@ -90,8 +95,6 @@ namespace osu.Desktop.LowLatency
 
                 if (result != AntiLag2Result.ANTI_LAG_2_RESULT_OK)
                     throw new InvalidOperationException($"Failed to set AMD Anti-Lag 2 mode: {result}");
-
-                Logger.Log($"AMD Anti-Lag 2 mode set to: {mode}");
             }
             catch (Exception ex)
             {

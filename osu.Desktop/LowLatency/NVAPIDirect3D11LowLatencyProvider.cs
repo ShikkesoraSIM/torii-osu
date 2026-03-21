@@ -20,6 +20,7 @@ namespace osu.Desktop.LowLatency
         public bool IsAvailable { get; private set; }
 
         private IntPtr _deviceHandle;
+        private LatencyMode currentMode = LatencyMode.Off;
 
         /// <summary>
         /// Initialize the NVAPI low latency provider with a native device handle. Ensure NVAPI is available before calling this method.
@@ -30,6 +31,7 @@ namespace osu.Desktop.LowLatency
         {
             _deviceHandle = nativeDeviceHandle;
             IsAvailable = NVAPI.Available && _deviceHandle != IntPtr.Zero;
+            currentMode = LatencyMode.Off;
 
             if (!IsAvailable)
                 throw new InvalidOperationException("NVAPI is not available or the provided device handle is invalid.");
@@ -44,6 +46,12 @@ namespace osu.Desktop.LowLatency
         {
             if (!IsAvailable || _deviceHandle == IntPtr.Zero)
                 return;
+
+            // Avoid redundant native calls when the value did not change.
+            if (currentMode == mode)
+                return;
+
+            currentMode = mode;
 
             bool enable = mode != LatencyMode.Off;
             bool boost = mode == LatencyMode.Boost;
@@ -62,7 +70,7 @@ namespace osu.Desktop.LowLatency
         /// <exception cref="InvalidOperationException">Throws an exception if the attempt to set the marker was unsuccessful. Please ensure this exception is ignored.</exception>
         public void SetMarker(LatencyMarker marker, ulong frameId)
         {
-            if (!IsAvailable || _deviceHandle == IntPtr.Zero)
+            if (!IsAvailable || _deviceHandle == IntPtr.Zero || currentMode == LatencyMode.Off)
                 return;
 
             var status = NVAPI.SetLatencyMarkerHelper(_deviceHandle, (uint)marker, frameId);
@@ -77,7 +85,7 @@ namespace osu.Desktop.LowLatency
         /// <exception cref="InvalidOperationException">Throws an exception if the Sleep attempt was unsuccessful.</exception>
         public void FrameSleep()
         {
-            if (!IsAvailable || _deviceHandle == IntPtr.Zero)
+            if (!IsAvailable || _deviceHandle == IntPtr.Zero || currentMode == LatencyMode.Off)
                 return;
 
             var status = NVAPI.FrameSleepHelper(_deviceHandle);

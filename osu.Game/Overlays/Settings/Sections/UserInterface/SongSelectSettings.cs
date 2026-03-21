@@ -55,16 +55,6 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     Caption = GameplaySettingsStrings.BackgroundBlur,
                     Current = config.GetBindable<bool>(OsuSetting.SongSelectBackgroundBlur),
                 }),
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = @"Use stable-style song select (experimental)",
-                    Current = config.GetBindable<bool>(OsuSetting.UseStableStyleSongSelect),
-                }),
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = @"Use stable-style results screen (experimental)",
-                    Current = config.GetBindable<bool>(OsuSetting.UseStableStyleResultsScreen),
-                }),
             };
         }
     }

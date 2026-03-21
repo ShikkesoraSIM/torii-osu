@@ -68,8 +68,6 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToolbarClockDisplayMode, ToolbarClockDisplayMode.Full);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
-            SetDefault(OsuSetting.UseStableStyleSongSelect, false);
-            SetDefault(OsuSetting.UseStableStyleResultsScreen, false);
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
@@ -440,8 +438,6 @@ namespace osu.Game.Configuration
         BeatmapListingCardSize,
         ToolbarClockDisplayMode,
         SongSelectBackgroundBlur,
-        UseStableStyleSongSelect,
-        UseStableStyleResultsScreen,
         Version,
         ShowFirstRunSetup,
         ShowConvertedBeatmaps,

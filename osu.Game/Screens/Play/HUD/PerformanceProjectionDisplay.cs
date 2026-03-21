@@ -80,6 +80,8 @@ namespace osu.Game.Screens.Play.HUD
         private BeatmapDifficultyCache difficultyCache { get; set; } = null!;
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource();
+        private CancellationTokenSource projectionCalculationSource = new CancellationTokenSource();
+        private readonly object projectionCalculationLock = new object();
 
         private static readonly double[] projectionAccuracies = { 95, 97, 99, 100 };
 
@@ -193,13 +195,36 @@ namespace osu.Game.Screens.Play.HUD
             else
                 return;
 
+            CancellationTokenSource requestTokenSource;
+
+            lock (projectionCalculationLock)
+            {
+                projectionCalculationSource.Cancel();
+                projectionCalculationSource.Dispose();
+                projectionCalculationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationSource.Token);
+                requestTokenSource = projectionCalculationSource;
+            }
+
             Task.Run(async () =>
             {
-                var starDifficulty = await difficultyCache.GetDifficultyAsync(beatmapInfo, rulesetInfo, mods, cancellationSource.Token).ConfigureAwait(false);
-                var maxPP = starDifficulty?.PerformanceAttributes?.Total ?? 0;
+                try
+                {
+                    var starDifficulty = await difficultyCache.GetDifficultyAsync(beatmapInfo, rulesetInfo, mods, requestTokenSource.Token).ConfigureAwait(false);
+                    var maxPP = starDifficulty?.PerformanceAttributes?.Total ?? 0;
 
-                Schedule(() => updateUI(maxPP));
-            }, cancellationSource.Token);
+                    if (requestTokenSource.IsCancellationRequested)
+                        return;
+
+                    Schedule(() =>
+                    {
+                        if (!requestTokenSource.IsCancellationRequested)
+                            updateUI(maxPP);
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }, requestTokenSource.Token);
         }
 
         protected override void LoadComplete()
@@ -280,6 +305,11 @@ namespace osu.Game.Screens.Play.HUD
         protected override void Dispose(bool isDisposing)
         {
             cancellationSource.Cancel();
+            lock (projectionCalculationLock)
+            {
+                projectionCalculationSource.Cancel();
+                projectionCalculationSource.Dispose();
+            }
             base.Dispose(isDisposing);
         }
     }
