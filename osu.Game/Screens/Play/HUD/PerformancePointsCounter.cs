@@ -50,13 +50,21 @@ namespace osu.Game.Screens.Play.HUD
         private Mod[] clonedMods;
         private bool isManiaRuleset;
 
+        private readonly object maniaCalculationLock = new object();
         private ScheduledDelegate maniaPpRecalculationDebounce;
         private JudgementResult pendingManiaJudgement;
+        private ScoreInfo pendingManiaScoreInfo;
+        private DifficultyAttributes pendingManiaAttributes;
+        private int pendingManiaRequestId;
+        private int latestAppliedManiaRequestId;
+        private bool maniaCalculationRunning;
         private double lastPpRecalculationTime;
+        private int cachedTimedAttributeIndex;
+        private double lastTimedAttributeQueryTime = double.MinValue;
 
         // Sunny mania performance calculation is significantly heavier than other rulesets.
-        // Avoid calculating on every single judgement to prevent frame hitches.
-        private const double mania_pp_recalculation_interval_ms = 66;
+        // Avoid calculating on every single judgement and offload heavy work from update thread.
+        private const double mania_pp_recalculation_interval_ms = 200;
 
         [BackgroundDependencyLoader]
         private void load(BeatmapDifficultyCache difficultyCache)
@@ -74,6 +82,8 @@ namespace osu.Game.Screens.Play.HUD
                                .ContinueWith(task => Schedule(() =>
                                {
                                    timedAttributes = task.GetResultSafely();
+                                   cachedTimedAttributeIndex = 0;
+                                   lastTimedAttributeQueryTime = double.MinValue;
 
                                    IsValid = true;
 
@@ -114,15 +124,109 @@ namespace osu.Game.Screens.Play.HUD
                         maniaPpRecalculationDebounce = Scheduler.AddDelayed(() =>
                         {
                             if (pendingManiaJudgement != null)
-                                recalculateCurrentPp(pendingManiaJudgement);
+                                queueManiaRecalculation(pendingManiaJudgement);
                         }, mania_pp_recalculation_interval_ms);
                     }
 
                     return;
                 }
+
+                queueManiaRecalculation(judgement);
+                return;
             }
 
             recalculateCurrentPp(judgement);
+        }
+
+        private void queueManiaRecalculation(JudgementResult judgement)
+        {
+            var attrib = getAttributeAtTime(judgement);
+
+            if (gameplayState == null || attrib == null || scoreProcessor == null)
+            {
+                IsValid = false;
+                return;
+            }
+
+            var snapshot = new ScoreInfo(gameplayState.Score.ScoreInfo.BeatmapInfo, gameplayState.Score.ScoreInfo.Ruleset)
+            {
+                Mods = clonedMods
+            };
+
+            scoreProcessor.PopulateScore(snapshot);
+
+            lock (maniaCalculationLock)
+            {
+                pendingManiaScoreInfo = snapshot;
+                pendingManiaAttributes = attrib;
+                pendingManiaRequestId++;
+
+                if (maniaCalculationRunning)
+                    return;
+
+                maniaCalculationRunning = true;
+            }
+
+            Task.Run(runManiaRecalculationWorker);
+        }
+
+        private void runManiaRecalculationWorker()
+        {
+            try
+            {
+                while (!loadCancellationSource.IsCancellationRequested)
+                {
+                    ScoreInfo scoreSnapshot;
+                    DifficultyAttributes attrib;
+                    int requestId;
+
+                    lock (maniaCalculationLock)
+                    {
+                        if (pendingManiaScoreInfo == null || pendingManiaAttributes == null)
+                        {
+                            maniaCalculationRunning = false;
+                            return;
+                        }
+
+                        scoreSnapshot = pendingManiaScoreInfo;
+                        attrib = pendingManiaAttributes;
+                        requestId = pendingManiaRequestId;
+
+                        pendingManiaScoreInfo = null;
+                        pendingManiaAttributes = null;
+                    }
+
+                    int currentPp;
+
+                    try
+                    {
+                        currentPp = (int)Math.Round(performanceCalculator?.Calculate(scoreSnapshot, attrib).Total ?? 0, MidpointRounding.AwayFromZero);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    Schedule(() =>
+                    {
+                        if (loadCancellationSource.IsCancellationRequested || requestId < latestAppliedManiaRequestId)
+                            return;
+
+                        latestAppliedManiaRequestId = requestId;
+                        Current.Value = currentPp;
+                        lastPpRecalculationTime = Time.Current;
+                        IsValid = true;
+                    });
+                }
+
+                lock (maniaCalculationLock)
+                    maniaCalculationRunning = false;
+            }
+            catch
+            {
+                lock (maniaCalculationLock)
+                    maniaCalculationRunning = false;
+            }
         }
 
         private void recalculateCurrentPp(JudgementResult judgement)
@@ -147,11 +251,20 @@ namespace osu.Game.Screens.Play.HUD
             if (timedAttributes == null || timedAttributes.Count == 0)
                 return null;
 
-            int attribIndex = timedAttributes.BinarySearch(new TimedDifficultyAttributes(judgement.HitObject.GetEndTime(), null));
-            if (attribIndex < 0)
-                attribIndex = ~attribIndex - 1;
+            double hitObjectEndTime = judgement.HitObject.GetEndTime();
 
-            return timedAttributes[Math.Clamp(attribIndex, 0, timedAttributes.Count - 1)].Attributes;
+            if (hitObjectEndTime < lastTimedAttributeQueryTime)
+                cachedTimedAttributeIndex = 0;
+
+            lastTimedAttributeQueryTime = hitObjectEndTime;
+
+            while (cachedTimedAttributeIndex + 1 < timedAttributes.Count && timedAttributes[cachedTimedAttributeIndex + 1].Time <= hitObjectEndTime)
+                cachedTimedAttributeIndex++;
+
+            while (cachedTimedAttributeIndex > 0 && timedAttributes[cachedTimedAttributeIndex].Time > hitObjectEndTime)
+                cachedTimedAttributeIndex--;
+
+            return timedAttributes[cachedTimedAttributeIndex].Attributes;
         }
 
         protected override void Dispose(bool isDisposing)
@@ -166,6 +279,12 @@ namespace osu.Game.Screens.Play.HUD
 
             maniaPpRecalculationDebounce?.Cancel();
             loadCancellationSource?.Cancel();
+
+            lock (maniaCalculationLock)
+            {
+                pendingManiaScoreInfo = null;
+                pendingManiaAttributes = null;
+            }
         }
 
         // TODO: This class shouldn't exist, but requires breaking changes to allow DifficultyCalculator to receive an IBeatmap.
