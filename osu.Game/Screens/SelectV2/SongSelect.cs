@@ -1256,14 +1256,14 @@ namespace osu.Game.Screens.SelectV2
                 beatmaps.Restore(b);
         }
 
-        private GroupedBeatmap? beforeScopedSelection;
+        private BeatmapInfo? beforeScopedSelection;
 
         private readonly Bindable<BeatmapSetInfo?> scopedBeatmapSet = new Bindable<BeatmapSetInfo?>();
         public IBindable<BeatmapSetInfo?> ScopedBeatmapSet => scopedBeatmapSet;
 
         public void ScopeToBeatmapSet(BeatmapSetInfo beatmapSet)
         {
-            beforeScopedSelection = carousel.CurrentGroupedBeatmap;
+            beforeScopedSelection = carousel.CurrentGroupedBeatmap?.Beatmap;
 
             scopedBeatmapSet.Value = beatmapSet;
         }
@@ -1273,10 +1273,17 @@ namespace osu.Game.Screens.SelectV2
             if (scopedBeatmapSet.Value == null)
                 return;
 
-            if (beforeScopedSelection != null)
-                queueBeatmapSelection(beforeScopedSelection);
-
             scopedBeatmapSet.Value = null;
+
+            if (beforeScopedSelection != null)
+            {
+                // Resolve the beatmap back from realm to avoid stale references after a scoped filter lifecycle.
+                var refreshedSelection = realm.Run(r => r.Find<BeatmapInfo>(beforeScopedSelection.ID)?.Detach()) ?? beforeScopedSelection;
+
+                if (checkBeatmapValidForSelection(refreshedSelection))
+                    queueBeatmapSelection(new GroupedBeatmap(null, refreshedSelection));
+            }
+
             beforeScopedSelection = null;
         }
 

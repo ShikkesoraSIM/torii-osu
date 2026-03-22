@@ -13,6 +13,7 @@ using JetBrains.Annotations;
 using osu.Framework.Allocation;
 using osu.Framework.Audio.Track;
 using osu.Framework.Extensions;
+using osu.Framework.Threading;
 using osu.Framework.Graphics.Textures;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics.UserInterface;
@@ -47,6 +48,15 @@ namespace osu.Game.Screens.Play.HUD
         private ScoreInfo scoreInfo;
 
         private Mod[] clonedMods;
+        private bool isManiaRuleset;
+
+        private ScheduledDelegate maniaPpRecalculationDebounce;
+        private JudgementResult pendingManiaJudgement;
+        private double lastPpRecalculationTime;
+
+        // Sunny mania performance calculation is significantly heavier than other rulesets.
+        // Avoid calculating on every single judgement to prevent frame hitches.
+        private const double mania_pp_recalculation_interval_ms = 66;
 
         [BackgroundDependencyLoader]
         private void load(BeatmapDifficultyCache difficultyCache)
@@ -55,6 +65,7 @@ namespace osu.Game.Screens.Play.HUD
             {
                 performanceCalculator = gameplayState.Ruleset.CreatePerformanceCalculator();
                 clonedMods = gameplayState.Mods.Select(m => m.DeepClone()).ToArray();
+                isManiaRuleset = gameplayState.Ruleset.RulesetInfo.ShortName == RulesetInfo.MANIA_MODE_SHORTNAME;
 
                 scoreInfo = new ScoreInfo(gameplayState.Score.ScoreInfo.BeatmapInfo, gameplayState.Score.ScoreInfo.Ruleset) { Mods = clonedMods };
 
@@ -92,6 +103,30 @@ namespace osu.Game.Screens.Play.HUD
         {
             lastJudgement = judgement;
 
+            if (isManiaRuleset)
+            {
+                pendingManiaJudgement = judgement;
+
+                if (Time.Current - lastPpRecalculationTime < mania_pp_recalculation_interval_ms)
+                {
+                    if (maniaPpRecalculationDebounce?.State != ScheduledDelegate.RunState.Waiting)
+                    {
+                        maniaPpRecalculationDebounce = Scheduler.AddDelayed(() =>
+                        {
+                            if (pendingManiaJudgement != null)
+                                recalculateCurrentPp(pendingManiaJudgement);
+                        }, mania_pp_recalculation_interval_ms);
+                    }
+
+                    return;
+                }
+            }
+
+            recalculateCurrentPp(judgement);
+        }
+
+        private void recalculateCurrentPp(JudgementResult judgement)
+        {
             var attrib = getAttributeAtTime(judgement);
 
             if (gameplayState == null || attrib == null || scoreProcessor == null)
@@ -102,6 +137,7 @@ namespace osu.Game.Screens.Play.HUD
 
             scoreProcessor.PopulateScore(scoreInfo);
             Current.Value = (int)Math.Round(performanceCalculator?.Calculate(scoreInfo, attrib).Total ?? 0, MidpointRounding.AwayFromZero);
+            lastPpRecalculationTime = Time.Current;
             IsValid = true;
         }
 
@@ -128,6 +164,7 @@ namespace osu.Game.Screens.Play.HUD
                 scoreProcessor.JudgementReverted -= onJudgementChanged;
             }
 
+            maniaPpRecalculationDebounce?.Cancel();
             loadCancellationSource?.Cancel();
         }
 
