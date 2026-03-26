@@ -45,7 +45,7 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
             {
                 setPerformanceValue(score, score.PP.Value);
             }
-            else
+            else if (!isOnlineScore(score))
             {
                 Task.Run(async () =>
                 {
@@ -62,6 +62,8 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
                 }, cancellationToken ?? default);
             }
         }
+
+        private static bool isOnlineScore(ScoreInfo scoreInfo) => scoreInfo.OnlineID > 0 || scoreInfo.LegacyOnlineID > 0;
 
         private void setPerformanceValue(ScoreInfo scoreInfo, double? pp)
         {

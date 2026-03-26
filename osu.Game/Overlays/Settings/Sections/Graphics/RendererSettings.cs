@@ -14,7 +14,7 @@ using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Configuration;
-using osu.Game.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Overlays.Dialog;
 
@@ -26,7 +26,10 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
         private bool automaticRendererInUse;
 
-        private SettingsEnumDropdown<LatencyMode>? latencySetting;
+        private FormEnumDropdown<LatencyMode>? latencySetting;
+        private SettingsItemV2? latencySettingItem;
+        private readonly Bindable<SettingsNote.Data?> latencySettingNote = new Bindable<SettingsNote.Data?>();
+
         private LatencyProviderType currentProvider = LatencyProviderType.None;
 
         private enum LatencyProviderType
@@ -47,39 +50,46 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
             Children = new Drawable[]
             {
-                new RendererSettingsDropdown
+                new SettingsItemV2(new RendererSettingsDropdown
                 {
-                    LabelText = GraphicsSettingsStrings.Renderer,
+                    Caption = GraphicsSettingsStrings.Renderer,
                     Current = renderer,
                     Items = host.GetPreferredRenderersForCurrentPlatform().Order()
 #pragma warning disable CS0612 // Type or member is obsolete
                                 .Where(t => t != RendererType.Vulkan && t != RendererType.OpenGLLegacy),
 #pragma warning restore CS0612 // Type or member is obsolete
+                })
+                {
                     Keywords = new[] { @"compatibility", @"directx" },
                 },
-                new FrameSyncSettingsDropdown
+                new SettingsItemV2(new FrameSyncSettingsDropdown
                 {
-                    LabelText = GraphicsSettingsStrings.FrameLimiter,
-                    Current = config.GetBindable<FrameSync>(FrameworkSetting.FrameSync),
+                    Caption = GraphicsSettingsStrings.FrameLimiter,
+                    Current = frameSyncMode,
+                })
+                {
                     Keywords = new[] { @"fps" },
                 },
-                new SettingsEnumDropdown<ExecutionMode>
+                new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
                 {
-                    LabelText = GraphicsSettingsStrings.ThreadingMode,
+                    Caption = GraphicsSettingsStrings.ThreadingMode,
                     Current = config.GetBindable<ExecutionMode>(FrameworkSetting.ExecutionMode)
-                },
-                latencySetting = new SettingsEnumDropdown<LatencyMode>
+                }),
+                latencySettingItem = new SettingsItemV2(latencySetting = new FormEnumDropdown<LatencyMode>
                 {
-                    LabelText = "Low Latency Mode",
+                    Caption = "Low Latency Mode",
                     Current = reflexMode,
-                    Keywords = new[] { @"latency", @"low", @"input", @"lag" },
-                    TooltipText = "Reduces input-to-display latency using GPU vendor-specific technologies.\nRequires compatible NVIDIA or AMD GPU with recent drivers."
-                },
-                new SettingsCheckbox
+                    HintText = "Reduces input-to-display latency using GPU vendor-specific technologies.\nRequires compatible NVIDIA or AMD GPU with recent drivers."
+                })
                 {
-                    LabelText = GraphicsSettingsStrings.ShowFPS,
-                    Current = osuConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay)
+                    Keywords = new[] { @"latency", @"low", @"input", @"lag", @"nvidia", @"amd", @"reflex", @"anti-lag", @"antilag" },
+                    Note = { BindTarget = latencySettingNote },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = GraphicsSettingsStrings.ShowFPS,
+                    Current = osuConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay)
+                }),
             };
 
             // Determine which low latency provider is available
@@ -89,7 +99,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             if (host.ResolvedRenderer is not (RendererType.Deferred_Direct3D11 or RendererType.Direct3D11))
             {
                 reflexMode.Value = LatencyMode.Off;
-                latencySetting.Hide();
+                latencySettingItem.CanBeShown.Value = false;
             }
             else
             {
@@ -114,7 +124,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                     frameSyncMode.Disabled = false;
                 }
 
-                latencySetting.ClearNoticeText();
+                latencySettingNote.Value = null;
 
                 if (r.NewValue == LatencyMode.Boost)
                     SetLatencyBoostNotice();
@@ -183,27 +193,23 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
         private void UpdateLatencyProviderUI()
         {
-            if (latencySetting == null)
+            if (latencySetting == null || latencySettingItem == null)
                 return;
 
             switch (currentProvider)
             {
                 case LatencyProviderType.NVIDIA:
-                    latencySetting.LabelText = "NVIDIA Reflex";
-                    latencySetting.TooltipText = "Reduces latency by leveraging the NVIDIA Reflex API on NVIDIA GPUs.\nRecommended to have On, turn Off only if experiencing issues.";
-                    latencySetting.Keywords = new[] { @"nvidia", @"latency", @"reflex" };
-                    latencySetting.Show();
+                    latencySetting.HintText = "Reduces latency by leveraging the NVIDIA Reflex API on NVIDIA GPUs.\nRecommended to have On, turn Off only if experiencing issues.";
+                    latencySettingItem.CanBeShown.Value = true;
                     break;
 
                 case LatencyProviderType.AMD:
-                    latencySetting.LabelText = "AMD Anti-Lag";
-                    latencySetting.TooltipText = "Reduces latency by leveraging AMD Anti-Lag 2 on AMD RDNA GPUs.\nRecommended to have On, turn Off only if experiencing issues.";
-                    latencySetting.Keywords = new[] { @"amd", @"latency", @"anti-lag", @"antilag" };
-                    latencySetting.Show();
+                    latencySetting.HintText = "Reduces latency by leveraging AMD Anti-Lag 2 on AMD RDNA GPUs.\nRecommended to have On, turn Off only if experiencing issues.";
+                    latencySettingItem.CanBeShown.Value = true;
                     break;
 
                 case LatencyProviderType.None:
-                    latencySetting.Hide();
+                    latencySettingItem.CanBeShown.Value = false;
                     break;
             }
         }
@@ -217,37 +223,32 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 _ => "Boost mode increases GPU power consumption. Disable if experiencing issues."
             };
 
-            latencySetting?.SetNoticeText(noticeText, true);
+            latencySettingNote.Value = new SettingsNote.Data(noticeText, SettingsNote.Type.Warning);
         }
 
-        private partial class RendererSettingsDropdown : SettingsEnumDropdown<RendererType>
+        private partial class RendererSettingsDropdown : FormEnumDropdown<RendererType>
         {
-            protected override OsuDropdown<RendererType> CreateDropdown() => new RendererDropdown();
+            private RendererType hostResolvedRenderer;
+            private bool automaticRendererInUse;
 
-            protected partial class RendererDropdown : DropdownControl
+            [BackgroundDependencyLoader]
+            private void load(FrameworkConfigManager config, GameHost host)
             {
-                private RendererType hostResolvedRenderer;
-                private bool automaticRendererInUse;
+                var renderer = config.GetBindable<RendererType>(FrameworkSetting.Renderer);
+                automaticRendererInUse = renderer.Value == RendererType.Automatic;
+                hostResolvedRenderer = host.ResolvedRenderer;
+            }
 
-                [BackgroundDependencyLoader]
-                private void load(FrameworkConfigManager config, GameHost host)
-                {
-                    var renderer = config.GetBindable<RendererType>(FrameworkSetting.Renderer);
-                    automaticRendererInUse = renderer.Value == RendererType.Automatic;
-                    hostResolvedRenderer = host.ResolvedRenderer;
-                }
+            protected override LocalisableString GenerateItemText(RendererType item)
+            {
+                if (item == RendererType.Automatic && automaticRendererInUse)
+                    return LocalisableString.Interpolate($"{base.GenerateItemText(item)} ({hostResolvedRenderer.GetDescription()})");
 
-                protected override LocalisableString GenerateItemText(RendererType item)
-                {
-                    if (item == RendererType.Automatic && automaticRendererInUse)
-                        return LocalisableString.Interpolate($"{base.GenerateItemText(item)} ({hostResolvedRenderer.GetDescription()})");
-
-                    return base.GenerateItemText(item);
-                }
+                return base.GenerateItemText(item);
             }
         }
 
-        private partial class FrameSyncSettingsDropdown : SettingsEnumDropdown<FrameSync>
+        private partial class FrameSyncSettingsDropdown : FormDropdown<FrameSync>
         {
             private Bindable<LatencyMode> latencyMode = null!;
 
@@ -260,41 +261,22 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             protected override void LoadComplete()
             {
                 base.LoadComplete();
-                // Initialize dropdown items after dependency injection is complete
-                if (Control is FrameSyncDropdown frameSyncDropdown)
-                    frameSyncDropdown.InitializeItems(latencyMode);
+                latencyMode.BindValueChanged(_ => updateItems(), true);
             }
 
-            protected override OsuDropdown<FrameSync> CreateDropdown() => new FrameSyncDropdown();
-
-            private partial class FrameSyncDropdown : DropdownControl
+            private void updateItems()
             {
-                private Bindable<LatencyMode> latencyMode = null!;
+                var allItems = Enum.GetValues<FrameSync>();
 
-                public FrameSyncDropdown()
+                if (latencyMode.Value != LatencyMode.Off)
                 {
+                    // When low latency is enabled, only show unlimited options
+                    Items = allItems.Where(x => x == FrameSync.Unlimited || x == FrameSync.UnlimitedNoCap).Order();
                 }
-
-                public void InitializeItems(Bindable<LatencyMode> latencyMode)
+                else
                 {
-                    this.latencyMode = latencyMode;
-                    latencyMode.BindValueChanged(_ => updateItems(), true);
-                }
-
-                private void updateItems()
-                {
-                    var allItems = Enum.GetValues<FrameSync>();
-
-                    if (latencyMode.Value != LatencyMode.Off)
-                    {
-                        // When low latency is enabled, only show unlimited options
-                        Items = allItems.Where(x => x == FrameSync.Unlimited || x == FrameSync.UnlimitedNoCap).Order();
-                    }
-                    else
-                    {
-                        // When low latency is disabled, show all options
-                        Items = allItems.Order();
-                    }
+                    // When low latency is disabled, show all options
+                    Items = allItems.Order();
                 }
             }
         }

@@ -275,7 +275,7 @@ namespace osu.Game.Screens.SelectV2
                 private readonly ScoreInfo score;
 
                 public PerformanceStatisticRow(LocalisableString label, ScoreInfo score)
-                    : base(label, @"0pp")
+                    : base(label, @"--")
                 {
                     this.score = score;
                 }
@@ -288,6 +288,9 @@ namespace osu.Game.Screens.SelectV2
                         setPerformanceValue(score, score.PP.Value);
                         return;
                     }
+
+                    if (isOnlineScore(score))
+                        return;
 
                     Task.Run(async () =>
                     {
@@ -303,6 +306,8 @@ namespace osu.Game.Screens.SelectV2
                         Schedule(() => setPerformanceValue(score, result.Total));
                     }, cancellationToken ?? default);
                 }
+
+                private static bool isOnlineScore(ScoreInfo scoreInfo) => scoreInfo.OnlineID > 0 || scoreInfo.LegacyOnlineID > 0;
 
                 private void setPerformanceValue(ScoreInfo scoreInfo, double pp)
                 {
