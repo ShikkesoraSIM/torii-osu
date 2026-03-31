@@ -15,13 +15,15 @@ namespace osu.Game.Overlays.Settings.Sections
 
         public override Drawable CreateIcon() => new SpriteIcon
         {
-            Icon = FontAwesome.Solid.Server,
+            Icon = FontAwesome.Solid.ToriiGate,
         };
 
         public ToriiSection()
         {
             Children = new Drawable[]
             {
+                new ToriiAppearanceSettings(),
+                new ToriiConnectionSettings(),
                 new ToriiExperimentalSettings(),
             };
         }

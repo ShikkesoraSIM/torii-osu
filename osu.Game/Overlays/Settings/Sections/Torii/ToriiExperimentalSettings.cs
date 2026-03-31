@@ -187,6 +187,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
                 case "torii-alpha-ppdev":
                 case "alpha-ppdev":
+                case "luv-weird-pp":
                     if (api is APIAccess ppDevApi && (ppDevApi.IsUnsafeOfficialEndpoint || !ppDevApi.IsLikelyToriiEndpoint))
                     {
                         success = false;

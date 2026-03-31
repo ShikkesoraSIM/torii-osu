@@ -116,6 +116,7 @@ namespace osu.Game
 
         private const double general_log_debounce = 60000;
         private const string tablet_log_prefix = @"[Tablet] ";
+        private const string torii_release_notes_id = "torii-2026.03-client-polish-ppdev";
 
         public Toolbar Toolbar { get; private set; }
 
@@ -1320,6 +1321,7 @@ namespace osu.Game
             
             // Show server information notification on startup
             showServerInfoNotification();
+            showToriiReleaseNotesIfNeeded();
         }
 
         private void handleBackButton()
@@ -1362,6 +1364,45 @@ namespace osu.Game
                 string currentServerUrl = API.Endpoints.APIUrl;
                 Notifications.Post(new ServerInfoNotification(currentServerUrl));
             }, 2000); // 2 second delay to allow other startup notifications to appear first
+        }
+
+        private void showToriiReleaseNotesIfNeeded()
+        {
+            if (LocalConfig == null)
+                return;
+
+            string currentNotesKey = $"{torii_release_notes_id}:{Version}";
+
+            if (!IsDeployedBuild)
+            {
+                postToriiReleaseNotesNotification();
+                return;
+            }
+
+            string seenReleaseNotes = LocalConfig.Get<string>(OsuSetting.ToriiLastSeenReleaseNotes);
+            if (string.Equals(seenReleaseNotes, currentNotesKey, StringComparison.Ordinal))
+                return;
+
+            LocalConfig.SetValue(OsuSetting.ToriiLastSeenReleaseNotes, currentNotesKey);
+
+            postToriiReleaseNotesNotification();
+        }
+
+        private void postToriiReleaseNotesNotification()
+        {
+            Scheduler.AddDelayed(() =>
+            {
+                Notifications.Post(new SimpleNotification
+                {
+                    Icon = FontAwesome.Solid.Scroll,
+                    Text = "Torii update: new Torii settings section, UI hue controls, live API switch, and alpha flow (pp-dev code: luv-weird-pp). Click to open changelog.",
+                    Activated = () =>
+                    {
+                        changelogOverlay?.Show();
+                        return true;
+                    },
+                });
+            }, 2800);
         }
 
         private void showOverlayAboveOthers(OverlayContainer overlay, OverlayContainer[] otherOverlays)

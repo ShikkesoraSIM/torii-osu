@@ -177,6 +177,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
 
             SetDefault(OsuSetting.Version, string.Empty);
+            SetDefault(OsuSetting.ToriiLastSeenReleaseNotes, string.Empty);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
@@ -546,5 +547,6 @@ namespace osu.Game.Configuration
         AllowBenchmarkUnlimitedFrameLimiter,
         DashboardSortMode,
         DashboardDisplayStyle,
+        ToriiLastSeenReleaseNotes,
     }
 }

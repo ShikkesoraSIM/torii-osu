@@ -6,14 +6,14 @@ using osu.Framework.Graphics;
 
 namespace osu.Game.Overlays.Toolbar
 {
-    //public partial class ToolbarChangelogButton : ToolbarOverlayToggleButton
-    //{
-    //protected override Anchor TooltipAnchor => Anchor.TopRight;
+    public partial class ToolbarChangelogButton : ToolbarOverlayToggleButton
+    {
+        protected override Anchor TooltipAnchor => Anchor.TopRight;
 
-    //[BackgroundDependencyLoader(true)]
-    //private void load(ChangelogOverlay changelog)
-    //{
-    //StateContainer = changelog;
-    // }
-    //  }
+        [BackgroundDependencyLoader(true)]
+        private void load(ChangelogOverlay changelog)
+        {
+            StateContainer = changelog;
+        }
+    }
 }

@@ -163,7 +163,7 @@ namespace osu.Game.Overlays.Toolbar
                                         Children = new Drawable[]
                                         {
                                             //new ToolbarNewsButton(),
-                                            //new ToolbarChangelogButton(),
+                                            new ToolbarChangelogButton(),
                                             //new ToolbarWikiButton(),
                                             new ToolbarRankingsButton(),
                                             new ToolbarBeatmapListingButton(),
