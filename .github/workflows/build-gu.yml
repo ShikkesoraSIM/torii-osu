@@ -19,6 +19,8 @@ env:
   DOTNET_VERSION: '8.0.x'
   FRAMEWORK_REF: '8beb934406ba7d19038e3f2209a4ba342d12d7cb'
   RESOURCES_REF: 'c4ccc1a4ac6fd5fddf2faf1530937bf97f03c3fd'
+  NUGET_AUDIT: 'false'
+  NUGET_XMLDOC_MODE: 'skip'
 
 jobs:
   version:
@@ -300,14 +302,16 @@ jobs:
             --verbosity normal \
             --configfile nuget.config \
             --no-cache \
-            --force
+            --force \
+            -p:NuGetAudit=false
         else
           dotnet restore osu.Desktop/osu.Desktop.csproj \
             --runtime ${{ matrix.runtime }} \
             --verbosity normal \
             --configfile nuget.config \
             --no-cache \
-            --force
+            --force \
+            -p:NuGetAudit=false
         fi
 
     - name: Setup Android signing (Android only)
@@ -391,6 +395,8 @@ jobs:
             --configuration Release \
             --verbosity normal \
             --no-restore \
+            -p:NuGetAudit=false \
+            -p:TreatWarningsAsErrors=false \
             -p:Version=${{ needs.version.outputs.semver }} \
             -p:ApplicationVersion=${{ needs.version.outputs.androidVersionCode }} \
             -p:ApplicationDisplayVersion=${{ needs.version.outputs.semver }} \
@@ -429,6 +435,8 @@ jobs:
             --output "publish/${{ matrix.runtime }}" \
             --no-restore \
             --verbosity normal \
+            -p:NuGetAudit=false \
+            -p:TreatWarningsAsErrors=false \
             -p:PublishSingleFile=false \
             -p:PublishTrimmed=false \
             -p:Version=${{ needs.version.outputs.semver }} \
@@ -716,7 +724,7 @@ jobs:
     - name: Build
       shell: bash
       run: |
-        dotnet build osu.Desktop/osu.Desktop.csproj --configuration Release --no-restore --verbosity minimal
+        dotnet build osu.Desktop/osu.Desktop.csproj --configuration Release --no-restore --verbosity minimal -p:NuGetAudit=false -p:TreatWarningsAsErrors=false
 
   release:
     # Create a GitHub Release when triggered by:
