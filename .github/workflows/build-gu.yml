@@ -409,7 +409,6 @@ jobs:
             --configuration Release \
             --verbosity minimal \
             --no-restore \
-            -warnaserror- \
             -p:NuGetAudit=false \
             -p:TreatWarningsAsErrors=false \
             -p:RunAnalyzers=false \
