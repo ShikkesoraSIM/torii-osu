@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game;
@@ -12,6 +13,7 @@ using osu.Game.Configuration;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Screens.Play;
+using osuTK.Graphics;
 using Velopack;
 using Velopack.Sources;
 using UpdateManager = osu.Game.Updater.UpdateManager;
@@ -98,6 +100,12 @@ namespace osu.Desktop.Updater
             catch (Exception e)
             {
                 log($"Update check failed with error ({e.Message})");
+                runOutsideOfGameplay(() => notificationOverlay.Post(new SimpleNotification
+                {
+                    Text = "Update check failed. If you're using a portable build, download the latest portable package manually.",
+                    Icon = FontAwesome.Solid.ExclamationTriangle,
+                    IconColour = Color4.OrangeRed,
+                }), cancellationToken);
 
                 // we shouldn't crash on a web failure. or any failure for the matter.
                 scheduleNextUpdateCheck();

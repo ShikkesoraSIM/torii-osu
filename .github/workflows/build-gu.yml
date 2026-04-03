@@ -574,6 +574,14 @@ jobs:
               break
             fi
           done
+
+          portables=(Releases/*-Portable.zip)
+          for f in "${portables[@]}"; do
+            if [[ -f "$f" ]]; then
+              mv -f "$f" "Releases/portable-${{ matrix.runtime }}.zip"
+              break
+            fi
+          done
         fi
         # macOS zip rename if present
         if [[ "${{ matrix.runtime }}" == osx-* ]]; then
@@ -628,6 +636,11 @@ jobs:
         New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
         $portableZip = Join-Path $releaseDir "portable-$runtime.zip"
+        if (Test-Path $portableZip) {
+          Write-Host "Using existing Velopack portable package: $portableZip"
+          exit 0
+        }
+
         if (Test-Path $portableZip) {
           Remove-Item $portableZip -Force
         }
