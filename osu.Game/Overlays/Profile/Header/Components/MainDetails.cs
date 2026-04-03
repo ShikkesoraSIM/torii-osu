@@ -9,8 +9,11 @@ using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Localisation;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Leaderboards;
 using osu.Game.Resources.Localisation.Web;
@@ -28,12 +31,19 @@ namespace osu.Game.Overlays.Profile.Header.Components
         private ProfileValueDisplay detailCountryRank = null!;
         private RankGraph rankGraph = null!;
         private TotalPlayTime timeInfo = null!;
+        private IBindable<bool> ppDevVariantEnabled = null!;
+        private bool usingPpDevVariant;
 
         public readonly Bindable<UserProfileData?> User = new Bindable<UserProfileData?>();
+
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
 
         [BackgroundDependencyLoader]
         private void load()
         {
+            ppDevVariantEnabled = ToriiPpVariantState.UsePpDevVariantBindable.GetBoundCopy();
+
             AutoSizeAxes = Axes.Y;
 
             InternalChild = new FillFlowContainer
@@ -148,6 +158,13 @@ namespace osu.Game.Overlays.Profile.Header.Components
         {
             base.LoadComplete();
 
+            ppDevVariantEnabled.BindValueChanged(v =>
+            {
+                usingPpDevVariant = v.NewValue;
+                updateVariantLabels();
+                updateDisplay(User.Value);
+            }, true);
+
             User.BindValueChanged(e => updateDisplay(e.NewValue), true);
         }
 
@@ -162,14 +179,35 @@ namespace osu.Game.Overlays.Profile.Header.Components
                 scoreRankInfo.Value.RankCount = user?.Statistics?.GradesCount[scoreRankInfo.Key] ?? 0;
 
             detailGlobalRank.Content = user?.Statistics?.GlobalRank?.ToLocalisableString("\\##,##0") ?? (LocalisableString)"-";
-            detailGlobalRank.ContentTooltipText = getGlobalRankTooltipText(user);
+            detailGlobalRank.ContentTooltipText = appendVariantTooltip(getGlobalRankTooltipText(user));
 
             detailCountryRank.Content = user?.Statistics?.CountryRank?.ToLocalisableString("\\##,##0") ?? (LocalisableString)"-";
-            detailCountryRank.ContentTooltipText = getCountryRankTooltipText(user);
+            detailCountryRank.ContentTooltipText = appendVariantTooltip(getCountryRankTooltipText(user));
+            ppInfo.ContentTooltipText = usingPpDevVariant
+                ? "Using latest pp-dev calculations."
+                : default;
 
             rankGraph.Statistics.Value = user?.Statistics;
 
             timeInfo.UserStatistics.Value = user?.Statistics;
+        }
+
+        private void updateVariantLabels()
+        {
+            ppInfo.Title = usingPpDevVariant ? "pp-dev" : "pp";
+            detailGlobalRank.Title = usingPpDevVariant ? "Global rank (dev)" : UsersStrings.ShowRankGlobalSimple;
+            detailCountryRank.Title = usingPpDevVariant ? "Country rank (dev)" : UsersStrings.ShowRankCountrySimple;
+        }
+
+        private LocalisableString appendVariantTooltip(LocalisableString original)
+        {
+            if (!usingPpDevVariant)
+                return original;
+
+            const string ppDevHint = "Using latest pp-dev calculations.";
+            return original.Equals(default(LocalisableString))
+                ? ppDevHint
+                : LocalisableString.Interpolate($"{original}\n{ppDevHint}");
         }
 
         private static LocalisableString getGlobalRankTooltipText(APIUser? user)

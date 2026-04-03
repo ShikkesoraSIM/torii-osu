@@ -177,5 +177,6 @@ namespace osu.Game.Overlays.Settings
                 new OsuMenuItem(SettingsStrings.CopyVersion, MenuItemType.Standard, () => game?.CopyToClipboard(version))
             };
         }
+
     }
 }

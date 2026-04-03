@@ -1,6 +1,7 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using osu.Framework.IO.Network;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 
@@ -36,7 +37,15 @@ namespace osu.Game.Online.API.Requests
             Ruleset = ruleset;
         }
 
-        protected override string Target => $@"users/{Lookup}/{Ruleset?.ShortName}?key={lookupType.ToString().ToLowerInvariant()}";
+        protected override WebRequest CreateWebRequest()
+        {
+            var req = base.CreateWebRequest();
+            req.AddParameter("key", lookupType.ToString().ToLowerInvariant());
+            req.AddToriiPpVariantIfEnabled(API);
+            return req;
+        }
+
+        protected override string Target => $@"users/{Lookup}/{Ruleset?.ShortName}";
 
         private enum LookupType
         {

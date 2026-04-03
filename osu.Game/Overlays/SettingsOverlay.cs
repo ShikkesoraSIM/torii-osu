@@ -42,6 +42,7 @@ namespace osu.Game.Overlays
                 new AudioSection(),
                 new GraphicsSection(),
                 new OnlineSection(),
+                new ToriiSection(),
                 new MaintenanceSection(),
                 new DebugSection()
             };

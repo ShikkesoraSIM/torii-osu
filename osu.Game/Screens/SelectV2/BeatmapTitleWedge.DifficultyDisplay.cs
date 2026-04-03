@@ -257,6 +257,8 @@ namespace osu.Game.Screens.SelectV2
                     }
                 }, true);
 
+                ToriiPpVariantState.UsePpDevVariantBindable.BindValueChanged(_ => Scheduler.AddOnce(updateDisplay));
+
                 updateDisplay();
             }
 

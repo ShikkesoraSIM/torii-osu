@@ -66,6 +66,11 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ProfileCoverExpanded, true);
 
             SetDefault(OsuSetting.ToolbarClockDisplayMode, ToolbarClockDisplayMode.Full);
+            SetDefault(OsuSetting.ToolbarLayoutMode, ToolbarLayoutMode.Expanded);
+            SetDefault(OsuSetting.ToolbarDensityMode, ToolbarDensityMode.Auto);
+            SetDefault(OsuSetting.AlphaToolbarEnabled, false);
+            SetDefault(OsuSetting.AlphaToolbarUse, false);
+            SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
 
@@ -437,6 +442,11 @@ namespace osu.Game.Configuration
         ChatDisplayHeight,
         BeatmapListingCardSize,
         ToolbarClockDisplayMode,
+        ToolbarLayoutMode,
+        ToolbarDensityMode,
+        AlphaToolbarEnabled,
+        AlphaToolbarUse,
+        AlphaPpDevModeEnabled,
         SongSelectBackgroundBlur,
         Version,
         ShowFirstRunSetup,

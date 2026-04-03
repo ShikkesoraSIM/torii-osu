@@ -11,6 +11,7 @@ using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
+using osu.Game.Online.API;
 
 
 namespace osu.Game.Overlays.Settings.Sections.Online
@@ -19,8 +20,8 @@ namespace osu.Game.Overlays.Settings.Sections.Online
     {
         protected override LocalisableString Header => OnlineSettingsStrings.WebHeader;
 
-        [Resolved]
-        private OsuGame? game { get; set; }
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
 
         private SettingsTextBox customApiUrlTextBox = null!;
 
@@ -68,15 +69,13 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             customApiUrlTextBox.Current.BindValueChanged(onCustomApiUrlChanged, true);
         }
 
-        private string lastApiUrl = string.Empty; // last accepted normalized value: "" or "https://host[:port]"
+        private string lastApiUrl = string.Empty;
         private bool isInitialLoad = true;
+        private bool isProgrammaticApiUrlUpdate;
         private ScheduledDelegate? pendingValidation;
         private const double debounce_delay = 500;
 
-        // Host[:port]（不含 scheme/path）的校验：
-        // - 多级域名：至少一处点，例如 example.com、api.example.co.uk
-        // - IPv4：每段 0–255
-        // - 端口：可选，范围 1–65535（在正则后做数值校验）
+        // Validates a host[:port] input without scheme or path.
         private static readonly Regex hostPortPattern = new Regex(
             pattern:
                 @"^(?:" +
@@ -88,6 +87,9 @@ namespace osu.Game.Overlays.Settings.Sections.Online
 
         private void onCustomApiUrlChanged(ValueChangedEvent<string> e)
         {
+            if (isProgrammaticApiUrlUpdate)
+                return;
+
             if (isInitialLoad)
             {
                 var initRaw = (e.NewValue ?? string.Empty).Trim();
@@ -103,19 +105,34 @@ namespace osu.Game.Overlays.Settings.Sections.Online
 
                 if (string.IsNullOrWhiteSpace(rawInput))
                 {
-                    maybeShowRestartIfChanged(string.Empty);
-                    customApiUrlTextBox.SetNoticeText(string.Empty, false);
+                    customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlOfficialBlocked, true);
+                    restoreLastApiUrlInTextBox();
                     return;
                 }
+
                 string hostPort = stripSchemeAndPath(rawInput);
                 if (!isValidHostPort(hostPort))
                 {
                     customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlInvalid, true);
                     return;
                 }
+
+                if (APIAccess.IsUnsafeOfficialHost(hostPort))
+                {
+                    customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlOfficialBlocked, true);
+                    restoreLastApiUrlInTextBox();
+                    return;
+                }
+
+                if (!string.Equals(rawInput, hostPort, StringComparison.Ordinal))
+                {
+                    isProgrammaticApiUrlUpdate = true;
+                    customApiUrlTextBox.Current.Value = hostPort;
+                    isProgrammaticApiUrlUpdate = false;
+                }
+
                 string normalised = "https://" + hostPort;
-                customApiUrlTextBox.SetNoticeText(string.Empty, false);
-                maybeShowRestartIfChanged(normalised);
+                maybeApplyRuntimeEndpointIfChanged(normalised);
             }, debounce_delay);
         }
 
@@ -124,7 +141,7 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             var m = hostPortPattern.Match(hostPort);
             if (!m.Success) return false;
 
-            // 校验端口范围（如果提供）
+            // Validate port range if supplied.
             var g = m.Groups["port"];
             if (g.Success)
             {
@@ -134,9 +151,7 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             return true;
         }
 
-        // 规范化成用于比较/保存的值：
-        // - 空 => ""
-        // - 其他 => "https://host[:port]"（自动剥离 scheme/path, 校验通过才返回 https 形式；否则返回原始去除路径后的值）
+        // Normalises to values used for comparison.
         private static string normalizeToHttps(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
@@ -146,7 +161,7 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         }
 
         /// <summary>
-        /// 去掉 http(s):// 前缀；从第一个 / 起截断（去路径/查询/fragment）；去掉末尾 /。
+        /// Strips protocol and path from endpoint input.
         /// </summary>
         private static string stripSchemeAndPath(string input)
         {
@@ -160,19 +175,39 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             return s;
         }
 
-        /// <summary>
-        /// 若与上次接受值不同，则更新 lastApiUrl 并在文本框下提示需要重启；不再弹窗。
-        /// </summary>
-        private void maybeShowRestartIfChanged(string normalizedNewValue)
+        private void maybeApplyRuntimeEndpointIfChanged(string normalizedNewValue)
         {
-            if (!string.Equals(lastApiUrl, normalizedNewValue, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(lastApiUrl, normalizedNewValue, StringComparison.OrdinalIgnoreCase))
             {
-                lastApiUrl = normalizedNewValue;
-
-                // 仅提示，不弹框、不自动重启。
-                // 使用非错误样式（第二参数 false）。
-                customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlRestartRequired, false);
+                customApiUrlTextBox.SetNoticeText(string.Empty, false);
+                return;
             }
+
+            lastApiUrl = normalizedNewValue;
+
+            if (api is APIAccess apiAccess)
+            {
+                if (apiAccess.ApplyRuntimeEndpointConfiguration())
+                    customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlAppliedWithoutRestart, false);
+                else
+                    customApiUrlTextBox.SetNoticeText(string.Empty, false);
+
+                return;
+            }
+
+            customApiUrlTextBox.SetNoticeText(OnlineSettingsStrings.CustomApiUrlRestartRequired, false);
+        }
+
+        private void restoreLastApiUrlInTextBox()
+        {
+            if (string.IsNullOrWhiteSpace(lastApiUrl))
+                return;
+
+            string hostPort = stripSchemeAndPath(lastApiUrl);
+
+            isProgrammaticApiUrlUpdate = true;
+            customApiUrlTextBox.Current.Value = hostPort;
+            isProgrammaticApiUrlUpdate = false;
         }
     }
 }

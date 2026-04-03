@@ -9,6 +9,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
@@ -131,19 +132,34 @@ namespace osu.Game.Overlays.Chat.ChannelList
             base.OnHoverLost(e);
         }
 
-        private UpdateableAvatar? createIcon()
+        private Drawable? createIcon()
         {
             if (Channel.Type != ChannelType.PM)
                 return null;
 
-            return new UpdateableAvatar(Channel.Users.First(), isInteractive: false)
+            var user = Channel.Users.FirstOrDefault();
+
+            if (user != null)
+            {
+                return new UpdateableAvatar(user, isInteractive: false)
+                {
+                    Size = new Vector2(20),
+                    Margin = new MarginPadding { Right = 5 },
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    CornerRadius = 10,
+                    Masking = true,
+                };
+            }
+
+            return new SpriteIcon
             {
                 Size = new Vector2(20),
                 Margin = new MarginPadding { Right = 5 },
                 Anchor = Anchor.CentreLeft,
                 Origin = Anchor.CentreLeft,
-                CornerRadius = 10,
-                Masking = true,
+                Icon = FontAwesome.Solid.UserCircle,
+                Colour = colourProvider.Light3,
             };
         }
 

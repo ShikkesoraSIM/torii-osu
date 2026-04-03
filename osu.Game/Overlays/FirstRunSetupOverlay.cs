@@ -36,6 +36,7 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader(permitNulls: true)]
         private void load(LegacyImportManager? legacyImportManager)
         {
+            AddStep<ScreenToriiStorage>();
             AddStep<ScreenWelcome>();
             AddStep<ScreenUIScale>();
             AddStep<ScreenBeatmaps>();

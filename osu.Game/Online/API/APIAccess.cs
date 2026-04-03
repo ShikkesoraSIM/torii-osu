@@ -1,4 +1,4 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -60,8 +61,13 @@ namespace osu.Game.Online.API
         public string SecondFactorCode { get; private set; }
 
         private string password;
+        private readonly BindableBool usePpDevVariant = new BindableBool();
 
         public IBindable<APIUser> LocalUser => localUserState.User;
+        internal bool UsePpDevVariant => usePpDevVariant.Value;
+        internal IBindable<bool> UsePpDevVariantBindable => usePpDevVariant;
+        internal bool IsUnsafeOfficialEndpoint => IsUnsafeOfficialHost(Endpoints.APIUrl);
+        internal bool IsLikelyToriiEndpoint => IsLikelyToriiHost(Endpoints.APIUrl);
 
         public ILocalUserState LocalUserState => localUserState;
         private readonly LocalUserState localUserState;
@@ -103,6 +109,7 @@ namespace osu.Game.Online.API
 
             authentication.TokenString = config.Get<string>(OsuSetting.Token);
             authentication.Token.ValueChanged += onTokenChanged;
+            ToriiPpVariantState.UsePpDevVariantBindable.BindValueChanged(_ => updatePpDevVariantState(), true);
 
             AddInternal(localUserState = new LocalUserState(this, config));
 
@@ -122,6 +129,16 @@ namespace osu.Game.Online.API
             };
 
             thread.Start();
+        }
+
+        private void updatePpDevVariantState()
+        {
+            bool enabled = ToriiPpVariantState.UsePpDevVariant
+                           && !IsUnsafeOfficialEndpoint
+                           && IsLikelyToriiEndpoint;
+
+            usePpDevVariant.Value = enabled;
+            log.Add($@"pp-dev variant {(enabled ? "enabled" : "disabled")} (endpoint={Endpoints.APIUrl})");
         }
 
         private WebSocketNotificationsClientConnector setUpNotificationsClient()
@@ -600,6 +617,56 @@ namespace osu.Game.Online.API
             flushQueue();
         }
 
+        /// <summary>
+        /// Applies endpoint configuration changes from the current local config without restarting the game.
+        /// </summary>
+        /// <returns>Whether endpoints changed and a reconnect was requested.</returns>
+        public bool ApplyRuntimeEndpointConfiguration()
+        {
+            var newEndpoints = game.CreateEndpoints();
+
+            if (endpointConfigurationEquals(Endpoints, newEndpoints))
+                return false;
+
+            Endpoints.APIClientSecret = newEndpoints.APIClientSecret;
+            Endpoints.APIClientID = newEndpoints.APIClientID;
+            Endpoints.WebsiteUrl = newEndpoints.WebsiteUrl;
+            Endpoints.APIUrl = newEndpoints.APIUrl;
+            Endpoints.BeatmapSubmissionServiceUrl = newEndpoints.BeatmapSubmissionServiceUrl;
+            Endpoints.SpectatorUrl = newEndpoints.SpectatorUrl;
+            Endpoints.MultiplayerUrl = newEndpoints.MultiplayerUrl;
+            Endpoints.MetadataUrl = newEndpoints.MetadataUrl;
+
+            authentication.UpdateEndpoint(Endpoints.APIUrl);
+            MessageFormatter.WebsiteRootUrl = Endpoints.WebsiteUrl;
+            updatePpDevVariantState();
+
+            log.Add($@"API endpoint root updated at runtime: {Endpoints.APIUrl}");
+
+            LastLoginError = null;
+            failureCount = 0;
+            flushQueue();
+
+            state.Value = HasLogin ? APIState.Connecting : APIState.Offline;
+
+            if (NotificationsClient is PersistentEndpointClientConnector notificationsConnector)
+                _ = notificationsConnector.Reconnect();
+
+            return true;
+        }
+
+        private static bool endpointConfigurationEquals(EndpointConfiguration a, EndpointConfiguration b)
+        {
+            return string.Equals(a.APIClientSecret, b.APIClientSecret, StringComparison.Ordinal)
+                   && string.Equals(a.APIClientID, b.APIClientID, StringComparison.Ordinal)
+                   && string.Equals(a.WebsiteUrl, b.WebsiteUrl, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(a.APIUrl, b.APIUrl, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(a.BeatmapSubmissionServiceUrl, b.BeatmapSubmissionServiceUrl, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(a.SpectatorUrl, b.SpectatorUrl, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(a.MultiplayerUrl, b.MultiplayerUrl, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(a.MetadataUrl, b.MetadataUrl, StringComparison.OrdinalIgnoreCase);
+        }
+
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
@@ -614,6 +681,75 @@ namespace osu.Game.Online.API
                 : base($@"Request failed from flush operation (state {state})")
             {
             }
+        }
+
+        internal static bool IsUnsafeOfficialHost(string? urlOrHost)
+        {
+            string host = extractHost(urlOrHost);
+
+            if (string.IsNullOrWhiteSpace(host))
+                return false;
+
+            return host.Equals("osu.ppy.sh", StringComparison.OrdinalIgnoreCase)
+                   || host.Equals("dev.ppy.sh", StringComparison.OrdinalIgnoreCase)
+                   || host.EndsWith(".osu.ppy.sh", StringComparison.OrdinalIgnoreCase)
+                   || host.EndsWith(".dev.ppy.sh", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool IsLikelyToriiHost(string? urlOrHost)
+        {
+            string host = extractHost(urlOrHost);
+            if (string.IsNullOrWhiteSpace(host))
+                return false;
+
+            if (IsUnsafeOfficialHost(host))
+                return false;
+
+            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1")
+                return true;
+
+            if (IPAddress.TryParse(host, out var ipAddress) && ipAddress.AddressFamily == AddressFamily.InterNetwork)
+            {
+                byte[] bytes = ipAddress.GetAddressBytes();
+                bool isPrivateRange =
+                    bytes[0] == 10
+                    || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                    || (bytes[0] == 192 && bytes[1] == 168);
+
+                if (isPrivateRange)
+                    return true;
+
+                // Public IPv4 custom endpoints are supported for self-hosted deployments.
+                return true;
+            }
+
+            return host.EndsWith(".shikkesora.com", StringComparison.OrdinalIgnoreCase)
+                   || host.Equals("shikkesora.com", StringComparison.OrdinalIgnoreCase)
+                   // Any non-official domain is treated as self-hosted.
+                   || host.Contains('.');
+        }
+
+        private static string extractHost(string? urlOrHost)
+        {
+            if (string.IsNullOrWhiteSpace(urlOrHost))
+                return string.Empty;
+
+            string input = urlOrHost.Trim();
+            if (!input.Contains("://", StringComparison.Ordinal))
+                input = "https://" + input;
+
+            if (Uri.TryCreate(input, UriKind.Absolute, out var uri))
+                return uri.Host;
+
+            // Best-effort fallback for malformed values.
+            input = Regex.Replace(input, @"^\s*https?://", "", RegexOptions.IgnoreCase);
+            int slashIndex = input.IndexOf('/');
+            if (slashIndex >= 0)
+                input = input[..slashIndex];
+            int colonIndex = input.IndexOf(':');
+            if (colonIndex >= 0)
+                input = input[..colonIndex];
+            return input.Trim();
         }
     }
 

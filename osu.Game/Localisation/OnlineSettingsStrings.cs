@@ -105,6 +105,11 @@ namespace osu.Game.Localisation
         public static LocalisableString CustomApiUrlRestartRequired => new TranslatableString(getKey(@"custom_api_url_restart_required"), @"A restart is required for this setting to take effect.");
 
         /// <summary>
+        /// "Applied without restart. Reconnecting..."
+        /// </summary>
+        public static LocalisableString CustomApiUrlAppliedWithoutRestart => new TranslatableString(getKey(@"custom_api_url_applied_without_restart"), @"Applied without restart. Reconnecting...");
+
+        /// <summary>
         /// "The game will be restarted to apply the new API server settings."
         /// </summary>
         public static LocalisableString CustomApiUrlRestartMessage => new TranslatableString(getKey(@"custom_api_url_restart_message"), @"The game will be restarted to apply the new API server settings.");
@@ -115,6 +120,14 @@ namespace osu.Game.Localisation
         public static LocalisableString CustomApiUrlInvalid => new TranslatableString(
             getKey(@"custom_api_url_invalid"),
             @"Invalid custom API server address. Enter only a hostname, optionally with a port. Paths are not allowed."
+        );
+
+        /// <summary>
+        /// "Blocked for safety: this Torii client cannot connect to osu.ppy.sh or dev.ppy.sh."
+        /// </summary>
+        public static LocalisableString CustomApiUrlOfficialBlocked => new TranslatableString(
+            getKey(@"custom_api_url_official_blocked"),
+            @"Blocked for safety: this Torii client cannot connect to osu.ppy.sh or dev.ppy.sh."
         );
 
         /// <summary>

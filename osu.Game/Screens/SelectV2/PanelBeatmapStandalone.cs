@@ -14,6 +14,7 @@ using osu.Framework.Localisation;
 using osu.Framework.Threading;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Drawables;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Carousel;
 using osu.Game.Graphics.Containers;
@@ -211,6 +212,19 @@ namespace osu.Game.Screens.SelectV2
 
             ruleset.BindValueChanged(_ => updateKeyCount());
             mods.BindValueChanged(_ => updateKeyCount(), true);
+            ToriiPpVariantState.UsePpDevVariantBindable.BindValueChanged(_ =>
+            {
+                if (Item == null)
+                    return;
+
+                if (Item.IsVisible)
+                    computeStarRating();
+                else
+                {
+                    starRatingCalculationQueued = true;
+                    starRatingCalculationDebounce = 0;
+                }
+            });
 
             Selected.BindValueChanged(s =>
             {

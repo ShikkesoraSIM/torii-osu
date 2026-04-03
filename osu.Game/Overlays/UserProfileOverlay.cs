@@ -19,6 +19,7 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Configuration;
 using osu.Game.Online;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
@@ -44,6 +45,7 @@ namespace osu.Game.Overlays
         private GetUserRequest? userReq;
         private ProfileSectionsContainer? sectionsContainer;
         private ProfileSectionTabControl? tabs;
+        private bool? lastPpDevVariant;
 
         private IUser? user;
         private IRulesetInfo? ruleset;
@@ -77,8 +79,16 @@ namespace osu.Game.Overlays
             apiState.BindValueChanged(state => Schedule(() =>
             {
                 if (state.NewValue == APIState.Online && user != null)
-                    Scheduler.AddOnce(fetchAndSetContent);
+                    Scheduler.AddOnce(() => fetchAndSetContent());
             }));
+
+            IBindable<bool> ppVariantBindable = ToriiPpVariantState.UsePpDevVariantBindable;
+
+            ppVariantBindable.BindValueChanged(_ =>
+            {
+                if (State.Value == Visibility.Visible && user != null)
+                    Scheduler.AddOnce(() => fetchAndSetContent(true));
+            });
         }
 
         protected override ProfileHeader CreateHeader() => new ProfileHeader();
@@ -94,15 +104,18 @@ namespace osu.Game.Overlays
             ruleset = userRuleset;
 
             Show();
-            Scheduler.AddOnce(fetchAndSetContent);
+            Scheduler.AddOnce(() => fetchAndSetContent());
         }
 
-        private void fetchAndSetContent()
+        private void fetchAndSetContent(bool forceRefresh = false)
         {
             Debug.Assert(user != null);
 
+            bool currentPpDevVariant = isPpDevVariantActive();
             bool sameUser = user.OnlineID == Header.User.Value?.User.Id;
-            if (sameUser && ruleset?.MatchesOnlineID(Header.User.Value?.Ruleset) == true)
+            bool sameVariant = lastPpDevVariant == currentPpDevVariant;
+
+            if (!forceRefresh && sameUser && sameVariant && ruleset?.MatchesOnlineID(Header.User.Value?.Ruleset) == true)
                 return;
 
             if (sectionsContainer != null)
@@ -132,12 +145,19 @@ namespace osu.Game.Overlays
             if (API.State.Value != APIState.Offline)
             {
                 userReq = user.OnlineID > 1 ? new GetUserRequest(user.OnlineID, ruleset) : new GetUserRequest(user.Username, ruleset);
-                userReq.Success += u => userLoadComplete(u, ruleset);
+                userReq.Success += u =>
+                {
+                    lastPpDevVariant = currentPpDevVariant;
+                    userLoadComplete(u, ruleset);
+                };
 
                 API.Queue(userReq);
                 loadingLayer.Show();
             }
         }
+
+        private bool isPpDevVariantActive()
+            => ToriiRequestVariantExtensions.IsPpDevVariantActive(API);
 
         private void userLoadComplete(APIUser loadedUser, IRulesetInfo? userRuleset)
         {

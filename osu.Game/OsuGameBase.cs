@@ -318,6 +318,7 @@ namespace osu.Game
 
             dependencies.CacheAs(LocalConfig);
             dependencies.CacheAs<IGameplaySettings>(LocalConfig);
+            ToriiPpVariantState.Initialise(LocalConfig);
 
             InitialiseFonts();
 

@@ -62,7 +62,9 @@ namespace osu.Game.Screens.Play.HUD
     /// </summary>
     public partial class PerformanceProjectionDisplay : CompositeDrawable, ISerialisableDrawable
     {
+        private FillFlowContainer content = null!;
         private FillFlowContainer projections = null!;
+        private Container variantBadge = null!;
 
         [Resolved(canBeNull: true)]
         private GameplayState gameplayState { get; set; }
@@ -78,6 +80,8 @@ namespace osu.Game.Screens.Play.HUD
 
         [Resolved]
         private BeatmapDifficultyCache difficultyCache { get; set; } = null!;
+
+        private IBindable<bool> ppDevVariantEnabled = null!;
 
         private readonly CancellationTokenSource cancellationSource = new CancellationTokenSource();
         private CancellationTokenSource projectionCalculationSource = new CancellationTokenSource();
@@ -137,14 +141,37 @@ namespace osu.Game.Screens.Play.HUD
         [BackgroundDependencyLoader]
         private void load()
         {
-            InternalChild = projections = new FillFlowContainer
+            ppDevVariantEnabled = ToriiPpVariantState.UsePpDevVariantBindable.GetBoundCopy();
+
+            InternalChild = content = new FillFlowContainer
             {
                 AutoSizeAxes = Axes.Both,
-                Direction = FillDirection.Horizontal,
-                Spacing = new Vector2(10, 0),
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 2),
+                Children = new Drawable[]
+                {
+                    variantBadge = new Container
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Alpha = 0,
+                        Child = new OsuSpriteText
+                        {
+                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                            Text = "pp-dev",
+                            Colour = new osuTK.Graphics.Color4(151, 255, 187, 255),
+                        }
+                    },
+                    projections = new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(10, 0),
+                    }
+                }
             };
 
             // Bind to settings changes
+            ppDevVariantEnabled.BindValueChanged(_ => loadProjections());
             Show95Percent.BindValueChanged(_ => loadProjections());
             Show97Percent.BindValueChanged(_ => loadProjections());
             Show99Percent.BindValueChanged(_ => loadProjections());
@@ -253,6 +280,7 @@ namespace osu.Game.Screens.Play.HUD
         private void updateUI(double maxPP)
         {
             projections.Clear();
+            variantBadge.FadeTo(ppDevVariantEnabled.Value ? 1 : 0, 120, Easing.OutQuint);
 
             var accuracySettings = new Dictionary<double, Bindable<bool>>
             {

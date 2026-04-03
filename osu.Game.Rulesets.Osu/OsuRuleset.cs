@@ -25,6 +25,7 @@ using osu.Game.Rulesets.Objects.Legacy;
 using osu.Game.Rulesets.Osu.Beatmaps;
 using osu.Game.Rulesets.Osu.Configuration;
 using osu.Game.Rulesets.Osu.Difficulty;
+using osu.Game.Rulesets.Osu.Difficulty.PpDev;
 using osu.Game.Rulesets.Osu.Edit;
 using osu.Game.Rulesets.Osu.Edit.Setup;
 using osu.Game.Rulesets.Osu.Mods;
@@ -236,9 +237,15 @@ namespace osu.Game.Rulesets.Osu
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.RulesetOsu };
 
-        public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap) => new OsuDifficultyCalculator(RulesetInfo, beatmap);
+        public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap)
+            => ToriiPpVariantState.UsePpDevVariant
+                ? new PpDevOsuDifficultyCalculator(RulesetInfo, beatmap)
+                : new OsuDifficultyCalculator(RulesetInfo, beatmap);
 
-        public override PerformanceCalculator CreatePerformanceCalculator() => new OsuPerformanceCalculator();
+        public override PerformanceCalculator CreatePerformanceCalculator()
+            => ToriiPpVariantState.UsePpDevVariant
+                ? new PpDevOsuPerformanceCalculator()
+                : new OsuPerformanceCalculator();
 
         public override HitObjectComposer CreateHitObjectComposer() => new OsuHitObjectComposer(this);
 

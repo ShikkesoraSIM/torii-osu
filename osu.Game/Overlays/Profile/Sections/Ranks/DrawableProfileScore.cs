@@ -12,8 +12,11 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Beatmaps;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Leaderboards;
 using osu.Game.Resources.Localisation.Web;
@@ -39,6 +42,9 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
 
         [Resolved]
         private OverlayColourProvider colourProvider { get; set; } = null!;
+
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
 
         public DrawableProfileScore(SoloScoreInfo score)
         {
@@ -264,6 +270,8 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
             }
 
             var ppTooltipText = LocalisableString.Interpolate($@"{Score.PP:N1}pp");
+            if (isPpDevVariantActive())
+                ppTooltipText = LocalisableString.Interpolate($"{ppTooltipText}\nUsing latest pp-dev calculations.");
 
             return new FillFlowContainer
             {
@@ -292,6 +300,9 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
                 }
             };
         }
+
+        private bool isPpDevVariantActive()
+            => ToriiRequestVariantExtensions.IsPpDevVariantActive(api);
 
         private partial class ScoreBeatmapMetadataContainer : BeatmapMetadataContainer
         {

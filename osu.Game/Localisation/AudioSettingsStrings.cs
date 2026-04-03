@@ -100,14 +100,14 @@ namespace osu.Game.Localisation
         public static LocalisableString AdjustBeatmapOffsetAutomaticallyTooltip => new TranslatableString(getKey(@"adjust_beatmap_offset_automatically_tooltip"), @"If enabled, the offset suggested from last play on a beatmap is automatically applied.");
 
         /// <summary>
-        /// "Use experimental audio mode"
+        /// "Use experimental WASAPI audio"
         /// </summary>
-        public static LocalisableString WasapiLabel => new TranslatableString(getKey(@"wasapi_label"), @"Use experimental audio mode");
+        public static LocalisableString WasapiLabel => new TranslatableString(getKey(@"wasapi_label"), @"Use experimental WASAPI audio");
 
         /// <summary>
-        /// "This will attempt to initialise the audio engine in a lower latency mode."
+        /// "Windows only. This will attempt to initialise the audio engine in a lower latency WASAPI mode and prefer a WASAPI output device when available."
         /// </summary>
-        public static LocalisableString WasapiTooltip => new TranslatableString(getKey(@"wasapi_tooltip"), @"This will attempt to initialise the audio engine in a lower latency mode.");
+        public static LocalisableString WasapiTooltip => new TranslatableString(getKey(@"wasapi_tooltip"), @"Windows only. This will attempt to initialise the audio engine in a lower latency WASAPI mode and prefer a WASAPI output device when available.");
 
         /// <summary>
         /// "Due to reduced latency, your audio offset will need to be adjusted when enabling this setting. Generally expect to subtract 20 - 60 ms from your known value."

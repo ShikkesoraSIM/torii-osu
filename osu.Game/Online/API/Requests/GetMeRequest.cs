@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using osu.Framework.IO.Network;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets;
 
@@ -17,6 +18,13 @@ namespace osu.Game.Online.API.Requests
         public GetMeRequest(IRulesetInfo? ruleset = null)
         {
             Ruleset = ruleset;
+        }
+
+        protected override WebRequest CreateWebRequest()
+        {
+            var req = base.CreateWebRequest();
+            req.AddToriiPpVariantIfEnabled(API);
+            return req;
         }
 
         protected override string Target => $@"me/{Ruleset?.ShortName}";

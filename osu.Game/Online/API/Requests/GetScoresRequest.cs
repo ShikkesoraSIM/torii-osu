@@ -76,6 +76,7 @@ namespace osu.Game.Online.API.Requests
                 req.AddParameter(@"mods[]", mod.Acronym);
 
             req.AddParameter(@"limit", ScoresRequested.ToString(CultureInfo.InvariantCulture));
+            req.AddToriiPpVariantIfEnabled(API);
             return req;
         }
 

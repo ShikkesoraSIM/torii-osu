@@ -8,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System;
 using osu.Framework.Allocation;
 using osu.Framework.Audio.Track;
 using osu.Framework.Bindables;
@@ -97,6 +96,12 @@ namespace osu.Game.Beatmaps
                     }
                 };
             }, true);
+
+            ToriiPpVariantState.UsePpDevVariantBindable.BindValueChanged(_ =>
+            {
+                base.Invalidate(_ => true);
+                Scheduler.AddOnce(updateTrackedBindables);
+            });
         }
 
         /// <summary>
@@ -193,7 +198,13 @@ namespace osu.Game.Beatmaps
 
         public Task<List<TimedDifficultyAttributes>> GetTimedDifficultyAttributesAsync(IWorkingBeatmap beatmap, Ruleset ruleset, Mod[] mods, CancellationToken cancellationToken = default)
         {
-            return Task.Factory.StartNew(() => ruleset.CreateDifficultyCalculator(beatmap).CalculateTimed(mods, cancellationToken),
+            bool usePpDevVariant = ToriiPpVariantState.UsePpDevVariant;
+
+            return Task.Factory.StartNew(() =>
+            {
+                using var _ = ToriiPpVariantState.BeginScopedOverride(usePpDevVariant);
+                return ruleset.CreateDifficultyCalculator(beatmap).CalculateTimed(mods, cancellationToken);
+            },
                 cancellationToken,
                 TaskCreationOptions.HideScheduler | TaskCreationOptions.RunContinuationsAsynchronously,
                 updateScheduler);
@@ -281,6 +292,8 @@ namespace osu.Game.Beatmaps
 
             try
             {
+                using var _ = ToriiPpVariantState.BeginScopedOverride(key.UsePpDevVariant);
+
                 var ruleset = rulesetInfo.CreateInstance();
                 Debug.Assert(ruleset != null);
 
@@ -351,6 +364,7 @@ namespace osu.Game.Beatmaps
             public readonly BeatmapInfo BeatmapInfo;
             public readonly RulesetInfo Ruleset;
             public readonly Mod[] OrderedMods;
+            public readonly bool UsePpDevVariant;
 
             public DifficultyCacheLookup(BeatmapInfo beatmapInfo, RulesetInfo? ruleset, IEnumerable<Mod>? mods)
             {
@@ -358,12 +372,14 @@ namespace osu.Game.Beatmaps
                 // In the case that the user hasn't given us a ruleset, use the beatmap's default ruleset.
                 Ruleset = ruleset ?? BeatmapInfo.Ruleset;
                 OrderedMods = mods?.OrderBy(m => m.Acronym).Select(mod => mod.DeepClone()).ToArray() ?? Array.Empty<Mod>();
+                UsePpDevVariant = ToriiPpVariantState.UsePpDevVariant;
             }
 
             public bool Equals(DifficultyCacheLookup other)
                 => BeatmapInfo.Equals(other.BeatmapInfo)
                    && Ruleset.Equals(other.Ruleset)
-                   && OrderedMods.SequenceEqual(other.OrderedMods);
+                   && OrderedMods.SequenceEqual(other.OrderedMods)
+                   && UsePpDevVariant == other.UsePpDevVariant;
 
             public override int GetHashCode()
             {
@@ -371,6 +387,7 @@ namespace osu.Game.Beatmaps
 
                 hashCode.Add(BeatmapInfo.ID);
                 hashCode.Add(Ruleset.ShortName);
+                hashCode.Add(UsePpDevVariant);
 
                 foreach (var mod in OrderedMods)
                     hashCode.Add(mod);

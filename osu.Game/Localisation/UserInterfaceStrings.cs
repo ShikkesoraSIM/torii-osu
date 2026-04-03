@@ -100,6 +100,41 @@ namespace osu.Game.Localisation
         public static LocalisableString SeasonalBackgrounds => new TranslatableString(getKey(@"seasonal_backgrounds"), @"Seasonal backgrounds");
 
         /// <summary>
+        /// "Toolbar layout"
+        /// </summary>
+        public static LocalisableString ToolbarLayout => new TranslatableString(getKey(@"toolbar_layout"), @"Toolbar layout");
+
+        /// <summary>
+        /// "Expanded"
+        /// </summary>
+        public static LocalisableString ToolbarLayoutExpanded => new TranslatableString(getKey(@"toolbar_layout_expanded"), @"Expanded");
+
+        /// <summary>
+        /// "Minimal (auto-expand)"
+        /// </summary>
+        public static LocalisableString ToolbarLayoutMinimalAutoExpand => new TranslatableString(getKey(@"toolbar_layout_minimal_auto_expand"), @"Minimal (auto-expand)");
+
+        /// <summary>
+        /// "Toolbar density"
+        /// </summary>
+        public static LocalisableString ToolbarDensity => new TranslatableString(getKey(@"toolbar_density"), @"Toolbar density");
+
+        /// <summary>
+        /// "Auto"
+        /// </summary>
+        public static LocalisableString ToolbarDensityAuto => new TranslatableString(getKey(@"toolbar_density_auto"), @"Auto");
+
+        /// <summary>
+        /// "Compact"
+        /// </summary>
+        public static LocalisableString ToolbarDensityCompact => new TranslatableString(getKey(@"toolbar_density_compact"), @"Compact");
+
+        /// <summary>
+        /// "Comfortable"
+        /// </summary>
+        public static LocalisableString ToolbarDensityComfortable => new TranslatableString(getKey(@"toolbar_density_comfortable"), @"Comfortable");
+
+        /// <summary>
         /// "Changes to this setting will only apply with an active osu!supporter tag."
         /// </summary>
         public static LocalisableString NotSupporterNote => new TranslatableString(getKey(@"not_supporter_note"), @"Changes to this setting will only apply with an active osu!supporter tag.");

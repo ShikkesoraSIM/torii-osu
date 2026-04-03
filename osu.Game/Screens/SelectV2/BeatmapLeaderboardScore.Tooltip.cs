@@ -24,6 +24,8 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Localisation;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.Leaderboards;
 using osu.Game.Overlays;
 using osu.Game.Resources.Localisation.Web;
@@ -274,6 +276,9 @@ namespace osu.Game.Screens.SelectV2
             {
                 private readonly ScoreInfo score;
 
+                [Resolved(CanBeNull = true)]
+                private IAPIProvider? api { get; set; }
+
                 public PerformanceStatisticRow(LocalisableString label, ScoreInfo score)
                     : base(label, @"--")
                 {
@@ -283,13 +288,15 @@ namespace osu.Game.Screens.SelectV2
                 [BackgroundDependencyLoader]
                 private void load(BeatmapDifficultyCache difficultyCache, CancellationToken? cancellationToken)
                 {
-                    if (score.PP.HasValue)
+                    bool forceClientRecalculation = isPpDevVariantActive();
+
+                    if (!forceClientRecalculation && score.PP.HasValue)
                     {
                         setPerformanceValue(score, score.PP.Value);
                         return;
                     }
 
-                    if (isOnlineScore(score))
+                    if (isOnlineScore(score) && !forceClientRecalculation)
                         return;
 
                     Task.Run(async () =>
@@ -297,9 +304,13 @@ namespace osu.Game.Screens.SelectV2
                         var attributes = await difficultyCache.GetDifficultyAsync(score.BeatmapInfo!, score.Ruleset, score.Mods, cancellationToken ?? default).ConfigureAwait(false);
                         var performanceCalculator = score.Ruleset.CreateInstance().CreatePerformanceCalculator();
 
-                        // Performance calculation requires the beatmap and ruleset to be locally available. If not, return a default value.
+                        // Performance calculation requires the beatmap and ruleset to be locally available.
                         if (attributes?.DifficultyAttributes == null || performanceCalculator == null)
+                        {
+                            if (score.PP.HasValue)
+                                Schedule(() => setPerformanceValue(score, score.PP.Value));
                             return;
+                        }
 
                         var result = await performanceCalculator.CalculateAsync(score, attributes.Value.DifficultyAttributes, cancellationToken ?? CancellationToken.None).ConfigureAwait(false);
 
@@ -308,6 +319,8 @@ namespace osu.Game.Screens.SelectV2
                 }
 
                 private static bool isOnlineScore(ScoreInfo scoreInfo) => scoreInfo.OnlineID > 0 || scoreInfo.LegacyOnlineID > 0;
+
+                private bool isPpDevVariantActive() => ToriiRequestVariantExtensions.IsPpDevVariantActive(api);
 
                 private void setPerformanceValue(ScoreInfo scoreInfo, double pp)
                 {

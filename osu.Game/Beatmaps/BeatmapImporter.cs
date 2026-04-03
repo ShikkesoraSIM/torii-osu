@@ -234,7 +234,48 @@ namespace osu.Game.Beatmaps
                 beatmap.UpdateLocalScores(realm);
             }
 
-            ProcessBeatmap?.Invoke(model, parameters.Batch ? MetadataLookupScope.LocalCacheFirst : MetadataLookupScope.OnlineFirst);
+            if (ProcessBeatmap == null)
+                return;
+
+            var lookupScope = parameters.Batch ? MetadataLookupScope.LocalCacheFirst : MetadataLookupScope.OnlineFirst;
+
+            if (parameters.Batch)
+            {
+                ProcessBeatmap.Invoke(model, lookupScope);
+                return;
+            }
+
+            // Keep single imports responsive (e.g. map downloads): schedule expensive metadata/difficulty processing out-of-band.
+            // PostImport() runs before the enclosing realm transaction commits, so resolve the live model by ID in the background.
+            // This keeps the import path short while preserving the final metadata / difficulty state once the set becomes visible.
+            var importedId = model.ID;
+            Task.Factory.StartNew(() =>
+            {
+                try
+                {
+                    const int max_lookup_attempts = 20;
+                    const int lookup_retry_delay_ms = 50;
+
+                    for (int attempt = 0; attempt < max_lookup_attempts; attempt++)
+                    {
+                        var liveModel = Realm.Run(r => r.Find<BeatmapSetInfo>(importedId)?.ToLive(Realm));
+
+                        if (liveModel != null)
+                        {
+                            liveModel.PerformRead(set => ProcessBeatmap?.Invoke(set, lookupScope));
+                            return;
+                        }
+
+                        Thread.Sleep(lookup_retry_delay_ms);
+                    }
+
+                    Logger.Log($"Deferred beatmap processing skipped for set {importedId} because the committed import was not yet visible.", LoggingTarget.Database);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, $"Deferred beatmap processing failed for set {importedId}.", LoggingTarget.Database);
+                }
+            }, TaskCreationOptions.LongRunning);
         }
 
         private void validateOnlineIds(BeatmapSetInfo beatmapSet, Realm realm)

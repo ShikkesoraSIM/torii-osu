@@ -7,6 +7,7 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
+using osu.Game.Configuration;
 using osu.Game.Extensions;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
@@ -60,6 +61,14 @@ namespace osu.Game.Online
                 // schedule a frame to allow the API to be in its correct state sending requests.
                 Schedule(initialiseStatistics);
             }, true);
+
+            IBindable<bool> ppVariantBindable = ToriiPpVariantState.UsePpDevVariantBindable;
+
+            ppVariantBindable.BindValueChanged(_ =>
+            {
+                if (api.LocalUser.Value != null && api.LocalUser.Value.Id > 1)
+                    Schedule(initialiseStatistics);
+            });
         }
 
         private void initialiseStatistics()

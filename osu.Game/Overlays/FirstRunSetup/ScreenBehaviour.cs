@@ -87,6 +87,7 @@ namespace osu.Game.Overlays.FirstRunSetup
                         new AudioSection(),
                         new GraphicsSection(),
                         new OnlineSection(),
+                        new ToriiSection(),
                         new MaintenanceSection(),
                         new DebugSection()
                     },

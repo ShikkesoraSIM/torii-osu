@@ -646,6 +646,51 @@ jobs:
           echo "Created portable package: Releases/portable-${{ matrix.runtime }}.zip"
         fi
 
+    - name: Verify packaged assets
+      shell: bash
+      run: |
+        required_files=()
+
+        case "${{ matrix.runtime }}" in
+          win-x64|win-arm64)
+            required_files+=("Releases/install-${{ matrix.runtime }}.exe")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
+            ;;
+          linux-x64|linux-arm64)
+            required_files+=("Releases/osu-torii-${{ matrix.runtime }}.AppImage")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
+            ;;
+          osx-x64)
+            required_files+=("Releases/osu.app.Intel.zip")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
+            ;;
+          osx-arm64)
+            required_files+=("Releases/osu.app.Apple.Silicon.zip")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
+            ;;
+          android)
+            required_files+=("Releases/osu-torii.apk")
+            ;;
+        esac
+
+        echo "Verifying packaged assets for ${{ matrix.runtime }}"
+        missing=0
+
+        for file in "${required_files[@]}"; do
+          if [[ ! -f "$file" ]]; then
+            echo "::error::Missing expected release asset: $file"
+            missing=1
+          else
+            echo "OK: $file"
+          fi
+        done
+
+        if [[ $missing -ne 0 ]]; then
+          echo "Release packaging output:"
+          ls -al Releases || true
+          exit 1
+        fi
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -747,6 +792,42 @@ jobs:
           cp -f "$f" release-files/
         done
         echo "Collected files:" && ls -al release-files || true
+
+    - name: Verify release bundle completeness
+      shell: bash
+      run: |
+        expected_files=(
+          "install-win-x64.exe"
+          "install-win-arm64.exe"
+          "portable-win-x64.zip"
+          "portable-win-arm64.zip"
+          "osu-torii-linux-x64.AppImage"
+          "osu-torii-linux-arm64.AppImage"
+          "portable-linux-x64.tar.gz"
+          "portable-linux-arm64.tar.gz"
+          "osu.app.Intel.zip"
+          "osu.app.Apple.Silicon.zip"
+          "portable-osx-x64.zip"
+          "portable-osx-arm64.zip"
+          "osu-torii.apk"
+        )
+
+        missing=0
+
+        for file in "${expected_files[@]}"; do
+          if [[ ! -f "release-files/$file" ]]; then
+            echo "::error::Release is missing asset: $file"
+            missing=1
+          else
+            echo "OK: release-files/$file"
+          fi
+        done
+
+        if [[ $missing -ne 0 ]]; then
+          echo "Collected release files:"
+          ls -al release-files || true
+          exit 1
+        fi
 
     # Use the precomputed version as the tag
 

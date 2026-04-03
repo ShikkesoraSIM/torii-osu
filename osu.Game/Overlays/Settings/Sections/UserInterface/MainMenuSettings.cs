@@ -49,6 +49,22 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                 {
                     Keywords = new[] { "intro", "welcome" },
                 },
+                new SettingsItemV2(new FormEnumDropdown<ToolbarLayoutMode>
+                {
+                    Caption = UserInterfaceStrings.ToolbarLayout,
+                    Current = config.GetBindable<ToolbarLayoutMode>(OsuSetting.ToolbarLayoutMode),
+                })
+                {
+                    Keywords = new[] { "toolbar", "navbar", "navigation", "menu" },
+                },
+                new SettingsItemV2(new FormEnumDropdown<ToolbarDensityMode>
+                {
+                    Caption = UserInterfaceStrings.ToolbarDensity,
+                    Current = config.GetBindable<ToolbarDensityMode>(OsuSetting.ToolbarDensityMode),
+                })
+                {
+                    Keywords = new[] { "toolbar", "navbar", "density", "height", "compact" },
+                },
                 new SettingsItemV2(new FormEnumDropdown<IntroSequence>
                 {
                     Caption = UserInterfaceStrings.IntroSequence,

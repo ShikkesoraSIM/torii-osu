@@ -16,7 +16,7 @@ namespace osu.Game.Online.API
     {
         private readonly string clientId;
         private readonly string clientSecret;
-        private readonly string endpoint;
+        private volatile string endpoint;
         private readonly string versionHash;
         private readonly string clientVersion;
 
@@ -39,6 +39,14 @@ namespace osu.Game.Online.API
             this.endpoint = endpoint;
             this.versionHash = versionHash;
             this.clientVersion = clientVersion;
+        }
+
+        internal void UpdateEndpoint(string endpoint)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint))
+                throw new ArgumentException("Endpoint may not be empty.", nameof(endpoint));
+
+            this.endpoint = endpoint;
         }
 
         internal void AuthenticateWithLogin(string username, string password)
