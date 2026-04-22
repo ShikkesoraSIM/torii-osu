@@ -30,7 +30,7 @@ namespace osu.Game.Rulesets.Osu.Mods
         /// <remarks>
         /// Incompatible with all mods that directly modify or indirectly depend on <see cref="OsuHitObject.TimePreempt"/>, or alter the behaviour of approach circles.
         /// </remarks>
-        public override Type[] IncompatibleMods => base.IncompatibleMods.Concat(new[] { typeof(OsuModApproachDifferent), typeof(OsuModTransform), typeof(OsuModDepth), typeof(OsuModHidden) }).ToArray();
+        public override Type[] IncompatibleMods => base.IncompatibleMods.Concat(new[] { typeof(OsuModApproachDifferent), typeof(OsuModTransform), typeof(OsuModDepth)}).ToArray();
 
         public override ModType Type => ModType.Fun;
 
