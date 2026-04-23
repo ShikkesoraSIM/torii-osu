@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Game.Online.API.Requests.Responses;
 using osuTK;
 using osu.Game.Overlays.Profile.Header.Components;
+using osu.Game.Users.Drawables;
 
 namespace osu.Game.Users
 {
@@ -117,6 +118,12 @@ namespace osu.Game.Users
                     SupportLevel = User.SupportLevel
                 });
             }
+
+            details.Add(CreateClientBadge().With(badge =>
+            {
+                badge.Anchor = Anchor.CentreLeft;
+                badge.Origin = Anchor.CentreLeft;
+            }));
 
             return layout;
         }

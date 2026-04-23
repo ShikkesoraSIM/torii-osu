@@ -14,6 +14,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Metadata;
+using osu.Framework.Graphics.Containers;
 
 namespace osu.Game.Users
 {
@@ -23,12 +24,14 @@ namespace osu.Game.Users
 
         private StatusIcon statusIcon = null!;
         private StatusText statusMessage = null!;
+        private ToriiClientBadge? toriiClientBadge;
 
         [Resolved]
         private MetadataClient? metadata { get; set; }
 
         private UserStatus? lastStatus;
         private UserActivity? lastActivity;
+        private string? lastClientName;
         private DateTimeOffset? lastVisit;
 
         protected ExtendedUserPanel(APIUser user)
@@ -59,6 +62,12 @@ namespace osu.Game.Users
         }
 
         protected Container CreateStatusIcon() => statusIcon = new StatusIcon();
+
+        /// <summary>
+        /// Creates the Torii client badge shown next to users who are playing via the Torii client.
+        /// The returned instance is managed by <see cref="ExtendedUserPanel"/> — visibility updates automatically.
+        /// </summary>
+        protected ToriiClientBadge CreateClientBadge() => toriiClientBadge = new ToriiClientBadge();
 
         protected FillFlowContainer CreateStatusMessage(bool rightAlignedChildren)
         {
@@ -94,8 +103,9 @@ namespace osu.Game.Users
             UserPresence? presence = metadata?.GetPresence(User.OnlineID);
             UserStatus status = presence?.Status ?? UserStatus.Offline;
             UserActivity? activity = presence?.Activity;
+            string? clientName = presence?.ClientName;
 
-            if (status == lastStatus && activity == lastActivity)
+            if (status == lastStatus && activity == lastActivity && clientName == lastClientName)
                 return;
 
             if (status == UserStatus.Offline && lastVisit != null)
@@ -127,8 +137,11 @@ namespace osu.Game.Users
             else
                 statusIcon.FadeColour(activity.GetAppropriateColour(Colours), 500, Easing.OutQuint);
 
+            toriiClientBadge?.UpdateClientName(clientName);
+
             lastStatus = status;
             lastActivity = activity;
+            lastClientName = clientName;
             lastVisit = status != UserStatus.Offline ? DateTimeOffset.Now : lastVisit;
         }
 

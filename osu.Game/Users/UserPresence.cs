@@ -24,5 +24,12 @@ namespace osu.Game.Users
         /// </summary>
         [Key(1)]
         public UserStatus? Status { get; set; }
+
+        /// <summary>
+        /// The name of the client the user is connected from (e.g. "torii").
+        /// Null when the server has not provided client information.
+        /// </summary>
+        [Key(2)]
+        public string? ClientName { get; set; }
     }
 }

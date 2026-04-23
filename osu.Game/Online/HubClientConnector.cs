@@ -23,6 +23,15 @@ namespace osu.Game.Online
         public const string CLIENT_SESSION_ID_HEADER = @"X-Client-Session-ID";
 
         /// <summary>
+        /// Header sent with every hub connection to identify the Torii client to the server.
+        /// The server uses this to populate <see cref="osu.Game.Users.UserPresence.ClientName"/>
+        /// in presence broadcasts so other clients can show the Torii badge.
+        /// </summary>
+        public const string CLIENT_NAME_HEADER = @"X-Client-Name";
+
+        private const string CLIENT_NAME_VALUE = @"torii";
+
+        /// <summary>
         /// Invoked whenever a new hub connection is built, to configure it before it's started.
         /// </summary>
         public Action<HubConnection>? ConfigureConnection { get; set; }
@@ -69,6 +78,7 @@ namespace osu.Game.Online
                     options.Headers.Add(VERSION_HASH_HEADER, versionHash);
                     options.Headers.Add(CLIENT_SESSION_ID_HEADER, API.SessionIdentifier.ToString());
                     options.Headers.Add(RULESET_HASH_HEADER, JsonConvert.SerializeObject(rulesetHashCache.RulesetsHashes));
+                    options.Headers.Add(CLIENT_NAME_HEADER, CLIENT_NAME_VALUE);
                 });
 
             builder.AddMessagePackProtocol(options =>
