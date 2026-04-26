@@ -1,12 +1,15 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using osu.Framework.Allocation;
-using osu.Framework.Audio;
-using osu.Framework.Graphics;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework;
+using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Bindables;
+using osu.Framework.Configuration;
 using osu.Framework.Extensions.ObjectExtensions;
+using osu.Framework.Graphics;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
@@ -20,11 +23,22 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         [Resolved]
         private AudioManager audio { get; set; } = null!;
 
+        [Resolved]
+        private FrameworkConfigManager frameworkConfig { get; set; } = null!;
+
         private AudioDeviceDropdown dropdown = null!;
+
+        private FormCheckBox? wasapiExperimental;
+
+        private Bindable<bool>? useExperimentalWasapi;
+
+        private readonly Bindable<SettingsNote.Data?> wasapiExperimentalNote = new Bindable<SettingsNote.Data?>();
 
         [BackgroundDependencyLoader]
         private void load()
         {
+            useExperimentalWasapi = frameworkConfig.GetBindable<bool>(FrameworkSetting.AudioUseExperimentalWasapi);
+
             Children = new Drawable[]
             {
                 new SettingsItemV2(dropdown = new AudioDeviceDropdown
@@ -36,6 +50,22 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
                 },
             };
 
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+            {
+                Add(new SettingsItemV2(wasapiExperimental = new FormCheckBox
+                {
+                    Caption = AudioSettingsStrings.WasapiLabel,
+                    HintText = AudioSettingsStrings.WasapiTooltip,
+                    Current = useExperimentalWasapi,
+                })
+                {
+                    Keywords = new[] { "wasapi", "latency", "exclusive" },
+                    Note = { BindTarget = wasapiExperimentalNote },
+                });
+
+                wasapiExperimental.Current.ValueChanged += _ => onDeviceChanged(string.Empty);
+            }
+
             audio.OnNewDevice += onDeviceChanged;
             audio.OnLostDevice += onDeviceChanged;
             dropdown.Current = audio.AudioDevice;
@@ -43,7 +73,15 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
             onDeviceChanged(string.Empty);
         }
 
-        private void onDeviceChanged(string _) => updateItems();
+        private void onDeviceChanged(string _)
+        {
+            updateItems();
+
+            if (wasapiExperimental != null)
+                wasapiExperimentalNote.Value = wasapiExperimental.Current.Value
+                    ? new SettingsNote.Data(AudioSettingsStrings.WasapiNotice, SettingsNote.Type.Warning)
+                    : null;
+        }
 
         private void updateItems()
         {
@@ -55,8 +93,8 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
             // If a previous Torii session saved a WASAPI-prefixed device name
             // (e.g. "WASAPI Shared: Headphones") and that device is not present
             // in the current enumeration, reset to the system default.
-            // This prevents audio from breaking when the data folder is shared
-            // between Torii and a standard osu! installation.
+            // This keeps shared configs compatible after moving back to the
+            // upstream experimental-WASAPI behaviour.
             if (!string.IsNullOrEmpty(preferredDeviceName) &&
                 (preferredDeviceName.StartsWith("WASAPI Shared:", System.StringComparison.OrdinalIgnoreCase) ||
                  preferredDeviceName.StartsWith("WASAPI Exclusive:", System.StringComparison.OrdinalIgnoreCase)) &&
@@ -69,14 +107,7 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
             if (deviceItems.All(kv => kv != preferredDeviceName))
                 deviceItems.Add(preferredDeviceName);
 
-            // The option dropdown for audio device selection lists all audio
-            // device names. Dropdowns, however, may not have multiple identical
-            // keys. Thus, we remove duplicate audio device names from
-            // the dropdown. BASS does not give us a simple mechanism to select
-            // specific audio devices in such a case anyways. Such
-            // functionality would require involved OS-specific code.
             dropdown.Items = deviceItems
-                             // Dropdown doesn't like null items. Somehow we are seeing some arrive here (see https://github.com/ppy/osu/issues/21271)
                              .Where(i => i.IsNotNull())
                              .Distinct()
                              .ToList();

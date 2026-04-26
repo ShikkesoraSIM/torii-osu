@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
@@ -8,6 +8,7 @@ using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Localisation;
+using osu.Game.Graphics.Sprites;
 using osuTK;
 
 namespace osu.Game.Users.Drawables
@@ -44,10 +45,10 @@ namespace osu.Game.Users.Drawables
             }
             else
             {
-                // Fallback: torii gate emoji rendered as text.
-                InternalChild = new SpriteText
+                // Keep the fallback simple and project-compliant if resources are missing.
+                InternalChild = new OsuSpriteText
                 {
-                    Text = "⛩",
+                    Text = "T",
                     Font = new FontUsage(size: 14),
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,

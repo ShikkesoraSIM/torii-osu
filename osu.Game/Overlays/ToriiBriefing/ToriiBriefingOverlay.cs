@@ -50,6 +50,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         private readonly HashSet<string> pendingThisSession = new HashSet<string>();
         private readonly IBindable<APIState> apiState = new Bindable<APIState>();
         private readonly IBindable<APIUser> localUser = new Bindable<APIUser>();
+        private int latestBriefingRequestId;
 
         private IAPIProvider api;
         private RulesetStore rulesets;
@@ -362,7 +363,7 @@ namespace osu.Game.Overlays.ToriiBriefing
             }
 
             var ruleset = rulesets.GetRuleset(rulesetName) ?? rulesets.GetRuleset("osu") ?? rulesets.GetRuleset(0) ?? rulesets.AvailableRulesets.First();
-            var pending = new PendingBriefing(sessionKey, localUser.Value, ruleset, usePpDev);
+            var pending = new PendingBriefing(++latestBriefingRequestId, sessionKey, localUser.Value, ruleset, usePpDev);
 
             Logger.Log($"Torii briefing fetching for {sessionKey}.");
 
@@ -422,6 +423,13 @@ namespace osu.Game.Overlays.ToriiBriefing
         {
             if (!pending.IsComplete)
                 return;
+
+            if (pending.RequestId != latestBriefingRequestId)
+            {
+                pendingThisSession.Remove(pending.SessionKey);
+                Logger.Log($"Torii briefing ignored stale request {pending.RequestId} for {pending.SessionKey} (latest={latestBriefingRequestId}).");
+                return;
+            }
 
             var payload = createPayload(pending);
 
@@ -625,6 +633,7 @@ namespace osu.Game.Overlays.ToriiBriefing
             string variant = ToriiPpVariantState.UsePpDevVariant ? "pp_dev" : "stable";
             string sessionKey = $"{user.Id}:{ruleset.ShortName}:{variant}";
 
+            latestBriefingRequestId++;
             shownThisSession.Remove(sessionKey);
             pendingThisSession.Remove(sessionKey);
             queueBriefingIfReady();
@@ -936,15 +945,15 @@ namespace osu.Game.Overlays.ToriiBriefing
             try
             {
                 if (!briefingStorage.Exists(snapshot_filename))
-                    return new BriefingState();
+                    return normaliseState(new BriefingState());
 
                 using (var stream = briefingStorage.GetStream(snapshot_filename, FileAccess.Read, FileMode.Open))
                 using (var reader = new StreamReader(stream))
-                    return reader.ReadToEnd().Deserialize<BriefingState>() ?? new BriefingState();
+                    return normaliseState(reader.ReadToEnd().Deserialize<BriefingState>() ?? new BriefingState());
             }
             catch
             {
-                return new BriefingState();
+                return normaliseState(new BriefingState());
             }
         }
 
@@ -969,6 +978,8 @@ namespace osu.Game.Overlays.ToriiBriefing
         {
             try
             {
+                state = normaliseState(state);
+
                 using (var stream = briefingStorage.GetStream(snapshot_filename, FileAccess.Write, FileMode.Create))
                 using (var writer = new StreamWriter(stream))
                     writer.Write(state.Serialize());
@@ -977,6 +988,14 @@ namespace osu.Game.Overlays.ToriiBriefing
             {
                 // Briefing snapshots are a convenience feature; never break login if local storage is unavailable.
             }
+        }
+
+        private static BriefingState normaliseState(BriefingState state)
+        {
+            state ??= new BriefingState();
+            state.Users ??= new Dictionary<string, BriefingSnapshot>();
+            state.ConsumedPromotionMigrations ??= new HashSet<string>();
+            return state;
         }
 
         private void saveLastBriefing(BriefingPayload payload)
@@ -1069,6 +1088,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         {
             private int remainingRequests = 3;
 
+            public readonly int RequestId;
             public readonly APIUser LocalUser;
             public readonly RulesetInfo Ruleset;
             public readonly bool UsePpDev;
@@ -1079,8 +1099,9 @@ namespace osu.Game.Overlays.ToriiBriefing
             public ToriiBriefingRadarResponse Radar;
             public bool IsComplete => remainingRequests <= 0;
 
-            public PendingBriefing(string sessionKey, APIUser localUser, RulesetInfo ruleset, bool usePpDev)
+            public PendingBriefing(int requestId, string sessionKey, APIUser localUser, RulesetInfo ruleset, bool usePpDev)
             {
+                RequestId = requestId;
                 SessionKey = sessionKey;
                 LocalUser = localUser;
                 Ruleset = ruleset;
