@@ -965,28 +965,15 @@ jobs:
         HASHES='{}'
         for f in hashes/hash-*.json; do
           [[ -f "$f" ]] || continue
-          H=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('hash',''))")
-          O=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('os',''))")
-          R=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('runtime',''))")
+          H=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('hash',''))" "$f")
+          O=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('os',''))" "$f")
+          R=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('runtime',''))" "$f")
           [[ -z "$H" ]] && { echo "  Skipping $f (empty hash)"; continue; }
-          HASHES=$(python3 -c "
-import json, sys
-h = json.loads(sys.argv[1])
-h[sys.argv[2]] = sys.argv[3]
-print(json.dumps(h))
-" "$HASHES" "$H" "$O")
-          echo "  $R → $H ($O)"
+          HASHES=$(python3 -c "import json,sys; h=json.loads(sys.argv[1]); h[sys.argv[2]]=sys.argv[3]; print(json.dumps(h))" "$HASHES" "$H" "$O")
+          echo "  $R -> $H ($O)"
         done
 
-        PAYLOAD=$(python3 -c "
-import json, sys
-payload = {
-    'version': sys.argv[1],
-    'client_name': 'osu! Torii',
-    'hashes': json.loads(sys.argv[2]),
-}
-print(json.dumps(payload))
-" "$VERSION" "$HASHES")
+        PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'version': sys.argv[1], 'client_name': 'osu! Torii', 'hashes': json.loads(sys.argv[2])}))" "$VERSION" "$HASHES")
 
         echo "Registering ${#HASHES} hashes for osu! Torii $VERSION …"
 
