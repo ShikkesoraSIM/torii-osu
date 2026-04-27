@@ -37,6 +37,14 @@ namespace osu.Game.Screens.Play
         /// </summary>
         private long? token;
 
+        /// <summary>
+        /// Tracks the async token retrieval kicked off in <see cref="LoadAsyncComplete"/>.
+        /// Awaited from the (background) submission path so the load thread is never blocked
+        /// on the API roundtrip. Blocking the load thread on retry caused audible audio pops
+        /// while the new player instance was being prepared.
+        /// </summary>
+        private Task<bool> tokenRetrievalTask = Task.FromResult(false);
+
         [Resolved]
         private IAPIProvider api { get; set; }
 
@@ -90,10 +98,10 @@ namespace osu.Game.Screens.Play
         protected override void LoadAsyncComplete()
         {
             base.LoadAsyncComplete();
-            handleTokenRetrieval();
+            tokenRetrievalTask = handleTokenRetrieval();
         }
 
-        private bool handleTokenRetrieval()
+        private Task<bool> handleTokenRetrieval()
         {
             // Token request construction should happen post-load to allow derived classes to potentially prepare DI backings that are used to create the request.
             var tcs = new TaskCompletionSource<bool>();
@@ -101,13 +109,13 @@ namespace osu.Game.Screens.Play
             if (Mods.Value.Any(m => !m.UserPlayable))
             {
                 handleTokenFailure(new InvalidOperationException("Non-user playable mod selected."));
-                return false;
+                return tcs.Task;
             }
 
             if (!api.IsLoggedIn)
             {
                 handleTokenFailure(new InvalidOperationException("API is not online."));
-                return false;
+                return tcs.Task;
             }
 
             var req = CreateTokenRequest();
@@ -115,24 +123,30 @@ namespace osu.Game.Screens.Play
             if (req == null)
             {
                 handleTokenFailure(new InvalidOperationException("Request could not be constructed."));
-                return false;
+                return tcs.Task;
             }
 
             req.Success += r =>
             {
                 Logger.Log($"Score submission token retrieved ({r.ID})");
                 token = r.ID;
-                tcs.SetResult(true);
+                tcs.TrySetResult(true);
             };
             req.Failure += ex => handleTokenFailure(ex, displayNotification: true);
 
             api.Queue(req);
 
-            // Generally a timeout would not happen here as APIAccess will timeout first.
-            if (!tcs.Task.Wait(30000))
-                req.TriggerFailure(new InvalidOperationException("Token retrieval timed out (request never run)"));
+            // Don't block the load thread waiting for the API roundtrip — the submission path
+            // (which already runs on a background Task.Run) awaits this with a generous timeout.
+            // Blocking here used to cause audio pops on retry because LoadAsyncComplete sits on
+            // the load thread that the audio engine shares for new-track preparation.
+            _ = Task.Delay(30000).ContinueWith(_ =>
+            {
+                if (!tcs.Task.IsCompleted)
+                    req.TriggerFailure(new InvalidOperationException("Token retrieval timed out (request never run)"));
+            }, TaskScheduler.Default);
 
-            return true;
+            return tcs.Task;
 
             void handleTokenFailure(Exception exception, bool displayNotification = false)
             {
@@ -316,35 +330,48 @@ namespace osu.Game.Screens.Play
         /// <param name="token">The submission token.</param>
         protected abstract APIRequest<MultiplayerScore> CreateSubmissionRequest(Score score, long token);
 
-        private Task submitScore(Score score)
+        private async Task submitScore(Score score)
         {
             var masterClock = GameplayClockContainer as MasterGameplayClockContainer;
 
             if (masterClock?.PlaybackRateValid.Value != true)
             {
                 Logger.Log("Score submission cancelled due to audio playback rate discrepancy.");
-                return Task.CompletedTask;
+                return;
+            }
+
+            // Wait for the (non-blocking) token retrieval kicked off in LoadAsyncComplete to finish.
+            // In practice this is virtually always already complete by the time gameplay ends, but if
+            // the API was slow we'd rather wait here (we're already on a background task) than block
+            // the load thread up front.
+            try
+            {
+                await tokenRetrievalTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                // failure is logged via the request callback; fall through and check `token` below.
             }
 
             // token may be null if the request failed but gameplay was still allowed (see HandleTokenRetrievalFailure).
             if (token == null)
             {
                 Logger.Log("No token, skipping score submission");
-                return Task.CompletedTask;
+                return;
             }
 
             // if the user never hit anything, this score should not be counted in any way.
             if (!score.ScoreInfo.Statistics.Any(s => s.Key.IsHit() && s.Value > 0))
             {
                 Logger.Log("No hits registered, skipping score submission");
-                return Task.CompletedTask;
+                return;
             }
 
             // zero scores should also never be submitted.
             if (score.ScoreInfo.TotalScore == 0)
             {
                 Logger.Log("Zero score, skipping score submission");
-                return Task.CompletedTask;
+                return;
             }
 
             if (GameplayState.Ruleset?.RulesetInfo?.ShortName == "osuspaceruleset")
@@ -366,9 +393,11 @@ namespace osu.Game.Screens.Play
                 if (hitWindow < 25f || hitWindow > 55f)
                 {
                     Logger.Log($"Score submission cancelled due to invalid Space hitwindow ({hitWindow}ms).");
-                    return Task.CompletedTask;
+                    return;
                 }
             }
+
+            TaskCompletionSource<bool> submissionSource;
 
             // mind the timing of this.
             // once `scoreSubmissionSource` is created, it is presumed that submission is taking place in the background,
@@ -376,9 +405,13 @@ namespace osu.Game.Screens.Play
             lock (scoreSubmissionLock)
             {
                 if (scoreSubmissionSource != null)
-                    return scoreSubmissionSource.Task;
+                {
+                    await scoreSubmissionSource.Task.ConfigureAwait(false);
+                    return;
+                }
 
                 scoreSubmissionSource = new TaskCompletionSource<bool>();
+                submissionSource = scoreSubmissionSource;
             }
 
             Logger.Log($"Beginning score submission (token:{token.Value})...");
@@ -391,18 +424,18 @@ namespace osu.Game.Screens.Play
                 score.ScoreInfo.PP = s.PP;
                 score.ScoreInfo.Ranked = s.Ranked;
 
-                scoreSubmissionSource.SetResult(true);
+                submissionSource.SetResult(true);
                 Logger.Log($"Score submission completed! (token:{token.Value} id:{s.ID})");
             };
 
             request.Failure += e =>
             {
                 Logger.Error(e, $"Failed to submit score (token:{token.Value}): {e.Message}");
-                scoreSubmissionSource.SetResult(false);
+                submissionSource.SetResult(false);
             };
 
             api.Queue(request);
-            return scoreSubmissionSource.Task;
+            await submissionSource.Task.ConfigureAwait(false);
         }
 
         protected override ResultsScreen CreateResults(ScoreInfo score)
