@@ -29,6 +29,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
         private FormEnumDropdown<LatencyMode>? latencySetting;
         private SettingsItemV2? latencySettingItem;
         private readonly Bindable<SettingsNote.Data?> latencySettingNote = new Bindable<SettingsNote.Data?>();
+        private readonly Bindable<SettingsNote.Data?> dangerousUnlimitedNote = new Bindable<SettingsNote.Data?>();
 
         private LatencyProviderType currentProvider = LatencyProviderType.None;
 
@@ -47,6 +48,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
             var reflexMode = config.GetBindable<LatencyMode>(FrameworkSetting.LatencyMode);
             var frameSyncMode = config.GetBindable<FrameSync>(FrameworkSetting.FrameSync);
+            var dangerousUnlimitedNoCap = config.GetBindable<bool>(FrameworkSetting.AllowDangerousUnlimitedNoCap);
 
             Children = new Drawable[]
             {
@@ -69,6 +71,16 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 })
                 {
                     Keywords = new[] { @"fps" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "I am stupid, I ignore warnings and want no limits",
+                    HintText = "Allows the experimental Unlimited mode to uncap update, input, and audio scheduling too. This can cause audio pops, stutters, heat, and general gremlin behaviour.",
+                    Current = dangerousUnlimitedNoCap,
+                })
+                {
+                    Keywords = new[] { @"fps", @"unlimited", @"no cap", @"danger", @"audio" },
+                    Note = { BindTarget = dangerousUnlimitedNote },
                 },
                 new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
                 {
@@ -111,13 +123,9 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             {
                 if (r.NewValue != LatencyMode.Off)
                 {
-                    // When low latency is enabled, only allow unlimited FPS options
-                    // This allows competitive players to use unlimited FPS while keeping low latency benefits
-                    frameSyncMode.Disabled = false; // Keep enabled but filter options
-
-                    // If current mode is not unlimited, switch to UnlimitedNoCap for best performance
-                    if (frameSyncMode.Value != FrameSync.Unlimited && frameSyncMode.Value != FrameSync.UnlimitedNoCap)
-                        frameSyncMode.Value = FrameSync.UnlimitedNoCap;
+                    // Keep the user's frame limiter unchanged. Forcing the no-cap mode can starve
+                    // audio scheduling on some systems and causes audible pops/stutters.
+                    frameSyncMode.Disabled = false;
                 }
                 else
                 {
@@ -128,6 +136,13 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
                 if (r.NewValue == LatencyMode.Boost)
                     SetLatencyBoostNotice();
+            }, true);
+
+            dangerousUnlimitedNoCap.BindValueChanged(v =>
+            {
+                dangerousUnlimitedNote.Value = v.NewValue
+                    ? new SettingsNote.Data("Unsafe mode enabled: Unlimited can now uncap update/input/audio too. Disable this first if audio starts doubling, popping, or stuttering.", SettingsNote.Type.Warning)
+                    : new SettingsNote.Data("Recommended: leave this off. Unlimited will still uncap rendering, but keeps audio/input/update protected.", SettingsNote.Type.Informational);
             }, true);
 
             renderer.BindValueChanged(r =>
@@ -268,16 +283,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             {
                 var allItems = Enum.GetValues<FrameSync>();
 
-                if (latencyMode.Value != LatencyMode.Off)
-                {
-                    // When low latency is enabled, only show unlimited options
-                    Items = allItems.Where(x => x == FrameSync.Unlimited || x == FrameSync.UnlimitedNoCap).Order();
-                }
-                else
-                {
-                    // When low latency is disabled, show all options
-                    Items = allItems.Order();
-                }
+                Items = allItems.Order();
             }
         }
     }

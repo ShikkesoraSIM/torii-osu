@@ -102,20 +102,12 @@ namespace osu.Game.Skinning
                             return new DefaultSkinComponentsContainer(container =>
                             {
                                 var maxPP = container.OfType<BeatmapAttributeText>().FirstOrDefault();
-                                var ppProjection = container.OfType<PerformanceProjectionDisplay>().FirstOrDefault();
 
                                 if (maxPP != null)
                                 {
                                     maxPP.Anchor = Anchor.TopRight;
                                     maxPP.Origin = Anchor.TopRight;
                                     maxPP.Position = new Vector2(-20, 12);
-                                }
-
-                                if (ppProjection != null)
-                                {
-                                    ppProjection.Anchor = Anchor.TopRight;
-                                    ppProjection.Origin = Anchor.TopRight;
-                                    ppProjection.Position = new Vector2(-20, 40);
                                 }
                             })
                             {
@@ -128,17 +120,6 @@ namespace osu.Game.Skinning
                                         Origin = Anchor.TopRight,
                                         Attribute = { Value = BeatmapAttribute.MaxPP },
                                     },
-                                    new PerformanceProjectionDisplay
-                                    {
-                                        Anchor = Anchor.TopRight,
-                                        Origin = Anchor.TopRight,
-                                        // Configuration options for PP projection display
-                                        Show95Percent = { Value = true },
-                                        Show97Percent = { Value = true },
-                                        Show99Percent = { Value = true },
-                                        Show100Percent = { Value = true },
-                                        LayoutDirection = { Value = ProjectionLayoutDirection.Horizontal },
-                                    }
                                 }
                             };
 

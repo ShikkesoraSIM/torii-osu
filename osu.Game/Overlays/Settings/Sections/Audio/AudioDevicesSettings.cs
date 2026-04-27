@@ -7,7 +7,6 @@ using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Bindables;
-using osu.Framework.Configuration;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Localisation;
@@ -23,22 +22,15 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         [Resolved]
         private AudioManager audio { get; set; } = null!;
 
-        [Resolved]
-        private FrameworkConfigManager frameworkConfig { get; set; } = null!;
-
         private AudioDeviceDropdown dropdown = null!;
 
         private FormCheckBox? wasapiExperimental;
-
-        private Bindable<bool>? useExperimentalWasapi;
 
         private readonly Bindable<SettingsNote.Data?> wasapiExperimentalNote = new Bindable<SettingsNote.Data?>();
 
         [BackgroundDependencyLoader]
         private void load()
         {
-            useExperimentalWasapi = frameworkConfig.GetBindable<bool>(FrameworkSetting.AudioUseExperimentalWasapi);
-
             Children = new Drawable[]
             {
                 new SettingsItemV2(dropdown = new AudioDeviceDropdown
@@ -56,7 +48,7 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
                 {
                     Caption = AudioSettingsStrings.WasapiLabel,
                     HintText = AudioSettingsStrings.WasapiTooltip,
-                    Current = useExperimentalWasapi,
+                    Current = audio.UseExperimentalWasapi,
                 })
                 {
                     Keywords = new[] { "wasapi", "latency", "exclusive" },
