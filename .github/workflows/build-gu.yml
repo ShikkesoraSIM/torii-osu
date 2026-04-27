@@ -497,6 +497,41 @@ jobs:
       shell: bash
       run: chmod +x "publish/${{ matrix.runtime }}/${RESOLVED_EXECUTABLE}"
 
+    - name: Compute executable MD5 hash
+      if: matrix.runtime != 'android'
+      shell: bash
+      run: |
+        EXEC="publish/${{ matrix.runtime }}/${RESOLVED_EXECUTABLE}"
+        # md5sum is available on all GitHub Actions runners (Linux, macOS, Windows via Git Bash)
+        if command -v md5sum &>/dev/null; then
+          HASH=$(md5sum "$EXEC" | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
+        elif command -v md5 &>/dev/null; then
+          HASH=$(md5 -q "$EXEC" | tr '[:upper:]' '[:lower:]')
+        else
+          echo "::warning::No md5 tool found on this runner — hash will not be registered"
+          HASH=""
+        fi
+
+        case "${{ matrix.runtime }}" in
+          win-x64|win-arm64) OS_LABEL="Windows" ;;
+          linux-x64|linux-arm64) OS_LABEL="Linux" ;;
+          osx-x64|osx-arm64) OS_LABEL="macOS" ;;
+          *) OS_LABEL="${{ matrix.runtime }}" ;;
+        esac
+
+        mkdir -p hash-output
+        printf '{"hash":"%s","os":"%s","runtime":"%s"}' "$HASH" "$OS_LABEL" "${{ matrix.runtime }}" \
+          > "hash-output/hash-${{ matrix.runtime }}.json"
+        echo "Hash for ${{ matrix.runtime }}: $HASH ($OS_LABEL)"
+
+    - name: Upload hash artifact
+      if: matrix.runtime != 'android'
+      uses: actions/upload-artifact@v4
+      with:
+        name: hash-${{ matrix.runtime }}-${{ needs.version.outputs.version }}
+        path: hash-output/hash-${{ matrix.runtime }}.json
+        retention-days: 30
+
     - name: Create Velopack package
       if: matrix.runtime != 'android'
       shell: bash
@@ -891,6 +926,84 @@ jobs:
           - **Android:** If your device rejects the APK due to signature policy, use your server distribution page as fallback.
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  register-client-hashes:
+    name: Register client hashes with Torii server
+    # Only runs on tag/release builds; silently skips if the webhook secret is not set.
+    if: |
+      (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release') &&
+      needs.release.result == 'success'
+    needs: [release, version]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download hash artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: hash-*-${{ needs.version.outputs.version }}
+        merge-multiple: true
+        path: hashes
+
+    - name: Build payload and register with Torii server
+      env:
+        TORII_SERVER_URL: ${{ vars.TORII_SERVER_URL }}
+        TORII_VERSION_WEBHOOK_SECRET: ${{ secrets.TORII_VERSION_WEBHOOK_SECRET }}
+        VERSION: ${{ needs.version.outputs.semver }}
+      shell: bash
+      run: |
+        if [[ -z "$TORII_VERSION_WEBHOOK_SECRET" ]]; then
+          echo "TORII_VERSION_WEBHOOK_SECRET secret not configured — skipping hash registration."
+          echo "Set it in repo Settings → Secrets to enable automatic hash registration."
+          exit 0
+        fi
+        if [[ -z "$TORII_SERVER_URL" ]]; then
+          echo "TORII_SERVER_URL variable not configured — skipping hash registration."
+          echo "Set it in repo Settings → Variables (e.g. https://api.yourserver.com)."
+          exit 0
+        fi
+
+        # Collect all hash files into a single JSON object: {md5: os_label}
+        HASHES='{}'
+        for f in hashes/hash-*.json; do
+          [[ -f "$f" ]] || continue
+          H=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('hash',''))")
+          O=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('os',''))")
+          R=$(python3 -c "import json; d=json.load(open('$f')); print(d.get('runtime',''))")
+          [[ -z "$H" ]] && { echo "  Skipping $f (empty hash)"; continue; }
+          HASHES=$(python3 -c "
+import json, sys
+h = json.loads(sys.argv[1])
+h[sys.argv[2]] = sys.argv[3]
+print(json.dumps(h))
+" "$HASHES" "$H" "$O")
+          echo "  $R → $H ($O)"
+        done
+
+        PAYLOAD=$(python3 -c "
+import json, sys
+payload = {
+    'version': sys.argv[1],
+    'client_name': 'osu! Torii',
+    'hashes': json.loads(sys.argv[2]),
+}
+print(json.dumps(payload))
+" "$VERSION" "$HASHES")
+
+        echo "Registering ${#HASHES} hashes for osu! Torii $VERSION …"
+
+        HTTP_STATUS=$(curl -s -o /tmp/register_resp.json -w "%{http_code}" \
+          -X POST "${TORII_SERVER_URL}/api/private/client-versions/register" \
+          -H "Authorization: Bearer $TORII_VERSION_WEBHOOK_SECRET" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD")
+
+        echo "HTTP $HTTP_STATUS:"
+        cat /tmp/register_resp.json || true
+
+        if [[ "$HTTP_STATUS" == "200" ]]; then
+          echo "Hash registration successful!"
+        else
+          echo "::warning::Hash registration returned HTTP $HTTP_STATUS — scores will still work, hashes can be registered manually via the admin panel"
+        fi
 
   notify:
     if: always()
