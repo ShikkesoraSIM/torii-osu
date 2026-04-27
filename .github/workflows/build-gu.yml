@@ -18,7 +18,7 @@ on:
 env:
   DOTNET_VERSION: '8.0.x'
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '8afa4dfea34ef16d19e6ed506a17f11e0c426d07'
+  FRAMEWORK_REF: 'c3faa58909d18343896dd48b395397298f6082c0'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: '8bfcf3dc5732a15e3c1a81ff5d053e445ee7df7f'
 
