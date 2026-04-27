@@ -13,6 +13,17 @@
     <FileVersion>0.0.0</FileVersion>
     <!-- Support multiple runtime identifiers for cross-platform builds -->
     <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <!--
+      Server GC + Concurrent GC: workstation GC (the default) does generation 0/1
+      collections on the calling thread, so the load thread takes the hit when
+      a new Player instance allocates everything for the next attempt — that
+      shows up as the orange GC spikes in the frame statistics overlay on retry.
+      Server GC runs collections on dedicated background threads per logical
+      core, keeping pauses off the audio/update threads. Standard tuning for
+      rhythm-game-class realtime workloads on .NET.
+    -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
