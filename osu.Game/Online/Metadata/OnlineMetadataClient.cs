@@ -69,6 +69,10 @@ namespace osu.Game.Online.Metadata
                     connection.On<int, UserPresence?>(nameof(IMetadataClient.FriendPresenceUpdated), ((IMetadataClient)this).FriendPresenceUpdated);
                     connection.On<DailyChallengeInfo?>(nameof(IMetadataClient.DailyChallengeUpdated), ((IMetadataClient)this).DailyChallengeUpdated);
                     connection.On<MultiplayerRoomScoreSetEvent>(nameof(IMetadataClient.MultiplayerRoomScoreSet), ((IMetadataClient)this).MultiplayerRoomScoreSet);
+                    // Torii-specific custom event: server tells us which connected users have a verified Torii client.
+                    // Subscribed via raw SignalR (no entry on IMetadataClient) so the spectator can keep referencing
+                    // upstream osu.Game from NuGet without needing the field on UserPresence.
+                    connection.On<int, string?>("UserClientNameUpdated", HandleUserClientNameUpdated);
                     connection.On(nameof(IStatefulUserHubClient.DisconnectRequested), ((IMetadataClient)this).DisconnectRequested);
                 };
 

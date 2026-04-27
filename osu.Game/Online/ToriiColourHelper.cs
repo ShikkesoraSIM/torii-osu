@@ -18,6 +18,7 @@ namespace osu.Game.Online
         {
             "torii-admin", "torii-dev", "torii-mod", "torii-qat", "torii-pooler",
             "torii-tournament", "torii-advisor", "torii-alumni", "torii-supporter",
+            "torii-goof",
         };
 
         /// <summary>Returns the colour of the user's highest-priority Torii title group, or null if they have none.</summary>

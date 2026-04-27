@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -85,6 +86,35 @@ namespace osu.Game.Online.Metadata
                 return presence;
 
             return null;
+        }
+
+        /// <summary>
+        /// Verified client name for the given user, populated by an out-of-band Torii signal
+        /// from the spectator (a custom SignalR <c>UserClientNameUpdated(int, string?)</c>
+        /// invocation that the server only emits after cross-referencing the user's executable
+        /// hash against the registered Torii build hashes).
+        /// </summary>
+        /// <remarks>
+        /// Used by the <see cref="ToriiClientBadge"/> to confirm a user is genuinely running
+        /// Torii rather than just being connected to the Torii server. Returns null when
+        /// either the server hasn't broadcast a verified name yet, or the lookup didn't match.
+        /// Lives in a side dictionary because <see cref="UserPresence.ClientName"/> can't be
+        /// set from the spectator until that fork starts referencing osu.Game from source
+        /// (NuGet ppy.osu.Game doesn't have the field).
+        /// </remarks>
+        protected readonly ConcurrentDictionary<int, string?> VerifiedClientNames = new ConcurrentDictionary<int, string?>();
+
+        public string? GetVerifiedClientName(int userId)
+        {
+            return VerifiedClientNames.TryGetValue(userId, out string? clientName) ? clientName : null;
+        }
+
+        protected void HandleUserClientNameUpdated(int userId, string? clientName)
+        {
+            if (clientName == null)
+                VerifiedClientNames.TryRemove(userId, out _);
+            else
+                VerifiedClientNames[userId] = clientName;
         }
 
         public abstract Task UpdateActivity(UserActivity? activity);

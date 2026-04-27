@@ -103,10 +103,12 @@ namespace osu.Game.Users
             UserPresence? presence = metadata?.GetPresence(User.OnlineID);
             UserStatus status = presence?.Status ?? UserStatus.Offline;
             UserActivity? activity = presence?.Activity;
-            // Every online connection on the Torii spectator server is by definition a Torii client,
-            // so we treat any non-offline presence as a Torii client until upstream UserPresence
-            // gains a server-populated ClientName field that survives the NuGet boundary.
-            string? clientName = presence?.ClientName ?? (status != UserStatus.Offline ? "torii" : null);
+            // The Torii spectator looks up each connection's executable hash against the
+            // CI-registered Torii hashes and broadcasts the verified ClientName back.
+            // Only show the badge when that explicit verification flowed through —
+            // never assume "online → Torii" because authentication side channels could
+            // (in principle) attach non-Torii clients.
+            string? clientName = presence?.ClientName ?? metadata?.GetVerifiedClientName(User.OnlineID);
 
             if (status == lastStatus && activity == lastActivity && clientName == lastClientName)
                 return;

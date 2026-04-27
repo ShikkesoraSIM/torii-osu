@@ -30,15 +30,18 @@ namespace osu.Game.Overlays.Profile.Header.Components
         // Torii-specific
         private readonly bool isToriiGroup;
         private readonly bool isEliteGroup;
+        private readonly bool isGoofGroup;
         private Box? elitePulseLayer;
+        private Container? goofWiggleContainer;
 
-        private static readonly string[] elite_identifiers = { "torii-admin", "torii-dev" };
+        private static readonly string[] elite_identifiers = { "torii-admin", "torii-dev", "torii-goof" };
 
         public GroupBadge(APIUserGroup group)
         {
             this.group = group;
             isToriiGroup = group.Identifier.StartsWith("torii-", StringComparison.Ordinal);
             isEliteGroup = elite_identifiers.Contains(group.Identifier);
+            isGoofGroup = group.Identifier == "torii-goof";
 
             AutoSizeAxes = Axes.Both;
             Masking = true;
@@ -117,16 +120,41 @@ namespace osu.Game.Overlays.Profile.Header.Components
                 };
             }
 
-            AddInternal(innerContainer = new FillFlowContainer
+            // For the cute Goofball badge, wrap the text in a small container we can wiggle
+            // (tilt back and forth around the centre) to give it a playful bounce that the
+            // other elite groups don't get.
+            if (isGoofGroup)
             {
-                AutoSizeAxes = Axes.Both,
-                Origin = Anchor.Centre,
-                Anchor = Anchor.Centre,
-                Padding = new MarginPadding { Vertical = 2, Horizontal = 10 },
-                Direction = FillDirection.Horizontal,
-                Spacing = new Vector2(5),
-                Children = new[] { textDrawable },
-            });
+                AddInternal(goofWiggleContainer = new Container
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Padding = new MarginPadding { Vertical = 2, Horizontal = 10 },
+                    Child = innerContainer = new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Origin = Anchor.Centre,
+                        Anchor = Anchor.Centre,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(5),
+                        Children = new[] { textDrawable },
+                    },
+                });
+            }
+            else
+            {
+                AddInternal(innerContainer = new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Padding = new MarginPadding { Vertical = 2, Horizontal = 10 },
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(5),
+                    Children = new[] { textDrawable },
+                });
+            }
 
             if (group.Playmodes?.Length > 0)
             {
@@ -155,6 +183,22 @@ namespace osu.Game.Overlays.Profile.Header.Components
                     .FadeTo(0.22f, 1200, Easing.InOutSine)
                     .Then()
                     .FadeTo(0f, 1200, Easing.InOutSine));
+            }
+
+            // Goof badge: subtle playful tilt + tiny scale bounce on top of the shared
+            // elite glow. Uses a separate Easing to feel jellier than the admin/dev pulse.
+            if (isGoofGroup && goofWiggleContainer != null)
+            {
+                goofWiggleContainer.Loop(t => t
+                    .RotateTo(-7f, 320, Easing.OutBack)
+                    .ScaleTo(1.06f, 320, Easing.OutBack)
+                    .Then()
+                    .RotateTo(7f, 640, Easing.InOutSine)
+                    .ScaleTo(1f, 640, Easing.InOutSine)
+                    .Then()
+                    .RotateTo(0f, 320, Easing.InBack)
+                    .Delay(900)
+                );
             }
         }
     }

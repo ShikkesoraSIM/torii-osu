@@ -244,6 +244,7 @@ namespace osu.Game.Overlays.Profile.Header
         {
             "torii-admin", "torii-dev", "torii-mod", "torii-qat", "torii-pooler",
             "torii-tournament", "torii-advisor", "torii-alumni", "torii-supporter",
+            "torii-goof",
         };
 
         private static Colour4? getTopToriiColour(Online.API.Requests.Responses.APIUser? user)
