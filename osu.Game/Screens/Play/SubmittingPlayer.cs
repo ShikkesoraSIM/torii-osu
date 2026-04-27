@@ -140,17 +140,18 @@ namespace osu.Game.Screens.Play
             // (which already runs on a background Task.Run) awaits this with a generous timeout.
             // Blocking here used to cause audio pops on retry because LoadAsyncComplete sits on
             // the load thread that the audio engine shares for new-track preparation.
-            _ = Task.Delay(30000).ContinueWith(_ =>
+            Task.Delay(30000).ContinueWith(timeoutTask =>
             {
+                _ = timeoutTask;
                 if (!tcs.Task.IsCompleted)
                     req.TriggerFailure(new InvalidOperationException("Token retrieval timed out (request never run)"));
-            }, TaskScheduler.Default);
+            }, TaskScheduler.Default).FireAndForget();
 
             return tcs.Task;
 
             void handleTokenFailure(Exception exception, bool displayNotification = false)
             {
-                tcs.SetResult(false);
+                tcs.TrySetResult(false);
 
                 bool shouldExit = ShouldExitOnTokenRetrievalFailure(exception);
 
@@ -398,6 +399,7 @@ namespace osu.Game.Screens.Play
             }
 
             TaskCompletionSource<bool> submissionSource;
+            Task<bool> existingSubmission = null;
 
             // mind the timing of this.
             // once `scoreSubmissionSource` is created, it is presumed that submission is taking place in the background,
@@ -405,13 +407,17 @@ namespace osu.Game.Screens.Play
             lock (scoreSubmissionLock)
             {
                 if (scoreSubmissionSource != null)
-                {
-                    await scoreSubmissionSource.Task.ConfigureAwait(false);
-                    return;
-                }
+                    existingSubmission = scoreSubmissionSource.Task;
+                else
+                    scoreSubmissionSource = new TaskCompletionSource<bool>();
 
-                scoreSubmissionSource = new TaskCompletionSource<bool>();
                 submissionSource = scoreSubmissionSource;
+            }
+
+            if (existingSubmission != null)
+            {
+                await existingSubmission.ConfigureAwait(false);
+                return;
             }
 
             Logger.Log($"Beginning score submission (token:{token.Value})...");
