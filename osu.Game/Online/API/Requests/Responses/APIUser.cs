@@ -294,6 +294,18 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty("groups")]
         public APIUserGroup[] Groups;
 
+        /// <summary>
+        /// Server-resolved aura preset id (e.g. "admin-embers"). Drives the
+        /// per-user particle effect rendered behind this user's name in
+        /// chat / profile / leaderboards. Null when the user has opted out
+        /// or has no eligible groups — clients treat null as "no aura".
+        /// The raw stored value (incl. sentinels) is intentionally hidden
+        /// here and only exposed on the /me/aura-catalog endpoint.
+        /// </summary>
+        [JsonProperty("equipped_aura")]
+        [CanBeNull]
+        public string EquippedAura { get; set; }
+
         [JsonProperty("daily_challenge_user_stats")]
         public APIUserDailyChallengeStatistics DailyChallengeStatistics = new APIUserDailyChallengeStatistics();
 

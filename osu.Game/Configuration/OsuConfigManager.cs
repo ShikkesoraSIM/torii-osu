@@ -227,6 +227,11 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.HideCountryFlags, false);
 
+            // Torii: global toggle for the per-user aura particle effect
+            // (rendered behind elite-group usernames everywhere their name shows).
+            // Defaults on; users on weaker hardware can disable it from Graphics.
+            SetDefault(OsuSetting.UserAuraEnabled, true);
+
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
 
@@ -548,5 +553,12 @@ namespace osu.Game.Configuration
         AllowBenchmarkUnlimitedFrameLimiter,
         DashboardSortMode,
         DashboardDisplayStyle,
+
+        /// <summary>
+        /// Toggle for the per-user aura particle effect rendered behind
+        /// elite-group usernames (admin embers, goof leaves, etc.) anywhere
+        /// the username appears (chat, profile, leaderboards, multi).
+        /// </summary>
+        UserAuraEnabled,
     }
 }

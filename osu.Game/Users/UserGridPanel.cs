@@ -4,6 +4,7 @@
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.Profile.Header.Components;
 using osu.Game.Users.Drawables;
@@ -93,11 +94,12 @@ namespace osu.Game.Users
                                 },
                                 new Drawable[]
                                 {
-                                    CreateUsername().With(username =>
+                                    // Torii: wrap username in aura container (no-op for non-elite users).
+                                    UserAuraContainer.Wrap(User, CreateUsername().With(username =>
                                     {
                                         username.Anchor = Anchor.CentreLeft;
                                         username.Origin = Anchor.CentreLeft;
-                                    })
+                                    }))
                                 }
                             }
                         }

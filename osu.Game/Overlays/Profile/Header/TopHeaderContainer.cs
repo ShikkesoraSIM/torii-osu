@@ -14,6 +14,7 @@ using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API;
 using osu.Game.Overlays.Profile.Header.Components;
@@ -40,6 +41,10 @@ namespace osu.Game.Overlays.Profile.Header
         private SupporterIcon supporterTag = null!;
         private UpdateableAvatar avatar = null!;
         private GlowingFreeWidthSpriteText usernameText = null!;
+        // Torii: container that renders the per-user particle aura behind the
+        // big profile-header username. Same instance is reused across user
+        // switches; SetUser swaps the emitter when the bound user changes.
+        private UserAuraContainer usernameAura = null!;
         private ExternalLinkButton openUserExternally = null!;
         private OsuSpriteText titleText = null!;
         private UpdateableFlag userFlag = null!;
@@ -128,11 +133,15 @@ namespace osu.Game.Overlays.Profile.Header
                                                     Spacing = new Vector2(5, 0),
                                                     Children = new Drawable[]
                                                     {
-                                                        usernameText = new GlowingFreeWidthSpriteText
+                                                        // Torii: usernameText is wrapped in a UserAuraContainer so
+                                                        // elite users get particles behind their big profile name.
+                                                        // The container starts with no user (no emitter) and gets
+                                                        // bound in updateUser() — SetUser handles the dynamic swap.
+                                                        usernameAura = new UserAuraContainer(null, usernameText = new GlowingFreeWidthSpriteText
                                                         {
                                                             Font = OsuFont.GetFont(size: 24, weight: FontWeight.Regular),
                                                             GlowColour = Colour4.Transparent,
-                                                        },
+                                                        }),
                                                         supporterTag = new SupporterIcon
                                                         {
                                                             Anchor = Anchor.CentreLeft,
@@ -269,6 +278,8 @@ namespace osu.Game.Overlays.Profile.Header
             cover.User = user;
             avatar.User = user;
             usernameText.Text = user?.Username ?? string.Empty;
+            // Torii: rebind the aura emitter to the (possibly different) user.
+            usernameAura.SetUser(user);
             var toriiColour = getTopToriiColour(user);
             usernameText.TextColour = toriiColour ?? Colour4.White;
             usernameText.GlowColour = toriiColour?.Opacity(0.6f) ?? Colour4.Transparent;

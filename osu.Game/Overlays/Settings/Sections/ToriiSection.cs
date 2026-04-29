@@ -26,6 +26,10 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 new ToriiBriefingSettings(),
                 new ToriiInterfaceSettings(),
+                // User-aura cosmetics (toggle + equipped picker + live preview).
+                // Placed between Interface and Server so users find it next to
+                // the visual prefs rather than buried after networking stuff.
+                new ToriiAuraSettings(),
                 new ToriiServerSettings(),
                 new ToriiStorageSettings(),
                 new ToriiExperimentalSettings(),

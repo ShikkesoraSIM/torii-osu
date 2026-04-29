@@ -6,6 +6,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Graphics;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osuTK;
 
@@ -50,12 +51,16 @@ namespace osu.Game.Users
                         Colour = string.IsNullOrEmpty(User.Colour) ? Color4Extensions.FromHex("0087ca") : Color4Extensions.FromHex(User.Colour)
                     }
                 },
-                CreateUsername().With(u =>
+                // Torii: wrap the username in a UserAuraContainer so elite-group
+                // members get their particle effect rendered behind the name. The
+                // helper falls through to the bare OsuSpriteText when the user has
+                // no aura, so non-elite panels pay zero overhead.
+                UserAuraContainer.Wrap(User, CreateUsername().With(u =>
                 {
                     u.Anchor = Anchor.CentreLeft;
                     u.Origin = Anchor.CentreLeft;
                     u.Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold);
-                })
+                }))
             }
         };
     }

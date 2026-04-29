@@ -231,8 +231,21 @@ namespace osu.Game.Screens.Play
             score.ScoreInfo.Date = DateTimeOffset.Now;
 
             await submitScore(score).ConfigureAwait(false);
-            spectatorClient.EndPlaying(GameplayState);
+
+            // Order matters here: RegisterForStatisticsUpdateAfter MUST run before EndPlaying.
+            //
+            // EndPlaying triggers the spectator hub's RegisterForSingleScoreAsync, which —
+            // when the score has already finished server-side processing by the time it
+            // arrives — dispatches UserScoreProcessed back to this client immediately.
+            // Our handler (UserStatisticsWatcher.userScoreProcessed) looks the score up in
+            // watchedScores[scoreId]; if we haven't registered yet it bails silently and
+            // the rank/PP popup never fires.
+            //
+            // Upstream's order put EndPlaying first. That race manifested as ~50% missing
+            // popups for plays that ended quickly (custom-rate DT, fast maps) — those have
+            // the smallest window between the redis publish and the client's local hookup.
             userStatisticsWatcher?.RegisterForStatisticsUpdateAfter(score.ScoreInfo);
+            spectatorClient.EndPlaying(GameplayState);
         }
 
         [Resolved]

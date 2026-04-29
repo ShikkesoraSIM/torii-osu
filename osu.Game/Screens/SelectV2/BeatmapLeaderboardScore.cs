@@ -22,7 +22,9 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.Leaderboards;
@@ -298,13 +300,18 @@ namespace osu.Game.Screens.SelectV2
                                                             }
                                                         }
                                                     },
-                                                    new TruncatingSpriteText
+                                                    // Aura wrapper around the V2 leaderboard username so
+                                                    // staff/donator users get their group's particle effect
+                                                    // rendered behind the name in song-select. Wrap is a
+                                                    // no-op (returns the bare drawable) when the user has
+                                                    // no aura, so non-staff scores cost nothing extra.
+                                                    UserAuraContainer.Wrap(Score.User as APIUser, new TruncatingSpriteText
                                                     {
                                                         RelativeSizeAxes = Axes.X,
                                                         Shear = sheared ? -OsuGame.SHEAR : Vector2.Zero,
                                                         Text = Score.User.Username,
                                                         Font = OsuFont.Style.Heading2,
-                                                    }
+                                                    })
                                                 }
                                             },
                                             new Container

@@ -19,6 +19,7 @@ using osu.Framework.Screens;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
@@ -120,7 +121,11 @@ namespace osu.Game.Overlays.Chat
         {
             if (!Inverted)
             {
-                Add(colouredDrawable = drawableText);
+                // Torii: wrap with aura container so elite users get particles
+                // behind their chat name. The aura uses additive blending and
+                // sits BEHIND the text (added first), so legibility is preserved.
+                colouredDrawable = drawableText;
+                Add(UserAuraContainer.Wrap(user, drawableText));
             }
             else
             {
@@ -154,7 +159,8 @@ namespace osu.Game.Overlays.Chat
                             {
                                 AutoSizeAxes = Axes.Both,
                                 Padding = new MarginPadding { Left = 4, Right = 4, Bottom = 1, Top = -2 },
-                                Child = drawableText,
+                                // Torii: aura also wraps the text inside the inverted/mention pill.
+                                Child = UserAuraContainer.Wrap(user, drawableText),
                             }
                         }
                     }
