@@ -321,6 +321,17 @@ namespace osu.Game.Online.API.Requests.Responses
             Colour = @"9c0101",
         };
 
+        /// <summary>
+        /// Placeholder used when an online user lookup fails (e.g. Ranked Play
+        /// match history showing an opponent whose profile couldn't load).
+        /// Carries only the id; rendered as "Unknown user" in panels.
+        /// </summary>
+        public static APIUser UnknownUser(int userId) => new APIUser
+        {
+            Id = userId,
+            Username = "Unknown user",
+        };
+
         public int OnlineID => Id;
 
         public bool Equals(APIUser other) => this.MatchesOnlineID(other);

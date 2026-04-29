@@ -124,6 +124,7 @@ namespace osu.Game.Online.Multiplayer
         public event Action? MatchmakingQueueJoined;
         public event Action? MatchmakingQueueLeft;
         public event Action? MatchmakingRoomInvited;
+        public event Action<MatchmakingRoomInvitationParams>? MatchmakingRoomInvitedWithParams;
         public event Action<long, string>? MatchmakingRoomReady;
         public event Action<MatchmakingLobbyStatus>? MatchmakingLobbyStatusChanged;
         public event Action<MatchmakingQueueStatus>? MatchmakingQueueStatusChanged;
@@ -1083,9 +1084,16 @@ namespace osu.Game.Online.Multiplayer
             return Task.CompletedTask;
         }
 
+        [System.Obsolete]
         Task IMatchmakingClient.MatchmakingRoomInvited()
         {
             Scheduler.Add(() => MatchmakingRoomInvited?.Invoke());
+            return Task.CompletedTask;
+        }
+
+        Task IMatchmakingClient.MatchmakingRoomInvitedWithParams(MatchmakingRoomInvitationParams invitation)
+        {
+            Scheduler.Add(() => MatchmakingRoomInvitedWithParams?.Invoke(invitation));
             return Task.CompletedTask;
         }
 
@@ -1132,6 +1140,8 @@ namespace osu.Game.Online.Multiplayer
         public abstract Task<MatchmakingPool[]> GetMatchmakingPoolsOfType(MatchmakingPoolType type);
 
         public abstract Task MatchmakingJoinLobby();
+
+        public abstract Task<Matchmaking.Responses.MatchmakingJoinLobbyResponse> MatchmakingJoinLobbyWithParams(Matchmaking.Requests.MatchmakingJoinLobbyRequest request);
 
         public abstract Task MatchmakingLeaveLobby();
 

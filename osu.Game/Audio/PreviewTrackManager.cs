@@ -23,6 +23,14 @@ namespace osu.Game.Audio
 
         protected TrackManagerPreviewTrack? CurrentTrack;
 
+        /// <summary>
+        /// Whether this manager is currently playing a preview track. Surfaced
+        /// for the Ranked Play card cluster (and any future UI) that needs to
+        /// gate behaviour on whether ANY preview is live, regardless of which
+        /// owner started it. Mirrors upstream's PR #34815 addition.
+        /// </summary>
+        public readonly BindableBool IsPlayingPreview = new BindableBool();
+
         public PreviewTrackManager(IAdjustableAudioComponent mainTrackAdjustments)
         {
             this.mainTrackAdjustments = mainTrackAdjustments;
@@ -48,6 +56,7 @@ namespace osu.Game.Audio
                 CurrentTrack?.Stop();
                 CurrentTrack = track;
                 mainTrackAdjustments.AddAdjustment(AdjustableProperty.Volume, muteBindable);
+                IsPlayingPreview.Value = true;
             });
 
             track.Stopped += () => Schedule(() =>
@@ -57,6 +66,7 @@ namespace osu.Game.Audio
 
                 CurrentTrack = null;
                 mainTrackAdjustments.RemoveAdjustment(AdjustableProperty.Volume, muteBindable);
+                IsPlayingPreview.Value = false;
             });
 
             return track;

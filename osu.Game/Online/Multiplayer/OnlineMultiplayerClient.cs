@@ -75,7 +75,10 @@ namespace osu.Game.Online.Multiplayer
 
                     connection.On(nameof(IMatchmakingClient.MatchmakingQueueJoined), ((IMatchmakingClient)this).MatchmakingQueueJoined);
                     connection.On(nameof(IMatchmakingClient.MatchmakingQueueLeft), ((IMatchmakingClient)this).MatchmakingQueueLeft);
+#pragma warning disable CS0612 // ObsoleteAttribute on the older overload — kept registered for backwards compat with servers that haven't switched to the WithParams variant yet.
                     connection.On(nameof(IMatchmakingClient.MatchmakingRoomInvited), ((IMatchmakingClient)this).MatchmakingRoomInvited);
+#pragma warning restore CS0612
+                    connection.On<MatchmakingRoomInvitationParams>(nameof(IMatchmakingClient.MatchmakingRoomInvitedWithParams), ((IMatchmakingClient)this).MatchmakingRoomInvitedWithParams);
                     connection.On<long, string>(nameof(IMatchmakingClient.MatchmakingRoomReady), ((IMatchmakingClient)this).MatchmakingRoomReady);
                     connection.On<MatchmakingLobbyStatus>(nameof(IMatchmakingClient.MatchmakingLobbyStatusChanged), ((IMatchmakingClient)this).MatchmakingLobbyStatusChanged);
                     connection.On<MatchmakingQueueStatus>(nameof(IMatchmakingClient.MatchmakingQueueStatusChanged), ((IMatchmakingClient)this).MatchmakingQueueStatusChanged);
@@ -349,6 +352,15 @@ namespace osu.Game.Online.Multiplayer
 
             Debug.Assert(connection != null);
             return connection.InvokeAsync(nameof(IMatchmakingServer.MatchmakingJoinLobby));
+        }
+
+        public override Task<Matchmaking.Responses.MatchmakingJoinLobbyResponse> MatchmakingJoinLobbyWithParams(Matchmaking.Requests.MatchmakingJoinLobbyRequest request)
+        {
+            if (!IsConnected.Value)
+                return Task.FromResult(new Matchmaking.Responses.MatchmakingJoinLobbyResponse());
+
+            Debug.Assert(connection != null);
+            return connection.InvokeAsync<Matchmaking.Responses.MatchmakingJoinLobbyResponse>(nameof(IMatchmakingServer.MatchmakingJoinLobbyWithParams), request);
         }
 
         public override Task MatchmakingLeaveLobby()

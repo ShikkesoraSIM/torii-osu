@@ -32,8 +32,12 @@ namespace osu.Game.Audio
         private void load()
         {
             Track = GetTrack();
+
             if (Track != null)
+            {
                 Track.Completed += Stop;
+                Track.Looping = looping;
+            }
         }
 
         /// <summary>
@@ -55,6 +59,26 @@ namespace osu.Game.Audio
         /// Whether the track is playing.
         /// </summary>
         public bool IsRunning => Track?.IsRunning ?? false;
+
+        private bool looping;
+
+        /// <summary>
+        /// Whether the track should loop. Used by Ranked Play card previews
+        /// where the song preview cycles continuously while the card is in
+        /// view; for the rest of the client (song-select preview etc) this
+        /// stays false and the track stops at completion.
+        /// </summary>
+        public bool Looping
+        {
+            get => looping;
+            set
+            {
+                looping = value;
+
+                if (Track != null)
+                    Track.Looping = looping;
+            }
+        }
 
         private ScheduledDelegate? startDelegate;
 

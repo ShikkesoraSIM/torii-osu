@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Threading.Tasks;
 
 namespace osu.Game.Online.Matchmaking
@@ -23,7 +24,21 @@ namespace osu.Game.Online.Matchmaking
         /// <see cref="IMatchmakingServer.MatchmakingDeclineInvitation">declined</see>,
         /// or ignored - in which case it will automatically be declined after a short timeout period.
         /// </summary>
+        /// <remarks>
+        /// Provided for compatibility with older clients - can be removed 20260825
+        /// (kept in lockstep with upstream's deprecation window).
+        /// </remarks>
+        [Obsolete]
         Task MatchmakingRoomInvited();
+
+        /// <summary>
+        /// Signals that a match has been found and the local user is invited to it.
+        /// Same semantics as <see cref="MatchmakingRoomInvited"/> but carries a
+        /// typed <see cref="MatchmakingRoomInvitationParams"/> with the room
+        /// metadata so the client can render a richer invitation card without
+        /// extra round-trips.
+        /// </summary>
+        Task MatchmakingRoomInvitedWithParams(MatchmakingRoomInvitationParams invitation);
 
         /// <summary>
         /// Signals that the matchmaking room is ready to be opened.

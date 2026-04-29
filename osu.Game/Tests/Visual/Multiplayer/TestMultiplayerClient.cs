@@ -16,6 +16,8 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Matchmaking.Events;
+using osu.Game.Online.Matchmaking.Requests;
+using osu.Game.Online.Matchmaking.Responses;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Online.Multiplayer.Countdown;
 using osu.Game.Online.Multiplayer.MatchTypes.Matchmaking;
@@ -797,6 +799,14 @@ namespace osu.Game.Tests.Visual.Multiplayer
         public override Task MatchmakingJoinLobby()
         {
             return Task.CompletedTask;
+        }
+
+        public override Task<MatchmakingJoinLobbyResponse> MatchmakingJoinLobbyWithParams(MatchmakingJoinLobbyRequest request)
+        {
+            // Test stub returns an empty response — exercises the WithParams
+            // hub method shape without requiring a real lobby state machine.
+            // Tests that need lobby state should override this method.
+            return Task.FromResult(new MatchmakingJoinLobbyResponse());
         }
 
         public override Task MatchmakingLeaveLobby()
