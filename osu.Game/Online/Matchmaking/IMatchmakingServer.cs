@@ -18,16 +18,6 @@ namespace osu.Game.Online.Matchmaking
         /// <summary>
         /// Joins the matchmaking lobby, allowing the local user to receive status updates.
         /// </summary>
-        Task MatchmakingJoinLobby();
-
-        /// <summary>
-        /// Joins the matchmaking lobby with explicit parameters and receives a
-        /// typed response describing the lobby state. Newer hub method that
-        /// supersedes <see cref="MatchmakingJoinLobby"/> — kept for forward
-        /// compatibility against servers running upstream's PR #34815. The
-        /// older parameterless version is left in place so existing client
-        /// builds keep working until the server-side migration completes.
-        /// </summary>
         Task<MatchmakingJoinLobbyResponse> MatchmakingJoinLobbyWithParams(MatchmakingJoinLobbyRequest request);
 
         /// <summary>

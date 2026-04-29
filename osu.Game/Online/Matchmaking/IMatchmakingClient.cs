@@ -25,18 +25,16 @@ namespace osu.Game.Online.Matchmaking
         /// or ignored - in which case it will automatically be declined after a short timeout period.
         /// </summary>
         /// <remarks>
-        /// Provided for compatibility with older clients - can be removed 20260825
-        /// (kept in lockstep with upstream's deprecation window).
+        /// Provided for compatibility with older clients - can be removed 20260825.
         /// </remarks>
         [Obsolete]
         Task MatchmakingRoomInvited();
 
         /// <summary>
         /// Signals that a match has been found and the local user is invited to it.
-        /// Same semantics as <see cref="MatchmakingRoomInvited"/> but carries a
-        /// typed <see cref="MatchmakingRoomInvitationParams"/> with the room
-        /// metadata so the client can render a richer invitation card without
-        /// extra round-trips.
+        /// The invitation may be <see cref="IMatchmakingServer.MatchmakingAcceptInvitation">accepted</see>,
+        /// <see cref="IMatchmakingServer.MatchmakingDeclineInvitation">declined</see>,
+        /// or ignored - in which case it will automatically be declined after a short timeout period.
         /// </summary>
         Task MatchmakingRoomInvitedWithParams(MatchmakingRoomInvitationParams invitation);
 

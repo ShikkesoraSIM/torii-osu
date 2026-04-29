@@ -65,8 +65,13 @@ namespace osu.Game.Graphics.Backgrounds
 
         /// <summary>
         /// The amount of triangles we want compared to the default distribution.
+        /// Widened from <c>protected virtual</c> to <c>public virtual</c> to
+        /// match upstream's matchmaking-era signature: <c>RankedPlayBackground</c>
+        /// sets this per-instance directly. Kept <c>virtual</c> + property
+        /// (rather than upstream's auto-property field) so existing subclasses
+        /// that <c>override SpawnRatio => ...</c> compile unchanged.
         /// </summary>
-        protected virtual float SpawnRatio => 1;
+        public virtual float SpawnRatio { get; set; } = 1;
 
         private readonly BindableFloat triangleScale = new BindableFloat(1f);
 

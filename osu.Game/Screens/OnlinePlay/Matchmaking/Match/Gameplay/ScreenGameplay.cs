@@ -15,6 +15,14 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match.Gameplay
         public ScreenGameplay(Room room, PlaylistItem playlistItem, MultiplayerRoomUser[] users)
             : base(room, playlistItem, users)
         {
+            // Upstream's MultiplayerPlayer ctor adds a `showFailingOverlay`
+            // bool that flows into PlayerConfiguration.ShowFailingOverlay.
+            // Both pieces are part of a wider rework we haven't pulled yet
+            // (Select/Leaderboards → Play/Leaderboards namespace migration
+            // among other things), so for now this Torii build keeps the
+            // failing overlay visible during ranked-play matches. The
+            // hide-while-failing UX behaviour can land in a follow-up that
+            // brings PlayerConfiguration up to date.
         }
 
         protected override async Task PrepareScoreForResultsAsync(Score score)
