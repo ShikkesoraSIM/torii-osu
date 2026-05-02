@@ -1,6 +1,7 @@
 ﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions;
@@ -76,10 +77,23 @@ namespace osu.Game.Overlays
             });
         }
 
+        // Live binding for the strip behind the tab buttons (the band that
+        // sits between the title row and the actual tab labels). Without
+        // this it would stay the original Dark4 even after CustomUIHue
+        // re-tinted everything around it.
+        private IDisposable controlBackgroundThemeBinding;
+
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
-            controlBackground.Colour = colourProvider.Dark4;
+            controlBackgroundThemeBinding = controlBackground.BindThemeColour(colourProvider, p => p.Dark4);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            controlBackgroundThemeBinding?.Dispose();
+            controlBackgroundThemeBinding = null;
+            base.Dispose(isDisposing);
         }
 
         protected virtual OsuTabControl<T> CreateTabControl() => new OverlayHeaderTabControl();

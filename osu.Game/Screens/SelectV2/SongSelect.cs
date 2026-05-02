@@ -182,10 +182,14 @@ namespace osu.Game.Screens.SelectV2
         [BackgroundDependencyLoader]
         private void load(AudioManager audio, OsuConfigManager config)
         {
-            customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, hue =>
-            {
-                colourProvider.ChangeColourScheme(hue);
-            });
+            // BindFullScheme drives BOTH the chrome hue and the donator
+            // accent hue on the song-select OverlayColourProvider in a
+            // single ColoursChanged firing. The accent re-tints every
+            // Highlight1/Light/Colour shade used here — mod button bars,
+            // footer accent strip, leaderboard score row highlights, the
+            // beatmap status pill, etc. — without touching the chrome
+            // hue used for the dark background panels.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu);
 
             errorSample = audio.Samples.Get(@"UI/generic-error");
 

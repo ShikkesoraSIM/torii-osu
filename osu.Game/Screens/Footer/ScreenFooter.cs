@@ -150,6 +150,12 @@ namespace osu.Game.Screens.Footer
                 })),
             };
 
+            // Base hue: only applied when no overlay is "owning" the footer
+            // (when an overlay is active the footer mirrors that overlay's
+            // hue via updateColourScheme). Accent hue: pushed through
+            // unconditionally so the donator's chosen accent reads through
+            // mod buttons, BackButton, etc. even when the chrome is
+            // borrowing an overlay's hue.
             customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, hue =>
             {
                 if (ActiveOverlay != null)
@@ -160,7 +166,52 @@ namespace osu.Game.Screens.Footer
                 else
                     updateColourScheme(hue);
             });
+
+            customUiAccentBinding = bindFooterAccent(config);
         }
+
+        private System.IDisposable bindFooterAccent(OsuConfigManager config)
+        {
+            var accentEnabled = config.GetBindable<bool>(OsuSetting.CustomUIAccentEnabled);
+            var accentHue = config.GetBindable<float>(OsuSetting.CustomUIAccentHue);
+            var hueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
+            var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
+
+            void apply()
+            {
+                bool active = hueEnabled.Value && applyToMenu.Value && accentEnabled.Value;
+                if (active)
+                    colourProvider.ChangeAccentColourScheme((int)accentHue.Value);
+                else
+                    colourProvider.ResetAccentToBase();
+            }
+
+            accentEnabled.BindValueChanged(_ => apply());
+            accentHue.BindValueChanged(_ => apply());
+            hueEnabled.BindValueChanged(_ => apply());
+            applyToMenu.BindValueChanged(_ => apply(), true);
+
+            return new FooterAccentSubscription(() =>
+            {
+                accentEnabled.UnbindAll();
+                accentHue.UnbindAll();
+                hueEnabled.UnbindAll();
+                applyToMenu.UnbindAll();
+            });
+        }
+
+        private sealed class FooterAccentSubscription : System.IDisposable
+        {
+            private System.Action? unsubscribe;
+            public FooterAccentSubscription(System.Action unsubscribe) { this.unsubscribe = unsubscribe; }
+            public void Dispose()
+            {
+                unsubscribe?.Invoke();
+                unsubscribe = null;
+            }
+        }
+
+        private System.IDisposable? customUiAccentBinding;
 
         private ScheduledDelegate? changeLogoDepthDelegate;
 
@@ -393,6 +444,8 @@ namespace osu.Game.Screens.Footer
             {
                 customUiHueBinding?.Dispose();
                 customUiHueBinding = null;
+                customUiAccentBinding?.Dispose();
+                customUiAccentBinding = null;
             }
 
             base.Dispose(isDisposing);

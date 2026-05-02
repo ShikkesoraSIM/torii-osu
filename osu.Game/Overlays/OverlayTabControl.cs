@@ -16,6 +16,12 @@ using osu.Game.Graphics.UserInterface;
 using osuTK;
 using osuTK.Graphics;
 
+// The accent bar under the active tab is sourced from
+// OverlayColourProvider.Highlight1 — keeping a live subscription to
+// ColoursChanged here means the entire tab strip (Friends / Currently
+// Online in the Dashboard, the section tabs in the User profile, etc.)
+// re-tints in lock-step with the user's CustomUIHue picker.
+
 namespace osu.Game.Overlays
 {
     public abstract partial class OverlayTabControl<T> : OsuTabControl<T>
@@ -50,10 +56,32 @@ namespace osu.Game.Overlays
             });
         }
 
+        private OverlayColourProvider boundColourProvider;
+
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
+            boundColourProvider = colourProvider;
             AccentColour = colourProvider.Highlight1;
+            colourProvider.ColoursChanged += updateAccentFromTheme;
+        }
+
+        private void updateAccentFromTheme()
+        {
+            if (boundColourProvider == null)
+                return;
+
+            // Re-runs the AccentColour setter, which fans the new value out
+            // to bar.Colour AND propagates to every OverlayTabItem (the tab
+            // items pull from this AccentColour at construction).
+            AccentColour = boundColourProvider.Highlight1;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (boundColourProvider != null)
+                boundColourProvider.ColoursChanged -= updateAccentFromTheme;
+            base.Dispose(isDisposing);
         }
 
         protected override Dropdown<T> CreateDropdown() => null;
