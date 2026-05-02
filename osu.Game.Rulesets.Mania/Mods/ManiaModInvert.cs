@@ -27,6 +27,7 @@ namespace osu.Game.Rulesets.Mania.Mods
         public override IconUsage? Icon => OsuIcon.ModInvert;
 
         public override ModType Type => ModType.Conversion;
+        public override bool Ranked => false;
 
         public override Type[] IncompatibleMods => new[] { typeof(ManiaModHoldOff) };
 

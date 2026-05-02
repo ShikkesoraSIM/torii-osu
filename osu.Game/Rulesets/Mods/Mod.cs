@@ -113,7 +113,7 @@ namespace osu.Game.Rulesets.Mods
         public virtual bool RequiresConfiguration => false;
 
         [JsonIgnore]
-        public virtual bool Ranked => false;
+        public virtual bool Ranked => true;
 
         /// <summary>
         /// The mods this mod cannot be enabled with.

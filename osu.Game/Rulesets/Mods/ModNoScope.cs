@@ -23,7 +23,6 @@ namespace osu.Game.Rulesets.Mods
         public override ModType Type => ModType.Fun;
         public override IconUsage? Icon => OsuIcon.ModNoScope;
         public override double ScoreMultiplier => 1;
-        public override bool Ranked => true;
 
         /// <summary>
         /// Slightly higher than the cutoff for <see cref="Drawable.IsPresent"/>.

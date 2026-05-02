@@ -17,5 +17,7 @@ namespace osu.Game.Rulesets.Mania.Mods
             ExtendedMinValue = -15,
             ReadCurrentFromDifficulty = diff => diff.OverallDifficulty,
         };
+
+        public override bool Ranked => (OverallDifficulty.Value ?? 8f) >= 6f;
     }
 }
