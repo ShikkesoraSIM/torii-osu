@@ -228,6 +228,9 @@ namespace osu.Game.Overlays.Notifications
             Activated = () => false;
         }
 
+        // Stored so the icon background re-tints when CustomUIHue changes.
+        private System.IDisposable? iconBackgroundThemeBinding;
+
         [BackgroundDependencyLoader]
         private void load(OsuColour colours, AudioManager audioManager)
         {
@@ -235,12 +238,12 @@ namespace osu.Game.Overlays.Notifications
             colourActive = colours.Blue;
             colourCancelled = colours.Red;
 
+            Box iconBackground;
             IconContent.AddRange(new Drawable[]
             {
-                new Box
+                iconBackground = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background5,
                     Depth = float.MaxValue,
                 },
                 loadingSpinner = new LoadingSpinner
@@ -249,7 +252,16 @@ namespace osu.Game.Overlays.Notifications
                 }
             });
 
+            iconBackgroundThemeBinding = iconBackground.BindThemeColour(colourProvider, p => p.Background5);
+
             cancelSample = audioManager.Samples.Get(@"UI/notification-cancel");
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            iconBackgroundThemeBinding?.Dispose();
+            iconBackgroundThemeBinding = null;
+            base.Dispose(isDisposing);
         }
 
         public override void Close(bool runFlingAnimation)

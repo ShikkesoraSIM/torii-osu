@@ -26,18 +26,23 @@ namespace osu.Game.Overlays.Chat.Listing
 
         private SearchContainer<ChannelListingItem> flow = null!;
 
+        // Live-binding for the listing background. Without it the user can
+        // change CustomUIHue while the listing is open and the rest of the
+        // chat re-tints while this surface stays on the old hue.
+        private IDisposable? backgroundThemeBinding;
+
         [Resolved]
         private OverlayColourProvider colourProvider { get; set; } = null!;
 
         [BackgroundDependencyLoader]
         private void load()
         {
+            Box background;
             Children = new Drawable[]
             {
-                new Box
+                background = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background4,
                 },
                 new OsuScrollContainer
                 {
@@ -56,6 +61,8 @@ namespace osu.Game.Overlays.Chat.Listing
                     },
                 },
             };
+
+            backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
         }
 
         public void UpdateAvailableChannels(IEnumerable<Channel> newChannels)
@@ -73,6 +80,13 @@ namespace osu.Game.Overlays.Chat.Listing
         protected override void PopIn() => this.FadeIn();
 
         protected override void PopOut() => this.FadeOut();
+
+        protected override void Dispose(bool isDisposing)
+        {
+            backgroundThemeBinding?.Dispose();
+            backgroundThemeBinding = null;
+            base.Dispose(isDisposing);
+        }
 
         public class ChannelListingChannel : Channel
         {
