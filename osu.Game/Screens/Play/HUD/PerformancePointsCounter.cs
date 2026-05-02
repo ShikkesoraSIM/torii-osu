@@ -66,6 +66,38 @@ namespace osu.Game.Screens.Play.HUD
         // Avoid calculating on every single judgement and offload heavy work from update thread.
         private const double mania_pp_recalculation_interval_ms = 200;
 
+        // Hard ceiling used to filter obviously-broken intermediate pp
+        // values (NaN / +Inf / overflow). 9999 is well past any real
+        // map's pp ceiling; anything above is a sentinel for "calc
+        // returned garbage on a transitional gameplay state".
+        // The bug this guards against: `(int)Math.Round(double)` casts
+        // NaN / +Inf to int.MinValue (-2147483648) on .NET, which is
+        // exactly the value users were seeing on the HUD when a
+        // performance calculator returned NaN during the first hit
+        // (especially under OsuModClassic whose legacy combo math can
+        // briefly produce divide-by-zero or undefined intermediate
+        // values until enough hit objects have been processed).
+        private const int pp_display_ceiling = 9999;
+
+        /// <summary>
+        /// Round + clamp a raw double pp value to a safe int suitable for
+        /// the rolling counter. Returns null when the input is non-finite
+        /// or wildly out of range — the caller should keep the previous
+        /// displayed value rather than flashing garbage.
+        /// </summary>
+        private static int? safeRoundedPp(double rawPp)
+        {
+            if (!double.IsFinite(rawPp))
+                return null;
+
+            // Clamp to [0, pp_display_ceiling] BEFORE casting to int so
+            // the cast can't produce int.MinValue from a value outside
+            // the int range. (Negative pp from edge-case formulas is
+            // also nonsensical for display; clamp it to 0.)
+            double clamped = Math.Clamp(rawPp, 0d, pp_display_ceiling);
+            return (int)Math.Round(clamped, MidpointRounding.AwayFromZero);
+        }
+
         [BackgroundDependencyLoader]
         private void load(BeatmapDifficultyCache difficultyCache)
         {
@@ -196,16 +228,24 @@ namespace osu.Game.Screens.Play.HUD
                         pendingManiaAttributes = null;
                     }
 
-                    int currentPp;
+                    int? currentPp;
 
                     try
                     {
-                        currentPp = (int)Math.Round(performanceCalculator?.Calculate(scoreSnapshot, attrib).Total ?? 0, MidpointRounding.AwayFromZero);
+                        double raw = performanceCalculator?.Calculate(scoreSnapshot, attrib).Total ?? 0;
+                        currentPp = safeRoundedPp(raw);
                     }
                     catch
                     {
                         continue;
                     }
+
+                    // safeRoundedPp returns null when the calculation
+                    // produced NaN / Infinity / out-of-range — keep the
+                    // previously-displayed value rather than flashing
+                    // a garbage int.MinValue or wraparound onto the HUD.
+                    if (currentPp == null)
+                        continue;
 
                     Schedule(() =>
                     {
@@ -213,7 +253,7 @@ namespace osu.Game.Screens.Play.HUD
                             return;
 
                         latestAppliedManiaRequestId = requestId;
-                        Current.Value = currentPp;
+                        Current.Value = currentPp.Value;
                         lastPpRecalculationTime = Time.Current;
                         IsValid = true;
                     });
@@ -240,7 +280,21 @@ namespace osu.Game.Screens.Play.HUD
             }
 
             scoreProcessor.PopulateScore(scoreInfo);
-            Current.Value = (int)Math.Round(performanceCalculator?.Calculate(scoreInfo, attrib).Total ?? 0, MidpointRounding.AwayFromZero);
+
+            double rawPp = performanceCalculator?.Calculate(scoreInfo, attrib).Total ?? 0;
+            int? rounded = safeRoundedPp(rawPp);
+
+            // Skip the update entirely on garbage results (NaN / Infinity
+            // / out of int range) — the previous Current.Value stays on
+            // screen, which is the correct UX: a stale-by-one-judgement
+            // pp number is far better than a flashing -2147483648.
+            if (rounded == null)
+            {
+                IsValid = false;
+                return;
+            }
+
+            Current.Value = rounded.Value;
             lastPpRecalculationTime = Time.Current;
             IsValid = true;
         }
