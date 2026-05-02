@@ -230,19 +230,27 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
         // Transparent overlay that fills the slot when the feature is locked.
         // Catches positional input and triggers the supplied callback on
-        // click. The visible affordance is a small pill anchored to the
-        // CentreRight of the row: a lock glyph and a "SUPPORTER" label
-        // with a soft pink-tinted background. The previous design used a
-        // lonely 14px lock in the top-right corner, which read as a stray
-        // decoration rather than a clear "this is gated" signal — and made
-        // it ambiguous whether the row was disabled or actually locked.
+        // click. The previous designs (lonely corner lock, then right-side
+        // pill) both visually clashed with the row's value chip, which
+        // also lives on the right edge. Final design unifies the locked
+        // state into a single full-row treatment:
         //
-        // Pill is bumped on hover (alpha + glow) so the user can see that
-        // it's interactive even before they click.
+        //   - A rounded scrim covers the entire row width with a faint
+        //     pink tint so the lock state reads at a glance even before
+        //     the eye finds the label.
+        //   - A "🔒 SUPPORTER" pill sits at the absolute centre of the
+        //     row, never overlapping the caption or the value chip.
+        //   - The whole overlay is one click target, so anywhere the
+        //     user touches the row triggers the toast.
+        //
+        // Hover brightens BOTH the scrim and the pill, plus a tiny pill
+        // scale, so the affordance reads as "this whole row is clickable",
+        // not "click this small badge".
         private partial class LockOverlay : ClickableContainer
         {
             public bool Locked { get; set; }
 
+            private readonly Box scrim;
             private readonly Container pill;
             private readonly Box pillBackground;
 
@@ -253,54 +261,71 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             private static readonly osuTK.Graphics.Color4 pill_colour =
                 Color4Extensions.FromHex("#FF66B3");
 
+            // Scrim alpha values are intentionally lower than the pill's so
+            // the row content underneath stays legible — the goal is "you
+            // can see what's locked", not "obscure the row".
+            private const float scrim_alpha_idle = 0.10f;
+            private const float scrim_alpha_hover = 0.18f;
+            private const float pill_alpha_idle = 0.22f;
+            private const float pill_alpha_hover = 0.36f;
+
             public LockOverlay(System.Action onClick)
             {
                 RelativeSizeAxes = Axes.Both;
                 AlwaysPresent = true;
+                Masking = true;
+                CornerRadius = 10;
                 Action = () =>
                 {
                     if (Locked)
                         onClick();
                 };
 
-                Child = pill = new Container
+                Children = new Drawable[]
                 {
-                    Anchor = Anchor.CentreRight,
-                    Origin = Anchor.CentreRight,
-                    Margin = new MarginPadding { Right = 14 },
-                    AutoSizeAxes = Axes.Both,
-                    Masking = true,
-                    CornerRadius = 10,
-                    Children = new Drawable[]
+                    scrim = new Box
                     {
-                        pillBackground = new Box
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = pill_colour.Opacity(scrim_alpha_idle),
+                    },
+                    pill = new Container
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        AutoSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = 12,
+                        Children = new Drawable[]
                         {
-                            RelativeSizeAxes = Axes.Both,
-                            Colour = pill_colour.Opacity(0.18f),
-                        },
-                        new FillFlowContainer
-                        {
-                            AutoSizeAxes = Axes.Both,
-                            Direction = FillDirection.Horizontal,
-                            Spacing = new osuTK.Vector2(6, 0),
-                            Padding = new MarginPadding { Horizontal = 10, Vertical = 5 },
-                            Children = new Drawable[]
+                            pillBackground = new Box
                             {
-                                new SpriteIcon
+                                RelativeSizeAxes = Axes.Both,
+                                Colour = pill_colour.Opacity(pill_alpha_idle),
+                            },
+                            new FillFlowContainer
+                            {
+                                AutoSizeAxes = Axes.Both,
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new osuTK.Vector2(7, 0),
+                                Padding = new MarginPadding { Horizontal = 12, Vertical = 6 },
+                                Children = new Drawable[]
                                 {
-                                    Anchor = Anchor.CentreLeft,
-                                    Origin = Anchor.CentreLeft,
-                                    Icon = FontAwesome.Solid.Lock,
-                                    Size = new osuTK.Vector2(11),
-                                    Colour = pill_colour,
-                                },
-                                new OsuSpriteText
-                                {
-                                    Anchor = Anchor.CentreLeft,
-                                    Origin = Anchor.CentreLeft,
-                                    Text = "SUPPORTER",
-                                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                                    Colour = pill_colour,
+                                    new SpriteIcon
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        Icon = FontAwesome.Solid.Lock,
+                                        Size = new osuTK.Vector2(12),
+                                        Colour = pill_colour,
+                                    },
+                                    new OsuSpriteText
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        Text = "TORII SUPPORTER",
+                                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
+                                        Colour = pill_colour,
+                                    },
                                 },
                             },
                         },
@@ -308,28 +333,28 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 };
             }
 
-            // Block hover events too, otherwise the inner picker's hover
-            // animations would still play even though clicks were eaten,
-            // which felt weirdly inconsistent in testing.
             protected override bool OnHover(HoverEvent e)
             {
                 if (!Locked)
                     return false;
 
-                // Brighten the pill slightly so the user sees "I CAN click this"
-                // before they actually do.
-                pillBackground.FadeColour(pill_colour.Opacity(0.32f), 150, Easing.OutQuint);
+                scrim.FadeColour(pill_colour.Opacity(scrim_alpha_hover), 150, Easing.OutQuint);
+                pillBackground.FadeColour(pill_colour.Opacity(pill_alpha_hover), 150, Easing.OutQuint);
                 pill.ScaleTo(1.04f, 150, Easing.OutQuint);
                 return true;
             }
 
             protected override void OnHoverLost(HoverLostEvent e)
             {
-                pillBackground.FadeColour(pill_colour.Opacity(0.18f), 200, Easing.OutQuint);
+                scrim.FadeColour(pill_colour.Opacity(scrim_alpha_idle), 200, Easing.OutQuint);
+                pillBackground.FadeColour(pill_colour.Opacity(pill_alpha_idle), 200, Easing.OutQuint);
                 pill.ScaleTo(1f, 200, Easing.OutQuint);
                 base.OnHoverLost(e);
             }
 
+            // Block stray events (hover-into-content, scroll, etc) so the
+            // inner picker doesn't react to input that was meant for this
+            // overlay.
             protected override bool Handle(UIEvent e) => Locked && base.Handle(e);
         }
     }
