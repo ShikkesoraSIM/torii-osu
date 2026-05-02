@@ -18,6 +18,7 @@ using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
+using osu.Game.Online.API;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
@@ -66,6 +67,11 @@ namespace osu.Game.Overlays
 
         [Resolved]
         private ChannelManager channelManager { get; set; } = null!;
+
+        // Threaded into BindFullScheme so the donator-only accent re-evaluates
+        // whenever the local user changes (login/logout/account switch).
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
 
         [Cached]
         private readonly OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Pink);
@@ -181,7 +187,10 @@ namespace osu.Game.Overlays
             // in a single ColoursChanged firing. The background tint is now
             // refreshed by the BindThemeColour wiring in load() rather than
             // being re-applied manually here.
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays);
+            // api passed so the donator-only accent re-evaluates on
+            // login/logout — without it a stale supporter config in
+            // osu.cfg would still apply for non-supporter users.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays, api);
 
             if (background != null)
                 backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);

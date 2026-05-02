@@ -20,6 +20,7 @@ using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Online.API;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Resources.Localisation.Web;
 using osuTK;
@@ -72,6 +73,14 @@ namespace osu.Game.Overlays
         private NotificationOverlayToastTray toastTray = null!;
 
         private Container mainContent = null!;
+
+        // api passed into BindFullScheme so the donator-only accent
+        // re-evaluates on local-user changes (login / logout / account
+        // switch) — without it a non-supporter signed in on a machine
+        // where a supporter previously enabled the accent would inherit
+        // the cosmetic feature.
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
 
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
@@ -134,7 +143,7 @@ namespace osu.Game.Overlays
             // BindFullScheme drives base + donator accent hue together;
             // background is now refreshed via BindThemeColour so we don't
             // duplicate the apply path.
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays);
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays, api);
 
             if (background != null)
                 backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);

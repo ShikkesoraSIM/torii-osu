@@ -16,6 +16,7 @@ using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
+using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
 using osu.Game.Screens.Menu;
@@ -170,16 +171,25 @@ namespace osu.Game.Screens.Footer
             customUiAccentBinding = bindFooterAccent(config);
         }
 
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
+
         private System.IDisposable bindFooterAccent(OsuConfigManager config)
         {
             var accentEnabled = config.GetBindable<bool>(OsuSetting.CustomUIAccentEnabled);
             var accentHue = config.GetBindable<float>(OsuSetting.CustomUIAccentHue);
             var hueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
             var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
+            var localUser = api?.LocalUser.GetBoundCopy();
 
             void apply()
             {
-                bool active = hueEnabled.Value && applyToMenu.Value && accentEnabled.Value;
+                // Mirror the central CustomUiHueHelper.ResolveAccentHue gate
+                // so the footer's accent obeys the same supporter check as
+                // every other surface (chrome / overlays / settings panel).
+                bool donator = CustomUiHueHelper.IsDonatorTier(localUser?.Value);
+                bool active = hueEnabled.Value && applyToMenu.Value && accentEnabled.Value && donator;
+
                 if (active)
                     colourProvider.ChangeAccentColourScheme((int)accentHue.Value);
                 else
@@ -189,7 +199,13 @@ namespace osu.Game.Screens.Footer
             accentEnabled.BindValueChanged(_ => apply());
             accentHue.BindValueChanged(_ => apply());
             hueEnabled.BindValueChanged(_ => apply());
-            applyToMenu.BindValueChanged(_ => apply(), true);
+            applyToMenu.BindValueChanged(_ => apply());
+            localUser?.BindValueChanged(_ => apply(), true);
+
+            // If api wasn't available (test scenes etc.), fall back to
+            // the original immediate apply so the footer still resolves.
+            if (localUser == null)
+                apply();
 
             return new FooterAccentSubscription(() =>
             {
@@ -197,6 +213,7 @@ namespace osu.Game.Screens.Footer
                 accentHue.UnbindAll();
                 hueEnabled.UnbindAll();
                 applyToMenu.UnbindAll();
+                localUser?.UnbindAll();
             });
         }
 

@@ -90,7 +90,10 @@ namespace osu.Game.Overlays
             // caused the changelog / beatmap-listing "white content area
             // + heavy GPU lag" reported in the first dev-build review.
             ColourProvider.ColoursChanged += UpdateColours;
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays);
+            // API passed so the donator-only accent is gated on the
+            // currently-signed-in user, not on whoever last enabled it
+            // on this machine. Re-fires automatically on login/logout.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays, API);
         }
 
         protected abstract T CreateHeader();

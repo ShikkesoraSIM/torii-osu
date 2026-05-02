@@ -189,7 +189,7 @@ namespace osu.Game.Screens.SelectV2
             // footer accent strip, leaderboard score row highlights, the
             // beatmap status pill, etc. — without touching the chrome
             // hue used for the dark background panels.
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu);
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, api);
 
             errorSample = audio.Samples.Get(@"UI/generic-error");
 

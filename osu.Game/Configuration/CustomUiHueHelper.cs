@@ -3,6 +3,8 @@
 
 using System;
 using osu.Framework.Bindables;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 
 namespace osu.Game.Configuration
@@ -52,24 +54,40 @@ namespace osu.Game.Configuration
         }
 
         /// <summary>
+        /// Returns true if the supplied user is allowed to enable supporter-
+        /// gated cosmetic features (current OR past supporter). Centralised
+        /// so the runtime accent gate and the settings-panel UI gate
+        /// share one definition of "donator tier".
+        /// </summary>
+        public static bool IsDonatorTier(APIUser? user) => user != null && (user.IsSupporter || user.HasSupported);
+
+        /// <summary>
         /// Resolves the donator-only accent hue. Returns a (hue, hasOverride)
         /// tuple — when <paramref name="config"/>'s
-        /// <see cref="OsuSetting.CustomUIAccentEnabled"/> is off, hasOverride
-        /// is false and the consumer should call <c>ResetAccentToBase()</c>
-        /// on its colour provider so the accent re-syncs with the chrome.
+        /// <see cref="OsuSetting.CustomUIAccentEnabled"/> is off OR the
+        /// currently-logged-in user isn't a supporter, hasOverride is false
+        /// and the consumer should call <c>ResetAccentToBase()</c> on its
+        /// colour provider so the accent re-syncs with the chrome.
         /// </summary>
         /// <remarks>
         /// The accent ALSO respects the per-scope toggles — turning off the
         /// hue for "Overlays" turns off the accent for overlays, otherwise
         /// you'd get the absurd state of a chrome-default overlay with a
         /// pink accent slapped on top.
+        /// <para/>
+        /// The supporter check is what stops a non-supporter from inheriting
+        /// a previous supporter user's CustomUIAccentEnabled / CustomUIAccentHue
+        /// values from the per-machine osu.cfg. The values themselves stay in
+        /// config (so a temporary tag expiry doesn't wipe the user's choice)
+        /// — they're just ignored by the runtime resolver while no qualifying
+        /// user is signed in.
         /// </remarks>
-        public static (int hue, bool hasOverride) ResolveAccentHue(OsuConfigManager config, int fallbackHue, CustomUiHueScope scope)
+        public static (int hue, bool hasOverride) ResolveAccentHue(OsuConfigManager config, int fallbackHue, CustomUiHueScope scope, APIUser? currentUser = null)
         {
             bool baseEnabled = config.Get<bool>(OsuSetting.CustomUIHueEnabled);
             bool accentEnabled = config.Get<bool>(OsuSetting.CustomUIAccentEnabled);
 
-            if (!baseEnabled || !accentEnabled)
+            if (!baseEnabled || !accentEnabled || !IsDonatorTier(currentUser))
                 return (normaliseHue(fallbackHue), false);
 
             bool scopeEnabled = scope switch
@@ -99,8 +117,15 @@ namespace osu.Game.Configuration
         /// consumer owns an OverlayColourProvider, so the accent override
         /// stays in sync without any extra wiring at the call site.
         /// </summary>
-        public static IDisposable BindFullScheme(OsuConfigManager config, OverlayColourProvider provider, int fallbackHue, CustomUiHueScope scope)
-            => new CustomUiFullSchemeBinding(config, provider, fallbackHue, scope);
+        /// <remarks>
+        /// Pass <paramref name="api"/> when available so the accent is
+        /// gated on the local user's supporter status — without it the
+        /// accent would still apply for anyone using a machine that
+        /// previously had a supporter signed in (the values persist in
+        /// per-machine osu.cfg, not per-user).
+        /// </remarks>
+        public static IDisposable BindFullScheme(OsuConfigManager config, OverlayColourProvider provider, int fallbackHue, CustomUiHueScope scope, IAPIProvider? api = null)
+            => new CustomUiFullSchemeBinding(config, provider, fallbackHue, scope, api);
 
         private sealed class CustomUiHueBinding : IDisposable
         {
@@ -159,12 +184,17 @@ namespace osu.Game.Configuration
         // OverlayColourProvider in one ColoursChanged firing. Avoids the
         // double-paint that would happen if a consumer wired a plain
         // BindHue + a separate accent binding to the same provider.
+        // Also gates the accent on the locally-signed-in user's supporter
+        // status — re-fires whenever the local user changes (login /
+        // logout / account switch) so a stale supporter config can't
+        // bleed into a non-supporter session.
         private sealed class CustomUiFullSchemeBinding : IDisposable
         {
             private readonly OsuConfigManager config;
             private readonly OverlayColourProvider provider;
             private readonly int fallbackHue;
             private readonly CustomUiHueScope scope;
+            private readonly IAPIProvider? api;
 
             private readonly Bindable<bool> customHueEnabled;
             private readonly Bindable<float> customHue;
@@ -173,13 +203,15 @@ namespace osu.Game.Configuration
             private readonly Bindable<bool> applyToMenu;
             private readonly Bindable<bool> applyToOverlays;
             private readonly Bindable<bool> applyToSettingsPanel;
+            private readonly IBindable<APIUser>? localUser;
 
-            public CustomUiFullSchemeBinding(OsuConfigManager config, OverlayColourProvider provider, int fallbackHue, CustomUiHueScope scope)
+            public CustomUiFullSchemeBinding(OsuConfigManager config, OverlayColourProvider provider, int fallbackHue, CustomUiHueScope scope, IAPIProvider? api)
             {
                 this.config = config;
                 this.provider = provider;
                 this.fallbackHue = fallbackHue;
                 this.scope = scope;
+                this.api = api;
 
                 customHueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
                 customHue = config.GetBindable<float>(OsuSetting.CustomUIHue);
@@ -195,13 +227,23 @@ namespace osu.Game.Configuration
                 customAccentHue.BindValueChanged(_ => update());
                 applyToMenu.BindValueChanged(_ => update());
                 applyToOverlays.BindValueChanged(_ => update());
+
+                if (api != null)
+                {
+                    localUser = api.LocalUser.GetBoundCopy();
+                    // Re-evaluate when the signed-in user changes — covers
+                    // login, logout, account switch, and the moment the
+                    // initially-deferred APIUser populates after auth.
+                    localUser.BindValueChanged(_ => update());
+                }
+
                 applyToSettingsPanel.BindValueChanged(_ => update(), true);
             }
 
             private void update()
             {
                 int baseHue = ResolveHue(config, fallbackHue, scope);
-                var (accentHue, hasOverride) = ResolveAccentHue(config, fallbackHue, scope);
+                var (accentHue, hasOverride) = ResolveAccentHue(config, fallbackHue, scope, localUser?.Value);
 
                 // Apply accent first so that ChangeColourScheme below can
                 // see the latest accentHueOverridden flag and decide whether
@@ -223,6 +265,7 @@ namespace osu.Game.Configuration
                 applyToMenu.UnbindAll();
                 applyToOverlays.UnbindAll();
                 applyToSettingsPanel.UnbindAll();
+                localUser?.UnbindAll();
             }
         }
 

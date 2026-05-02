@@ -22,6 +22,7 @@ using osu.Framework.Input.Events;
 using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API;
 using osu.Game.Overlays.Settings;
 using osuTK.Graphics;
 
@@ -77,6 +78,13 @@ namespace osu.Game.Overlays
         private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Purple);
         private IDisposable? customUiHueBinding;
         private Box panelBackground = null!;
+
+        // Resolved so BindFullScheme can re-evaluate the donator-only
+        // accent when the local user changes (login/logout/account switch).
+        // Without it the accent survives a non-supporter sign-in on a
+        // machine where a supporter previously enabled it.
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider api { get; set; }
 
         protected SettingsPanel(bool showBackButton)
         {
@@ -168,7 +176,7 @@ namespace osu.Game.Overlays
             // updateTheme() and the panel surfaces are repainted with
             // the user's resolved hue + accent on first paint.
             colourProvider.ColoursChanged += updateTheme;
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel);
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel, api);
         }
 
         protected void AddSection(SettingsSection section)
