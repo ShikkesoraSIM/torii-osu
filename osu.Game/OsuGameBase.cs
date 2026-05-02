@@ -128,6 +128,13 @@ namespace osu.Game
                 config.BeatmapSubmissionServiceUrl = $"{customUrl}/beatmap-submission";
             }
 
+            // Log the resolved API URL on startup so users (and we) can
+            // verify their custom server URL persisted across restarts —
+            // the symptom we want to make visible if it ever regresses
+            // again is "I set my server URL but the client comes up
+            // pointing at the default."
+            Logger.Log($"API endpoint resolved to {config.APIUrl} (custom URL setting={(string.IsNullOrEmpty(customUrl) ? "<empty>" : customUrl)})", LoggingTarget.Network);
+
             return config;
         }
 

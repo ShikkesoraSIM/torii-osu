@@ -23,11 +23,18 @@ namespace osu.Game.Overlays.Settings.Sections.Online
         [Resolved(CanBeNull = true)]
         private IAPIProvider? api { get; set; }
 
+        // Cached for eager Save() — see ToriiServerSettings for full
+        // rationale. tl;dr: bindable auto-save is debounced 100ms; if the
+        // client is closed inside that window the URL never reaches
+        // osu.cfg and the user sees the textbox revert on next launch.
+        private OsuConfigManager localConfig = null!;
+
         private SettingsTextBox customApiUrlTextBox = null!;
 
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
+            localConfig = config;
             Children = new Drawable[]
             {
                 new SettingsItemV2(new FormCheckBox
@@ -184,6 +191,11 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             }
 
             lastApiUrl = normalizedNewValue;
+
+            // Force-flush to disk immediately rather than waiting for the
+            // bindable's debounced background save. See ToriiServerSettings
+            // for the full rationale.
+            localConfig?.Save();
 
             if (api is APIAccess apiAccess)
             {

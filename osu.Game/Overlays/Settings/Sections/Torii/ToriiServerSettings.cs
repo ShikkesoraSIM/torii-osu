@@ -39,6 +39,15 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         [Resolved(CanBeNull = true)]
         private IAPIProvider? api { get; set; }
 
+        // Cached so we can force-flush the value to disk on every successful
+        // change. The framework's bindable change-listener already queues a
+        // 100ms debounced save, but if the client is closed inside that window
+        // (or hard-crashes mid-debounce) the URL never reaches the .ini file
+        // and the user sees the textbox revert to the default after restart.
+        // Calling Save() explicitly here makes the persistence eager so the
+        // change is durable the moment validation passes.
+        private OsuConfigManager localConfig = null!;
+
         private SettingsTextBox serverUrlTextBox = null!;
         private string lastApiUrl = string.Empty;
         private bool isInitialLoad = true;
@@ -53,6 +62,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
+            localConfig = config;
             var serverUrl = config.GetBindable<string>(OsuSetting.CustomApiUrl);
 
             Children = new Drawable[]
@@ -168,6 +178,13 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             }
 
             lastApiUrl = normalizedNewValue;
+
+            // Force-flush the new value to disk immediately. The bindable
+            // value-changed handler already queues a debounced save, but if
+            // the user closes the client during that debounce window the URL
+            // is silently lost and the textbox reverts to the default on
+            // next launch — exactly the symptom Impairation reported.
+            localConfig?.Save();
 
             if (api is APIAccess apiAccess)
             {
