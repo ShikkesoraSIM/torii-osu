@@ -46,6 +46,12 @@ namespace osu.Game.Graphics.UserEffects
             // no aura attached.
             new SupporterAuraPreset(),
             new GoofAuraPreset(),
+            // Bug-finder aura (mint bugs crawling along the baseline) —
+            // recognition tier for community members who reported real
+            // bugs. Highest DefaultPriority among the group fallbacks so
+            // it never wins the tiebreak against any "elite" group the
+            // same user happens to own (admin/dev/mod/qat/supporter/goof).
+            new BugFinderAuraPreset(),
         };
 
         // Indexed by AuraId for O(1) lookup. Built once at static init.
