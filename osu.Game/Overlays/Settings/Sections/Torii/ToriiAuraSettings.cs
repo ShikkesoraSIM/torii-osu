@@ -144,6 +144,27 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             }
 
             updatePreview(catalog.EffectiveAuraId);
+
+            // Sync the in-memory APIUser so every consumer that reads
+            // EquippedAura via api.LocalUser sees the new value, and
+            // broadcast a notification so every UserAuraContainer
+            // currently rendering the local user re-resolves in place
+            // (profile header, dashboard online list, chat lines,
+            // leaderboard rows, user panels…). Without this, the picker
+            // updated only its own preview while every other surface
+            // kept rendering the old aura until the user closed/reopened
+            // them or restarted the client.
+            //
+            // Mutating the existing APIUser instance instead of cloning
+            // a fresh one keeps reference equality intact (cheap, doesn't
+            // thrash unrelated bindable subscribers), and pairs with the
+            // dedicated UserAuraEvents channel that UserAuraContainer
+            // subscribes to.
+            if (api.LocalUser.Value != null)
+            {
+                api.LocalUser.Value.EquippedAura = catalog.EffectiveAuraId;
+                UserAuraEvents.NotifyUserAuraChanged(api.LocalUser.Value.Id, catalog.EffectiveAuraId);
+            }
         }
 
         private void onSelectionChanged(ValueChangedEvent<AuraOption> e)

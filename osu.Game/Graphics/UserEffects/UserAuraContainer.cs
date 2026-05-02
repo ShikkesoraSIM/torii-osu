@@ -90,6 +90,27 @@ namespace osu.Game.Graphics.UserEffects
             // around the name without obscuring legibility.
             Add(target);
             loaded = true;
+
+            // Subscribe to the global aura-change channel so every container
+            // currently rendering this user re-resolves the moment the picker
+            // confirms a new selection — no need for the user to close/reopen
+            // the profile / dashboard / chat panel to see the swap.
+            // Comparison is by user ID (not reference) because the same APIUser
+            // sometimes gets re-fetched as a fresh instance between contexts;
+            // we only care that "this is the same person".
+            UserAuraEvents.UserAuraChanged += onUserAuraChanged;
+        }
+
+        private void onUserAuraChanged(int changedUserId, string? newEffectiveAuraId)
+        {
+            if (user == null || user.Id != changedUserId)
+                return;
+
+            // Mutate the locally-held APIUser snapshot so a subsequent
+            // SetUser call with the same instance still reflects the
+            // latest aura, and rebuild the visual to match.
+            user.EquippedAura = newEffectiveAuraId;
+            rebuildEmitter();
         }
 
         /// <summary>
@@ -226,6 +247,16 @@ namespace osu.Game.Graphics.UserEffects
         {
             if (emitter != null)
                 emitter.Alpha = auraEnabled.Value ? 1 : 0;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            // Static event reference would otherwise pin this container in
+            // memory for the rest of the process lifetime. Critical because
+            // chat lines / leaderboard rows churn through hundreds of
+            // wrapper instances during a session.
+            UserAuraEvents.UserAuraChanged -= onUserAuraChanged;
+            base.Dispose(isDisposing);
         }
 
         /// <summary>
