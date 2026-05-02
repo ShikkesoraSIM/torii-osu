@@ -26,6 +26,11 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 new ToriiBriefingSettings(),
                 new ToriiInterfaceSettings(),
+                // Gameplay-flow tweaks (long-attempt confirm prompt, etc).
+                // Lives next to Interface because users browsing the Torii
+                // section for "make the game feel a bit more careful" prefs
+                // expect both kinds of toggles together.
+                new ToriiGameplaySettings(),
                 // User-aura cosmetics (toggle + equipped picker + live preview).
                 // Placed between Interface and Server so users find it next to
                 // the visual prefs rather than buried after networking stuff.

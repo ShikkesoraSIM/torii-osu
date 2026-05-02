@@ -213,6 +213,13 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CustomUIAccentEnabled, false);
             SetDefault(OsuSetting.CustomUIAccentHue, OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
 
+            // Defaults to OFF: this changes a long-standing one-click flow,
+            // so users have to opt in. The threshold (60s of active gameplay)
+            // and confirm window (5s) are intentionally NOT exposed as
+            // settings to avoid bloat — they can be promoted to sliders if
+            // anyone asks for tuning.
+            SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -489,6 +496,11 @@ namespace osu.Game.Configuration
         CustomUIHueApplyToSettingsPanel,
         CustomUIAccentEnabled,
         CustomUIAccentHue,
+        // Torii: when enabled, Retry/Quit on the pause + fail overlays require
+        // a second click to confirm if the current attempt has been running
+        // long enough for the user to plausibly care about losing it. See
+        // GameplayMenuOverlay for the threshold + arming behaviour.
+        ToriiConfirmDangerousButtonsOnLongAttempts,
         IntroSequence,
         NotifyOnUsernameMentioned,
         NotifyOnPrivateMessage,
