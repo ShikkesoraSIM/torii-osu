@@ -4,18 +4,22 @@
 using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Online.Chat;
 using osu.Game.Overlays.Notifications;
 
 namespace osu.Game.Overlays.Settings.Sections.Torii
@@ -29,6 +33,16 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
         [Resolved(CanBeNull = true)]
         private INotificationOverlay? notifications { get; set; }
+
+        // Resolved so the locked-perk notification can route the user to
+        // Ko-fi when activated. Optional because this subsection also runs
+        // in test scenes where no OsuGame host is registered.
+        [Resolved(CanBeNull = true)]
+        private OsuGame? game { get; set; }
+
+        // Single point of truth for the Ko-fi page. Touched in two places:
+        // the locked-perk toast and (potentially) future supporter CTAs.
+        private const string supporter_kofi_url = @"https://ko-fi.com/toriiserver";
 
         // The accent picker + its enable toggle are always rendered. When
         // the local user isn't a supporter we keep them visible (so non-
@@ -147,16 +161,25 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         }
 
         // Click handler shared by both locked slots. Posts a SimpleNotification
-        // so the user gets a clear, non-blocking explanation of why the
-        // control didn't respond. Title + body match the user's request:
-        // a single sentence that names the feature and tells them how to
-        // unlock it.
+        // explaining why the control didn't respond AND making the toast
+        // itself the call-to-action: clicking the notification opens the
+        // Ko-fi page in the user's browser. Returning true from Activated
+        // dismisses the toast on click, which feels right because the user
+        // has now seen the message and acted on it.
         private void onSupporterFeatureLockedClick()
         {
             notifications?.Post(new SimpleNotification
             {
-                Icon = FontAwesome.Solid.Lock,
-                Text = "Custom accent hue is a Torii Supporter perk — drop a tip on shikkesora.com to enable it!",
+                Icon = FontAwesome.Solid.Heart,
+                Text = "Custom accent hue is a Torii Supporter perk. Click here to support and unlock!",
+                Activated = () =>
+                {
+                    // LinkWarnMode.NeverWarn skips the "you're about to leave
+                    // osu!" interstitial — appropriate here because the URL
+                    // is a constant we control, not user-supplied.
+                    game?.OpenUrlExternally(supporter_kofi_url, LinkWarnMode.NeverWarn);
+                    return true;
+                },
             });
         }
 
@@ -207,13 +230,28 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
         // Transparent overlay that fills the slot when the feature is locked.
         // Catches positional input and triggers the supplied callback on
-        // click, plus paints a small lock badge in the top-right so the
-        // lock state is unambiguous (the 50% fade alone could be confused
-        // with the "disabled because the feature toggle is off" pattern
-        // used elsewhere in the panel).
+        // click. The visible affordance is a small pill anchored to the
+        // CentreRight of the row: a lock glyph and a "SUPPORTER" label
+        // with a soft pink-tinted background. The previous design used a
+        // lonely 14px lock in the top-right corner, which read as a stray
+        // decoration rather than a clear "this is gated" signal — and made
+        // it ambiguous whether the row was disabled or actually locked.
+        //
+        // Pill is bumped on hover (alpha + glow) so the user can see that
+        // it's interactive even before they click.
         private partial class LockOverlay : ClickableContainer
         {
             public bool Locked { get; set; }
+
+            private readonly Container pill;
+            private readonly Box pillBackground;
+
+            // Soft pink with low alpha — matches the "supporter" pink
+            // accent the donor badge already uses elsewhere, so the cue
+            // reads as "this belongs to the supporter feature family"
+            // without screaming for attention.
+            private static readonly osuTK.Graphics.Color4 pill_colour =
+                Color4Extensions.FromHex("#FF66B3");
 
             public LockOverlay(System.Action onClick)
             {
@@ -225,17 +263,47 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                         onClick();
                 };
 
-                Child = new Container
+                Child = pill = new Container
                 {
-                    Anchor = Anchor.TopRight,
-                    Origin = Anchor.TopRight,
-                    Margin = new MarginPadding { Top = 12, Right = 12 },
+                    Anchor = Anchor.CentreRight,
+                    Origin = Anchor.CentreRight,
+                    Margin = new MarginPadding { Right = 14 },
                     AutoSizeAxes = Axes.Both,
-                    Child = new SpriteIcon
+                    Masking = true,
+                    CornerRadius = 10,
+                    Children = new Drawable[]
                     {
-                        Icon = FontAwesome.Solid.Lock,
-                        Size = new osuTK.Vector2(14),
-                        Colour = OsuColour.Gray(0.85f),
+                        pillBackground = new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = pill_colour.Opacity(0.18f),
+                        },
+                        new FillFlowContainer
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Direction = FillDirection.Horizontal,
+                            Spacing = new osuTK.Vector2(6, 0),
+                            Padding = new MarginPadding { Horizontal = 10, Vertical = 5 },
+                            Children = new Drawable[]
+                            {
+                                new SpriteIcon
+                                {
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                    Icon = FontAwesome.Solid.Lock,
+                                    Size = new osuTK.Vector2(11),
+                                    Colour = pill_colour,
+                                },
+                                new OsuSpriteText
+                                {
+                                    Anchor = Anchor.CentreLeft,
+                                    Origin = Anchor.CentreLeft,
+                                    Text = "SUPPORTER",
+                                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                                    Colour = pill_colour,
+                                },
+                            },
+                        },
                     },
                 };
             }
@@ -243,7 +311,25 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             // Block hover events too, otherwise the inner picker's hover
             // animations would still play even though clicks were eaten,
             // which felt weirdly inconsistent in testing.
-            protected override bool OnHover(HoverEvent e) => Locked;
+            protected override bool OnHover(HoverEvent e)
+            {
+                if (!Locked)
+                    return false;
+
+                // Brighten the pill slightly so the user sees "I CAN click this"
+                // before they actually do.
+                pillBackground.FadeColour(pill_colour.Opacity(0.32f), 150, Easing.OutQuint);
+                pill.ScaleTo(1.04f, 150, Easing.OutQuint);
+                return true;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                pillBackground.FadeColour(pill_colour.Opacity(0.18f), 200, Easing.OutQuint);
+                pill.ScaleTo(1f, 200, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
+
             protected override bool Handle(UIEvent e) => Locked && base.Handle(e);
         }
     }
