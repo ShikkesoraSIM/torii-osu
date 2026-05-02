@@ -148,7 +148,12 @@ namespace osu.Game.Users
                     {
                         badge.Anchor = Anchor.TopRight;
                         badge.Origin = Anchor.TopRight;
-                        badge.Margin = new MarginPadding { Top = 6, Right = 6 };
+                        // Match the panel's inner margin (10) so the badge's
+                        // right/top inset reads as symmetric with the avatar's
+                        // left/top inset on the opposite corner. Anything
+                        // smaller looks visibly "stuck to the edge" while the
+                        // rest of the card breathes inside the 10px padding.
+                        badge.Margin = new MarginPadding { Top = margin, Right = margin };
                     }),
                 },
             };
