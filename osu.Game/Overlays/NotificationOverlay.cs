@@ -131,14 +131,16 @@ namespace osu.Game.Overlays
                 },
             };
 
-            customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays, hue =>
-            {
-                colourProvider.ChangeColourScheme(hue);
+            // BindFullScheme drives base + donator accent hue together;
+            // background is now refreshed via BindThemeColour so we don't
+            // duplicate the apply path.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays);
 
-                if (background != null)
-                    background.Colour = colourProvider.Background4;
-            });
+            if (background != null)
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
         }
+
+        private IDisposable? backgroundThemeBinding;
 
         private ScheduledDelegate? notificationsEnabler;
 
@@ -299,6 +301,8 @@ namespace osu.Game.Overlays
             {
                 customUiHueBinding?.Dispose();
                 customUiHueBinding = null;
+                backgroundThemeBinding?.Dispose();
+                backgroundThemeBinding = null;
             }
 
             base.Dispose(isDisposing);

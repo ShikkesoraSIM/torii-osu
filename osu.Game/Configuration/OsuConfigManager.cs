@@ -206,6 +206,13 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CustomUIHueApplyToOverlays, true);
             SetDefault(OsuSetting.CustomUIHueApplyToSettingsPanel, true);
 
+            // Accent hue is the donator-only "second hue" applied only to
+            // saturated shades (Highlight/Colour/Light). Backgrounds and
+            // text/foreground keep using the base hue. Defaults to the same
+            // hue as the base so toggling it on doesn't visually jump.
+            SetDefault(OsuSetting.CustomUIAccentEnabled, false);
+            SetDefault(OsuSetting.CustomUIAccentHue, OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -480,6 +487,8 @@ namespace osu.Game.Configuration
         CustomUIHueApplyToMenu,
         CustomUIHueApplyToOverlays,
         CustomUIHueApplyToSettingsPanel,
+        CustomUIAccentEnabled,
+        CustomUIAccentHue,
         IntroSequence,
         NotifyOnUsernameMentioned,
         NotifyOnPrivateMessage,

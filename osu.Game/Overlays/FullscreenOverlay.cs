@@ -81,11 +81,12 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
-            customUiHueBinding = CustomUiHueHelper.BindHue(config, defaultHue, CustomUiHueScope.Overlays, hue =>
-            {
-                ColourProvider.ChangeColourScheme(hue);
-                UpdateColours();
-            });
+            // BindFullScheme drives base + accent hue and triggers
+            // ColoursChanged once. We hook UpdateColours to ColoursChanged
+            // so the waves repaint without us re-applying inside the
+            // BindHue callback (which used to fire BEFORE accent landed).
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays);
+            ColourProvider.ColoursChanged += UpdateColours;
         }
 
         protected abstract T CreateHeader();
@@ -143,6 +144,8 @@ namespace osu.Game.Overlays
             {
                 customUiHueBinding?.Dispose();
                 customUiHueBinding = null;
+                if (ColourProvider != null)
+                    ColourProvider.ColoursChanged -= UpdateColours;
             }
 
             base.Dispose(isDisposing);

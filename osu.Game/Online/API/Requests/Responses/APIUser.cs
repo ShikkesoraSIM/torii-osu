@@ -98,6 +98,16 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"support_level")]
         public int SupportLevel;
 
+        /// <summary>
+        /// True if the user has supported the server at least once (current
+        /// or past). Used to gate donator-only client features (e.g. the
+        /// custom-UI accent hue picker) — current support status alone is
+        /// too restrictive because anyone whose tag has expired would lose
+        /// their cosmetic settings until they re-subscribe.
+        /// </summary>
+        [JsonProperty(@"has_supported")]
+        public bool HasSupported;
+
         [JsonProperty(@"is_gmt")]
         public bool IsGMT;
 

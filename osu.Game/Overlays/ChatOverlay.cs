@@ -177,14 +177,17 @@ namespace osu.Game.Overlays
                 }
             };
 
-            customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays, hue =>
-            {
-                colourProvider.ChangeColourScheme(hue);
+            // BindFullScheme drives both base + accent hue on the provider
+            // in a single ColoursChanged firing. The background tint is now
+            // refreshed by the BindThemeColour wiring in load() rather than
+            // being re-applied manually here.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays);
 
-                if (background != null)
-                    background.Colour = colourProvider.Background4;
-            });
+            if (background != null)
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
         }
+
+        private IDisposable? backgroundThemeBinding;
 
         protected override void LoadComplete()
         {
@@ -467,6 +470,8 @@ namespace osu.Game.Overlays
             {
                 customUiHueBinding?.Dispose();
                 customUiHueBinding = null;
+                backgroundThemeBinding?.Dispose();
+                backgroundThemeBinding = null;
             }
 
             base.Dispose(isDisposing);

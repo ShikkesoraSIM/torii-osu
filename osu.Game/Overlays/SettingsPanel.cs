@@ -163,11 +163,12 @@ namespace osu.Game.Overlays
 
             CreateSections()?.ForEach(AddSection);
 
-            customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel, hue =>
-            {
-                colourProvider.ChangeColourScheme(hue);
-                updateTheme();
-            });
+            // BindFullScheme drives both base + accent hue and fires
+            // ColoursChanged once per change. We hook updateTheme() to that
+            // event so the panel's local panelBackground + sections refresh
+            // in lock-step with the rest of the overlay theme.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel);
+            colourProvider.ColoursChanged += updateTheme;
         }
 
         protected void AddSection(SettingsSection section)
@@ -320,6 +321,8 @@ namespace osu.Game.Overlays
             {
                 customUiHueBinding?.Dispose();
                 customUiHueBinding = null;
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= updateTheme;
             }
 
             base.Dispose(isDisposing);

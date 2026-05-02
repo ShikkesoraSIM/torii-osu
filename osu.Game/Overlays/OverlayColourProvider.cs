@@ -10,12 +10,26 @@ namespace osu.Game.Overlays
     public class OverlayColourProvider
     {
         /// <summary>
-        /// The hue degree associated with the colour shades provided by this <see cref="OverlayColourProvider"/>.
+        /// The hue degree used for chrome shades (Background*, Dark*, Foreground*, Content*).
         /// </summary>
         public int Hue { get; private set; }
 
         /// <summary>
-        /// Fired when <see cref="Hue"/> changes and colour shades should be reapplied.
+        /// The hue degree used for accent shades (Highlight1, Colour0–4, Light1–4).
+        /// </summary>
+        /// <remarks>
+        /// Tracks <see cref="Hue"/> by default; donator-tier users can pin
+        /// it independently via <see cref="ChangeAccentColourScheme(int)"/>
+        /// so the bright accents differ from the chrome tint.
+        /// </remarks>
+        public int AccentHue { get; private set; }
+
+        // Pinned by ChangeAccentColourScheme so that subsequent
+        // ChangeColourScheme calls don't drag AccentHue back to the base.
+        private bool accentHueOverridden;
+
+        /// <summary>
+        /// Fired when <see cref="Hue"/> or <see cref="AccentHue"/> changes and colour shades should be reapplied.
         /// </summary>
         public event Action? ColoursChanged;
 
@@ -27,25 +41,32 @@ namespace osu.Game.Overlays
         public OverlayColourProvider(int hue)
         {
             Hue = normaliseHue(hue);
+            AccentHue = Hue;
         }
 
         // Note that the following five colours are also defined in `OsuColour` as `{colourScheme}{0,1,2,3,4}`.
         // The difference as to which should be used where comes down to context.
         // If the colour in question is supposed to always match the view in which it is displayed theme-wise, use `OverlayColourProvider`.
         // If the colour usage is special and in general differs from the surrounding view in choice of hue, use the `OsuColour` constants.
-        public Color4 Colour0 => getColour(1, 0.8f);
-        public Color4 Colour1 => getColour(1, 0.7f);
-        public Color4 Colour2 => getColour(0.8f, 0.6f);
-        public Color4 Colour3 => getColour(0.6f, 0.5f);
-        public Color4 Colour4 => getColour(0.4f, 0.3f);
+        // ── Accent shades (saturated) — driven by AccentHue. ──
+        public Color4 Colour0 => getAccentColour(1, 0.8f);
+        public Color4 Colour1 => getAccentColour(1, 0.7f);
+        public Color4 Colour2 => getAccentColour(0.8f, 0.6f);
+        public Color4 Colour3 => getAccentColour(0.6f, 0.5f);
+        public Color4 Colour4 => getAccentColour(0.4f, 0.3f);
 
-        public Color4 Highlight1 => getColour(1, 0.7f);
+        public Color4 Highlight1 => getAccentColour(1, 0.7f);
+        public Color4 Light1 => getAccentColour(0.4f, 0.8f);
+        public Color4 Light2 => getAccentColour(0.4f, 0.75f);
+        public Color4 Light3 => getAccentColour(0.4f, 0.7f);
+        public Color4 Light4 => getAccentColour(0.4f, 0.5f);
+
+        // ── Chrome shades (low-saturation) — driven by base Hue. Content*
+        //    are nominally text colours sitting on top of dark backgrounds,
+        //    so they belong with the chrome family rather than competing
+        //    with the accent. ──
         public Color4 Content1 => getColour(0.4f, 1);
         public Color4 Content2 => getColour(0.4f, 0.9f);
-        public Color4 Light1 => getColour(0.4f, 0.8f);
-        public Color4 Light2 => getColour(0.4f, 0.75f);
-        public Color4 Light3 => getColour(0.4f, 0.7f);
-        public Color4 Light4 => getColour(0.4f, 0.5f);
         public Color4 Dark1 => getColour(0.2f, 0.35f);
         public Color4 Dark2 => getColour(0.2f, 0.3f);
         public Color4 Dark3 => getColour(0.2f, 0.25f);
@@ -67,17 +88,62 @@ namespace osu.Game.Overlays
         public void ChangeColourScheme(OverlayColourScheme colourScheme) => ChangeColourScheme(colourScheme.GetHue());
 
         /// <summary>
-        /// Changes the <see cref="Hue"/> to a different degree.
+        /// Changes the chrome <see cref="Hue"/> to a different degree.
         /// </summary>
+        /// <remarks>
+        /// If no accent hue was set independently via <see cref="ChangeAccentColourScheme(int)"/>,
+        /// the accent keeps tracking this hue (1:1 with the legacy single-hue behaviour).
+        /// </remarks>
         /// <param name="hue">The proposed hue degree.</param>
         public void ChangeColourScheme(int hue)
         {
             int normalisedHue = normaliseHue(hue);
+            int newAccent = accentHueOverridden ? AccentHue : normalisedHue;
 
-            if (Hue == normalisedHue)
+            if (Hue == normalisedHue && AccentHue == newAccent)
                 return;
 
             Hue = normalisedHue;
+            AccentHue = newAccent;
+            ColoursChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Sets the donator-only accent hue independently from the base <see cref="Hue"/>.
+        /// </summary>
+        /// <remarks>
+        /// Subsequent calls to <see cref="ChangeColourScheme(int)"/> keep the accent
+        /// pinned at <paramref name="hue"/> until <see cref="ResetAccentToBase"/> is called.
+        /// </remarks>
+        public void ChangeAccentColourScheme(int hue)
+        {
+            int normalisedHue = normaliseHue(hue);
+
+            if (accentHueOverridden && AccentHue == normalisedHue)
+                return;
+
+            accentHueOverridden = true;
+            AccentHue = normalisedHue;
+            ColoursChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Stops tracking an independent accent hue; the accent re-syncs to
+        /// <see cref="Hue"/> immediately and follows future
+        /// <see cref="ChangeColourScheme(int)"/> calls.
+        /// </summary>
+        public void ResetAccentToBase()
+        {
+            bool wasOverridden = accentHueOverridden;
+            accentHueOverridden = false;
+
+            if (!wasOverridden && AccentHue == Hue)
+                return;
+
+            if (AccentHue == Hue)
+                return;
+
+            AccentHue = Hue;
             ColoursChanged?.Invoke();
         }
 
@@ -92,6 +158,7 @@ namespace osu.Game.Overlays
         }
 
         private Color4 getColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
+        private Color4 getAccentColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, saturation, lightness);
     }
 
     /// <summary>
