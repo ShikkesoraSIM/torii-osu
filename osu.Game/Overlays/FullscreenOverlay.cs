@@ -81,12 +81,16 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
-            // BindFullScheme drives base + accent hue and triggers
-            // ColoursChanged once. We hook UpdateColours to ColoursChanged
-            // so the waves repaint without us re-applying inside the
-            // BindHue callback (which used to fire BEFORE accent landed).
-            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays);
+            // ORDER MATTERS: subscribe to ColoursChanged BEFORE BindFullScheme
+            // so the initial apply() inside BindFullScheme's constructor
+            // fires UpdateColours synchronously and the background +
+            // wave colours are set on first paint. The previous order
+            // (subscribe after bind) silently dropped the initial event,
+            // leaving background.Colour at its default (white) which
+            // caused the changelog / beatmap-listing "white content area
+            // + heavy GPU lag" reported in the first dev-build review.
             ColourProvider.ColoursChanged += UpdateColours;
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays);
         }
 
         protected abstract T CreateHeader();
