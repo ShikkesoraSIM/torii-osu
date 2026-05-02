@@ -497,16 +497,32 @@ jobs:
       shell: bash
       run: chmod +x "publish/${{ matrix.runtime }}/${RESOLVED_EXECUTABLE}"
 
-    - name: Compute executable MD5 hash
+    - name: Compute osu.Game.dll MD5 hash
       if: matrix.runtime != 'android'
       shell: bash
       run: |
-        EXEC="publish/${{ matrix.runtime }}/${RESOLVED_EXECUTABLE}"
-        # md5sum is available on all GitHub Actions runners (Linux, macOS, Windows via Git Bash)
-        if command -v md5sum &>/dev/null; then
-          HASH=$(md5sum "$EXEC" | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
+        # IMPORTANT: hash osu.Game.dll, NOT the bootstrapper executable.
+        #
+        # The runtime checks `typeof(OsuGameBase).Assembly.Location` and
+        # md5s THAT file (osu.Game.dll), then ships it to the spectator
+        # as version_hash. The previous CI revision hashed the .NET host
+        # bootstrapper (`osu-torii.exe` on Windows, `osu-torii` on
+        # Linux, the .app exe on macOS), which is a DIFFERENT file with
+        # a DIFFERENT md5 — so every Torii build registered with the
+        # server was unrecognised on connect. The "Playing on Torii
+        # client" badge was permanently invisible for everyone, which
+        # is the bug Shikkesora reported on 2026-05-03.
+        #
+        # osu.Game.dll lives next to the bootstrapper in the publish
+        # folder. The host varies per runtime; the assembly does not.
+        ASSEMBLY="publish/${{ matrix.runtime }}/osu.Game.dll"
+        if [[ ! -f "$ASSEMBLY" ]]; then
+          echo "::warning::osu.Game.dll not found at $ASSEMBLY — hash will not be registered"
+          HASH=""
+        elif command -v md5sum &>/dev/null; then
+          HASH=$(md5sum "$ASSEMBLY" | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
         elif command -v md5 &>/dev/null; then
-          HASH=$(md5 -q "$EXEC" | tr '[:upper:]' '[:lower:]')
+          HASH=$(md5 -q "$ASSEMBLY" | tr '[:upper:]' '[:lower:]')
         else
           echo "::warning::No md5 tool found on this runner — hash will not be registered"
           HASH=""
@@ -522,7 +538,7 @@ jobs:
         mkdir -p hash-output
         printf '{"hash":"%s","os":"%s","runtime":"%s"}' "$HASH" "$OS_LABEL" "${{ matrix.runtime }}" \
           > "hash-output/hash-${{ matrix.runtime }}.json"
-        echo "Hash for ${{ matrix.runtime }}: $HASH ($OS_LABEL)"
+        echo "Hash for ${{ matrix.runtime }} (osu.Game.dll): $HASH ($OS_LABEL)"
 
     - name: Upload hash artifact
       if: matrix.runtime != 'android'
