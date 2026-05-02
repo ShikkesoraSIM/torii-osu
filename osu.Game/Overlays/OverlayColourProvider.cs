@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using osu.Framework.Graphics;
 using osuTK.Graphics;
 
 namespace osu.Game.Overlays
@@ -91,5 +92,79 @@ namespace osu.Game.Overlays
         }
 
         private Color4 getColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
+    }
+
+    /// <summary>
+    /// Helpers that wire arbitrary <see cref="Drawable"/> properties to live-update
+    /// when the active <see cref="OverlayColourProvider.Hue"/> changes.
+    /// </summary>
+    /// <remarks>
+    /// Background: <see cref="OverlayColourProvider"/> exposes plain <see cref="Color4"/>
+    /// getters that recompute from <see cref="OverlayColourProvider.Hue"/>. When a
+    /// component reads (say) <c>provider.Background4</c> at construction and
+    /// assigns it to <c>Box.Colour</c>, that <see cref="Color4"/> snapshot is
+    /// frozen — subsequent <see cref="OverlayColourProvider.ChangeColourScheme(int)"/>
+    /// calls only mutate the provider, not the box. Re-applying every leaf
+    /// colour by hand inside every BindHue callback is tedious and easy to miss.
+    /// <para/>
+    /// <see cref="BindThemeColour{T}(T, OverlayColourProvider, Func{OverlayColourProvider, Color4})"/>
+    /// turns the wiring into a one-liner: it applies the colour selector
+    /// immediately, re-applies it whenever <see cref="OverlayColourProvider.ColoursChanged"/>
+    /// fires, and returns an <see cref="IDisposable"/> the caller stores in a
+    /// field and disposes from its own <c>Dispose</c> override (matching the
+    /// pre-existing <c>customUiHueBinding</c> ownership pattern).
+    /// <para/>
+    /// Performance: <see cref="OverlayColourProvider.ChangeColourScheme(int)"/>
+    /// already early-outs on identical hues; the <c>CustomUIHue</c> bindable
+    /// is an integer-precision float, so a full picker drag fires at most
+    /// once per degree (≤360 ticks). The handler list is just delegate
+    /// invocation, so even a few hundred subscribers stay well under a frame.
+    /// </remarks>
+    public static class OverlayColourProviderExtensions
+    {
+        /// <summary>
+        /// Apply a colour from <paramref name="provider"/> to <paramref name="drawable"/>'s
+        /// <see cref="Drawable.Colour"/> immediately, then re-apply on every theme change.
+        /// Returns an <see cref="IDisposable"/>; store it and dispose from the consumer's
+        /// own <c>Dispose</c> override so the subscription doesn't outlive the drawable.
+        /// </summary>
+        public static IDisposable BindThemeColour<T>(this T drawable, OverlayColourProvider provider, Func<OverlayColourProvider, Color4> selector)
+            where T : Drawable
+        {
+            void apply() => drawable.Colour = selector(provider);
+            apply();
+            provider.ColoursChanged += apply;
+            return new ColourSubscription(() => provider.ColoursChanged -= apply);
+        }
+
+        /// <summary>
+        /// Generic variant for non-<see cref="Drawable.Colour"/> properties (gradients,
+        /// child colour, text colour, wave colours, etc.). The <paramref name="apply"/>
+        /// callback is invoked once now and again whenever the theme changes.
+        /// </summary>
+        public static IDisposable BindThemeColour<T>(this T drawable, OverlayColourProvider provider, Action<T, OverlayColourProvider> apply)
+            where T : Drawable
+        {
+            void run() => apply(drawable, provider);
+            run();
+            provider.ColoursChanged += run;
+            return new ColourSubscription(() => provider.ColoursChanged -= run);
+        }
+
+        private sealed class ColourSubscription : IDisposable
+        {
+            private Action? unsubscribe;
+
+            public ColourSubscription(Action unsubscribe)
+            {
+                this.unsubscribe = unsubscribe;
+            }
+
+            public void Dispose()
+            {
+                unsubscribe?.Invoke();
+                unsubscribe = null;
+            }
+        }
     }
 }

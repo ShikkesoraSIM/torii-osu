@@ -49,15 +49,20 @@ namespace osu.Game.Overlays.Chat.ChannelList
         private ChannelListItem selector = null!;
         private TextBox searchTextBox = null!;
 
+        // Holds the live-binding to the active OverlayColourProvider so the
+        // background re-tints when the user changes CustomUIHue without
+        // having to close/reopen the chat overlay.
+        private IDisposable? backgroundThemeBinding;
+
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
+            Box background;
             Children = new Drawable[]
             {
-                new Box
+                background = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background6,
                 },
                 scroll = new OsuScrollContainer
                 {
@@ -107,6 +112,10 @@ namespace osu.Game.Overlays.Chat.ChannelList
 
             selector.OnRequestSelect += chan => OnRequestSelect?.Invoke(chan);
             updateVisibility();
+
+            // Live-bind the background to the current overlay theme so changes
+            // to CustomUIHue propagate without requiring an overlay reopen.
+            backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background6);
         }
 
         public void AddChannel(Channel channel)
@@ -177,6 +186,13 @@ namespace osu.Game.Overlays.Chat.ChannelList
         {
             AnnounceChannelGroup.Alpha = AnnounceChannelGroup.ItemFlow.Any() ? 1 : 0;
             TeamChannelGroup.Alpha = TeamChannelGroup.ItemFlow.Any() ? 1 : 0;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            backgroundThemeBinding?.Dispose();
+            backgroundThemeBinding = null;
+            base.Dispose(isDisposing);
         }
 
         public partial class ChannelGroup : FillFlowContainer

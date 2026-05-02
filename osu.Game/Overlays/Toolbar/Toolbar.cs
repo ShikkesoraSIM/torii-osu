@@ -21,6 +21,10 @@ using osu.Game.Input.Bindings;
 using osu.Game.Configuration;
 using osuTK.Graphics;
 
+// Hue binding lives on the OverlayColourProvider scope; CustomUiHueScope.Menu
+// matches the scope already used by ScreenFooter / SongSelect so the toolbar
+// tints in lock-step with the rest of the menu chrome.
+
 namespace osu.Game.Overlays.Toolbar
 {
     public partial class Toolbar : OverlayContainer, IKeyBindingHandler<GlobalAction>
@@ -41,6 +45,14 @@ namespace osu.Game.Overlays.Toolbar
         private IBindable<bool> alphaToolbarUnlocked;
         private IBindable<bool> alphaToolbarUse;
         private IBindable<ToolbarDensityMode> toolbarDensityMode;
+
+        private OsuConfigManager localConfig;
+        // Lives across rebuildLayout(): the active background drawable is
+        // replaced when the user toggles alpha-toolbar, so we keep the binding
+        // as a hue-only callback that re-tints whatever ToolbarBackground
+        // currently exists.
+        private IDisposable customUiHueBinding;
+        private ToolbarBackground activeBackground;
 
         private const double transition_time = 500;
 
@@ -73,6 +85,8 @@ namespace osu.Game.Overlays.Toolbar
             if (osuGame != null)
                 OverlayActivationMode.BindTo(osuGame.OverlayActivationMode);
 
+            localConfig = config;
+
             alphaToolbarUnlocked = config.GetBindable<bool>(OsuSetting.AlphaToolbarEnabled);
             alphaToolbarUse = config.GetBindable<bool>(OsuSetting.AlphaToolbarUse);
             toolbarDensityMode = config.GetBindable<ToolbarDensityMode>(OsuSetting.ToolbarDensityMode);
@@ -80,6 +94,16 @@ namespace osu.Game.Overlays.Toolbar
             alphaToolbarUnlocked.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
             alphaToolbarUse.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
             toolbarDensityMode.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
+
+            // Track the active CustomUIHue (Menu scope) and push it into
+            // whatever ToolbarBackground currently exists. Re-applies on
+            // rebuildLayout because the new background pulls the cached hue
+            // back out of the helper at construction.
+            customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, hue =>
+            {
+                if (activeBackground != null)
+                    activeBackground.Hue = hue;
+            });
         }
 
         protected override void LoadComplete()
@@ -136,6 +160,13 @@ namespace osu.Game.Overlays.Toolbar
 
             ((IBindable<bool>)background.ShowGradient).BindTo(interceptor.ReceivedHover);
             rulesetSelector?.Current.BindTo(ruleset);
+
+            // Wire the new background to the live hue. The binding callback
+            // in load() pushes future changes; this seeds the initial value
+            // so the toolbar matches the saved hue on every rebuild.
+            activeBackground = background;
+            if (localConfig != null)
+                background.Hue = CustomUiHueHelper.ResolveHue(localConfig, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu);
         }
 
         private Drawable createClassicToolbarGrid()
@@ -266,17 +297,33 @@ namespace osu.Game.Overlays.Toolbar
         {
             public Bindable<bool> ShowGradient { get; } = new BindableBool();
 
+            private readonly Box solidBackground;
             private readonly Box gradientBackground;
+
+            // Default fallback (Blue scheme hue 200°) matches the rest of
+            // the menu chrome. ResolveHue() in Toolbar.load overrides this
+            // with the user's CustomUIHue if enabled for the Menu scope.
+            private int hue = 200;
+
+            public int Hue
+            {
+                get => hue;
+                set
+                {
+                    if (hue == value) return;
+                    hue = value;
+                    applyHue();
+                }
+            }
 
             public ToolbarBackground()
             {
                 RelativeSizeAxes = Axes.Both;
                 Children = new Drawable[]
                 {
-                    new Box
+                    solidBackground = new Box
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = OsuColour.Gray(0.1f),
                     },
                     gradientBackground = new Box
                     {
@@ -288,6 +335,22 @@ namespace osu.Game.Overlays.Toolbar
                             OsuColour.Gray(0f).Opacity(0.7f), OsuColour.Gray(0).Opacity(0)),
                     },
                 };
+
+                applyHue();
+            }
+
+            // OverlayColourProvider derives Background6 as HSL(hue, 0.1, 0.1)
+            // — same lightness as the legacy Gray(0.1f) but tinted by the
+            // active hue. We instantiate a throwaway provider rather than
+            // resolving the ambient one because the Toolbar isn't always
+            // inside an OverlayColourProvider scope (it lives at the very
+            // root of the OsuGame tree).
+            private void applyHue()
+            {
+                if (solidBackground == null)
+                    return;
+
+                solidBackground.Colour = new OverlayColourProvider(hue).Background6;
             }
 
             protected override void LoadComplete()
@@ -375,6 +438,13 @@ namespace osu.Game.Overlays.Toolbar
 
         public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            customUiHueBinding?.Dispose();
+            customUiHueBinding = null;
+            base.Dispose(isDisposing);
         }
     }
 }

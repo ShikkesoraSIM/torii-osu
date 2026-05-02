@@ -11,11 +11,9 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
-using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -25,6 +23,19 @@ using osuTK.Graphics;
 
 namespace osu.Game.Graphics.UserInterfaceV2
 {
+    /// <summary>
+    /// Settings-form control for picking a single hue degree (0–359).
+    /// </summary>
+    /// <remarks>
+    /// The popover deliberately exposes a HUE-ONLY picker (the upstream
+    /// <see cref="OsuHSVColourPicker"/> includes a saturation/value square that
+    /// the consumer of this control silently throws away — moving the marker
+    /// inside that square produced no observable change in the actual UI hue,
+    /// which felt like "the picker is broken"). A horizontal hue strip with a
+    /// draggable nub gives the user 1:1 mapping between input and output, and
+    /// a live-updating hex code below replaces the previously meaningless
+    /// "23°" label.
+    /// </remarks>
     public partial class FormHuePicker : CompositeDrawable, IHasCurrentValue<float>, IFormControl
     {
         public Bindable<float> Current
@@ -43,13 +54,6 @@ namespace osu.Game.Graphics.UserInterfaceV2
 
         public LocalisableString Caption { get; init; }
         public LocalisableString HintText { get; init; }
-
-        private readonly Bindable<Colour4> pickerColour = new Bindable<Colour4>();
-
-        private bool syncingFromPicker;
-        private bool syncingFromCurrent;
-        private float pickerSaturation = 1f;
-        private float pickerValue = 1f;
 
         private FormControlBackground background = null!;
         private FormFieldCaption captionText = null!;
@@ -80,7 +84,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
                             Origin = Anchor.CentreLeft,
                             RelativeSizeAxes = Axes.X,
                             AutoSizeAxes = Axes.Y,
-                            Padding = new MarginPadding { Right = 120 },
+                            Padding = new MarginPadding { Right = 130 },
                             Child = captionText = new FormFieldCaption
                             {
                                 Caption = Caption,
@@ -91,7 +95,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
                         {
                             Anchor = Anchor.CentreRight,
                             Origin = Anchor.CentreRight,
-                            CurrentColour = { BindTarget = pickerColour },
+                            CurrentHue = { BindTarget = current },
                         },
                     },
                 },
@@ -106,43 +110,12 @@ namespace osu.Game.Graphics.UserInterfaceV2
 
             current.BindValueChanged(_ =>
             {
-                if (!syncingFromPicker)
-                {
-                    syncingFromCurrent = true;
-                    pickerColour.Value = hueToColour(current.Value);
-                    syncingFromCurrent = false;
-                }
-
                 updateState();
                 background.Flash();
                 ValueChanged?.Invoke();
             }, true);
 
-            current.BindDisabledChanged(_ =>
-            {
-                pickerColour.Disabled = current.Disabled;
-                updateState();
-            }, true);
-
-            pickerColour.BindValueChanged(change =>
-            {
-                if (syncingFromCurrent)
-                    return;
-
-                syncingFromPicker = true;
-
-                var hsv = new Colour4(change.NewValue.R, change.NewValue.G, change.NewValue.B, 1).ToHSV();
-                pickerSaturation = Math.Clamp(hsv.Y, 0f, 1f);
-                pickerValue = Math.Clamp(hsv.Z, 0f, 1f);
-
-                float hueDegrees = normaliseHue(hsv.X * 360f);
-
-                if (MathF.Abs(current.Value - hueDegrees) > 0.01f)
-                    current.Value = hueDegrees;
-
-                syncingFromPicker = false;
-                updateState();
-            }, true);
+            current.BindDisabledChanged(_ => updateState(), true);
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -160,7 +133,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
         private void updateState()
         {
             captionText.Colour = current.Disabled ? colourProvider.Background1 : colourProvider.Content2;
-            swatchButton.CurrentHue = normaliseHue(current.Value);
+            swatchButton.Disabled = current.Disabled;
 
             if (current.Disabled)
                 background.VisualStyle = VisualStyle.Disabled;
@@ -168,18 +141,6 @@ namespace osu.Game.Graphics.UserInterfaceV2
                 background.VisualStyle = VisualStyle.Hovered;
             else
                 background.VisualStyle = VisualStyle.Normal;
-        }
-
-        private Colour4 hueToColour(float hue) => Colour4.FromHSV(normaliseHue(hue) / 360f, pickerSaturation, pickerValue);
-
-        private static float normaliseHue(float hue)
-        {
-            float normalised = hue % 360f;
-
-            if (normalised < 0)
-                normalised += 360f;
-
-            return normalised;
         }
 
         public IEnumerable<LocalisableString> FilterTerms => new[] { Caption, HintText };
@@ -202,17 +163,18 @@ namespace osu.Game.Graphics.UserInterfaceV2
             base.Dispose(isDisposing);
         }
 
+        // -----------------------------------------------------------------
+        // Swatch button — clickable preview that opens the popover.
+        // Shows the live hex code instead of the previous "23°" label,
+        // since hex is what users recognise from every other colour tool.
+        // -----------------------------------------------------------------
         private partial class HueSwatchButton : OsuClickableContainer, IHasPopover
         {
-            public Bindable<Colour4> CurrentColour { get; } = new Bindable<Colour4>();
+            public Bindable<float> CurrentHue { get; } = new Bindable<float>();
 
-            public float CurrentHue
+            public bool Disabled
             {
-                set
-                {
-                    if (IsLoaded)
-                        label.Text = $"{value:0}°";
-                }
+                set => Alpha = value ? 0.5f : 1f;
             }
 
             private Box fill = null!;
@@ -221,7 +183,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
             [BackgroundDependencyLoader]
             private void load()
             {
-                Size = new Vector2(110, 36);
+                Size = new Vector2(120, 36);
                 Action = this.ShowPopover;
                 CornerRadius = 8;
                 Masking = true;
@@ -236,6 +198,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
                     {
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
+                        Font = OsuFont.Default.With(weight: "Bold"),
                     },
                 };
             }
@@ -243,32 +206,34 @@ namespace osu.Game.Graphics.UserInterfaceV2
             protected override void LoadComplete()
             {
                 base.LoadComplete();
-                CurrentColour.BindValueChanged(_ => updateState(), true);
+                CurrentHue.BindValueChanged(_ => updateState(), true);
             }
 
             private void updateState()
             {
-                fill.Colour = CurrentColour.Value;
-                label.Colour = OsuColour.ForegroundTextColourFor(CurrentColour.Value);
+                var colour = Colour4.FromHSV(normaliseHue(CurrentHue.Value) / 360f, 1f, 1f);
+                fill.Colour = colour;
+                label.Colour = OsuColour.ForegroundTextColourFor(colour);
+                label.Text = colourToHex(colour);
             }
 
-            public Popover GetPopover() => new HuePickerPopover
+            public Popover GetPopover() => new HueOnlyPickerPopover
             {
-                Current = { BindTarget = CurrentColour },
+                CurrentHue = { BindTarget = CurrentHue },
             };
         }
 
-        private partial class HuePickerPopover : OsuPopover, IHasCurrentValue<Colour4>
+        // -----------------------------------------------------------------
+        // Popover hosting the hue-only picker. Replaces the previous
+        // OsuColourPicker (HSV + hex tabs) — that picker silently let the
+        // user move sat/val even though we throw those values away, which
+        // produced the "bottom-half does nothing" complaint.
+        // -----------------------------------------------------------------
+        private partial class HueOnlyPickerPopover : OsuPopover
         {
-            public Bindable<Colour4> Current
-            {
-                get => current.Current;
-                set => current.Current = value;
-            }
+            public Bindable<float> CurrentHue { get; } = new Bindable<float>();
 
-            private readonly BindableWithCurrent<Colour4> current = new BindableWithCurrent<Colour4>();
-
-            public HuePickerPopover()
+            public HueOnlyPickerPopover()
                 : base(false)
             {
             }
@@ -276,15 +241,164 @@ namespace osu.Game.Graphics.UserInterfaceV2
             [BackgroundDependencyLoader]
             private void load(OverlayColourProvider colourProvider)
             {
-                Child = new OsuColourPicker
-                {
-                    Current = { BindTarget = Current },
-                };
-
                 Body.BorderThickness = 2;
                 Body.BorderColour = colourProvider.Highlight1;
-                Content.Padding = new MarginPadding(2);
+                Content.Padding = new MarginPadding(8);
+
+                Child = new HueOnlyPicker(colourProvider)
+                {
+                    Width = 280,
+                    CurrentHue = { BindTarget = CurrentHue },
+                };
             }
+        }
+
+        // -----------------------------------------------------------------
+        // The actual hue-only picker: horizontal hue strip + draggable nub
+        // + live hex readout. Built on top of osu-framework's HueSelector
+        // so we get the proper HueSelectorBackground shader (smooth rainbow
+        // gradient) for free.
+        // -----------------------------------------------------------------
+        private partial class HueOnlyPicker : CompositeDrawable
+        {
+            public Bindable<float> CurrentHue { get; } = new Bindable<float>();
+
+            private readonly OverlayColourProvider colourProvider;
+            private InlineHueSelector selector = null!;
+            private OsuSpriteText hexLabel = null!;
+
+            public HueOnlyPicker(OverlayColourProvider colourProvider)
+            {
+                this.colourProvider = colourProvider;
+                AutoSizeAxes = Axes.Y;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                InternalChild = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 10),
+                    Children = new Drawable[]
+                    {
+                        selector = new InlineHueSelector(),
+                        hexLabel = new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Font = OsuFont.Default.With(size: 16, weight: "SemiBold"),
+                            Colour = colourProvider.Content1,
+                        },
+                    },
+                };
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                // selector.Hue is normalized 0..1; CurrentHue is degrees 0..359.
+                // Bridge the two without recursion via a syncing flag.
+                bool syncing = false;
+
+                selector.Hue.BindValueChanged(h =>
+                {
+                    if (syncing) return;
+                    syncing = true;
+                    CurrentHue.Value = normaliseHue(h.NewValue * 360f);
+                    syncing = false;
+
+                    updateLabel();
+                });
+
+                CurrentHue.BindValueChanged(h =>
+                {
+                    if (syncing) return;
+                    syncing = true;
+                    selector.Hue.Value = normaliseHue(h.NewValue) / 360f;
+                    syncing = false;
+
+                    updateLabel();
+                }, true);
+            }
+
+            private void updateLabel()
+            {
+                var colour = Colour4.FromHSV(normaliseHue(CurrentHue.Value) / 360f, 1f, 1f);
+                hexLabel.Text = colourToHex(colour);
+            }
+        }
+
+        // Concrete implementation of the framework's abstract HueSelector
+        // with our nub style. (HueSelector is abstract and requires CreateSliderNub.)
+        private partial class InlineHueSelector : HSVColourPicker.HueSelector
+        {
+            public InlineHueSelector()
+            {
+                SliderBar.CornerRadius = 8;
+                SliderBar.Masking = true;
+            }
+
+            protected override Drawable CreateSliderNub() => new Nub(this);
+
+            private partial class Nub : CompositeDrawable
+            {
+                private readonly Bindable<float> hue;
+                private readonly Box fill;
+
+                public Nub(InlineHueSelector selector)
+                {
+                    hue = selector.Hue.GetBoundCopy();
+
+                    InternalChild = new CircularContainer
+                    {
+                        Width = 12,
+                        Height = 38,
+                        Origin = Anchor.Centre,
+                        Anchor = Anchor.Centre,
+                        Masking = true,
+                        BorderColour = Colour4.White,
+                        BorderThickness = 3,
+                        EdgeEffect = new osu.Framework.Graphics.Effects.EdgeEffectParameters
+                        {
+                            Type = osu.Framework.Graphics.Effects.EdgeEffectType.Shadow,
+                            Offset = new Vector2(0, 1),
+                            Radius = 3,
+                            Colour = Colour4.Black.Opacity(0.3f),
+                        },
+                        Child = fill = new Box { RelativeSizeAxes = Axes.Both },
+                    };
+                }
+
+                protected override void LoadComplete()
+                {
+                    hue.BindValueChanged(h => fill.Colour = Colour4.FromHSV(h.NewValue, 1f, 1f), true);
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        // Helpers
+        // -----------------------------------------------------------------
+        private static float normaliseHue(float hue)
+        {
+            float normalised = hue % 360f;
+
+            if (normalised < 0)
+                normalised += 360f;
+
+            return normalised;
+        }
+
+        private static string colourToHex(Colour4 colour)
+        {
+            int r = (int)Math.Round(colour.R * 255);
+            int g = (int)Math.Round(colour.G * 255);
+            int b = (int)Math.Round(colour.B * 255);
+            return $"#{r:X2}{g:X2}{b:X2}";
         }
     }
 }
