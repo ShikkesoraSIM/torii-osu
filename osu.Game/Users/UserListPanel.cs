@@ -121,13 +121,23 @@ namespace osu.Game.Users
                 });
             }
 
-            details.Add(CreateClientBadge().With(badge =>
+            // Top-right corner overlay (see UserGridPanel for rationale).
+            // Same fix: keeps the badge from being squeezed off-screen
+            // by wide team logos when the user has a team set.
+            return new Container
             {
-                badge.Anchor = Anchor.CentreLeft;
-                badge.Origin = Anchor.CentreLeft;
-            }));
-
-            return layout;
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    layout,
+                    CreateClientBadge().With(badge =>
+                    {
+                        badge.Anchor = Anchor.TopRight;
+                        badge.Origin = Anchor.TopRight;
+                        badge.Margin = new MarginPadding { Top = 6, Right = 6 };
+                    }),
+                },
+            };
         }
     }
 }

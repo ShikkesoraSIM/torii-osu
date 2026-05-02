@@ -130,13 +130,28 @@ namespace osu.Game.Users
                 });
             }
 
-            details.Add(CreateClientBadge().With(badge =>
+            // Wrap so the Torii badge can sit in the panel's top-right
+            // corner as an overlay instead of competing for horizontal
+            // space with flag / team-logo / supporter-icon inside the
+            // details FillFlow. Team-logo pills can be wide ("Easy",
+            // "EZ Crew", ...) and would push the badge out of view, or
+            // visually overlap it under tight panel widths. Top-right
+            // corner is consistent across panel sizes and never gets
+            // covered.
+            return new Container
             {
-                badge.Anchor = Anchor.CentreLeft;
-                badge.Origin = Anchor.CentreLeft;
-            }));
-
-            return layout;
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    layout,
+                    CreateClientBadge().With(badge =>
+                    {
+                        badge.Anchor = Anchor.TopRight;
+                        badge.Origin = Anchor.TopRight;
+                        badge.Margin = new MarginPadding { Top = 6, Right = 6 };
+                    }),
+                },
+            };
         }
     }
 }
