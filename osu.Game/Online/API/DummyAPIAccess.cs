@@ -185,6 +185,14 @@ namespace osu.Game.Online.API
             LocalUser.Value = new GuestUser();
         }
 
+        public void RefreshLocalUser()
+        {
+            // No-op in the dummy: there's no server to round-trip against,
+            // and the in-memory LocalUser is already the source of truth
+            // (any modifications callers want to test should be made
+            // directly via LocalUser.Value).
+        }
+
         public void UpdateLocalFriends()
         {
         }

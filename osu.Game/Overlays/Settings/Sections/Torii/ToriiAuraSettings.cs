@@ -165,6 +165,17 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 api.LocalUser.Value.EquippedAura = catalog.EffectiveAuraId;
                 UserAuraEvents.NotifyUserAuraChanged(api.LocalUser.Value.Id, catalog.EffectiveAuraId);
             }
+
+            // Force a fresh GetMeRequest so the badge / group flow / any
+            // other surface that snapshots api.LocalUser at construction
+            // (and therefore wouldn't have noticed the in-place EquippedAura
+            // mutation above) re-binds to the new APIUser instance returned
+            // from the server. Necessary for the case where a user joined a
+            // new group after their session had already cached the old
+            // payload — without this, the BUG / new badge wouldn't appear
+            // in the toolbar / friends list / etc. until the user logged
+            // out and back in.
+            api.RefreshLocalUser();
         }
 
         private void onSelectionChanged(ValueChangedEvent<AuraOption> e)

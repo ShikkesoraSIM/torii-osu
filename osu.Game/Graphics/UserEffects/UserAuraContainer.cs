@@ -7,7 +7,10 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Configuration;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Online.Metadata;
 using osuTK;
 using osuTK.Graphics;
 
@@ -41,6 +44,21 @@ namespace osu.Game.Graphics.UserEffects
 
         private Bindable<bool> auraEnabled = null!;
         private bool loaded;
+
+        // Resolved if available so we can react to server-side
+        // UserUpdated broadcasts (someone else changed their cosmetic
+        // payload) and refresh in place. CanBeNull because the wrapper
+        // is also used in test scenes / contexts without a metadata hub.
+        [Resolved(CanBeNull = true)]
+        private MetadataClient? metadataClient { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
+
+        // Tracks the most recent fetch we kicked off in response to a
+        // remote UserUpdated broadcast, so we can ignore older races
+        // when the server fires multiple updates in quick succession.
+        private int latestPendingRefreshId;
 
         /// <summary>
         /// Wrap <paramref name="target"/> with an aura matching <paramref name="user"/>'s groups.
@@ -99,6 +117,12 @@ namespace osu.Game.Graphics.UserEffects
             // sometimes gets re-fetched as a fresh instance between contexts;
             // we only care that "this is the same person".
             UserAuraEvents.UserAuraChanged += onUserAuraChanged;
+
+            // Server-side broadcast: another connected user (or this one
+            // from a different session) just updated their cosmetic
+            // payload. Refresh in place by refetching their public profile.
+            if (metadataClient != null)
+                metadataClient.UserUpdated += onRemoteUserUpdated;
         }
 
         private void onUserAuraChanged(int changedUserId, string? newEffectiveAuraId)
@@ -111,6 +135,48 @@ namespace osu.Game.Graphics.UserEffects
             // latest aura, and rebuild the visual to match.
             user.EquippedAura = newEffectiveAuraId;
             rebuildEmitter();
+        }
+
+        private void onRemoteUserUpdated(int changedUserId)
+        {
+            if (user == null || user.Id != changedUserId)
+                return;
+
+            // If the broadcast targets the locally-signed-in user, the
+            // picker path already mutated their EquippedAura + fired
+            // UserAuraEvents — the LocalUser refresh in APIAccess.RefreshLocalUser
+            // takes care of badges and the rest. No need to fire a parallel
+            // GetUserRequest from every visible container for the same user.
+            if (api?.LocalUser.Value != null && api.LocalUser.Value.Id == changedUserId)
+                return;
+
+            // Other user: pull a fresh public profile so the new aura +
+            // any new groups land on this container without waiting for
+            // someone to navigate to the profile manually.
+            if (api == null)
+                return;
+
+            int requestId = ++latestPendingRefreshId;
+
+            var refreshRequest = new GetUserRequest(changedUserId);
+            refreshRequest.Success += refreshed => Schedule(() =>
+            {
+                if (refreshed == null) return;
+                // Stale-response guard: a newer broadcast fired while
+                // this request was in flight, so the result is now
+                // outdated — drop it and let the newer request win.
+                if (requestId != latestPendingRefreshId) return;
+                if (user == null || user.Id != changedUserId) return;
+
+                // In-place mutation of the fields we care about. Avoids
+                // breaking reference equality for any other consumer
+                // still pointing at this APIUser instance, while picking
+                // up the latest aura + group membership.
+                user.EquippedAura = refreshed.EquippedAura;
+                user.Groups = refreshed.Groups;
+                rebuildEmitter();
+            });
+            api.Queue(refreshRequest);
         }
 
         /// <summary>
@@ -256,6 +322,10 @@ namespace osu.Game.Graphics.UserEffects
             // chat lines / leaderboard rows churn through hundreds of
             // wrapper instances during a session.
             UserAuraEvents.UserAuraChanged -= onUserAuraChanged;
+
+            if (metadataClient != null)
+                metadataClient.UserUpdated -= onRemoteUserUpdated;
+
             base.Dispose(isDisposing);
         }
 

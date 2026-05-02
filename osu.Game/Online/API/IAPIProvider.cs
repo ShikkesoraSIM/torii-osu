@@ -121,6 +121,22 @@ namespace osu.Game.Online.API
         void Logout();
 
         /// <summary>
+        /// Pull a fresh copy of the locally-signed-in user from the server
+        /// and update <see cref="LocalUser"/> in place. Triggers
+        /// <see cref="LocalUser"/>'s ValueChanged listeners so badge / aura
+        /// / group surfaces re-bind without the user having to reopen the
+        /// profile or restart the client.
+        /// </summary>
+        /// <remarks>
+        /// Intended to be called after a setting that affects the user's
+        /// public payload changes (equipped aura, custom title, profile
+        /// hue, etc.). Safe to call when offline — implementations no-op.
+        /// Non-blocking: returns immediately and updates LocalUser
+        /// asynchronously via the standard request queue.
+        /// </remarks>
+        void RefreshLocalUser();
+
+        /// <summary>
         /// Schedule a callback to run on the update thread.
         /// </summary>
         internal void Schedule(Action action);

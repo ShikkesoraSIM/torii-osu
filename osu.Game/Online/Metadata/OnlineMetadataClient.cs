@@ -73,6 +73,11 @@ namespace osu.Game.Online.Metadata
                     // Subscribed via raw SignalR (no entry on IMetadataClient) so the spectator can keep referencing
                     // upstream osu.Game from NuGet without needing the field on UserPresence.
                     connection.On<int, string?>("UserClientNameUpdated", HandleUserClientNameUpdated);
+                    // UserUpdated lives on IMetadataClient but the spectator broadcasts it
+                    // by name, so the registration matches the same shape as the events
+                    // above. Receivers (UserAuraContainer, profile/dashboard refresh
+                    // hooks, ...) subscribe via MetadataClient.UserUpdated event.
+                    connection.On<int>(nameof(IMetadataClient.UserUpdated), ((IMetadataClient)this).UserUpdated);
                     connection.On(nameof(IStatefulUserHubClient.DisconnectRequested), ((IMetadataClient)this).DisconnectRequested);
                 };
 

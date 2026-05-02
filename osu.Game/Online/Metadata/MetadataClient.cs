@@ -205,6 +205,23 @@ namespace osu.Game.Online.Metadata
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Fires when the server reports that the public-facing payload of
+        /// <c>userId</c> has changed (cosmetic settings — equipped aura,
+        /// group membership, etc). Listeners should react by invalidating
+        /// any cached snapshot of that user; the dispatch happens on the
+        /// update thread so subscribers can touch drawables directly.
+        /// </summary>
+        public event Action<int /* userId */>? UserUpdated;
+
+        Task IMetadataClient.UserUpdated(int userId)
+        {
+            if (UserUpdated != null)
+                Schedule(UserUpdated, userId);
+
+            return Task.CompletedTask;
+        }
+
         #endregion
 
         #region Disconnection handling

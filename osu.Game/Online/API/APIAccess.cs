@@ -617,6 +617,33 @@ namespace osu.Game.Online.API
             flushQueue();
         }
 
+        public void RefreshLocalUser()
+        {
+            // Offline / not-logged-in: nothing to refresh against. Same
+            // semantics as DummyAPIAccess so the contract stays consistent.
+            if (state.Value != APIState.Online)
+                return;
+
+            // Reuses the same GetMeRequest path the initial login flow takes,
+            // and pushes the result back through localUserState.SetLocalUser
+            // — which sets LocalUser.Value to a fresh APIUser instance and
+            // therefore fires Bindable.ValueChanged. Every component
+            // currently bound to LocalUser (group-badge flow, supporter
+            // tag, profile colour, custom-hue accent gate, ...) re-binds
+            // automatically. Failures are intentionally silent because
+            // this is a non-critical "nice to have" refresh; the network
+            // log still records the request if logging is configured.
+            var refreshRequest = new GetMeRequest();
+            refreshRequest.Success += me => Schedule(() =>
+            {
+                if (state.Value != APIState.Online)
+                    return;
+
+                localUserState.SetLocalUser(me);
+            });
+            Queue(refreshRequest);
+        }
+
         /// <summary>
         /// Applies endpoint configuration changes from the current local config without restarting the game.
         /// </summary>

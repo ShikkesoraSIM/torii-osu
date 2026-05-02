@@ -372,6 +372,19 @@ namespace osu.Game
             dependencies.CacheAs(MultiplayerClient = new OnlineMultiplayerClient(endpoints));
             dependencies.CacheAs(metadataClient = new OnlineMetadataClient(endpoints));
 
+            // Server broadcasts UserUpdated for any user whose public-facing
+            // payload changed (cosmetic settings, group membership, custom
+            // title, …). When the broadcast targets the locally-signed-in
+            // user we trigger a full LocalUser refresh so badges + supporter
+            // tag + every other surface bound to api.LocalUser repaints
+            // without the user having to reopen anything. UserAuraContainer
+            // handles the per-user case for OTHER users.
+            metadataClient.UserUpdated += updatedUserId =>
+            {
+                if (API.LocalUser.Value != null && API.LocalUser.Value.Id == updatedUserId)
+                    API.RefreshLocalUser();
+            };
+
             base.Content.Add(new BeatmapOnlineChangeIngest(beatmapUpdater, realm, metadataClient));
 
             BeatmapManager.ProcessBeatmap = (beatmapSet, scope) => beatmapUpdater.Process(beatmapSet, scope);
