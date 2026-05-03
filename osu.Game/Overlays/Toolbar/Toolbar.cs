@@ -33,6 +33,14 @@ namespace osu.Game.Overlays.Toolbar
         public const float TOOLTIP_HEIGHT = 30;
 
         /// <summary>
+        /// Reserved vertical space when the alpha (Torii pill) toolbar is
+        /// active. Bigger than the classic toolbar height so the centred
+        /// 56px pill has breathing room above and below — including space
+        /// for its drop shadow without it getting clipped.
+        /// </summary>
+        private const float alpha_reserved_height = 72f;
+
+        /// <summary>
         /// Whether the user hid this <see cref="Toolbar"/> with <see cref="GlobalAction.ToggleToolbar"/>.
         /// In this state, automatic toggles should not occur, respecting the user's preference to have no toolbar.
         /// </summary>
@@ -44,7 +52,6 @@ namespace osu.Game.Overlays.Toolbar
         private ToolbarRulesetSelector rulesetSelector;
         private IBindable<bool> alphaToolbarUnlocked;
         private IBindable<bool> alphaToolbarUse;
-        private IBindable<ToolbarDensityMode> toolbarDensityMode;
 
         private OsuConfigManager localConfig;
         // Lives across rebuildLayout(): the active background drawable is
@@ -89,11 +96,9 @@ namespace osu.Game.Overlays.Toolbar
 
             alphaToolbarUnlocked = config.GetBindable<bool>(OsuSetting.AlphaToolbarEnabled);
             alphaToolbarUse = config.GetBindable<bool>(OsuSetting.AlphaToolbarUse);
-            toolbarDensityMode = config.GetBindable<ToolbarDensityMode>(OsuSetting.ToolbarDensityMode);
 
             alphaToolbarUnlocked.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
             alphaToolbarUse.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
-            toolbarDensityMode.BindValueChanged(_ => Scheduler.AddOnce(rebuildLayout), true);
 
             // Track the active CustomUIHue (Menu scope) and push it into
             // whatever ToolbarBackground currently exists. Re-applies on
@@ -114,20 +119,12 @@ namespace osu.Game.Overlays.Toolbar
 
         private bool shouldUseAlphaToolbar => alphaToolbarUnlocked?.Value == true && alphaToolbarUse?.Value == true;
 
-        private float alphaReservedHeight
-            => (toolbarDensityMode?.Value ?? ToolbarDensityMode.Auto) switch
-            {
-                ToolbarDensityMode.Compact => HEIGHT,
-                ToolbarDensityMode.Comfortable => HEIGHT + 6,
-                _ => HEIGHT + 2,
-            };
-
         private void rebuildLayout()
         {
             bool alphaStyle = shouldUseAlphaToolbar;
 
             rulesetSelector?.Current.UnbindBindings();
-            Size = new Vector2(1, alphaStyle ? alphaReservedHeight : HEIGHT);
+            Size = new Vector2(1, alphaStyle ? alpha_reserved_height : HEIGHT);
 
             if (alphaStyle)
             {
