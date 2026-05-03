@@ -89,14 +89,10 @@ namespace osu.Game.Overlays.Toolbar
 
         private IBindable<APIUser> localUser;
         private IBindable<int> unreadCount;
-        private IBindable<bool> compactRequested;
 
         private AlphaActionButton notificationButton;
-        private AlphaActionButton settingsButton;
         private AlphaUserChip userChip;
         private Container subtitleContainer;
-        private Drawable brandTextFlow;
-        private Drawable navChipsFlow;
         private AlphaClockPill clockPill;
 
         // Tracks the last applied responsive state so Update() doesn't
@@ -104,7 +100,6 @@ namespace osu.Game.Overlays.Toolbar
         // mid-flight (sampling Alpha during a fade gives a misleading
         // mid-value and would cause oscillation).
         private bool? lastWideState;
-        private bool? lastCompactState;
 
         // Single design — no density modes, no adaptive thresholds.
         // Tweak these if you want a different overall feel; everything
@@ -219,17 +214,6 @@ namespace osu.Game.Overlays.Toolbar
 
             localUser.BindValueChanged(v => userChip?.UpdateUser(v.NewValue), true);
             unreadCount.BindValueChanged(v => notificationButton?.SetBadge(v.NewValue), true);
-
-            // Compact-mode tracking: when the active screen is one of
-            // the canvas screens (song select / player / results /
-            // editor) the pill collapses to logo + bell + user so it
-            // stops competing with screen-owned UI like song-select's
-            // filter row. The bindable is owned by OsuGame and updated
-            // in OsuGame.ScreenChanged. We default to a fresh, never-
-            // changing bindable when game is null (test contexts) so
-            // the toolbar always boots in full mode there.
-            compactRequested = game?.CompactToolbarRequested?.GetBoundCopy() ?? new BindableBool();
-            compactRequested.BindValueChanged(v => applyCompactMode(v.NewValue, animated: true), true);
         }
 
         protected override void Update()
@@ -237,14 +221,9 @@ namespace osu.Game.Overlays.Toolbar
             base.Update();
 
             // Lightweight responsive trick: in tight viewports (small
-            // windowed sessions) hide the long subtitle so the brand
-            // block doesn't dominate the bar. The compact mode driven
-            // by the active screen (see applyCompactMode) ALSO hides
-            // the subtitle — but via the brandTextFlow wrapper — so
-            // the two effects compose without either overriding the
-            // other. The clock used to live here too; it's now driven
-            // entirely by compact mode (clock disappears on canvas
-            // screens, stays on menu).
+            // windowed sessions) hide the long subtitle and clock so
+            // the brand block doesn't dominate the bar. This is the
+            // ONLY adaptive behaviour — chip labels, etc. stay put.
             bool wide = DrawWidth >= 1180f;
             if (lastWideState == wide)
                 return;
@@ -257,47 +236,12 @@ namespace osu.Game.Overlays.Toolbar
                 subtitleContainer.FadeTo(wide ? 1 : 0, 180, Easing.OutQuint);
                 subtitleContainer.ScaleTo(wide ? Vector2.One : new Vector2(0.92f, 1f), 180, Easing.OutQuint);
             }
-        }
 
-        /// <summary>
-        /// Switch between full and compact pill layouts.
-        ///
-        /// FULL: brand text + nav chips + settings + bell + user + clock.
-        /// COMPACT: logo + bell + user only — drops ~75% of the pill's
-        /// horizontal footprint so the centred pill stops covering up
-        /// screen-owned UI in song-select / player / results / editor.
-        ///
-        /// We collapse by animating each hideable group's Alpha + ScaleX
-        /// to 0 in tandem. Once Alpha reaches 0 the drawable is no
-        /// longer "Present", so the parent FillFlowContainer drops it
-        /// from layout and the pill shrinks. Going back to full reverses
-        /// the animation; the FillFlow re-includes the children once
-        /// they become Present again. Animated=false jumps to the
-        /// final state without easing — used for the initial apply
-        /// before the first frame so the toolbar boots in the right
-        /// shape instead of doing a visible collapse on screen change.
-        /// </summary>
-        private void applyCompactMode(bool compact, bool animated)
-        {
-            if (lastCompactState == compact)
-                return;
-
-            lastCompactState = compact;
-
-            int duration = animated ? 260 : 0;
-            const Easing easing = Easing.OutQuint;
-
-            float targetAlpha = compact ? 0f : 1f;
-            Vector2 targetScale = compact ? new Vector2(0f, 1f) : Vector2.One;
-
-            foreach (var d in new[] { brandTextFlow, navChipsFlow, (Drawable)settingsButton, clockPill })
+            if (clockPill != null)
             {
-                if (d == null)
-                    continue;
-
-                d.ClearTransforms();
-                d.FadeTo(targetAlpha, duration, easing);
-                d.ScaleTo(targetScale, duration, easing);
+                clockPill.ClearTransforms();
+                clockPill.FadeTo(wide ? 1 : 0, 180, Easing.OutQuint);
+                clockPill.ScaleTo(wide ? Vector2.One : new Vector2(0.95f), 180, Easing.OutQuint);
             }
         }
 
@@ -364,11 +308,9 @@ namespace osu.Game.Overlays.Toolbar
                             },
                         }
                     },
-                    // Title + subtitle stacked vertically. The whole
-                    // block collapses in compact mode (logo stays);
-                    // the subtitle ALSO independently hides on narrow
-                    // viewports via the wide-state check in Update().
-                    brandTextFlow = new FillFlowContainer
+                    // Title + subtitle stacked vertically. Subtitle hides
+                    // on narrow viewports (see Update()).
+                    new FillFlowContainer
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
@@ -412,7 +354,7 @@ namespace osu.Game.Overlays.Toolbar
             };
             homeChip.SetPersistentActive(true);
 
-            return navChipsFlow = new FillFlowContainer
+            return new FillFlowContainer
             {
                 Anchor = Anchor.CentreLeft,
                 Origin = Anchor.CentreLeft,
@@ -436,7 +378,7 @@ namespace osu.Game.Overlays.Toolbar
 
         private Drawable createActionBlock()
         {
-            settingsButton = new AlphaActionButton(FontAwesome.Solid.Cog);
+            var settingsButton = new AlphaActionButton(FontAwesome.Solid.Cog);
             if (settingsOverlay != null)
                 settingsButton.BindOverlay(settingsOverlay);
             else
