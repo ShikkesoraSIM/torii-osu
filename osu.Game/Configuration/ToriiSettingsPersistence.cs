@@ -73,16 +73,21 @@ namespace osu.Game.Configuration
         /// </summary>
         private static readonly Dictionary<OsuSetting, Type> torii_only_settings = new Dictionary<OsuSetting, Type>
         {
-            // Custom UI hue (sesión 1 of the redesign)
+            // Custom UI hue (sesión 1 of the redesign).
+            // CustomUIHue is a BindableFloat under the hood (the
+            // SetDefault overload that takes the 0-359 range upgrades
+            // ints to float internally). Mismatched type here would
+            // throw "Cannot convert BindableFloat to Bindable<Int32>".
             { OsuSetting.CustomUIHueEnabled, typeof(bool) },
-            { OsuSetting.CustomUIHue, typeof(int) },
+            { OsuSetting.CustomUIHue, typeof(float) },
             { OsuSetting.CustomUIHueApplyToMenu, typeof(bool) },
             { OsuSetting.CustomUIHueApplyToOverlays, typeof(bool) },
             { OsuSetting.CustomUIHueApplyToSettingsPanel, typeof(bool) },
 
-            // Donator accent hue
+            // Donator accent hue (also BindableFloat for the same
+            // reason as CustomUIHue above).
             { OsuSetting.CustomUIAccentEnabled, typeof(bool) },
-            { OsuSetting.CustomUIAccentHue, typeof(int) },
+            { OsuSetting.CustomUIAccentHue, typeof(float) },
 
             // Pause/fail double-confirm (sesión 3)
             { OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, typeof(bool) },
