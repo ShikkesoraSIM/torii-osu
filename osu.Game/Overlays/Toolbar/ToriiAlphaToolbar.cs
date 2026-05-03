@@ -240,6 +240,14 @@ namespace osu.Game.Overlays.Toolbar
 
         private Drawable createBrandBlock(OsuColour colours)
         {
+            // All three section containers (brand / nav / actions) use
+            // the SAME Anchor (CentreLeft) inside the outer horizontal
+            // FillFlow because FillFlowContainer requires every child
+            // to share the X-component of its RelativeAnchorPosition
+            // when FillDirection is Horizontal — mixing CentreLeft +
+            // Centre + CentreRight throws "0 != 0.5". Their visual
+            // left/centre/right positioning comes from the flow order
+            // and spacing, not from individual anchors.
             return new FillFlowContainer
             {
                 Anchor = Anchor.CentreLeft,
@@ -341,8 +349,8 @@ namespace osu.Game.Overlays.Toolbar
 
             return new FillFlowContainer
             {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
                 AutoSizeAxes = Axes.Both,
                 Direction = FillDirection.Horizontal,
                 Spacing = new Vector2(6, 0),
@@ -384,8 +392,8 @@ namespace osu.Game.Overlays.Toolbar
 
             return new FillFlowContainer
             {
-                Anchor = Anchor.CentreRight,
-                Origin = Anchor.CentreRight,
+                Anchor = Anchor.CentreLeft,
+                Origin = Anchor.CentreLeft,
                 AutoSizeAxes = Axes.Both,
                 Direction = FillDirection.Horizontal,
                 Spacing = new Vector2(8, 0),
