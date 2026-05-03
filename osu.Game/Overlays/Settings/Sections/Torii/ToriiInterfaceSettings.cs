@@ -333,6 +333,16 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 };
             }
 
+            // CRITICAL: when not locked, refuse positional input entirely so
+            // the inner picker / toggle the supporter is trying to use sees
+            // the click. ClickableContainer otherwise consumes any click
+            // that lands on it (Action != null is treated as "consumed"),
+            // which made the unlocked accent picker silently swallow taps —
+            // it looked unlocked (no visible pill) but every interaction
+            // dropped on the floor.
+            public override bool ReceivePositionalInputAt(osuTK.Vector2 screenSpacePos)
+                => Locked && base.ReceivePositionalInputAt(screenSpacePos);
+
             protected override bool OnHover(HoverEvent e)
             {
                 if (!Locked)
