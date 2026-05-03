@@ -15,6 +15,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
+using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -95,17 +96,38 @@ namespace osu.Game.Overlays.Toolbar
         private Container subtitleContainer;
         private AlphaClockPill clockPill;
 
+        // The pill itself, animated in/out. PillHost is a Container
+        // subclass that calls back on hover so we can keep the pill
+        // open while the cursor is over it (or its handle).
+        private PillHost pillContainer;
+        private RevealHandle revealHandle;
+
+        // Pill visibility state — independent of the underlying
+        // Container.Alpha because we use translation (Y position),
+        // not opacity, to slide it in and out.
+        private bool pillRevealed;
+
+        // The "give the user a moment to come back" delay between
+        // mouse-out and the actual hide. Cleared whenever the pill
+        // or handle is re-hovered, otherwise fires the slide-out.
+        private ScheduledDelegate hideTask;
+
         // Tracks the last applied responsive state so Update() doesn't
         // re-trigger the fade/scale every frame while a transition is
-        // mid-flight (sampling Alpha during a fade gives a misleading
-        // mid-value and would cause oscillation).
+        // mid-flight.
         private bool? lastWideState;
 
         // Single design — no density modes, no adaptive thresholds.
-        // Tweak these if you want a different overall feel; everything
-        // else (corner radius, chip sizes, etc.) is derived from them.
         private const float bar_height = 56f;
         private const float bar_corner_radius = bar_height / 2f;
+
+        // Slide / hide tunables. The hide grace period is what makes
+        // the bar feel "intentional" rather than "twitchy" — a few
+        // hundred ms lets a user who briefly slides off come right
+        // back without the pill snapping shut.
+        private const int slide_in_ms = 280;
+        private const int slide_out_ms = 220;
+        private const int hide_grace_ms = 350;
 
         public ToriiAlphaToolbar(Action onHome)
         {
@@ -127,39 +149,53 @@ namespace osu.Game.Overlays.Toolbar
                 && !websiteUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 websiteUrl = $"https://{websiteUrl}";
 
-            InternalChild = new Container
+            InternalChildren = new Drawable[]
             {
-                // Centre horizontally on whatever width the parent toolbar
-                // gives us. AutoSize on X means we do NOT sprawl: the pill
-                // is exactly as wide as the brand + chips + actions need.
-                // The reserved toolbar height (56px in Toolbar.cs) is
-                // exactly the pill height, so Y=0 is flush with the
-                // screen top. The drop shadow extends BELOW the pill
-                // into song-select content territory — that's pure
-                // visual halo (EdgeEffect doesn't capture input) so it
-                // doesn't break interactivity, and lets us reclaim the
-                // pixels the user was missing for the carousel.
-                Anchor = Anchor.TopCentre,
-                Origin = Anchor.TopCentre,
-                AutoSizeAxes = Axes.X,
-                Height = bar_height,
-                Y = 0,
-                Masking = true,
-                CornerRadius = bar_corner_radius,
-                CornerExponent = 2.4f,
-                MaskingSmoothness = 1.6f,
-                BorderThickness = 1f,
-                BorderColour = new Color4(150, 168, 230, 90),
-                EdgeEffect = new EdgeEffectParameters
+                // Reveal handle is BELOW the pill in z-order. When the
+                // pill is hidden (offscreen above), the handle is
+                // exposed at the very top of the screen. When the pill
+                // slides down it covers the handle — by then hover
+                // tracking has handed off to the pill itself, so the
+                // open state is preserved.
+                revealHandle = new RevealHandle
                 {
-                    Type = EdgeEffectType.Shadow,
-                    Radius = 14,
-                    Roundness = 12,
-                    Colour = new Color4(0, 4, 24, 150),
-                    Offset = new Vector2(0, 3),
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
+                    Y = 0,
+                    HoverEntered = revealPill,
+                    HoverExited = scheduleHidePill,
                 },
-                Children = new Drawable[]
+
+                // The pill. Same girthy glass design as before, but
+                // wrapped in a PillHost subclass so we can hook hover
+                // events to keep it open while the cursor's on it.
+                // Initial Y = -bar_height parks it just above the
+                // visible screen so it can slide down on demand.
+                pillContainer = new PillHost
                 {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
+                    AutoSizeAxes = Axes.X,
+                    Height = bar_height,
+                    Y = -bar_height,
+                    Masking = true,
+                    CornerRadius = bar_corner_radius,
+                    CornerExponent = 2.4f,
+                    MaskingSmoothness = 1.6f,
+                    BorderThickness = 1f,
+                    BorderColour = new Color4(150, 168, 230, 90),
+                    EdgeEffect = new EdgeEffectParameters
+                    {
+                        Type = EdgeEffectType.Shadow,
+                        Radius = 14,
+                        Roundness = 12,
+                        Colour = new Color4(0, 4, 24, 150),
+                        Offset = new Vector2(0, 3),
+                    },
+                    HoverEntered = revealPill,
+                    HoverExited = scheduleHidePill,
+                    Children = new Drawable[]
+                    {
                     // Glassmorphic base. The blurred buffered container
                     // gives the soft halo, the box on top is the dark
                     // tint, the gradient adds a pink-to-blue hint that
@@ -195,25 +231,75 @@ namespace osu.Game.Overlays.Toolbar
                     // Single horizontal flow: brand | nav | actions.
                     // Spacing between sections is generous so the centre
                     // chips don't feel crammed against the brand block.
-                    new FillFlowContainer
-                    {
-                        RelativeSizeAxes = Axes.Y,
-                        AutoSizeAxes = Axes.X,
-                        Direction = FillDirection.Horizontal,
-                        Spacing = new Vector2(28, 0),
-                        Padding = new MarginPadding { Horizontal = 14 },
-                        Children = new Drawable[]
+                        new FillFlowContainer
                         {
-                            createBrandBlock(colours),
-                            createNavChips(websiteUrl),
-                            createActionBlock(),
-                        }
-                    },
-                }
+                            RelativeSizeAxes = Axes.Y,
+                            AutoSizeAxes = Axes.X,
+                            Direction = FillDirection.Horizontal,
+                            Spacing = new Vector2(28, 0),
+                            Padding = new MarginPadding { Horizontal = 14 },
+                            Children = new Drawable[]
+                            {
+                                createBrandBlock(colours),
+                                createNavChips(websiteUrl),
+                                createActionBlock(),
+                            }
+                        },
+                    }
+                },
             };
 
             localUser.BindValueChanged(v => userChip?.UpdateUser(v.NewValue), true);
             unreadCount.BindValueChanged(v => notificationButton?.SetBadge(v.NewValue), true);
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // Auto-show greeting: brief reveal on first appearance so a
+            // first-time user notices the bar exists, then settles back
+            // to handle-only. Two-second window keeps it from being
+            // annoying on every load while still doing the discovery
+            // job.
+            revealPill();
+            Scheduler.AddDelayed(scheduleHidePill, 2000);
+        }
+
+        // ─── Hover-driven reveal state machine ───────────────────────
+
+        /// <summary>
+        /// Slide the pill down into view. Cancels any pending hide so
+        /// re-hovering during the grace period doesn't get clobbered
+        /// by a delayed close.
+        /// </summary>
+        private void revealPill()
+        {
+            hideTask?.Cancel();
+            hideTask = null;
+
+            if (pillRevealed) return;
+
+            pillRevealed = true;
+            pillContainer.MoveToY(0, slide_in_ms, Easing.OutQuint);
+        }
+
+        /// <summary>
+        /// Schedule the pill to slide back up after the grace period.
+        /// If the cursor returns to the pill or handle before the
+        /// timer fires, <see cref="revealPill"/> cancels this and the
+        /// pill stays open.
+        /// </summary>
+        private void scheduleHidePill()
+        {
+            hideTask?.Cancel();
+            hideTask = Scheduler.AddDelayed(() =>
+            {
+                if (!pillRevealed) return;
+
+                pillRevealed = false;
+                pillContainer.MoveToY(-bar_height, slide_out_ms, Easing.OutQuint);
+            }, hide_grace_ms);
         }
 
         protected override void Update()
@@ -886,11 +972,159 @@ namespace osu.Game.Overlays.Toolbar
             }
         }
 
+        /// <summary>
+        /// The pill's outer Container, subclassed only to expose hover
+        /// callbacks to the parent. Container itself doesn't expose
+        /// OnHover as an event, so we override the protected hooks
+        /// and route them to delegates the parent assigns at
+        /// construction.
+        ///
+        /// Hovering the pill cancels any pending hide so the bar
+        /// doesn't snap shut while you're using it; mouse-out
+        /// schedules the hide via the grace-period timer.
+        /// </summary>
+        private partial class PillHost : Container
+        {
+            public Action HoverEntered;
+            public Action HoverExited;
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                HoverEntered?.Invoke();
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                HoverExited?.Invoke();
+                base.OnHoverLost(e);
+            }
+        }
+
+        /// <summary>
+        /// The little "pull-me-down" tab that lives at the very top
+        /// centre of the screen when the pill is hidden.
+        ///
+        /// Two-layer design:
+        /// - A wide invisible <see cref="Drawable.ReceivePositionalInputAt"/>
+        ///   hot zone (140 × 22) so users don't need pixel-perfect
+        ///   aim to summon the pill.
+        /// - A small visible glass tab inside (a 52 × 14 rounded
+        ///   pill with a pink-gradient strip on top and a chevron
+        ///   icon centred) so the affordance is unmistakable.
+        ///
+        /// On hover the visible tab grows slightly, the chevron
+        /// brightens and slides 1px down (subtle "I'm pullable")
+        /// hint, and the parent's <see cref="HoverEntered"/> fires
+        /// to start the pill's slide-in.
+        /// </summary>
+        private partial class RevealHandle : CompositeDrawable
+        {
+            public Action HoverEntered;
+            public Action HoverExited;
+
+            private const float hot_width = 140f;
+            private const float hot_height = 22f;
+            private const float visible_width = 52f;
+            private const float visible_height = 16f;
+
+            private Container visibleTab;
+            private SpriteIcon chevron;
+
+            public RevealHandle()
+            {
+                // The whole thing IS the hot zone. Visible tab is a
+                // child sized smaller, centred inside.
+                Size = new Vector2(hot_width, hot_height);
+
+                InternalChild = visibleTab = new Container
+                {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
+                    Size = new Vector2(visible_width, visible_height),
+                    Y = 0,
+                    Masking = true,
+                    CornerRadius = visible_height / 2f,
+                    CornerExponent = 2.2f,
+                    MaskingSmoothness = 1.4f,
+                    BorderThickness = 1f,
+                    BorderColour = new Color4(150, 168, 230, 110),
+                    EdgeEffect = new EdgeEffectParameters
+                    {
+                        Type = EdgeEffectType.Shadow,
+                        Radius = 8,
+                        Roundness = 6,
+                        Colour = new Color4(255, 91, 189, 60),
+                    },
+                    Alpha = 0.78f,
+                    Children = new Drawable[]
+                    {
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = new Color4(14, 16, 36, 230),
+                        },
+                        // Pink gradient strip across the top of the tab,
+                        // visually echoing the pill's accent so it's clear
+                        // the two belong together.
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Height = 2,
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Colour = ColourInfo.GradientHorizontal(
+                                new Color4(255, 91, 189, 230),
+                                new Color4(253, 164, 175, 230)),
+                        },
+                        chevron = new SpriteIcon
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Icon = FontAwesome.Solid.ChevronDown,
+                            Size = new Vector2(8),
+                            Y = 1.5f,
+                            Colour = Color4.White.Opacity(0.85f),
+                        },
+                    }
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                visibleTab.ClearTransforms();
+                visibleTab.FadeTo(1f, 160, Easing.OutQuint);
+                visibleTab.ScaleTo(new Vector2(1.12f, 1.18f), 200, Easing.OutQuint);
+
+                chevron.ClearTransforms();
+                chevron.FadeColour(Color4.White, 160, Easing.OutQuint);
+                chevron.MoveToY(2.5f, 200, Easing.OutQuint);
+
+                HoverEntered?.Invoke();
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                visibleTab.ClearTransforms();
+                visibleTab.FadeTo(0.78f, 200, Easing.OutQuint);
+                visibleTab.ScaleTo(Vector2.One, 220, Easing.OutQuint);
+
+                chevron.ClearTransforms();
+                chevron.FadeColour(Color4.White.Opacity(0.85f), 200, Easing.OutQuint);
+                chevron.MoveToY(1.5f, 220, Easing.OutQuint);
+
+                HoverExited?.Invoke();
+                base.OnHoverLost(e);
+            }
+        }
+
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
             localUser?.UnbindAll();
             unreadCount?.UnbindAll();
+            hideTask?.Cancel();
         }
     }
 }

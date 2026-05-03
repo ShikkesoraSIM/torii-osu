@@ -34,15 +34,17 @@ namespace osu.Game.Overlays.Toolbar
 
         /// <summary>
         /// Reserved vertical space when the alpha (Torii pill) toolbar is
-        /// active. Sized to fit the 56px pill exactly with no padding —
-        /// the pill's drop shadow renders into the screen below (just
-        /// visual blur, no input hijack), so we don't need to reserve
-        /// extra space for it. Earlier this was 72px and song-select
-        /// content felt squashed; the user could see and interact with
-        /// less of it. Trimming back to ~pill-height regains those
-        /// pixels for screens that anchor content below the toolbar.
+        /// active. Zero, deliberately — the pill is a pure overlay that
+        /// hides itself by default and slides in on hover, so screens
+        /// underneath use the full canvas. <see cref="OsuGame"/>'s
+        /// toolbarOffset (used to pad ScreenOffsetContainer /
+        /// overlayOffsetContainer) becomes 0 in alpha mode, which is
+        /// exactly what we want — song select et al. render at y=0,
+        /// the pill drops over them when summoned, and the underlying
+        /// content keeps its layout untouched (no shift on
+        /// open/close).
         /// </summary>
-        private const float alpha_reserved_height = 56f;
+        private const float alpha_reserved_height = 0f;
 
         /// <summary>
         /// Whether the user hid this <see cref="Toolbar"/> with <see cref="GlobalAction.ToggleToolbar"/>.
