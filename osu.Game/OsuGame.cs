@@ -1356,14 +1356,33 @@ namespace osu.Game
             }
         }
 
+        // Idempotency guard for showServerInfoNotification — see comment in the
+        // method body. Reset to false would require an explicit re-show; we
+        // never want that, so the field is intentionally one-shot.
+        private bool serverInfoNotificationPosted;
+
         private void showServerInfoNotification()
         {
-            // Show server information notification after a brief delay to ensure all components are loaded
+            // Users were seeing the "Current server: ..." toast appear two or
+            // three times on startup — once from this scheduler call, once
+            // (apparently) from re-entrant LoadComplete behaviour during
+            // dependency injection / overlay-load sequencing. The notification
+            // itself is informational; one is plenty, more than one is noise.
+            //
+            // Guard with a one-shot bool so even if showServerInfoNotification
+            // gets invoked multiple times we only ever post once per app session.
+            if (serverInfoNotificationPosted)
+                return;
+            serverInfoNotificationPosted = true;
+
+            // Brief delay so the toast lands AFTER any version-update toast
+            // posted by UpdateManager — keeps the chronological order in the
+            // notification panel readable (version → server, not server → version).
             Scheduler.AddDelayed(() =>
             {
                 string currentServerUrl = API.Endpoints.APIUrl;
                 Notifications.Post(new ServerInfoNotification(currentServerUrl));
-            }, 2000); // 2 second delay to allow other startup notifications to appear first
+            }, 2000);
         }
 
         private void showOverlayAboveOthers(OverlayContainer overlay, OverlayContainer[] otherOverlays)
