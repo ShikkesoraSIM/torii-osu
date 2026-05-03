@@ -34,11 +34,15 @@ namespace osu.Game.Overlays.Toolbar
 
         /// <summary>
         /// Reserved vertical space when the alpha (Torii pill) toolbar is
-        /// active. Bigger than the classic toolbar height so the centred
-        /// 56px pill has breathing room above and below — including space
-        /// for its drop shadow without it getting clipped.
+        /// active. Sized to fit the 56px pill exactly with no padding —
+        /// the pill's drop shadow renders into the screen below (just
+        /// visual blur, no input hijack), so we don't need to reserve
+        /// extra space for it. Earlier this was 72px and song-select
+        /// content felt squashed; the user could see and interact with
+        /// less of it. Trimming back to ~pill-height regains those
+        /// pixels for screens that anchor content below the toolbar.
         /// </summary>
-        private const float alpha_reserved_height = 72f;
+        private const float alpha_reserved_height = 56f;
 
         /// <summary>
         /// Whether the user hid this <see cref="Toolbar"/> with <see cref="GlobalAction.ToggleToolbar"/>.

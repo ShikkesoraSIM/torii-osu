@@ -132,11 +132,18 @@ namespace osu.Game.Overlays.Toolbar
                 // Centre horizontally on whatever width the parent toolbar
                 // gives us. AutoSize on X means we do NOT sprawl: the pill
                 // is exactly as wide as the brand + chips + actions need.
+                // The reserved toolbar height (56px in Toolbar.cs) is
+                // exactly the pill height, so Y=0 is flush with the
+                // screen top. The drop shadow extends BELOW the pill
+                // into song-select content territory — that's pure
+                // visual halo (EdgeEffect doesn't capture input) so it
+                // doesn't break interactivity, and lets us reclaim the
+                // pixels the user was missing for the carousel.
                 Anchor = Anchor.TopCentre,
                 Origin = Anchor.TopCentre,
                 AutoSizeAxes = Axes.X,
                 Height = bar_height,
-                Y = 4,
+                Y = 0,
                 Masking = true,
                 CornerRadius = bar_corner_radius,
                 CornerExponent = 2.4f,
@@ -146,10 +153,10 @@ namespace osu.Game.Overlays.Toolbar
                 EdgeEffect = new EdgeEffectParameters
                 {
                     Type = EdgeEffectType.Shadow,
-                    Radius = 18,
-                    Roundness = 14,
-                    Colour = new Color4(0, 4, 24, 170),
-                    Offset = new Vector2(0, 4),
+                    Radius = 14,
+                    Roundness = 12,
+                    Colour = new Color4(0, 4, 24, 150),
+                    Offset = new Vector2(0, 3),
                 },
                 Children = new Drawable[]
                 {
