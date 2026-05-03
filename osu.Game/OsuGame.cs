@@ -190,6 +190,27 @@ namespace osu.Game
         /// </summary>
         public readonly IBindable<OverlayActivation> OverlayActivationMode = new Bindable<OverlayActivation>();
 
+        /// <summary>
+        /// True when the currently-active screen is a "canvas" screen
+        /// (<see cref="ScreenWithBeatmapBackground"/> — song select,
+        /// player, results, editor) where the toolbar competes with
+        /// screen-owned UI for the same top-screen real estate.
+        ///
+        /// The Torii alpha pill toolbar reads this to switch into a
+        /// compact icon-only mode when true so it stops covering up
+        /// things like song-select's filter row. The classic toolbar
+        /// ignores it entirely; its layout doesn't conflict.
+        ///
+        /// Updated centrally in <see cref="ScreenChanged"/> instead of
+        /// having every screen opt-in by overriding a property — the
+        /// type check stays in one place and new screens that derive
+        /// from <see cref="ScreenWithBeatmapBackground"/> get the
+        /// behaviour for free.
+        /// </summary>
+        public IBindable<bool> CompactToolbarRequested => compactToolbarRequested;
+
+        private readonly BindableBool compactToolbarRequested = new BindableBool();
+
         IBindable<LocalUserPlayingState> ILocalUserPlayInfo.PlayingState => UserPlayingState;
 
         protected readonly Bindable<LocalUserPlayingState> UserPlayingState = new Bindable<LocalUserPlayingState>();
@@ -1727,6 +1748,14 @@ namespace osu.Game
 
                 scope.SetTag(@"screen", newScreen?.GetType().ReadableName() ?? @"none");
             });
+
+            // Single source of truth for "is this a canvas screen?".
+            // ScreenWithBeatmapBackground is the right base class to
+            // gate on: SongSelect (V1 + V2), Player, PlayerLoader,
+            // ResultsScreen and EditorLoader all derive from it, and
+            // those are exactly the screens the alpha toolbar wants
+            // to make room for.
+            compactToolbarRequested.Value = newScreen is ScreenWithBeatmapBackground;
 
             switch (current)
             {
