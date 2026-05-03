@@ -110,8 +110,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Framework.iOS", "..\osu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Resources", "..\osu-resources\osu.Game.Resources\osu.Game.Resources.csproj", "{65EFB6B0-5B29-4A98-92A0-5F403B1E78EA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Space", "osu.Game.Rulesets.Space\osu.Game.Rulesets.Space.csproj", "{6304B22D-2CCA-C97F-4990-D027A0F32201}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -286,10 +284,6 @@ Global
 		{65EFB6B0-5B29-4A98-92A0-5F403B1E78EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{65EFB6B0-5B29-4A98-92A0-5F403B1E78EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{65EFB6B0-5B29-4A98-92A0-5F403B1E78EA}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6304B22D-2CCA-C97F-4990-D027A0F32201}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6304B22D-2CCA-C97F-4990-D027A0F32201}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6304B22D-2CCA-C97F-4990-D027A0F32201}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6304B22D-2CCA-C97F-4990-D027A0F32201}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
