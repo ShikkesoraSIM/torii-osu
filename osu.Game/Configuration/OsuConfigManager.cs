@@ -34,6 +34,15 @@ namespace osu.Game.Configuration
             : base(storage)
         {
             Migrate();
+
+            // Hydrate Torii-only settings from the sidecar torii.ini if
+            // present, then start mirroring future changes back to it.
+            // Lets these settings survive being parsed away by the
+            // official ppy lazer client when the data folder is shared
+            // (lazer rewrites osu.cfg without the keys it doesn't know).
+            // See ToriiSettingsPersistence.cs for the full rationale and
+            // the curated list of mirrored keys.
+            ToriiSettingsPersistence.ApplyAndWatch(this, storage);
         }
 
         protected override void InitialiseDefaults()
