@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework;
@@ -18,7 +17,6 @@ using osu.Game.Localisation;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
-using osu.Game.Utils;
 using osuTK;
 
 namespace osu.Game.Updater
@@ -69,15 +67,15 @@ namespace osu.Game.Updater
                 if (FixedReleaseStream != null)
                     config.SetValue(OsuSetting.ReleaseStream, FixedReleaseStream.Value);
 
-                // notify the user if they're using a build that is not officially sanctioned.
-                if (RuntimeInfo.EntryAssembly.GetCustomAttribute<OfficialBuildAttribute>() == null)
-                    Notifications.Post(new SimpleNotification { Text = NotificationsStrings.NotOfficialBuild });
-            }
-            else
-            {
-                // log that this is not an official build, for if users build their own game without an assembly version.
-                // this is only logged because a notification would be too spammy in local test builds.
-                Logger.Log(NotificationsStrings.NotOfficialBuild.ToString());
+                // Torii: upstream osu! posts a "this is not an official build, scores
+                // will not be submitted" toast here when the entry assembly lacks
+                // ppy's OfficialBuildAttribute. Our Velopack-released Torii builds
+                // are *not* signed with that ppy attribute (they're official builds
+                // of Torii, not of osu!), so the upstream check would fire on every
+                // single launch with a misleading "scores won't submit" warning —
+                // they DO submit, just to our server. Removed the toast and the
+                // local-build log line to stop the noise; nothing else in the codebase
+                // gates on OfficialBuildAttribute.
             }
 
             // debug / local compilations will reset to a non-release string.
