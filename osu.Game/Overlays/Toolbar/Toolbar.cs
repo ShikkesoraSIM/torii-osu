@@ -34,17 +34,17 @@ namespace osu.Game.Overlays.Toolbar
 
         /// <summary>
         /// Reserved vertical space when the alpha (Torii pill) toolbar is
-        /// active. Zero, deliberately — the pill is a pure overlay that
-        /// hides itself by default and slides in on hover, so screens
-        /// underneath use the full canvas. <see cref="OsuGame"/>'s
-        /// toolbarOffset (used to pad ScreenOffsetContainer /
-        /// overlayOffsetContainer) becomes 0 in alpha mode, which is
-        /// exactly what we want — song select et al. render at y=0,
-        /// the pill drops over them when summoned, and the underlying
-        /// content keeps its layout untouched (no shift on
-        /// open/close).
+        /// active. The pill itself is a pure overlay that hides on a
+        /// slide animation, so we'd love this to be 0 — but lazer's
+        /// notification toast tray (and a few other top-anchored
+        /// overlays) get visually clipped against the very top edge of
+        /// the window if there's literally zero pad up there. A small
+        /// non-zero reservation gives those overlays breathing room
+        /// without meaningfully shifting screen content (14px is well
+        /// under classic's 40px). Song-select et al. still render
+        /// effectively flush to the top.
         /// </summary>
-        private const float alpha_reserved_height = 0f;
+        private const float alpha_reserved_height = 14f;
 
         /// <summary>
         /// Whether the user hid this <see cref="Toolbar"/> with <see cref="GlobalAction.ToggleToolbar"/>.

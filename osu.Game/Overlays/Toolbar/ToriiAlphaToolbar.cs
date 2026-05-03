@@ -86,6 +86,12 @@ namespace osu.Game.Overlays.Toolbar
         private LoginOverlay loginOverlay { get; set; }
 
         [Resolved(canBeNull: true)]
+        private ChatOverlay chatOverlay { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private NowPlayingOverlay nowPlayingOverlay { get; set; }
+
+        [Resolved(canBeNull: true)]
         private OsuGame game { get; set; }
 
         private IBindable<APIUser> localUser;
@@ -120,6 +126,14 @@ namespace osu.Game.Overlays.Toolbar
         // Single design — no density modes, no adaptive thresholds.
         private const float bar_height = 56f;
         private const float bar_corner_radius = bar_height / 2f;
+
+        // How far above the top of the screen the pill is parked when
+        // hidden. We push it past its own height plus the EdgeEffect
+        // shadow extent (radius + offset) so the drop shadow doesn't
+        // bleed into the visible area as a faint dark glow at Y=0
+        // when the pill is "off". Fade animation on the EdgeEffect is
+        // belt-and-suspenders for the same problem.
+        private const float pill_hidden_y = -(bar_height + 26f);
 
         // Slide / hide tunables. The hide grace period is what makes
         // the bar feel "intentional" rather than "twitchy" — a few
@@ -177,7 +191,7 @@ namespace osu.Game.Overlays.Toolbar
                     Origin = Anchor.TopCentre,
                     AutoSizeAxes = Axes.X,
                     Height = bar_height,
-                    Y = -bar_height,
+                    Y = pill_hidden_y,
                     Masking = true,
                     CornerRadius = bar_corner_radius,
                     CornerExponent = 2.4f,
@@ -257,13 +271,15 @@ namespace osu.Game.Overlays.Toolbar
         {
             base.LoadComplete();
 
-            // Auto-show greeting: brief reveal on first appearance so a
-            // first-time user notices the bar exists, then settles back
-            // to handle-only. Two-second window keeps it from being
-            // annoying on every load while still doing the discovery
-            // job.
-            revealPill();
-            Scheduler.AddDelayed(scheduleHidePill, 2000);
+            // Pill starts fully hidden — no auto-show greeting. The
+            // earlier version flashed the pill open for 2s on first
+            // load, but the unconditional hide-after-2s timer fired
+            // even if the user was actively hovering, which felt
+            // like the bar was "disappearing on me". Letting the
+            // user discover the handle naturally is cleaner; the
+            // tab is small but the pink-gradient strip is
+            // recognisable.
+            pillContainer.FadeEdgeEffectTo(0f, 0);
         }
 
         // ─── Hover-driven reveal state machine ───────────────────────
@@ -272,6 +288,11 @@ namespace osu.Game.Overlays.Toolbar
         /// Slide the pill down into view. Cancels any pending hide so
         /// re-hovering during the grace period doesn't get clobbered
         /// by a delayed close.
+        ///
+        /// We also fade the EdgeEffect (drop shadow) back in here —
+        /// it's faded out while hidden so the shadow doesn't bleed a
+        /// faint dark glow into the visible area at Y=0 when the
+        /// pill is parked offscreen.
         /// </summary>
         private void revealPill()
         {
@@ -282,6 +303,7 @@ namespace osu.Game.Overlays.Toolbar
 
             pillRevealed = true;
             pillContainer.MoveToY(0, slide_in_ms, Easing.OutQuint);
+            pillContainer.FadeEdgeEffectTo(1f, slide_in_ms, Easing.OutQuint);
         }
 
         /// <summary>
@@ -297,8 +319,17 @@ namespace osu.Game.Overlays.Toolbar
             {
                 if (!pillRevealed) return;
 
+                // Defensive: if the cursor is somehow over the pill or
+                // handle when the timer fires (shouldn't happen — the
+                // hover events should've cancelled us — but Update can
+                // race the timer), bail out and let the next mouse-out
+                // re-arm.
+                if (pillContainer.IsHovered || revealHandle.IsHovered)
+                    return;
+
                 pillRevealed = false;
-                pillContainer.MoveToY(-bar_height, slide_out_ms, Easing.OutQuint);
+                pillContainer.MoveToY(pill_hidden_y, slide_out_ms, Easing.OutQuint);
+                pillContainer.FadeEdgeEffectTo(0f, slide_out_ms, Easing.OutQuint);
             }, hide_grace_ms);
         }
 
@@ -430,15 +461,24 @@ namespace osu.Game.Overlays.Toolbar
 
         private Drawable createNavChips(string websiteUrl)
         {
-            // Home is "always active" — there's no overlay to bind it to
-            // and the user is essentially always on the main menu when
-            // the toolbar is showing, so we keep the pink fill on it as
-            // an anchor visual.
+            // Nav chips chosen for what's actually useful from inside
+            // the lazer client (NOT a 1:1 mirror of the web nav, which
+            // exists for a public server-info site). Home goes back to
+            // the main menu, the other three open the overlays a
+            // player reaches for between sessions: browse, leaderboards,
+            // chat. "Join Server" was dropped — you're already running
+            // the client, you don't need a link to the website to join.
             var homeChip = new AlphaNavChip("Home", FontAwesome.Solid.Home)
             {
                 Action = () => onHome?.Invoke(),
             };
             homeChip.SetPersistentActive(true);
+
+            // websiteUrl is unused now; kept on the signature so the
+            // caller doesn't need touching. Future: a brand-area click
+            // could go to the website if we want to re-add that
+            // affordance somewhere.
+            _ = websiteUrl;
 
             return new FillFlowContainer
             {
@@ -450,20 +490,24 @@ namespace osu.Game.Overlays.Toolbar
                 Children = new Drawable[]
                 {
                     homeChip,
-                    createOverlayChip("Rankings", FontAwesome.Solid.ChartLine, rankingsOverlay),
                     createOverlayChip("Beatmaps", FontAwesome.Solid.CompactDisc, beatmapListingOverlay),
-                    new AlphaNavChip("Join Server", FontAwesome.Solid.Link)
-                    {
-                        Action = string.IsNullOrEmpty(websiteUrl)
-                            ? null
-                            : () => game?.OpenUrlExternally(websiteUrl),
-                    },
+                    createOverlayChip("Rankings", FontAwesome.Solid.ChartLine, rankingsOverlay),
+                    createOverlayChip("Chat", FontAwesome.Solid.Comments, chatOverlay),
                 }
             };
         }
 
         private Drawable createActionBlock()
         {
+            // Music control is the most reached-for action in lazer
+            // (it's a music game) so it leads. Settings / Notifications
+            // sit next to the user chip on the right edge.
+            var musicButton = new AlphaActionButton(FontAwesome.Solid.Music);
+            if (nowPlayingOverlay != null)
+                musicButton.BindOverlay(nowPlayingOverlay);
+            else
+                musicButton.Enabled.Value = false;
+
             var settingsButton = new AlphaActionButton(FontAwesome.Solid.Cog);
             if (settingsOverlay != null)
                 settingsButton.BindOverlay(settingsOverlay);
@@ -492,6 +536,7 @@ namespace osu.Game.Overlays.Toolbar
                 Spacing = new Vector2(8, 0),
                 Children = new Drawable[]
                 {
+                    musicButton,
                     settingsButton,
                     notificationButton,
                     userChip,
@@ -623,9 +668,18 @@ namespace osu.Game.Overlays.Toolbar
 
             protected override bool OnClick(ClickEvent e)
             {
-                this.ScaleTo(0.96f, 80, Easing.OutQuint)
-                    .Then()
-                    .ScaleTo(1f, 220, Easing.OutElasticHalf);
+                // Scale-based "press" animation shrinks the button's
+                // bounding box for ~80ms — long enough that a quick
+                // click-up event can land on the (now-smaller) button's
+                // former area and miss entirely. The visual press
+                // we want is "the button briefly squashes down", not
+                // "the button shrinks", so animate the inner content
+                // flow's vertical scale instead. The outer hit-test
+                // rectangle stays at 100%, so the click registers
+                // every time.
+                ContentFlow.ScaleTo(new Vector2(1f, 0.92f), 70, Easing.OutQuint)
+                           .Then()
+                           .ScaleTo(Vector2.One, 220, Easing.OutElasticHalf);
                 return base.OnClick(e);
             }
 
@@ -982,11 +1036,23 @@ namespace osu.Game.Overlays.Toolbar
         /// Hovering the pill cancels any pending hide so the bar
         /// doesn't snap shut while you're using it; mouse-out
         /// schedules the hide via the grace-period timer.
+        ///
+        /// We also explicitly affirm <see cref="ReceivePositionalInputAt"/>
+        /// across the WHOLE pill rectangle — the pill lives inside a
+        /// 0-tall parent toolbar and uses AutoSizeAxes for X, which
+        /// historically caused intermittent hover dropouts in the
+        /// lower half of the pill (cursor positions just inside the
+        /// pill's bounding box would test false for hover during
+        /// auto-size recalcs). Using <see cref="DrawRectangle"/>
+        /// directly skips that flakiness.
         /// </summary>
         private partial class PillHost : Container
         {
             public Action HoverEntered;
             public Action HoverExited;
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
+                => DrawRectangle.Contains(ToLocalSpace(screenSpacePos));
 
             protected override bool OnHover(HoverEvent e)
             {
