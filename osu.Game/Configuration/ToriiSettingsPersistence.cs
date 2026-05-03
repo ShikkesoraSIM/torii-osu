@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using osu.Framework.Bindables;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 
@@ -41,7 +40,19 @@ namespace osu.Game.Configuration
     /// ShowConvertedBeatmaps and friends already round-trip cleanly via
     /// osu.cfg, and writing them in two places would risk a stale
     /// torii.ini value clobbering a fresher osu.cfg value. The
-    /// <see cref="ToriiOnlySettings"/> set below is intentionally tight.
+    /// settings table below is intentionally tight.
+    ///
+    /// Implementation note
+    /// -------------------
+    /// The first version of this file tried to do <c>config.Get&lt;object&gt;(key)</c>
+    /// to discover each bindable's type at runtime, but that throws —
+    /// <c>BindableBool</c> doesn't inherit from <c>Bindable&lt;object&gt;</c>.
+    /// We now register the value-type alongside each key in
+    /// <see cref="torii_only_settings"/> and dispatch <c>SetValue&lt;T&gt;</c>
+    /// / <c>GetBindable&lt;T&gt;</c> calls explicitly by that type. If you
+    /// add a new Torii-only setting whose type isn't bool/int, extend the
+    /// switch in <c>applyValue</c> / <c>watchKey</c> / <c>formatValue</c>
+    /// at the bottom of this file.
     /// </summary>
     internal static class ToriiSettingsPersistence
     {
@@ -53,36 +64,37 @@ namespace osu.Game.Configuration
         private const string sidecar_filename = "torii.ini";
 
         /// <summary>
-        /// The key set we mirror. Keep this in sync with the matching
-        /// SetDefault calls in <see cref="OsuConfigManager.InitialiseDefaults"/>
-        /// — anything in here MUST already be a registered setting on
-        /// the OsuConfigManager when ApplyAndWatch is called, otherwise
-        /// the GetBindable lookup will throw.
+        /// Maps each mirrored setting to its registered value-type.
+        /// Keep this in sync with the matching <c>SetDefault</c> calls
+        /// in <see cref="OsuConfigManager.InitialiseDefaults"/>.
+        /// Adding a key here whose declared type doesn't match the
+        /// SetDefault call will throw at apply-time (correctly so —
+        /// the cast to <c>Bindable&lt;T&gt;</c> would be a real bug).
         /// </summary>
-        private static readonly HashSet<OsuSetting> torii_only_settings = new HashSet<OsuSetting>
+        private static readonly Dictionary<OsuSetting, Type> torii_only_settings = new Dictionary<OsuSetting, Type>
         {
             // Custom UI hue (sesión 1 of the redesign)
-            OsuSetting.CustomUIHueEnabled,
-            OsuSetting.CustomUIHue,
-            OsuSetting.CustomUIHueApplyToMenu,
-            OsuSetting.CustomUIHueApplyToOverlays,
-            OsuSetting.CustomUIHueApplyToSettingsPanel,
+            { OsuSetting.CustomUIHueEnabled, typeof(bool) },
+            { OsuSetting.CustomUIHue, typeof(int) },
+            { OsuSetting.CustomUIHueApplyToMenu, typeof(bool) },
+            { OsuSetting.CustomUIHueApplyToOverlays, typeof(bool) },
+            { OsuSetting.CustomUIHueApplyToSettingsPanel, typeof(bool) },
 
             // Donator accent hue
-            OsuSetting.CustomUIAccentEnabled,
-            OsuSetting.CustomUIAccentHue,
+            { OsuSetting.CustomUIAccentEnabled, typeof(bool) },
+            { OsuSetting.CustomUIAccentHue, typeof(int) },
 
             // Pause/fail double-confirm (sesión 3)
-            OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts,
+            { OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, typeof(bool) },
 
             // Alpha-feature unlock flags (live behind the access-code panel)
-            OsuSetting.AlphaToolbarEnabled,
-            OsuSetting.AlphaToolbarUse,
-            OsuSetting.AlphaPpDevModeEnabled,
-            OsuSetting.AlphaStableSongSelectEnabled,
+            { OsuSetting.AlphaToolbarEnabled, typeof(bool) },
+            { OsuSetting.AlphaToolbarUse, typeof(bool) },
+            { OsuSetting.AlphaPpDevModeEnabled, typeof(bool) },
+            { OsuSetting.AlphaStableSongSelectEnabled, typeof(bool) },
 
             // Misc Torii visual prefs
-            OsuSetting.SongSelectBackgroundBlur,
+            { OsuSetting.SongSelectBackgroundBlur, typeof(bool) },
         };
 
         /// <summary>
@@ -103,26 +115,35 @@ namespace osu.Game.Configuration
                 // do this before wiring the watchers so the apply itself
                 // doesn't trigger an immediate write-back of the same
                 // value (would be harmless but pollutes mtime).
-                foreach (var key in torii_only_settings)
+                foreach (var entry in torii_only_settings)
                 {
-                    if (!sidecar.TryGetValue(key.ToString(), out string? raw) || raw is null)
+                    if (!sidecar.TryGetValue(entry.Key.ToString(), out string raw) || raw == null)
                         continue;
 
                     try
                     {
-                        applyRawToBindable(config, key, raw);
+                        applyValue(config, entry.Key, entry.Value, raw);
                     }
                     catch (Exception applyErr)
                     {
-                        Logger.Log($"[torii.ini] Failed to apply {key}={raw}: {applyErr.Message}", LoggingTarget.Runtime, LogLevel.Important);
+                        Logger.Log($"[torii.ini] Failed to apply {entry.Key}={raw}: {applyErr.Message}", LoggingTarget.Runtime, LogLevel.Important);
                     }
                 }
 
                 // Now wire the listeners. Each ValueChanged handler
                 // re-reads the entire sidecar, replaces the one key, and
                 // rewrites — atomic enough for human-edit-rate updates.
-                foreach (var key in torii_only_settings)
-                    watchBindable(config, storage, key);
+                foreach (var entry in torii_only_settings)
+                {
+                    try
+                    {
+                        watchKey(config, storage, entry.Key, entry.Value);
+                    }
+                    catch (Exception watchErr)
+                    {
+                        Logger.Log($"[torii.ini] Failed to watch {entry.Key}: {watchErr.Message}", LoggingTarget.Runtime, LogLevel.Important);
+                    }
+                }
             }
             catch (Exception bootErr)
             {
@@ -130,7 +151,7 @@ namespace osu.Game.Configuration
             }
         }
 
-        // ─── Implementation details ──────────────────────────────────
+        // ─── INI I/O ─────────────────────────────────────────────────
 
         private static Dictionary<string, string> readSidecar(Storage storage)
         {
@@ -142,7 +163,7 @@ namespace osu.Game.Configuration
             using (Stream stream = storage.GetStream(sidecar_filename, FileAccess.Read, FileMode.Open))
             using (var reader = new StreamReader(stream))
             {
-                string? line;
+                string line;
                 while ((line = reader.ReadLine()) != null)
                 {
                     string trimmed = line.Trim();
@@ -182,84 +203,12 @@ namespace osu.Game.Configuration
             }
         }
 
-        private static void applyRawToBindable(OsuConfigManager config, OsuSetting key, string raw)
-        {
-            // We don't know the bindable's type up-front so we ask the
-            // config for its current value and use its type to parse the
-            // raw string. Covers bool / int / float / double / enum /
-            // string transparently.
-            object? current = config.Get<object>(key);
-            if (current is null)
-                return;
-
-            object parsed = parseRawAs(current.GetType(), raw) ?? current;
-
-            // Use the typed setter so the bindable's own validation
-            // (range clamps, enum coercion) still runs.
-            var bindableType = current.GetType();
-            typeof(ToriiSettingsPersistence)
-                .GetMethod(nameof(setTyped), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                .MakeGenericMethod(bindableType)
-                .Invoke(null, new object?[] { config, key, parsed });
-        }
-
-        private static void setTyped<T>(OsuConfigManager config, OsuSetting key, T value)
-            where T : struct, IEquatable<T>
-        {
-            // Generic constraint matches what ConfigManager.SetValue<T>
-            // accepts for its primitive overload — covers our int / float
-            // / double / bool / enum cases. We don't sidecar string-typed
-            // settings; CustomApiUrl etc. are deliberately osu.cfg-only.
-            config.SetValue(key, value);
-        }
-
-        private static object? parseRawAs(Type targetType, string raw)
-        {
-            if (targetType == typeof(bool))
-                return bool.TryParse(raw, out bool b) ? b : (object?)null;
-            if (targetType == typeof(int))
-                return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int i) ? i : (object?)null;
-            if (targetType == typeof(float))
-                return float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : (object?)null;
-            if (targetType == typeof(double))
-                return double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) ? d : (object?)null;
-            if (targetType.IsEnum)
-                return Enum.TryParse(targetType, raw, ignoreCase: true, out object? e) ? e : null;
-            return raw;
-        }
-
-        private static void watchBindable(OsuConfigManager config, Storage storage, OsuSetting key)
-        {
-            // We resolve the bindable as IBindable so we can subscribe
-            // without knowing its concrete type. Same instance the
-            // settings UI binds to, so OUR write-back fires on every
-            // user-driven change.
-            object current = config.Get<object>(key);
-            if (current is null)
-                return;
-
-            var bindableType = current.GetType();
-
-            // Late-bound subscription — avoids the need for a concrete
-            // generic call site for every supported T.
-            typeof(ToriiSettingsPersistence)
-                .GetMethod(nameof(subscribeTyped), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
-                .MakeGenericMethod(bindableType)
-                .Invoke(null, new object?[] { config, storage, key });
-        }
-
-        private static void subscribeTyped<T>(OsuConfigManager config, Storage storage, OsuSetting key)
-        {
-            Bindable<T> bindable = config.GetBindable<T>(key);
-            bindable.ValueChanged += _ => persistSingle(storage, key, bindable.Value!);
-        }
-
-        private static void persistSingle(Storage storage, OsuSetting key, object value)
+        private static void persistSingle(Storage storage, OsuSetting key, string formatted)
         {
             try
             {
                 Dictionary<string, string> current = readSidecar(storage);
-                current[key.ToString()] = formatValue(value);
+                current[key.ToString()] = formatted;
                 writeSidecar(storage, current);
             }
             catch (Exception persistErr)
@@ -267,6 +216,70 @@ namespace osu.Game.Configuration
                 // Sidecar corruption is recoverable on next launch from
                 // osu.cfg; never let a write hiccup crash the game.
                 Logger.Log($"[torii.ini] failed to persist {key}: {persistErr.Message}", LoggingTarget.Runtime, LogLevel.Important);
+            }
+        }
+
+        // ─── Type-aware dispatch ─────────────────────────────────────
+        // All three of these switch on the same registered Type. If you
+        // add a new value-type to the registry, extend ALL THREE — apply,
+        // watch and format — together.
+
+        private static void applyValue(OsuConfigManager config, OsuSetting key, Type type, string raw)
+        {
+            if (type == typeof(bool))
+            {
+                if (bool.TryParse(raw, out bool v))
+                    config.SetValue(key, v);
+            }
+            else if (type == typeof(int))
+            {
+                if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int v))
+                    config.SetValue(key, v);
+            }
+            else if (type == typeof(float))
+            {
+                if (float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out float v))
+                    config.SetValue(key, v);
+            }
+            else if (type == typeof(double))
+            {
+                if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
+                    config.SetValue(key, v);
+            }
+            else
+            {
+                throw new InvalidOperationException($"unsupported sidecar type {type} for {key}");
+            }
+        }
+
+        private static void watchKey(OsuConfigManager config, Storage storage, OsuSetting key, Type type)
+        {
+            // Resolve the bindable as its registered concrete type so the
+            // GetBindable<T> cast actually succeeds (BindableBool ↦ Bindable<bool>,
+            // BindableInt ↦ Bindable<int>, etc.).
+            if (type == typeof(bool))
+            {
+                var bindable = config.GetBindable<bool>(key);
+                bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
+            }
+            else if (type == typeof(int))
+            {
+                var bindable = config.GetBindable<int>(key);
+                bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
+            }
+            else if (type == typeof(float))
+            {
+                var bindable = config.GetBindable<float>(key);
+                bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
+            }
+            else if (type == typeof(double))
+            {
+                var bindable = config.GetBindable<double>(key);
+                bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
+            }
+            else
+            {
+                throw new InvalidOperationException($"unsupported sidecar type {type} for {key}");
             }
         }
 
@@ -280,8 +293,7 @@ namespace osu.Game.Configuration
                 int i => i.ToString(CultureInfo.InvariantCulture),
                 float f => f.ToString("R", CultureInfo.InvariantCulture),
                 double d => d.ToString("R", CultureInfo.InvariantCulture),
-                Enum e => e.ToString(),
-                _ => value.ToString() ?? string.Empty,
+                _ => value?.ToString() ?? string.Empty,
             };
         }
     }
