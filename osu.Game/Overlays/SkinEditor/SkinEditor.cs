@@ -413,6 +413,16 @@ namespace osu.Game.Overlays.SkinEditor
                 },
             };
 
+            // Pinned at the top: the Torii-exclusive components
+            // (anything implementing IToriiSkinComponent). Drawn from
+            // both osu.Game and the active ruleset's assembly so a
+            // bonus Torii piece living in either DLL ends up in the
+            // same dedicated header. The regular toolboxes below
+            // explicitly exclude these so nothing appears twice.
+            var toriiToolbox = SkinComponentToolbox.CreateToriiExclusive(skinComponentsContainer, target.NewValue.Ruleset);
+            toriiToolbox.RequestPlacement = requestPlacement;
+            componentsSidebar.Add(toriiToolbox);
+
             // If the new target has a ruleset, let's show ruleset-specific items at the top, and the rest below.
             if (target.NewValue.Ruleset != null)
             {

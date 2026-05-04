@@ -31,6 +31,14 @@ namespace osu.Game.Overlays.SkinEditor
 
         private readonly RulesetInfo? ruleset;
 
+        // When set, this toolbox lists ONLY Torii-custom components
+        // (those implementing IToriiSkinComponent) drawn from BOTH
+        // osu.Game and the active ruleset's assembly. Used by the
+        // "Torii Exclusive Components" section pinned at the top of
+        // the sidebar so users don't have to scroll past the lazer
+        // standard set to find the bonus pieces shipped with Torii.
+        private readonly bool toriiExclusiveOnly;
+
         private FillFlowContainer fill = null!;
 
         /// <summary>
@@ -43,6 +51,25 @@ namespace osu.Game.Overlays.SkinEditor
         {
             this.target = target;
             this.ruleset = ruleset;
+        }
+
+        /// <summary>
+        /// Factory for the dedicated Torii section pinned at the top
+        /// of the components sidebar. Lists only components flagged
+        /// with <see cref="IToriiSkinComponent"/>; the regular
+        /// toolboxes filter the same set out so nothing appears twice.
+        /// </summary>
+        public static SkinComponentToolbox CreateToriiExclusive(SkinnableContainer target, RulesetInfo? ruleset)
+            => new SkinComponentToolbox(target, ruleset, toriiOnly: true);
+
+        private SkinComponentToolbox(SkinnableContainer target, RulesetInfo? ruleset, bool toriiOnly)
+            : base(toriiOnly
+                ? (LocalisableString)@"Torii Exclusive Components"
+                : (ruleset == null ? SkinEditorStrings.Components : LocalisableString.Interpolate($"{SkinEditorStrings.Components} ({ruleset.Name})")))
+        {
+            this.target = target;
+            this.ruleset = ruleset;
+            toriiExclusiveOnly = toriiOnly;
         }
 
         [BackgroundDependencyLoader]
@@ -63,7 +90,10 @@ namespace osu.Game.Overlays.SkinEditor
         {
             fill.Clear();
 
-            var skinnableTypes = SerialisedDrawableInfo.GetAllAvailableDrawables(ruleset);
+            var skinnableTypes = toriiExclusiveOnly
+                ? SerialisedDrawableInfo.GetAllToriiSkinComponents(ruleset)
+                : SerialisedDrawableInfo.GetAllAvailableDrawables(ruleset);
+
             foreach (var type in skinnableTypes)
                 attemptAddComponent(type);
         }

@@ -116,14 +116,48 @@ namespace osu.Game.Skinning
         /// Retrieve all types available which support serialisation.
         /// </summary>
         /// <param name="ruleset">The ruleset to filter results to. If <c>null</c>, global components will be returned instead.</param>
-        public static Type[] GetAllAvailableDrawables(RulesetInfo? ruleset = null)
+        /// <param name="includeToriiExclusive">
+        /// Whether to include components flagged with <see cref="IToriiSkinComponent"/>. Default <c>false</c> —
+        /// the regular Components / Components (ruleset) toolbox sections exclude them so they don't appear twice
+        /// alongside the dedicated "Torii Exclusive Components" section that lists them up top.
+        /// Pass <c>true</c> to get the unfiltered lazer-style behaviour (e.g. for tests).
+        /// </param>
+        public static Type[] GetAllAvailableDrawables(RulesetInfo? ruleset = null, bool includeToriiExclusive = false)
         {
             return (ruleset?.CreateInstance().GetType() ?? typeof(OsuGame))
                    .Assembly.GetTypes()
                    .Where(t => !t.IsInterface && !t.IsAbstract && t.IsPublic)
                    .Where(t => typeof(ISerialisableDrawable).IsAssignableFrom(t))
+                   .Where(t => includeToriiExclusive || !typeof(IToriiSkinComponent).IsAssignableFrom(t))
                    .OrderBy(t => t.Name)
                    .ToArray();
+        }
+
+        /// <summary>
+        /// Retrieve all <see cref="IToriiSkinComponent"/> types — the
+        /// custom skin components added by Torii on top of upstream
+        /// lazer's set. Scans BOTH <c>osu.Game</c> and the active
+        /// ruleset's assembly so a Torii-exclusive piece living in
+        /// either DLL surfaces in the same dedicated section.
+        ///
+        /// Distinct so we don't double-list a type that somehow ends
+        /// up in both lookups.
+        /// </summary>
+        /// <param name="ruleset">The active ruleset (if any). Used as the second assembly to scan.</param>
+        public static Type[] GetAllToriiSkinComponents(RulesetInfo? ruleset = null)
+        {
+            var assemblies = new HashSet<System.Reflection.Assembly> { typeof(OsuGame).Assembly };
+
+            if (ruleset != null)
+                assemblies.Add(ruleset.CreateInstance().GetType().Assembly);
+
+            return assemblies.SelectMany(a => a.GetTypes())
+                             .Where(t => !t.IsInterface && !t.IsAbstract && t.IsPublic)
+                             .Where(t => typeof(ISerialisableDrawable).IsAssignableFrom(t))
+                             .Where(t => typeof(IToriiSkinComponent).IsAssignableFrom(t))
+                             .Distinct()
+                             .OrderBy(t => t.Name)
+                             .ToArray();
         }
     }
 }
