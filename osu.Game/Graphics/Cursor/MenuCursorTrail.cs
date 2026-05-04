@@ -18,6 +18,7 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Graphics.Visualisation;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
+using osu.Framework.Logging;
 using osu.Framework.Timing;
 using osu.Game.Configuration;
 using osu.Game.Skinning;
@@ -227,6 +228,23 @@ namespace osu.Game.Graphics.Cursor
 
         protected void AddTrail(Vector2 position)
         {
+            // HOTFIX guard. The interpolation path below dereferences
+            // `Texture.DisplayWidth` on every mouse-move tick. The texture
+            // can legitimately be null at runtime — the legacy skin chain
+            // returns null for `cursortrail` when the active skin doesn't
+            // ship one AND lazer's bundled fallback isn't engaged in the
+            // chain (some Argon / Triangles configurations, custom skins
+            // that explicitly opt out of legacy fallback, weird import
+            // states, etc.). When that happens we previously crashed the
+            // game on the FIRST mouse move of the session — the user lost
+            // their entire client. SkinnableMenuCursorTrail.load now falls
+            // back to lazer's bundled `Cursor/cursortrail` when the legacy
+            // lookup misses, but we keep this guard as belt-and-braces so
+            // any future caller (or test) that constructs a bare
+            // MenuCursorTrail with no texture can't take the game down.
+            if (Texture == null)
+                return;
+
             position = ToLocalSpace(position);
 
             if (InterpolateMovements)
@@ -337,6 +355,20 @@ namespace osu.Game.Graphics.Cursor
             protected override void Draw(IRenderer renderer)
             {
                 base.Draw(renderer);
+
+                // Belt-and-braces, mirror of the AddTrail guard. With a null
+                // texture there is nothing for the shader to sample anyway;
+                // every vertex emits would have to dereference the texture
+                // for DisplayWidth / DisplayHeight (see the per-vertex
+                // expressions below) and bind the sampler. Bailing here also
+                // keeps the second crash trace we observed
+                // (TrailDrawNode.Draw NRE on `texture.Bind()`) from ever
+                // recurring. We still allocate the vertex batch + uniform
+                // buffer above before the guard so the caches stay warm —
+                // but only the shader/texture binding + vertex emission are
+                // skipped this frame.
+                if (texture == null || shader == null)
+                    return;
 
                 vertexBatch ??= renderer.CreateQuadBatch<TexturedTrailVertex>(max_sprites, 1);
 
@@ -514,7 +546,7 @@ namespace osu.Game.Graphics.Cursor
         private Vector2? currentPosition;
 
         [BackgroundDependencyLoader]
-        private void load(OsuConfigManager config, ISkinSource skinSource)
+        private void load(OsuConfigManager config, ISkinSource skinSource, TextureStore textures)
         {
             cursorSize = config.GetBindable<float>(OsuSetting.GameplayCursorSize).GetBoundCopy();
             AllowPartRotation = skinSource.GetConfig<LegacyCursorSkinConfiguration, bool>(LegacyCursorSkinConfiguration.CursorTrailRotate)?.Value ?? true;
@@ -525,14 +557,36 @@ namespace osu.Game.Graphics.Cursor
             var cursorProvider = skinSource.FindProvider(s => s.GetTexture(@"cursor") != null);
             DisjointTrail = cursorProvider != null && cursorProvider.GetTexture(@"cursormiddle") == null;
 
-            // The trail texture itself comes from the standard chain
-            // (skinSource walks user-skin → DefaultLegacySkin → resources),
-            // so even a "Triangles" / "Argon" user without a legacy skin
-            // ends up with lazer's bundled cursortrail.png — the trail
-            // ALWAYS renders something. This matches gameplay behaviour
-            // (DefaultCursorTrail in OsuCursorContainer falls back to the
-            // same texture when the skin lookup misses).
-            Texture = skinSource.GetTexture(@"cursortrail");
+            // Trail texture lookup, with a CRITICAL fallback to lazer's
+            // bundled "Cursor/cursortrail" when the legacy skin chain
+            // returns null.
+            //
+            // Background: the previous comment here ("the standard chain
+            // walks user-skin → DefaultLegacySkin → resources, so the
+            // trail ALWAYS renders something") was wishful — only true
+            // when the user is on a legacy skin OR when DefaultLegacySkin
+            // is engaged in the chain. For Argon / Triangles / certain
+            // custom skins the chain returns null for `cursortrail`, my
+            // earlier code stashed a null Texture, and the FIRST mouse-
+            // move event of the session NRE'd inside MenuCursorTrail.AddTrail
+            // (Texture.DisplayWidth) — taking down the entire game on
+            // launch with no in-app way to recover.
+            //
+            // Mirror what OsuCursorContainer.DefaultCursorTrail does in
+            // gameplay: when the skin lookup misses, fall back to the
+            // bundled `Cursor/cursortrail` texture via TextureStore.
+            // That asset ships in osu.Game.Resources and is always
+            // available, so the trail ALWAYS has something to render
+            // regardless of skin chain composition.
+            Texture = skinSource.GetTexture(@"cursortrail") ?? textures.Get(@"Cursor/cursortrail");
+
+            // Defensive log if BOTH lookups missed. Shouldn't happen with
+            // the bundled fallback, but if osu.Game.Resources somehow
+            // doesn't carry Cursor/cursortrail (test harness, future
+            // refactor) we'd silently render no trail — leave a breadcrumb
+            // so the next debugging session doesn't have to re-derive this.
+            if (Texture == null)
+                Logger.Log("SkinnableMenuCursorTrail: no cursortrail texture from skin chain or bundled fallback; trail will be invisible.", LoggingTarget.Runtime, LogLevel.Important);
 
             if (DisjointTrail)
             {
