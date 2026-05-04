@@ -112,11 +112,20 @@ namespace osu.Game.Graphics.Cursor
 
         private float currentExpandFactor = released_scale;
 
+        // When true, we skip the skin lookup and always render the
+        // stylised Torii fallback. Used by MenuCursorContainer when
+        // the user has explicitly selected
+        // MenuCursorStyle.ToriiCursor — they want the Torii visual
+        // even if their skin DOES ship its own cursor textures.
+        private readonly bool forceTorii;
+
         [Resolved(canBeNull: true)]
         private ISkinSource? skinSource { get; set; }
 
-        public SkinnableGameplayCursor()
+        public SkinnableGameplayCursor(bool forceTorii = false)
         {
+            this.forceTorii = forceTorii;
+
             // Centre origin — the cursor's visual middle is the
             // "click point" anchored to the mouse position. Same as
             // OsuCursor's constructor.
@@ -135,8 +144,9 @@ namespace osu.Game.Graphics.Cursor
                 RelativeSizeAxes = Axes.Both,
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                Child = rotationTarget = createCursorSprites(),
             };
+
+            buildSpritesAndStartSpin();
 
             // Mirror osu!'s gameplay-cursor scaling pipeline: the user
             // setting acts as a direct multiplier on the visual scale.
@@ -145,12 +155,37 @@ namespace osu.Game.Graphics.Cursor
             // meaningless for a menu-context cursor.
             gameplayCursorSize.BindValueChanged(_ => updateScale(), true);
 
+            // Live-rebuild on skin change. Without this, swapping
+            // the active skin in Settings → Skin while the cursor
+            // is on screen leaves the previous skin's textures
+            // baked in until the user reopens whatever container
+            // we live in. ISkinSource.SourceChanged covers both
+            // changing the skin entry AND the user editing the
+            // active skin in the layout editor. Guarded null in
+            // case we're in a test / toolbox context where no
+            // skin source is provided.
+            if (skinSource != null)
+                skinSource.SourceChanged += onSkinSourceChanged;
+        }
+
+        private void onSkinSourceChanged() => Schedule(buildSpritesAndStartSpin);
+
+        private void buildSpritesAndStartSpin()
+        {
+            scaleContainer.Child = rotationTarget = createCursorSprites();
+
             // If the skin requests a continuously-rotating cursor,
-            // start the spin. Read by raw config string so we don't
-            // need to depend on the ruleset's OsuSkinConfiguration
-            // enum.
+            // start the spin on the freshly-built sprite stack.
             if (rotationTarget != null && shouldRotate())
                 rotationTarget.Spin(rotation_revolution_duration_ms, RotationDirection.Clockwise);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (skinSource != null)
+                skinSource.SourceChanged -= onSkinSourceChanged;
+
+            base.Dispose(isDisposing);
         }
 
         /// <summary>
@@ -214,6 +249,14 @@ namespace osu.Game.Graphics.Cursor
         /// </summary>
         private Drawable createCursorSprites()
         {
+            // ForceTorii short-circuit — the user explicitly picked
+            // MenuCursorStyle.ToriiCursor, which means "use the
+            // Torii visual REGARDLESS of what my skin ships". Skip
+            // the skin lookup entirely and fall through to the
+            // stylised circle below.
+            if (forceTorii)
+                return createToriiFallback();
+
             // Resolve the FIRST skin provider in the chain that has
             // a `cursor` texture, then look up `cursormiddle` against
             // THAT SAME provider. This mirrors what LegacyCursorTrail
@@ -260,10 +303,25 @@ namespace osu.Game.Graphics.Cursor
                 return stack;
             }
 
-            // Fallback for skins without a legacy cursor texture. The
-            // proportions (28-ish circle with 32% center dot) match
-            // OsuCursor.SIZE territory so non-legacy users still see
-            // a reasonably-sized preview / menu cursor.
+            // Fallback for skins without a legacy cursor texture
+            // (Argon / Triangles / vanilla). Same drawable as the
+            // ForceTorii path — extracted to avoid duplication.
+            return createToriiFallback();
+        }
+
+        /// <summary>
+        /// The "Torii" stylised cursor — translucent pink ring with a
+        /// white centre dot, soft pink glow. Matches the Torii brand
+        /// language we use in the alpha toolbar accents. Used in two
+        /// situations:
+        /// - User explicitly picked <see cref="MenuCursorStyle.ToriiCursor"/>
+        ///   (we want the Torii look regardless of skin contents)
+        /// - The active skin has no <c>cursor.png</c> at all (Argon /
+        ///   Triangles / vanilla), so we fall back to this rather
+        ///   than rendering nothing.
+        /// </summary>
+        private Drawable createToriiFallback()
+        {
             return new CircularContainer
             {
                 Size = new Vector2(28),

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
 
@@ -100,7 +101,12 @@ namespace osu.Game.Configuration
 
             // Misc Torii visual prefs
             { OsuSetting.SongSelectBackgroundBlur, typeof(bool) },
+            // UseGameplayCursorInMenus is deprecated (replaced by
+            // MenuCursorStyle below). Kept in the sidecar so users
+            // who wrote it from a previous Torii build don't see a
+            // load error; the value is functionally ignored now.
             { OsuSetting.UseGameplayCursorInMenus, typeof(bool) },
+            { OsuSetting.MenuCursorStyle, typeof(osu.Game.Graphics.Cursor.MenuCursorStyle) },
         };
 
         /// <summary>
@@ -252,10 +258,45 @@ namespace osu.Game.Configuration
                 if (double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double v))
                     config.SetValue(key, v);
             }
+            else if (type.IsEnum)
+            {
+                applyEnumValue(config, key, type, raw);
+            }
             else
             {
                 throw new InvalidOperationException($"unsupported sidecar type {type} for {key}");
             }
+        }
+
+        /// <summary>
+        /// Generic enum applicator. Reflection is needed because
+        /// <see cref="ConfigManager{TLookup}.SetValue{TBindable}"/> is
+        /// generic on the value type and we don't know the enum type
+        /// at compile time. The cost is one method-handle lookup per
+        /// applied setting at startup; negligible compared to disk I/O.
+        ///
+        /// Routes through a typed helper (<see cref="setEnumValue{TEnum}"/>)
+        /// so the actual <c>SetValue</c> call site is type-safe — the
+        /// reflection only computes the right generic instantiation.
+        /// </summary>
+        private static void applyEnumValue(OsuConfigManager config, OsuSetting key, Type enumType, string raw)
+        {
+            // Enum.TryParse(Type, ...) is case-insensitive — handles
+            // a hand-edited torii.ini where the value casing got
+            // mangled.
+            if (!Enum.TryParse(enumType, raw, ignoreCase: true, out object? parsed) || parsed == null)
+                return;
+
+            typeof(ToriiSettingsPersistence)
+                .GetMethod(nameof(setEnumValue), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(enumType)
+                .Invoke(null, new[] { config, (object)key, parsed });
+        }
+
+        private static void setEnumValue<TEnum>(OsuConfigManager config, OsuSetting key, TEnum value)
+            where TEnum : struct, Enum
+        {
+            config.SetValue(key, value);
         }
 
         private static void watchKey(OsuConfigManager config, Storage storage, OsuSetting key, Type type)
@@ -283,18 +324,37 @@ namespace osu.Game.Configuration
                 var bindable = config.GetBindable<double>(key);
                 bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
             }
+            else if (type.IsEnum)
+            {
+                // Same generic-via-reflection trick as applyValue —
+                // GetBindable / ValueChanged subscription both need
+                // the concrete enum type.
+                typeof(ToriiSettingsPersistence)
+                    .GetMethod(nameof(watchEnumKey), BindingFlags.NonPublic | BindingFlags.Static)!
+                    .MakeGenericMethod(type)
+                    .Invoke(null, new object[] { config, storage, key });
+            }
             else
             {
                 throw new InvalidOperationException($"unsupported sidecar type {type} for {key}");
             }
         }
 
+        private static void watchEnumKey<TEnum>(OsuConfigManager config, Storage storage, OsuSetting key)
+            where TEnum : struct, Enum
+        {
+            var bindable = config.GetBindable<TEnum>(key);
+            bindable.ValueChanged += _ => persistSingle(storage, key, formatValue(bindable.Value));
+        }
+
         private static string formatValue(object value)
         {
             // Use invariant culture so a comma-decimal user locale
             // doesn't write "1,5" that we then can't parse back.
+            // Enums first because the bool / int branches won't match.
             return value switch
             {
+                Enum e => e.ToString(),
                 bool b => b.ToString(),
                 int i => i.ToString(CultureInfo.InvariantCulture),
                 float f => f.ToString("R", CultureInfo.InvariantCulture),

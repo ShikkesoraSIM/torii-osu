@@ -30,6 +30,26 @@ namespace osu.Game.Localisation
         public static LocalisableString UseGameplayCursorInMenus => new TranslatableString(getKey(@"use_gameplay_cursor_in_menus"), @"Use gameplay cursor in menus");
 
         /// <summary>
+        /// "Menu cursor style"
+        /// </summary>
+        public static LocalisableString MenuCursorStyle => new TranslatableString(getKey(@"menu_cursor_style"), @"Menu cursor style");
+
+        /// <summary>
+        /// "Lazer default"
+        /// </summary>
+        public static LocalisableString MenuCursorStyleLazerDefault => new TranslatableString(getKey(@"menu_cursor_style_lazer_default"), @"Lazer default");
+
+        /// <summary>
+        /// "Use skin's gameplay cursor"
+        /// </summary>
+        public static LocalisableString MenuCursorStyleSkinCursor => new TranslatableString(getKey(@"menu_cursor_style_skin_cursor"), @"Use skin's gameplay cursor");
+
+        /// <summary>
+        /// "Use Torii cursor"
+        /// </summary>
+        public static LocalisableString MenuCursorStyleToriiCursor => new TranslatableString(getKey(@"menu_cursor_style_torii_cursor"), @"Use Torii cursor");
+
+        /// <summary>
         /// "Menu tips"
         /// </summary>
         public static LocalisableString ShowMenuTips => new TranslatableString(getKey(@"show_menu_tips"), @"Menu tips");

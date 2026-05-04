@@ -277,7 +277,7 @@ namespace osu.Game.Graphics.Cursor
             private SkinnableGameplayCursor? gameplayCursor;
 
             private Bindable<float> menuCursorScale = null!;
-            private Bindable<bool> useGameplayCursor = null!;
+            private Bindable<MenuCursorStyle> menuCursorStyle = null!;
             private const float base_scale = 0.15f;
 
             // Always non-null even in gameplay-cursor mode (we put a
@@ -312,19 +312,19 @@ namespace osu.Game.Graphics.Cursor
                 this.colour = colour;
 
                 menuCursorScale = config.GetBindable<float>(OsuSetting.MenuCursorSize);
-                useGameplayCursor = config.GetBindable<bool>(OsuSetting.UseGameplayCursorInMenus);
+                menuCursorStyle = config.GetBindable<MenuCursorStyle>(OsuSetting.MenuCursorStyle);
 
-                // Live-rebuild on toggle change so the user sees the
-                // swap immediately when they tick the setting.
-                useGameplayCursor.BindValueChanged(_ => buildCursor(), true);
+                // Live-rebuild on style change so the user sees the
+                // swap immediately when they pick a different style.
+                menuCursorStyle.BindValueChanged(_ => buildCursor(), true);
 
-                // Menu cursor mode uses MenuCursorSize as the scaling
-                // factor (multiplied by base_scale). Gameplay-cursor
-                // mode delegates scaling to SkinnableGameplayCursor
-                // which reads GameplayCursorSize internally.
+                // MenuCursorSize matters only in LazerDefault mode
+                // (the other modes delegate scaling to
+                // SkinnableGameplayCursor which reads GameplayCursorSize
+                // internally).
                 menuCursorScale.BindValueChanged(scale =>
                 {
-                    if (!useGameplayCursor.Value && cursorContainer != null!)
+                    if (menuCursorStyle.Value == MenuCursorStyle.LazerDefault && cursorContainer != null!)
                         cursorContainer.Scale = new Vector2(scale.NewValue * base_scale);
                 }, true);
             }
@@ -345,14 +345,19 @@ namespace osu.Game.Graphics.Cursor
 
             private void buildCursor()
             {
-                // Swap the visual content based on the toggle. Both
-                // branches expose a cursorContainer + AdditiveLayer so
-                // the parent class's transforms (pop-in fade, hover
-                // rotation, alpha tweaks) keep working unchanged.
+                // Swap the visual content based on the style enum.
+                // Every branch exposes a cursorContainer +
+                // AdditiveLayer (the latter is a stub in non-default
+                // modes) so the parent class's transforms (pop-in
+                // fade, hover rotation, alpha tweaks) keep working
+                // unchanged.
                 Clear();
                 gameplayCursor = null;
 
-                if (useGameplayCursor.Value)
+                bool gameplayMode = menuCursorStyle.Value == MenuCursorStyle.SkinCursor
+                                    || menuCursorStyle.Value == MenuCursorStyle.ToriiCursor;
+
+                if (gameplayMode)
                 {
                     // Gameplay-cursor mode. We mirror OsuCursor's
                     // structure as closely as we can from osu.Game:
@@ -380,6 +385,14 @@ namespace osu.Game.Graphics.Cursor
                     Size = new Vector2(SkinnableGameplayCursor.BASE_SIZE);
                     Origin = Anchor.Centre;
 
+                    // forceTorii flag passed when the user picked
+                    // ToriiCursor explicitly — instructs
+                    // SkinnableGameplayCursor to skip the skin
+                    // lookup and render the stylised pink ring
+                    // regardless of whether their skin ships its
+                    // own cursor.png.
+                    bool forceTorii = menuCursorStyle.Value == MenuCursorStyle.ToriiCursor;
+
                     Children = new Drawable[]
                     {
                         cursorContainer = new Container
@@ -389,7 +402,7 @@ namespace osu.Game.Graphics.Cursor
                             Origin = Anchor.Centre,
                             Children = new Drawable[]
                             {
-                                gameplayCursor = new SkinnableGameplayCursor(),
+                                gameplayCursor = new SkinnableGameplayCursor(forceTorii),
                                 // Stub additive layer for the
                                 // parent's mouse-handler API
                                 // surface — texture-less, alpha 0,

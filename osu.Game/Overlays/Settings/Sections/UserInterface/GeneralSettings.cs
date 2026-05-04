@@ -35,19 +35,28 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     KeyboardStep = 0.01f,
                     LabelFormat = v => $"{v:0.##}x"
                 }),
-                // Torii: replace the lazer-default menu cursor with
-                // the user's skin gameplay cursor (sized by
-                // GameplayCursorSize). Pairs with the cursor-size
-                // hotkey (Ctrl+Shift+wheel) — when this toggle is on,
-                // adjusting the cursor size LIVE updates both menus
-                // and gameplay.
-                new SettingsItemV2(new FormCheckBox
+                // Torii: three-way menu cursor style.
+                //   LazerDefault → upstream menu cursor (the textured
+                //                  arrow with the additive flash).
+                //   SkinCursor   → user's skin gameplay cursor
+                //                  (cursor.png + cursormiddle.png),
+                //                  same pipeline as the playfield —
+                //                  switches live when skin changes,
+                //                  scales with GameplayCursorSize.
+                //   ToriiCursor  → translucent pink ring with white
+                //                  centre dot, scaled with
+                //                  GameplayCursorSize. Used regardless
+                //                  of skin (overrides skin cursor).
+                // All three honour the click-feel hotkey
+                // (Ctrl+Shift+wheel) and the GameplayCursorSize
+                // bindable end-to-end.
+                new SettingsItemV2(new FormEnumDropdown<osu.Game.Graphics.Cursor.MenuCursorStyle>
                 {
-                    Caption = UserInterfaceStrings.UseGameplayCursorInMenus,
-                    Current = config.GetBindable<bool>(OsuSetting.UseGameplayCursorInMenus),
+                    Caption = UserInterfaceStrings.MenuCursorStyle,
+                    Current = config.GetBindable<osu.Game.Graphics.Cursor.MenuCursorStyle>(OsuSetting.MenuCursorStyle),
                 })
                 {
-                    Keywords = [@"cursor", @"gameplay", @"skin"],
+                    Keywords = [@"cursor", @"gameplay", @"skin", @"torii"],
                 },
                 new SettingsItemV2(new FormCheckBox
                 {

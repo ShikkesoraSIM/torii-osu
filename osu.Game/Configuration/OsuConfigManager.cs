@@ -134,14 +134,18 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.GameplayCursorSize, 1.0f, 0.1f, 2f, 0.01f);
             SetDefault(OsuSetting.GameplayCursorDuringTouch, false);
             SetDefault(OsuSetting.AutoCursorSize, false);
-            // Torii-only: when on, MenuCursorContainer swaps its
-            // built-in menu cursor sprite for a SkinnableGameplayCursor
-            // so menus / song select / overlays use the user's skin
-            // gameplay cursor (cursor.png + cursormiddle.png) at the
-            // GameplayCursorSize scale instead of the lazer default.
-            // Mirrored via ToriiSettingsPersistence so the choice
-            // survives a roundtrip through the official lazer client.
+            // Torii-only: deprecated. Kept for backwards compatibility
+            // with sidecar files that may still reference it. Effective
+            // setting now lives in MenuCursorStyle below.
             SetDefault(OsuSetting.UseGameplayCursorInMenus, false);
+
+            // Torii-only: three-way selector for what cursor visual
+            // MenuCursorContainer renders in menus / song-select /
+            // overlays. Default is LazerDefault (preserves upstream
+            // behaviour). Mirrored via ToriiSettingsPersistence so
+            // the choice survives a roundtrip through the official
+            // lazer client.
+            SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
 
             SetDefault(OsuSetting.MouseDisableButtons, false);
             SetDefault(OsuSetting.MouseDisableWheel, false);
@@ -607,6 +611,21 @@ namespace osu.Game.Configuration
         /// as the actual gameplay cursor — what you see in the
         /// playfield is what you see in menus.
         /// </summary>
+        /// <remarks>
+        /// DEPRECATED. Superseded by <see cref="MenuCursorStyle"/>
+        /// (an enum) which allows distinguishing between the user's
+        /// skin gameplay cursor and the Torii stylised cursor — the
+        /// older bool conflated those two cases. Kept in the enum at
+        /// its original position to avoid renumbering subsequent
+        /// values (which would break user configs that store
+        /// settings by integer enum value).
+        /// </remarks>
         UseGameplayCursorInMenus,
+
+        /// <summary>
+        /// Three-way menu cursor style selector. See
+        /// <see cref="osu.Game.Graphics.Cursor.MenuCursorStyle"/>.
+        /// </summary>
+        MenuCursorStyle,
     }
 }
