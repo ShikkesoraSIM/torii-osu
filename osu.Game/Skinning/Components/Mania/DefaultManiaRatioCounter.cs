@@ -2,53 +2,117 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Bindables;
-using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Localisation.SkinComponents;
 using osuTK;
-using osuTK.Graphics;
 
 namespace osu.Game.Skinning.Components.Mania
 {
     /// <summary>
-    /// Default ("Torii") visual for <see cref="ManiaRatioCounter"/>:
-    /// a small uppercase "RATIO" label sitting above a pink-gradient
-    /// numeric value. Same colour language as the alpha toolbar pill
-    /// and the active-chip state — keeps the Torii brand consistent
-    /// across the HUD without slapping a literal logo on a counter.
+    /// Default ("vanilla") visual for <see cref="ManiaRatioCounter"/>.
+    /// Boots as a plain white number — no label, no decoration — to
+    /// match the lazer convention that Default variants are minimal
+    /// while Argon ones are styled. Everything else is opt-in via
+    /// the skin editor's per-component settings panel:
     ///
-    /// Used for both the modern Argon skin and the Triangles default
-    /// skin. The original suggestion noted that the Argon variant
-    /// (with its wireframe-digit treatment) doesn't render decimal
-    /// points cleanly, so we ship this single shared "default"
-    /// variant for both modern skins.
+    /// - Show label + Label text — toggle the small "RATIO" header
+    ///   above the value, edit what it reads.
+    /// - Font + Text weight — pick from the typeface family the
+    ///   user prefers (Torus, Inter, Venera...).
+    /// - Value colour — colour picker for the number itself. Want
+    ///   the Torii pink? set it here. Want pure white? leave default.
+    /// - Decimal places — 1-3 decimals after the dot. Some users
+    ///   want "2.4", others "2.345".
+    /// - Pulse on update — toggle the brief scale-flash on each
+    ///   judgement. Off for a calmer HUD.
+    ///
+    /// All settings live as <see cref="SettingSourceAttribute"/>-decorated
+    /// bindables on this class so they appear in the in-game skin
+    /// editor's right-side settings panel when the component is
+    /// selected. No code change needed for users to tweak them.
     /// </summary>
     public partial class DefaultManiaRatioCounter : ManiaRatioCounter
     {
-        // Torii signature gradient — same stops the alpha pill uses
-        // for its active-chip fill. Vertical because the number sits
-        // tall enough that a top-to-bottom gradient reads cleaner
-        // than horizontal.
-        private static readonly ColourInfo torii_value_colour = ColourInfo.GradientVertical(
-            new Color4(255, 138, 211, 255),
-            new Color4(253, 138, 152, 255));
+        [SettingSource("Show label", "Show a small header above the ratio value.")]
+        public Bindable<bool> ShowLabel { get; } = new BindableBool(false);
 
-        [SettingSource(typeof(SkinnableComponentStrings), nameof(SkinnableComponentStrings.ShowLabel))]
-        public Bindable<bool> ShowLabel { get; } = new BindableBool(true);
+        [SettingSource("Label text", "What the header above the value reads. Uppercase recommended.")]
+        public Bindable<string> LabelText { get; } = new Bindable<string>(@"RATIO");
 
-        protected override IHasText CreateText() => new RatioTextComponent(ShowLabel);
+        [SettingSource("Font", "Typeface for the ratio number.")]
+        public Bindable<Typeface> Font { get; } = new Bindable<Typeface>(Typeface.Torus);
 
+        [SettingSource("Text weight", "Weight of the ratio number font.")]
+        public Bindable<FontWeight> TextWeight { get; } = new Bindable<FontWeight>(FontWeight.SemiBold);
+
+        [SettingSource("Value colour", "Colour of the ratio number.")]
+        public BindableColour4 ValueColour { get; } = new BindableColour4(Colour4.White);
+
+        [SettingSource("Label colour", "Colour of the optional header label.")]
+        public BindableColour4 LabelColour { get; } = new BindableColour4(new Colour4(255, 255, 255, 140));
+
+        [SettingSource("Decimal places", "How many decimals to render (1-3).")]
+        public BindableInt DecimalPlaces { get; } = new BindableInt(2)
+        {
+            MinValue = 1,
+            MaxValue = 3,
+        };
+
+        [SettingSource("Pulse on update", "Brief scale flash on each new judgement. Turn off for a calmer HUD.")]
+        public Bindable<bool> PulseOnUpdate { get; } = new BindableBool(true);
+
+        // Cached so we can poke its settings live as bindables change
+        // without re-creating the whole text drawable (which would
+        // reset RollingCounter's transform mid-flight).
+        private RatioTextComponent textComponent = null!;
+
+        protected override IHasText CreateText() => textComponent = new RatioTextComponent(this);
+
+        protected override LocalisableString FormatCount(double count)
+        {
+            // Sentinel handling matches the base class. Decimal count
+            // pulled fresh from the bindable so changing the setting
+            // re-renders the next time UpdateDisplay fires.
+            if (double.IsNaN(count))
+                return @"--";
+
+            if (double.IsPositiveInfinity(count))
+                return @"MAX";
+
+            // "F1" / "F2" / "F3" — culture-agnostic decimal format.
+            return count.ToString($@"F{DecimalPlaces.Value}");
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // DecimalPlaces affects the formatter output but RollingCounter
+            // only re-runs FormatCount on a real value change. Force a
+            // refresh when the setting changes so users see the new
+            // precision immediately (no need to wait for the next hit).
+            DecimalPlaces.BindValueChanged(_ => UpdateDisplay());
+        }
+
+        /// <summary>
+        /// Inner composite that owns the actual visible drawables and
+        /// reacts to setting changes by updating in-place rather than
+        /// rebuilding. Keeps the rolling-counter's transform pipeline
+        /// intact — rebuilding mid-roll would freeze the displayed
+        /// value at whatever it interpolated to.
+        /// </summary>
         private partial class RatioTextComponent : CompositeDrawable, IHasText
         {
-            private readonly OsuSpriteText valueText;
-            private readonly Container labelContainer;
+            private readonly DefaultManiaRatioCounter owner;
+
+            private OsuSpriteText labelText = null!;
+            private OsuSpriteText valueText = null!;
+            private Container labelContainer = null!;
 
             public LocalisableString Text
             {
@@ -56,12 +120,15 @@ namespace osu.Game.Skinning.Components.Mania
                 set
                 {
                     valueText.Text = value;
-                    pulse();
+                    if (owner.PulseOnUpdate.Value)
+                        pulse();
                 }
             }
 
-            public RatioTextComponent(IBindable<bool> showLabel)
+            public RatioTextComponent(DefaultManiaRatioCounter owner)
             {
+                this.owner = owner;
+
                 AutoSizeAxes = Axes.Both;
 
                 InternalChild = new FillFlowContainer
@@ -76,44 +143,57 @@ namespace osu.Game.Skinning.Components.Mania
                             Anchor = Anchor.TopCentre,
                             Origin = Anchor.TopCentre,
                             AutoSizeAxes = Axes.Both,
-                            Child = new OsuSpriteText
+                            Child = labelText = new OsuSpriteText
                             {
                                 Anchor = Anchor.TopCentre,
                                 Origin = Anchor.TopCentre,
-                                Text = @"RATIO",
                                 Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
                                 Spacing = new Vector2(1.4f, 0),
-                                Colour = Color4.White.Opacity(0.55f),
                             },
                         },
                         valueText = new OsuSpriteText
                         {
                             Anchor = Anchor.TopCentre,
                             Origin = Anchor.TopCentre,
-                            // Numeric font matches the rest of the HUD
-                            // (combo, score, accuracy) so it doesn't
-                            // visually fight its neighbours.
-                            Font = OsuFont.Numeric.With(size: 26, fixedWidth: true),
-                            // Bake the pink gradient on top of the
-                            // numeric font with a soft shadow so the
-                            // value pops against any beatmap
-                            // background without needing its own
-                            // pill / box. Same approach the alpha
-                            // toolbar takes for its active chips.
-                            Colour = torii_value_colour,
-                            Shadow = true,
-                            ShadowColour = new Color4(0, 0, 0, 110),
-                            ShadowOffset = new Vector2(0, 0.08f),
                         },
                     }
                 };
-
-                showLabel.BindValueChanged(s => labelContainer.Alpha = s.NewValue ? 1 : 0, true);
             }
 
-            // Tiny scale-up + glow flash on each value change. Easy
-            // to disable later if it turns out to be distracting; we
-            // keep it subtle on purpose (~6% scale, 200ms).
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                // Settings ↔ visuals wiring. Each binding fires once
+                // immediately so the drawables match the saved setting
+                // state on first appearance (e.g. a user reopens their
+                // skin and the colour they picked yesterday is honoured
+                // before any new judgement happens).
+                owner.ShowLabel.BindValueChanged(s => labelContainer.Alpha = s.NewValue ? 1 : 0, true);
+                owner.LabelText.BindValueChanged(t => labelText.Text = t.NewValue, true);
+
+                owner.LabelColour.BindValueChanged(c => labelText.Colour = c.NewValue, true);
+
+                owner.Font.BindValueChanged(_ => updateValueFont(), true);
+                owner.TextWeight.BindValueChanged(_ => updateValueFont(), true);
+                owner.ValueColour.BindValueChanged(c => valueText.Colour = c.NewValue, true);
+            }
+
+            private void updateValueFont()
+            {
+                // Numeric font kept fixedWidth so the value doesn't
+                // jump horizontally when digits change (1.00 → 2.34
+                // etc.). Size hardcoded at 26 — exposing it as a
+                // setting would clash with the skin editor's existing
+                // resize-via-corner-handle gesture, so we leave size
+                // adjustment to that ergonomic.
+                valueText.Font = OsuFont.GetFont(
+                    typeface: owner.Font.Value,
+                    size: 26,
+                    weight: owner.TextWeight.Value,
+                    fixedWidth: true);
+            }
+
             private void pulse()
             {
                 valueText.ClearTransforms();
