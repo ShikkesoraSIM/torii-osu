@@ -666,6 +666,13 @@ namespace osu.Game.Online.API
 
             authentication.UpdateEndpoint(Endpoints.APIUrl);
             MessageFormatter.WebsiteRootUrl = Endpoints.WebsiteUrl;
+            // Mirror the OsuGameBase.Load registration so a runtime
+            // endpoint switch keeps the additional-host list in sync.
+            // Without this, switching from default to a custom server
+            // (or back) would leave stale entries in the matcher.
+            MessageFormatter.AdditionalKnownHosts = !string.IsNullOrEmpty(Endpoints.APIUrl) && Endpoints.APIUrl != Endpoints.WebsiteUrl
+                ? new[] { tryExtractHost(Endpoints.APIUrl) }
+                : System.Array.Empty<string>();
             updatePpDevVariantState();
 
             log.Add($@"API endpoint root updated at runtime: {Endpoints.APIUrl}");
@@ -680,6 +687,24 @@ namespace osu.Game.Online.API
                 _ = notificationsConnector.Reconnect();
 
             return true;
+        }
+
+        /// <summary>
+        /// Best-effort host extraction used by the additional-known-hosts
+        /// registration. Returns the input unchanged on parse failure
+        /// rather than throwing, so a malformed runtime endpoint update
+        /// can never crash the API state machine.
+        /// </summary>
+        private static string tryExtractHost(string url)
+        {
+            try
+            {
+                return new Uri(url).Host;
+            }
+            catch (UriFormatException)
+            {
+                return url;
+            }
         }
 
         private static bool endpointConfigurationEquals(EndpointConfiguration a, EndpointConfiguration b)

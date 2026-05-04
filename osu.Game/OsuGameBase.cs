@@ -121,7 +121,25 @@ namespace osu.Game
                 }
 
                 config.APIUrl = customUrl;
-                config.WebsiteUrl = customUrl;
+                // Derive a separate website URL from the API URL, instead
+                // of using the API URL for both. The API subdomain (e.g.
+                // ``lazer-api.shikkesora.com``) serves only JSON; the
+                // website at the matching ``lazer.shikkesora.com`` is
+                // what should resolve URLs like ``/b/<id>``,
+                // ``/users/<id>``, ``/wiki/...``. This matters for two
+                // surfaces:
+                //   - /np (NowPlayingCommand) reads Endpoints.WebsiteUrl
+                //     to build its chat link; if that's the API host,
+                //     clicking the link externally 404s on JSON.
+                //   - MessageFormatter's WebsiteRootUrl is initialised
+                //     from this value; the in-app chat parser uses it
+                //     to decide whether a URL opens a beatmap overlay
+                //     locally or punts to the browser.
+                // Heuristic: ``<region>-api.<root>`` → ``<region>.<root>``
+                // and ``api.<root>`` → ``<root>``. Falls back to the API
+                // URL when neither pattern fits, preserving prior
+                // behaviour for unknown deployments.
+                config.WebsiteUrl = deriveWebsiteUrlFromApiUrl(customUrl);
                 config.SpectatorUrl = $"{customUrl}/signalr/spectator";
                 config.MultiplayerUrl = $"{customUrl}/signalr/multiplayer";
                 config.MetadataUrl = $"{customUrl}/signalr/metadata";
@@ -136,6 +154,85 @@ namespace osu.Game
             Logger.Log($"API endpoint resolved to {config.APIUrl} (custom URL setting={(string.IsNullOrEmpty(customUrl) ? "<empty>" : customUrl)})", LoggingTarget.Network);
 
             return config;
+        }
+
+        /// <summary>
+        /// Derive the website URL from the configured API URL. Public so
+        /// subclasses + tests can share the heuristic; the OsuGameBase
+        /// custom-URL flow uses it on every endpoint refresh.
+        /// </summary>
+        /// <remarks>
+        /// Two patterns supported, both common in osu! private-server
+        /// deployments:
+        /// <list type="bullet">
+        /// <item><description><c>&lt;region&gt;-api.&lt;root&gt;</c> (e.g. <c>lazer-api.shikkesora.com</c>)
+        /// →  <c>&lt;region&gt;.&lt;root&gt;</c> (<c>lazer.shikkesora.com</c>).</description></item>
+        /// <item><description><c>api.&lt;root&gt;</c> (e.g. <c>api.example.dev</c>)
+        /// →  <c>&lt;root&gt;</c> (<c>example.dev</c>).</description></item>
+        /// </list>
+        /// Falls back to the input URL when neither pattern matches —
+        /// preserves prior behaviour for deployments where the API and
+        /// website are co-hosted at the same hostname.
+        /// </remarks>
+        public static string DeriveWebsiteUrlFromApiUrl(string apiUrl) => deriveWebsiteUrlFromApiUrl(apiUrl);
+
+        /// <summary>
+        /// Extract the host portion of a URL ("https://foo.example/bar" → "foo.example"),
+        /// matching the same shape <see cref="MessageFormatter.WebsiteRootUrl"/>'s
+        /// setter produces. Returns the input on parse failure so callers
+        /// don't need their own try/catch.
+        /// </summary>
+        private static string extractHost(string url)
+        {
+            try
+            {
+                return new Uri(url).Host;
+            }
+            catch (UriFormatException)
+            {
+                return url;
+            }
+        }
+
+        private static string deriveWebsiteUrlFromApiUrl(string apiUrl)
+        {
+            if (string.IsNullOrEmpty(apiUrl))
+                return apiUrl;
+
+            try
+            {
+                var uri = new Uri(apiUrl);
+                string host = uri.Host;
+                string newHost = host;
+
+                // ``<region>-api.<root>`` → ``<region>.<root>`` is the
+                // most common pattern (Torii uses lazer-api / lazer).
+                // We replace ``-api.`` rather than just ``-api`` so we
+                // don't mangle a hypothetical ``foo-api-staging.host``
+                // that legitimately contains "-api" mid-label.
+                if (host.Contains(@"-api.", StringComparison.OrdinalIgnoreCase))
+                {
+                    newHost = host.Replace(@"-api.", ".", StringComparison.OrdinalIgnoreCase);
+                }
+                else if (host.StartsWith(@"api.", StringComparison.OrdinalIgnoreCase))
+                {
+                    // ``api.example.com`` → ``example.com``. Only triggers
+                    // when ``api`` is the leading subdomain label, not
+                    // when it appears mid-host.
+                    newHost = host.Substring(4);
+                }
+
+                if (newHost == host)
+                    return apiUrl; // No transformation; preserve as-is.
+
+                return $"{uri.Scheme}://{newHost}";
+            }
+            catch (UriFormatException)
+            {
+                // Malformed URL — never blow up the boot path over a
+                // bad config string. Fall through to the original.
+                return apiUrl;
+            }
         }
 
         protected override OnlineStore CreateOnlineStore() => new TrustedDomainOnlineStore(LocalConfig);
@@ -339,6 +436,15 @@ namespace osu.Game
             EndpointConfiguration endpoints = CreateEndpoints();
 
             MessageFormatter.WebsiteRootUrl = endpoints.WebsiteUrl;
+
+            // Register the API host as a secondary "known" host for chat
+            // link parsing too. Without this, /np links produced by older
+            // client releases (which used to set WebsiteUrl == APIUrl)
+            // would not be recognised as beatmap links and would punt
+            // to the browser. See MessageFormatter.AdditionalKnownHosts.
+            MessageFormatter.AdditionalKnownHosts = !string.IsNullOrEmpty(endpoints.APIUrl) && endpoints.APIUrl != endpoints.WebsiteUrl
+                ? new[] { extractHost(endpoints.APIUrl) }
+                : System.Array.Empty<string>();
 
             frameworkLocale = frameworkConfig.GetBindable<string>(FrameworkSetting.Locale);
             frameworkLocale.BindValueChanged(_ => updateLanguage());

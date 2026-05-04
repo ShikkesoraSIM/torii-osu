@@ -62,6 +62,31 @@ namespace osu.Game.Online.Chat
 
         private static string websiteRootUrl = "osu.ppy.sh";
 
+        /// <summary>
+        /// Additional host suffixes that should be treated as "in-app"
+        /// for chat-link parsing — i.e. URLs ending in any of these
+        /// hosts are routed to <see cref="LinkAction.OpenBeatmap"/> /
+        /// <see cref="LinkAction.OpenUserProfile"/> / etc. just like
+        /// the canonical <see cref="WebsiteRootUrl"/>.
+        ///
+        /// Useful for two cases:
+        /// <list type="bullet">
+        /// <item><description>Legacy chat messages from before a
+        /// deployment migrated to a new website host. Without this,
+        /// historical /np links would silently fall back to the
+        /// browser even though the URL points to a known sister host.</description></item>
+        /// <item><description>Side-by-side hosts that produce equivalent
+        /// content (e.g. an API subdomain serving JSON for the same
+        /// /b/&lt;id&gt; ID space — the link can still resolve
+        /// in-app even if the user's browser would 404 on it).</description></item>
+        /// </list>
+        ///
+        /// Set by <see cref="OsuGameBase"/> + <see cref="API.APIAccess"/>
+        /// at the same points <see cref="WebsiteRootUrl"/> is set, so
+        /// the host list always matches the active endpoint config.
+        /// </summary>
+        public static IReadOnlyList<string> AdditionalKnownHosts { get; set; } = Array.Empty<string>();
+
         private static void handleMatches(Regex regex, string display, string link, MessageFormatterResult result, int startIndex = 0, LinkAction? linkActionOverride = null, char[]? escapeChars = null)
         {
             int captureOffset = 0;
@@ -122,6 +147,29 @@ namespace osu.Game.Online.Chat
             }
         }
 
+        /// <summary>
+        /// Whether the given URL host counts as "in-app" for chat link
+        /// resolution. Matches the canonical website host plus any
+        /// additional known hosts registered via
+        /// <see cref="AdditionalKnownHosts"/>. Case-insensitive,
+        /// suffix match (so a subdomain of a known root still resolves
+        /// — same semantics the rest of the codebase uses).
+        /// </summary>
+        private static bool hostMatchesKnown(string host)
+        {
+            if (host.EndsWith(WebsiteRootUrl, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            foreach (string extra in AdditionalKnownHosts)
+            {
+                if (string.IsNullOrEmpty(extra)) continue;
+                if (host.EndsWith(extra, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
         public static LinkDetails GetLinkDetails(string url)
         {
             string[] args = url.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -132,7 +180,7 @@ namespace osu.Game.Online.Chat
                 case @"http":
                 case @"https":
                     // length > 3 since all these links need another argument to work
-                    if (args.Length > 3 && args[1].EndsWith(WebsiteRootUrl, StringComparison.OrdinalIgnoreCase))
+                    if (args.Length > 3 && hostMatchesKnown(args[1]))
                     {
                         string mainArg = args[3];
 
