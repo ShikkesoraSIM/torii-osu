@@ -58,11 +58,18 @@ namespace osu.Game.Overlays
         // single ramp rather than a back-and-forth tweak.
         private const int hide_after_ms = 1400;
 
-        // Base diameter the preview is multiplied against. Picked so
-        // the preview at 1.0× sits comfortably next to the size text
-        // without dwarfing it. Skin cursor sprites are scaled to fit
-        // this footprint.
-        private const float base_preview_size = 36f;
+        // Base diameter the preview is rendered at — matches the
+        // gameplay cursor's own base size (osu! ruleset: ~50px) so
+        // the preview at scale 1.0× is the actual size the user
+        // will see in play. We then scale the inner drawable by the
+        // gameplay-cursor-size value to mirror lazer's exact
+        // multiplication pipeline.
+        private const float base_preview_size = 50f;
+
+        // Outer host has to fit the preview at MAX scale (2.0×) so
+        // the layout doesn't reflow when the user ramps up. 50 × 2 =
+        // 100, plus some padding.
+        private const float host_size = 110f;
 
         private Container pill = null!;
         private Container previewHost = null!;
@@ -133,16 +140,23 @@ namespace osu.Game.Overlays
                         Padding = new MarginPadding { Horizontal = 18, Vertical = 12 },
                         Children = new Drawable[]
                         {
-                            // Stable host that's always sized to the
-                            // 2×-max preview footprint, so the inner
-                            // (cursor sprite or fallback circle) can
-                            // grow / shrink without changing the
-                            // pill's overall layout.
+                            // Stable host sized to fit the preview at
+                            // its largest scale (2.0×) plus a touch of
+                            // padding. The inner preview keeps its
+                            // base Size constant and is animated via
+                            // .Scale instead — Scale-based animation
+                            // is more robust against layout-cycle
+                            // surprises that we hit when resizing the
+                            // child directly (the cursor sprite was
+                            // ignoring the new Size and rendering at
+                            // its texture's native footprint, making
+                            // the preview look identical regardless
+                            // of the actual cursor-size value).
                             previewHost = new Container
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Size = new Vector2(base_preview_size * 2),
+                                Size = new Vector2(host_size),
                             },
                             new FillFlowContainer
                             {
@@ -218,12 +232,14 @@ namespace osu.Game.Overlays
         {
             valueText.Text = $@"{gameplayValue:0.00}×";
 
+            // Scale-based instead of Size-based. The preview drawable
+            // keeps its baseline footprint (base_preview_size) and we
+            // multiply by the user's chosen value. This mirrors the
+            // exact maths lazer's gameplay cursor uses (base size × the
+            // GameplayCursorSize bindable), so what the user sees here
+            // IS what they'll see in the playfield 1:1.
             if (previewHost.Child is Drawable child)
-            {
-                child.Size = new Vector2(base_preview_size * gameplayValue);
-                child.Anchor = Anchor.Centre;
-                child.Origin = Anchor.Centre;
-            }
+                child.Scale = new Vector2(gameplayValue);
         }
 
         /// <summary>
@@ -254,6 +270,14 @@ namespace osu.Game.Overlays
                 // does — gives the user the EXACT visual they'll see
                 // in gameplay (or as close as we can get without
                 // running through the full ruleset cursor pipeline).
+                //
+                // Both sprites are forced to base_preview_size with
+                // FillMode.Fit (preserve aspect, fit within bounds).
+                // Without the explicit Size the Sprite would render
+                // at its texture's NATIVE footprint, which for cursors
+                // is anywhere from 64px to 256px depending on the skin
+                // — that was the "preview is huge regardless of value"
+                // bug the user spotted.
                 Texture? middle = skinSource?.GetTexture(@"cursormiddle");
 
                 var stack = new Container
@@ -261,25 +285,26 @@ namespace osu.Game.Overlays
                     Size = new Vector2(base_preview_size),
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
-                    Child = new Sprite
-                    {
-                        Texture = cursor,
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        RelativeSizeAxes = Axes.Both,
-                        FillMode = FillMode.Fit,
-                    },
                 };
+
+                stack.Add(new Sprite
+                {
+                    Texture = cursor,
+                    Size = new Vector2(base_preview_size),
+                    FillMode = FillMode.Fit,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                });
 
                 if (middle != null)
                 {
                     stack.Add(new Sprite
                     {
                         Texture = middle,
+                        Size = new Vector2(base_preview_size),
+                        FillMode = FillMode.Fit,
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
-                        RelativeSizeAxes = Axes.Both,
-                        FillMode = FillMode.Fit,
                     });
                 }
 
@@ -289,7 +314,9 @@ namespace osu.Game.Overlays
             // Fallback: stylised circle that approximates a default
             // osu! cursor (translucent pink fill + white ring + dot).
             // Used when the active skin has no cursor.png — Argon /
-            // Triangles / vanilla.
+            // Triangles / vanilla. Same base_preview_size as the
+            // sprite-based path so the user gets a consistent visual
+            // language across skins.
             return new CircularContainer
             {
                 Size = new Vector2(base_preview_size),
@@ -297,7 +324,7 @@ namespace osu.Game.Overlays
                 Origin = Anchor.Centre,
                 Masking = true,
                 MaskingSmoothness = 2f,
-                BorderThickness = 2f,
+                BorderThickness = 3f,
                 BorderColour = Color4.White.Opacity(0.95f),
                 EdgeEffect = new EdgeEffectParameters
                 {
