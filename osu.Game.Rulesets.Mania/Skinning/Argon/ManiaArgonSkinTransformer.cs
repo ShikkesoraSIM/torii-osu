@@ -71,7 +71,7 @@ namespace osu.Game.Rulesets.Mania.Skinning.Argon
                                 // wireframe variant because the
                                 // wireframe-digit treatment doesn't
                                 // render decimal points cleanly.
-                                new Default.DefaultManiaRatioCounter
+                                new osu.Game.Skinning.Components.Mania.DefaultManiaRatioCounter
                                 {
                                     Anchor = Anchor.TopCentre,
                                     Origin = Anchor.TopCentre,

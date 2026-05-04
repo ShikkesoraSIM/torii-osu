@@ -3,10 +3,9 @@
 
 using osu.Framework.Graphics;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Skinning;
 using osuTK;
 
-namespace osu.Game.Rulesets.Mania.Skinning.Legacy
+namespace osu.Game.Skinning.Components.Mania
 {
     /// <summary>
     /// Legacy-skin variant of <see cref="ManiaRatioCounter"/>. Uses the

@@ -15,7 +15,7 @@ using osu.Game.Localisation.SkinComponents;
 using osuTK;
 using osuTK.Graphics;
 
-namespace osu.Game.Rulesets.Mania.Skinning.Default
+namespace osu.Game.Skinning.Components.Mania
 {
     /// <summary>
     /// Default ("Torii") visual for <see cref="ManiaRatioCounter"/>:

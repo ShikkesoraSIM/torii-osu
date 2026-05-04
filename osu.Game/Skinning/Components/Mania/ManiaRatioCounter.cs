@@ -10,7 +10,7 @@ using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Skinning;
 
-namespace osu.Game.Rulesets.Mania.Skinning
+namespace osu.Game.Skinning.Components.Mania
 {
     /// <summary>
     /// VSRG-style "ratio" counter for osu!mania — Perfects (MAX / 300+)
@@ -19,6 +19,14 @@ namespace osu.Game.Rulesets.Mania.Skinning
     /// can both have 99% accuracy while one has a much higher PA ratio
     /// (more MAXes, fewer 300s) than the other, indicating tighter
     /// timing.
+    ///
+    /// Lives in <c>osu.Game.dll</c> (not the mania assembly) so the
+    /// in-game skin layout editor's generic "HUD" toolbox section
+    /// includes it. The toolbox enumerates types from the assembly of
+    /// the active ruleset OR from <c>OsuGame</c>'s assembly when no
+    /// ruleset is active — keeping mania-specific HUD pieces in the
+    /// mania DLL hides them behind the per-ruleset section that most
+    /// users never open.
     ///
     /// Display semantics:
     /// - Below <see cref="min_judgements_required"/> total Perfect+Great
@@ -33,17 +41,12 @@ namespace osu.Game.Rulesets.Mania.Skinning
     ///   ratio is technically infinite but "∞" reads weird in a HUD,
     ///   "MAX" is the convention other VSRGs use.
     ///
-    /// This base class is purely the data + formatting / animation
-    /// machinery. Visual variants live next to the other skin pieces:
-    /// <see cref="Default.DefaultManiaRatioCounter"/> for the Torii /
-    /// Argon / Triangles look, <see cref="Legacy.LegacyManiaRatioCounter"/>
-    /// for skins using bitmap score digits.
-    ///
-    /// Implements <see cref="ISerialisableDrawable"/> so the in-game
-    /// skin layout editor lists this component in its "Add component"
-    /// menu and lets the user reposition it freely.
+    /// Implements <see cref="IToriiSkinComponent"/> so the toolbox can
+    /// flag this entry visually as a Torii-custom addition (small
+    /// torii-gate glyph + brand colour on the name) — distinguishes
+    /// our additions from upstream lazer's at a glance.
     /// </summary>
-    public abstract partial class ManiaRatioCounter : RollingCounter<double>, ISerialisableDrawable
+    public abstract partial class ManiaRatioCounter : RollingCounter<double>, ISerialisableDrawable, IToriiSkinComponent
     {
         /// <summary>
         /// Minimum number of accuracy-affecting hits we need before the
@@ -88,11 +91,10 @@ namespace osu.Game.Rulesets.Mania.Skinning
             scoreProcessor.NewJudgement += onJudgement;
             scoreProcessor.JudgementReverted += onJudgement;
 
-            // Scoring is in a sane state already by the time we load
-            // (e.g. if a HUD component is recreated mid-play after the
-            // skin editor closes). Run an initial recompute so the
-            // counter reflects current state without waiting for the
-            // next hit.
+            // Scoring may already be in a sane state by the time we
+            // load (e.g. if the HUD is recreated after the skin editor
+            // closes). Run an initial recompute so the counter reflects
+            // current state without waiting for the next hit.
             recomputeRatio();
         }
 
@@ -100,10 +102,10 @@ namespace osu.Game.Rulesets.Mania.Skinning
 
         private void recomputeRatio()
         {
-            // Read fresh from Statistics every time rather than
-            // tracking a local count, so JudgementReverted (used for
-            // the scoring rewind during replays / failure-rewind) is
-            // handled correctly without us having to track the delta.
+            // Read fresh from Statistics every time rather than tracking
+            // a local count, so JudgementReverted (used for the scoring
+            // rewind during replays / failure-rewind) is handled
+            // correctly without us having to track the delta manually.
             int perfects = scoreProcessor.Statistics.GetValueOrDefault(HitResult.Perfect);
             int greats = scoreProcessor.Statistics.GetValueOrDefault(HitResult.Great);
 

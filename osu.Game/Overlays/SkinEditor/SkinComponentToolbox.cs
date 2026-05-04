@@ -6,10 +6,12 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
@@ -17,6 +19,7 @@ using osu.Game.Rulesets;
 using osu.Game.Screens.Edit.Components;
 using osu.Game.Skinning;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Overlays.SkinEditor
 {
@@ -184,18 +187,74 @@ namespace osu.Game.Overlays.SkinEditor
                             Child = component
                         },
                     },
-                    new OsuSpriteText
-                    {
-                        Text = component.GetType().Name,
-                        Anchor = Anchor.BottomCentre,
-                        Origin = Anchor.BottomCentre,
-                        Margin = new MarginPadding(5),
-                    },
+                    createNameLabel(),
                 });
 
                 // adjust provided component to fit / display in a known state.
                 component.Anchor = Anchor.Centre;
                 component.Origin = Anchor.Centre;
+            }
+
+            /// <summary>
+            /// Bottom-edge label for the component card. For components
+            /// flagged with <see cref="IToriiSkinComponent"/> we add a
+            /// small torii-gate glyph and tint the name in the brand
+            /// vermillion so users can spot Torii-custom additions
+            /// among the upstream lazer set without having to read
+            /// every class name.
+            /// </summary>
+            private Drawable createNameLabel()
+            {
+                bool isTorii = component is IToriiSkinComponent;
+
+                // Same vermillion the ToriiClientBadge uses on user
+                // panels — keeps the visual language consistent so a
+                // user already knows "vermillion + torii glyph =
+                // Torii-specific" from one place to another.
+                var torii_red = new Color4(204, 41, 41, 255);
+
+                var nameText = new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = component.GetType().Name,
+                    Colour = isTorii ? torii_red : Color4.White,
+                    Font = isTorii
+                        ? OsuFont.Default.With(weight: FontWeight.SemiBold)
+                        : OsuFont.Default,
+                };
+
+                if (!isTorii)
+                {
+                    return nameText.With(t =>
+                    {
+                        t.Anchor = Anchor.BottomCentre;
+                        t.Origin = Anchor.BottomCentre;
+                        t.Margin = new MarginPadding(5);
+                    });
+                }
+
+                return new FillFlowContainer
+                {
+                    Anchor = Anchor.BottomCentre,
+                    Origin = Anchor.BottomCentre,
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(5, 0),
+                    Margin = new MarginPadding(5),
+                    Children = new Drawable[]
+                    {
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            Icon = FontAwesome.Solid.ToriiGate,
+                            Size = new Vector2(11),
+                            Colour = torii_red,
+                        },
+                        nameText,
+                    },
+                };
             }
 
             protected override void UpdateAfterChildren()
