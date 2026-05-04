@@ -25,6 +25,11 @@ namespace osu.Game.Localisation
         public static LocalisableString MenuCursorSize => new TranslatableString(getKey(@"menu_cursor_size"), @"Menu cursor size");
 
         /// <summary>
+        /// "Use gameplay cursor in menus"
+        /// </summary>
+        public static LocalisableString UseGameplayCursorInMenus => new TranslatableString(getKey(@"use_gameplay_cursor_in_menus"), @"Use gameplay cursor in menus");
+
+        /// <summary>
         /// "Menu tips"
         /// </summary>
         public static LocalisableString ShowMenuTips => new TranslatableString(getKey(@"show_menu_tips"), @"Menu tips");

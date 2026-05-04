@@ -100,6 +100,7 @@ namespace osu.Game.Configuration
 
             // Misc Torii visual prefs
             { OsuSetting.SongSelectBackgroundBlur, typeof(bool) },
+            { OsuSetting.UseGameplayCursorInMenus, typeof(bool) },
         };
 
         /// <summary>

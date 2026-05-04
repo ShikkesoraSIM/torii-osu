@@ -134,6 +134,14 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.GameplayCursorSize, 1.0f, 0.1f, 2f, 0.01f);
             SetDefault(OsuSetting.GameplayCursorDuringTouch, false);
             SetDefault(OsuSetting.AutoCursorSize, false);
+            // Torii-only: when on, MenuCursorContainer swaps its
+            // built-in menu cursor sprite for a SkinnableGameplayCursor
+            // so menus / song select / overlays use the user's skin
+            // gameplay cursor (cursor.png + cursormiddle.png) at the
+            // GameplayCursorSize scale instead of the lazer default.
+            // Mirrored via ToriiSettingsPersistence so the choice
+            // survives a roundtrip through the official lazer client.
+            SetDefault(OsuSetting.UseGameplayCursorInMenus, false);
 
             SetDefault(OsuSetting.MouseDisableButtons, false);
             SetDefault(OsuSetting.MouseDisableWheel, false);
@@ -590,5 +598,15 @@ namespace osu.Game.Configuration
         /// the username appears (chat, profile, leaderboards, multi).
         /// </summary>
         UserAuraEnabled,
+
+        /// <summary>
+        /// Torii: when on, MenuCursorContainer renders the user's
+        /// skin gameplay cursor (cursor.png + cursormiddle.png) as
+        /// the menu cursor instead of lazer's default Cursor/menu-cursor
+        /// texture. Sized by GameplayCursorSize, exact same composition
+        /// as the actual gameplay cursor — what you see in the
+        /// playfield is what you see in menus.
+        /// </summary>
+        UseGameplayCursorInMenus,
     }
 }

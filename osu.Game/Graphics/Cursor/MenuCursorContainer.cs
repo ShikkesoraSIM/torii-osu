@@ -250,10 +250,24 @@ namespace osu.Game.Graphics.Cursor
         public partial class Cursor : Container
         {
             private Container cursorContainer = null!;
-            private Bindable<float> cursorScale = null!;
+            private Bindable<float> menuCursorScale = null!;
+            private Bindable<bool> useGameplayCursor = null!;
             private const float base_scale = 0.15f;
 
+            // Always non-null even in gameplay-cursor mode — see the
+            // build-mode dispatch in load() — so MenuCursorContainer's
+            // OnMouseDown can keep poking AdditiveLayer.Alpha without
+            // null-checking. In gameplay mode it just stays invisible
+            // forever (the gameplay cursor doesn't need a click flash;
+            // the visual press would come from a future Expand
+            // animation hooked into SkinnableGameplayCursor).
             public Sprite AdditiveLayer = null!;
+
+            // Cached deps so we can rebuild the cursor visual when the
+            // user toggles the "use gameplay cursor in menus" setting
+            // mid-session — no restart required.
+            private TextureStore textures = null!;
+            private OsuColour colour = null!;
 
             public Cursor()
             {
@@ -263,30 +277,102 @@ namespace osu.Game.Graphics.Cursor
             [BackgroundDependencyLoader]
             private void load(OsuConfigManager config, TextureStore textures, OsuColour colour)
             {
-                Children = new Drawable[]
-                {
-                    cursorContainer = new Container
-                    {
-                        AutoSizeAxes = Axes.Both,
-                        Children = new Drawable[]
-                        {
-                            new Sprite
-                            {
-                                Texture = textures.Get(@"Cursor/menu-cursor"),
-                            },
-                            AdditiveLayer = new Sprite
-                            {
-                                Blending = BlendingParameters.Additive,
-                                Colour = colour.Pink,
-                                Alpha = 0,
-                                Texture = textures.Get(@"Cursor/menu-cursor-additive"),
-                            },
-                        }
-                    }
-                };
+                this.textures = textures;
+                this.colour = colour;
 
-                cursorScale = config.GetBindable<float>(OsuSetting.MenuCursorSize);
-                cursorScale.BindValueChanged(scale => cursorContainer.Scale = new Vector2(scale.NewValue * base_scale), true);
+                menuCursorScale = config.GetBindable<float>(OsuSetting.MenuCursorSize);
+                useGameplayCursor = config.GetBindable<bool>(OsuSetting.UseGameplayCursorInMenus);
+
+                // Live-rebuild on toggle change so the user sees the
+                // swap immediately when they tick the setting.
+                useGameplayCursor.BindValueChanged(_ => buildCursor(), true);
+
+                // Menu cursor mode uses MenuCursorSize as the scaling
+                // factor (multiplied by base_scale). Gameplay-cursor
+                // mode uses GameplayCursorSize internally inside
+                // SkinnableGameplayCursor — see that component.
+                menuCursorScale.BindValueChanged(scale =>
+                {
+                    if (!useGameplayCursor.Value && cursorContainer != null!)
+                        cursorContainer.Scale = new Vector2(scale.NewValue * base_scale);
+                }, true);
+            }
+
+            private void buildCursor()
+            {
+                // Swap the visual content based on the toggle. Every
+                // mode produces a cursorContainer + AdditiveLayer so
+                // the parent class's transforms (mouse-down flash,
+                // pop-in scale, hover-rotation) keep working without
+                // mode-aware special cases up there.
+                Clear();
+
+                if (useGameplayCursor.Value)
+                {
+                    // Skin gameplay cursor mode. SkinnableGameplayCursor
+                    // handles its own GameplayCursorSize scaling.
+                    Children = new Drawable[]
+                    {
+                        cursorContainer = new Container
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Anchor = Anchor.TopLeft,
+                            Origin = Anchor.TopLeft,
+                            Children = new Drawable[]
+                            {
+                                new SkinnableGameplayCursor
+                                {
+                                    Anchor = Anchor.TopLeft,
+                                    Origin = Anchor.TopLeft,
+                                },
+                                // Stub additive layer kept around for
+                                // the parent's OnMouseDown/Up flash
+                                // logic. Texture-less, alpha 0, never
+                                // visible — but lets the existing
+                                // animations apply harmlessly.
+                                AdditiveLayer = new Sprite
+                                {
+                                    Blending = BlendingParameters.Additive,
+                                    Colour = colour.Pink,
+                                    Alpha = 0,
+                                },
+                            },
+                        },
+                    };
+
+                    // No base_scale multiplier — SkinnableGameplayCursor
+                    // already applies GameplayCursorSize internally.
+                    cursorContainer.Scale = Vector2.One;
+                }
+                else
+                {
+                    // Original menu cursor (Cursor/menu-cursor +
+                    // additive flash). Behaviour unchanged from
+                    // upstream lazer.
+                    Children = new Drawable[]
+                    {
+                        cursorContainer = new Container
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Children = new Drawable[]
+                            {
+                                new Sprite
+                                {
+                                    Texture = textures.Get(@"Cursor/menu-cursor"),
+                                },
+                                AdditiveLayer = new Sprite
+                                {
+                                    Blending = BlendingParameters.Additive,
+                                    Colour = colour.Pink,
+                                    Alpha = 0,
+                                    Texture = textures.Get(@"Cursor/menu-cursor-additive"),
+                                },
+                            }
+                        }
+                    };
+
+                    cursorContainer.Scale = new Vector2(menuCursorScale.Value * base_scale);
+                }
             }
         }
 

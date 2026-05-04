@@ -103,11 +103,25 @@ namespace osu.Game.Graphics.Cursor
         /// </summary>
         private Drawable createCursorSprites()
         {
-            Texture? cursor = skinSource?.GetTexture(@"cursor");
+            // Resolve the FIRST skin provider in the chain that has
+            // a `cursor` texture, then look up `cursormiddle` against
+            // THAT SAME provider. This mirrors what LegacyCursorTrail
+            // does in osu.Game.Rulesets.Osu and avoids a subtle bug
+            // we hit before: lazer's skin chain falls back through
+            // user-skin → DefaultLegacySkin → ResourceStore, so a
+            // user whose own skin ships `cursor.png` WITHOUT a
+            // matching `cursormiddle.png` would silently inherit the
+            // default skin's middle (a blue cross), which then
+            // composites on top of their cursor in the preview even
+            // though it never appears in gameplay. Locking the lookup
+            // to the same provider keeps "what you see in preview"
+            // == "what you see in play".
+            ISkin? cursorProvider = skinSource?.FindProvider(s => s.GetTexture(@"cursor") != null);
+            Texture? cursor = cursorProvider?.GetTexture(@"cursor");
 
             if (cursor != null)
             {
-                Texture? middle = skinSource?.GetTexture(@"cursormiddle");
+                Texture? middle = cursorProvider?.GetTexture(@"cursormiddle");
 
                 var stack = new Container
                 {

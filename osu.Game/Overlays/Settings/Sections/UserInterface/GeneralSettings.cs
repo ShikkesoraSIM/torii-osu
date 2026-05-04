@@ -35,6 +35,20 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     KeyboardStep = 0.01f,
                     LabelFormat = v => $"{v:0.##}x"
                 }),
+                // Torii: replace the lazer-default menu cursor with
+                // the user's skin gameplay cursor (sized by
+                // GameplayCursorSize). Pairs with the cursor-size
+                // hotkey (Ctrl+Shift+wheel) — when this toggle is on,
+                // adjusting the cursor size LIVE updates both menus
+                // and gameplay.
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.UseGameplayCursorInMenus,
+                    Current = config.GetBindable<bool>(OsuSetting.UseGameplayCursorInMenus),
+                })
+                {
+                    Keywords = [@"cursor", @"gameplay", @"skin"],
+                },
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = UserInterfaceStrings.Parallax,
