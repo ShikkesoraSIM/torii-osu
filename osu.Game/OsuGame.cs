@@ -1569,6 +1569,19 @@ namespace osu.Game
                 case GlobalAction.DecreaseVolume:
                 case GlobalAction.IncreaseVolume:
                     return volume.Adjust(e.Action);
+
+                // Cursor-size hotkeys ALLOW repeat (held key / scrolled
+                // wheel) so a user can ramp up to their target size in
+                // one motion instead of tap-tap-tap. Live in this
+                // pre-Repeat block so the repeat fires every frame the
+                // wheel emits.
+                case GlobalAction.IncreaseCursorSize:
+                    adjustCursorSize(0.05f);
+                    return true;
+
+                case GlobalAction.DecreaseCursorSize:
+                    adjustCursorSize(-0.05f);
+                    return true;
             }
 
             // All actions below this point don't allow key repeat.
@@ -1676,6 +1689,44 @@ namespace osu.Game
 
         public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
+        }
+
+        /// <summary>
+        /// Adjust the user's cursor size by <paramref name="delta"/> in
+        /// the same units the menu/gameplay sliders use (0.1×–2.0× for
+        /// gameplay, 0.5×–2.0× for menu). Always nudges
+        /// <see cref="OsuSetting.MenuCursorSize"/> so menu navigation
+        /// reflects the change instantly. ALSO nudges
+        /// <see cref="OsuSetting.GameplayCursorSize"/> when the user
+        /// has <see cref="OsuSetting.AutoCursorSize"/> off — when
+        /// auto-size is on, gameplay cursor is derived from the
+        /// beatmap's CS and we'd just be writing values that get
+        /// overwritten on the next note, which would be confusing.
+        ///
+        /// Step (0.05 in the caller) was picked so a wheel scroll
+        /// covers ~10 ticks across the visual range and feels neither
+        /// jumpy nor mushy. Math.Clamp keeps the value within each
+        /// bindable's MinValue/MaxValue (set via SetDefault in
+        /// OsuConfigManager.InitialiseDefaults).
+        /// </summary>
+        private void adjustCursorSize(float delta)
+        {
+            // Cast to BindableNumber so MinValue/MaxValue are visible —
+            // the underlying BindableFloat exposes them but Bindable<T>
+            // alone does not.
+            var menuCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.MenuCursorSize);
+            menuCursor.Value = Math.Clamp(menuCursor.Value + delta, menuCursor.MinValue, menuCursor.MaxValue);
+
+            // Only touch GameplayCursorSize when the user has manual
+            // control (AutoCursorSize == false). With auto-size on,
+            // changing this value would just be ignored / overwritten
+            // when the next play starts, and could surprise users who
+            // tuned the auto-size carefully.
+            if (!LocalConfig.Get<bool>(OsuSetting.AutoCursorSize))
+            {
+                var gameplayCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize);
+                gameplayCursor.Value = Math.Clamp(gameplayCursor.Value + delta, gameplayCursor.MinValue, gameplayCursor.MaxValue);
+            }
         }
 
         protected override bool OnExiting()

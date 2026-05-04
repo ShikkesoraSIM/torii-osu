@@ -110,6 +110,17 @@ namespace osu.Game.Input.Bindings
 
             new KeyBinding(InputKey.F10, GlobalAction.ToggleGameplayMouseButtons),
             new KeyBinding(InputKey.F12, GlobalAction.TakeScreenshot),
+
+            // Quick cursor-size adjustment. Ctrl+Shift+wheel matches the
+            // common "zoom" muscle memory; the +/- keyboard fallback is
+            // for users without a wheel or who rebind on a tablet. The
+            // handler in OsuGame nudges MenuCursorSize (and gameplay
+            // when AutoCursorSize is off) so the same hotkey works
+            // everywhere — menus AND mid-play.
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.MouseWheelUp }, GlobalAction.IncreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.MouseWheelDown }, GlobalAction.DecreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.Plus }, GlobalAction.IncreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.Minus }, GlobalAction.DecreaseCursorSize),
         };
 
         private static IEnumerable<KeyBinding> overlayKeyBindings => new[]
@@ -528,6 +539,17 @@ namespace osu.Game.Input.Bindings
 
         [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.NextSkin))]
         NextSkin,
+
+        // Torii: in-game cursor-size hotkeys. Added at the END of the
+        // enum (per the IMPORTANT note above) so the integer values
+        // of all upstream actions stay stable — moving them would
+        // re-associate every user's saved bindings with the wrong
+        // action.
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.IncreaseCursorSize))]
+        IncreaseCursorSize,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.DecreaseCursorSize))]
+        DecreaseCursorSize,
     }
 
     public enum GlobalActionCategory

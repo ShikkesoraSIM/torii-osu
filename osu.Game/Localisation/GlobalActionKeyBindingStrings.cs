@@ -489,6 +489,16 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString EditorDiscardUnsavedChanges => new TranslatableString(getKey(@"editor_discard_unsaved_changes"), @"Discard unsaved changes");
 
+        /// <summary>
+        /// "Increase cursor size"
+        /// </summary>
+        public static LocalisableString IncreaseCursorSize => new TranslatableString(getKey(@"increase_cursor_size"), @"Increase cursor size");
+
+        /// <summary>
+        /// "Decrease cursor size"
+        /// </summary>
+        public static LocalisableString DecreaseCursorSize => new TranslatableString(getKey(@"decrease_cursor_size"), @"Decrease cursor size");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }
