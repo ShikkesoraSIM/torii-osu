@@ -10,14 +10,11 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
-using osu.Framework.Graphics.Textures;
 using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
-using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Cursor;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 
@@ -58,18 +55,12 @@ namespace osu.Game.Overlays
         // single ramp rather than a back-and-forth tweak.
         private const int hide_after_ms = 1400;
 
-        // Base diameter the preview is rendered at — matches the
-        // gameplay cursor's own base size (osu! ruleset: ~50px) so
-        // the preview at scale 1.0× is the actual size the user
-        // will see in play. We then scale the inner drawable by the
-        // gameplay-cursor-size value to mirror lazer's exact
-        // multiplication pipeline.
-        private const float base_preview_size = 50f;
-
-        // Outer host has to fit the preview at MAX scale (2.0×) so
-        // the layout doesn't reflow when the user ramps up. 50 × 2 =
-        // 100, plus some padding.
-        private const float host_size = 110f;
+        // Outer host has to fit SkinnableGameplayCursor at its
+        // maximum effective scale (BASE_SIZE 50 × max GameplayCursorSize
+        // 2.0 = 100), plus a touch of padding so cursor textures
+        // larger than the bounding box (most legacy skins ship
+        // 128×128 cursor.png) still have somewhere to render.
+        private const float host_size = 130f;
 
         private Container pill = null!;
         private Container previewHost = null!;
@@ -83,12 +74,6 @@ namespace osu.Game.Overlays
         // so we don't double-play when both fire on the same frame.
         private Sample? sampleChange;
         private Bindable<double?> lastSamplePlaybackTime = null!;
-
-        // Skin: resolved nullable so we don't crash in test contexts
-        // where ISkinSource isn't cached. Fallback preview (the
-        // generic circle) handles missing-source gracefully.
-        [Resolved(canBeNull: true)]
-        private ISkinSource? skinSource { get; set; }
 
         public CursorSizePreviewOverlay()
         {
@@ -186,9 +171,19 @@ namespace osu.Game.Overlays
                 },
             };
 
-            buildPreview();
+            // SkinnableGameplayCursor manages its own scaling against
+            // GameplayCursorSize internally — we just drop it in and
+            // it auto-mirrors the in-game cursor visual + scale 1:1.
+            // No more tweaking of size constants on our side.
+            previewHost.Child = new SkinnableGameplayCursor
+            {
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+            };
 
-            gameplayCursorSize.BindValueChanged(v => updateForSize(v.NewValue), true);
+            // We still bind to the size for the numeric label + sound
+            // pitch — those don't come from the cursor drawable itself.
+            gameplayCursorSize.BindValueChanged(v => valueText.Text = $@"{v.NewValue:0.00}×", true);
         }
 
         /// <summary>
@@ -226,134 +221,6 @@ namespace osu.Game.Overlays
             sampleChange.Play();
 
             lastSamplePlaybackTime.Value = Time.Current;
-        }
-
-        private void updateForSize(float gameplayValue)
-        {
-            valueText.Text = $@"{gameplayValue:0.00}×";
-
-            // Scale-based instead of Size-based. The preview drawable
-            // keeps its baseline footprint (base_preview_size) and we
-            // multiply by the user's chosen value. This mirrors the
-            // exact maths lazer's gameplay cursor uses (base size × the
-            // GameplayCursorSize bindable), so what the user sees here
-            // IS what they'll see in the playfield 1:1.
-            if (previewHost.Child is Drawable child)
-                child.Scale = new Vector2(gameplayValue);
-        }
-
-        /// <summary>
-        /// Build the preview drawable — try to load the user's actual
-        /// skin cursor sprites first, fall back to a generic circle if
-        /// the active skin doesn't ship them (Argon / Triangles).
-        ///
-        /// Note: this only runs once at load. If the user changes
-        /// skin while the overlay is hidden, the preview won't
-        /// update until they restart the client. That's acceptable
-        /// for a transient feedback overlay — the alternative
-        /// (rebinding to skin-source-changed events and rebuilding)
-        /// adds complexity for an edge case nobody will hit during
-        /// the 1.4s the overlay is visible.
-        /// </summary>
-        private void buildPreview()
-        {
-            previewHost.Child = createPreviewDrawable();
-        }
-
-        private Drawable createPreviewDrawable()
-        {
-            Texture? cursor = skinSource?.GetTexture(@"cursor");
-
-            if (cursor != null)
-            {
-                // Stack cursor + cursormiddle the same way LegacyCursor
-                // does — gives the user the EXACT visual they'll see
-                // in gameplay (or as close as we can get without
-                // running through the full ruleset cursor pipeline).
-                //
-                // Both sprites are forced to base_preview_size with
-                // FillMode.Fit (preserve aspect, fit within bounds).
-                // Without the explicit Size the Sprite would render
-                // at its texture's NATIVE footprint, which for cursors
-                // is anywhere from 64px to 256px depending on the skin
-                // — that was the "preview is huge regardless of value"
-                // bug the user spotted.
-                Texture? middle = skinSource?.GetTexture(@"cursormiddle");
-
-                var stack = new Container
-                {
-                    Size = new Vector2(base_preview_size),
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                };
-
-                stack.Add(new Sprite
-                {
-                    Texture = cursor,
-                    Size = new Vector2(base_preview_size),
-                    FillMode = FillMode.Fit,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                });
-
-                if (middle != null)
-                {
-                    stack.Add(new Sprite
-                    {
-                        Texture = middle,
-                        Size = new Vector2(base_preview_size),
-                        FillMode = FillMode.Fit,
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                    });
-                }
-
-                return stack;
-            }
-
-            // Fallback: stylised circle that approximates a default
-            // osu! cursor (translucent pink fill + white ring + dot).
-            // Used when the active skin has no cursor.png — Argon /
-            // Triangles / vanilla. Same base_preview_size as the
-            // sprite-based path so the user gets a consistent visual
-            // language across skins.
-            return new CircularContainer
-            {
-                Size = new Vector2(base_preview_size),
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                Masking = true,
-                MaskingSmoothness = 2f,
-                BorderThickness = 3f,
-                BorderColour = Color4.White.Opacity(0.95f),
-                EdgeEffect = new EdgeEffectParameters
-                {
-                    Type = EdgeEffectType.Glow,
-                    Radius = 6,
-                    Colour = new Color4(255, 130, 195, 130),
-                },
-                Children = new Drawable[]
-                {
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = new Color4(255, 138, 211, 110),
-                    },
-                    new CircularContainer
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        Size = new Vector2(0.32f),
-                        RelativeSizeAxes = Axes.Both,
-                        Masking = true,
-                        Child = new Box
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Colour = Color4.White,
-                        },
-                    },
-                },
-            };
         }
 
         protected override void PopIn()
