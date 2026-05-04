@@ -155,17 +155,61 @@ namespace osu.Game.Online.API.Requests.Responses
         public int RulesetId { get; set; }
 
         /// <summary>
-        /// Seconds since the player started this attempt, computed
-        /// server-side against the snapshot's <c>captured_at</c>. The
-        /// client adds the elapsed time since the snapshot was received
-        /// for a smooth "32s ago → 33s ago" tick that doesn't depend on
-        /// the user's clock matching the server's clock.
+        /// Discriminator: <c>"playing"</c> for in-flight (just started,
+        /// no submitted score yet) or <c>"submitted"</c> for finished
+        /// scores within the visibility window. The client renders
+        /// different badge content for each status (time-elapsed for
+        /// playing, pp + grade for submitted).
+        ///
+        /// Older server responses without this field default to
+        /// "playing" — keeps the client behaviour stable when talking
+        /// to a server that hasn't picked up the v4 schema yet.
+        /// </summary>
+        [JsonProperty("status")]
+        public string Status { get; set; } = "playing";
+
+        /// <summary>
+        /// Seconds since the player started this attempt. Only set when
+        /// <see cref="Status"/> = "playing".
         /// </summary>
         [JsonProperty("started_seconds_ago")]
         public int StartedSecondsAgo { get; set; }
 
+        // ─── Submitted-status fields ─────────────────────────────────
+        // These are only meaningful when Status == "submitted". JSON
+        // defaults zero them out for "playing" rows; the client gates
+        // rendering on the status discriminator before reading these.
+
+        [JsonProperty("score_id")]
+        public long ScoreId { get; set; }
+
+        /// <summary>Seconds since the score was submitted.</summary>
+        [JsonProperty("submitted_seconds_ago")]
+        public int SubmittedSecondsAgo { get; set; }
+
+        /// <summary>Total pp the score earned (after weighting / mods).</summary>
+        [JsonProperty("pp")]
+        public double Pp { get; set; }
+
+        /// <summary>Accuracy as 0..1 (multiply by 100 for display).</summary>
+        [JsonProperty("accuracy")]
+        public double Accuracy { get; set; }
+
+        [JsonProperty("max_combo")]
+        public int MaxCombo { get; set; }
+
+        /// <summary>
+        /// Letter rank — "SS", "S", "A", "B", "C", "D", "F". Empty
+        /// string when not provided (e.g. play just started).
+        /// </summary>
+        [JsonProperty("rank")]
+        public string Rank { get; set; } = string.Empty;
+
         /// <summary>Unicode title with romanised fallback.</summary>
         public string DisplayTitle => !string.IsNullOrEmpty(TitleUnicode) ? TitleUnicode : Title;
+
+        /// <summary>True for a finished score, false for an in-flight play.</summary>
+        public bool IsSubmitted => string.Equals(Status, "submitted", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

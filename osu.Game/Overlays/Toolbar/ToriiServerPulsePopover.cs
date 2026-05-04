@@ -435,25 +435,13 @@ namespace osu.Game.Overlays.Toolbar
             {
                 RelativeSizeAxes = Axes.X,
                 Height = 14,
-                Children = new Drawable[]
+                Child = footerText = new OsuSpriteText
                 {
-                    footerText = new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
-                        Text = "—",
-                        Colour = muted_white,
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreRight,
-                        Origin = Anchor.CentreRight,
-                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Regular),
-                        Text = "swipe · arrows · dots",
-                        Colour = muted_white.Opacity(0.65f),
-                        Spacing = new Vector2(0.4f, 0),
-                    },
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
+                    Text = "—",
+                    Colour = muted_white,
                 },
             };
         }

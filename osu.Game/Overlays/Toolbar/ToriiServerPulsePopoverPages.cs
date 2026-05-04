@@ -631,8 +631,16 @@ namespace osu.Game.Overlays.Toolbar
                             new Dimension(GridSizeMode.Absolute, 36), // cover
                             new Dimension(GridSizeMode.Absolute, 10), // gap
                             new Dimension(),                           // text — fills remainder
-                            new Dimension(GridSizeMode.Absolute, 4),  // padding before badge
-                            new Dimension(GridSizeMode.AutoSize),     // plays badge
+                            new Dimension(GridSizeMode.Absolute, 6),  // padding before badge
+                            // Fixed width for the badge column. AutoSize
+                            // here was the source of the "1× PLA" clipping
+                            // upstream feedback flagged — at certain
+                            // parent widths the GridContainer was
+                            // computing a sub-pixel-narrow cell that
+                            // clipped the badge content. 78px comfortably
+                            // fits the largest expected badge ("999×
+                            // PLAYS") plus padding.
+                            new Dimension(GridSizeMode.Absolute, 78), // plays badge
                         },
                         RowDimensions = new[] { new Dimension() },
                         Content = new[]
@@ -881,10 +889,15 @@ namespace osu.Game.Overlays.Toolbar
         }
 
         // ─── LivePlayRow ─────────────────────────────────────────────
-        // Layout: GridContainer with absolute columns
-        //   [22 avatar | 6 gap | 16 ruleset chip | 8 gap | flex text | autosize time]
-        // Avatar uses lazer's UpdateableAvatar so the texture loads
-        // async + fades in cleanly (no white-while-loading bug).
+        // Two-line row with a clearer narrative. Layout:
+        //   [28 avatar | 8 gap | flex text-column (username + map) | 6 pad | absolute 78 status badge]
+        //
+        // The previous "ruleset O/T/C/M chip" was dropped — upstream
+        // feedback said it read as a mystery dot ("¿qué es ese
+        // circulito?"). Status badge replaces it with something
+        // readable: pp + rank for submitted scores, "PLAYING · 32s"
+        // for in-flight. Status badge column is fixed-width (78px) so
+        // there's no AutoSize-column-clipping artefact.
         // ─────────────────────────────────────────────────────────────
         private partial class LivePlayRow : CompositeDrawable
         {
@@ -894,23 +907,22 @@ namespace osu.Game.Overlays.Toolbar
             {
                 this.play = play;
                 RelativeSizeAxes = Axes.X;
-                Height = 26;
+                Height = 36;
             }
 
             [BackgroundDependencyLoader]
             private void load()
             {
-                // Construct an APIUser shell from the recent-play row data
-                // so UpdateableAvatar can resolve the avatar image with
-                // its standard model-backed flow. We only need Id +
-                // AvatarUrl + Username for the avatar; richer profile
-                // data isn't relevant here.
                 var apiUser = new APIUser
                 {
                     Id = (int)play.UserId,
                     Username = play.Username,
                     AvatarUrl = play.AvatarUrl,
                 };
+
+                Drawable statusBadge = play.IsSubmitted
+                    ? new SubmittedScoreBadge(play)
+                    : (Drawable)new PlayingNowBadge(play.StartedSecondsAgo);
 
                 InternalChildren = new Drawable[]
                 {
@@ -922,16 +934,14 @@ namespace osu.Game.Overlays.Toolbar
                     new GridContainer
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Horizontal = 4 },
+                        Padding = new MarginPadding { Horizontal = 6 },
                         ColumnDimensions = new[]
                         {
-                            new Dimension(GridSizeMode.Absolute, 22), // avatar
-                            new Dimension(GridSizeMode.Absolute, 6),  // gap
-                            new Dimension(GridSizeMode.Absolute, 16), // ruleset chip
+                            new Dimension(GridSizeMode.Absolute, 28), // avatar
                             new Dimension(GridSizeMode.Absolute, 8),  // gap
-                            new Dimension(),                           // text — fills remainder
-                            new Dimension(GridSizeMode.Absolute, 4),  // padding before time
-                            new Dimension(GridSizeMode.AutoSize),     // time chip
+                            new Dimension(),                           // text — flex
+                            new Dimension(GridSizeMode.Absolute, 6),  // pad before badge
+                            new Dimension(GridSizeMode.Absolute, 78), // status badge — fixed width
                         },
                         RowDimensions = new[] { new Dimension() },
                         Content = new[]
@@ -942,15 +952,9 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
-                                    Size = new Vector2(22, 22),
+                                    Size = new Vector2(28, 28),
                                     Masking = true,
-                                    CornerRadius = 11,
-                                },
-                                new Container(),
-                                new RulesetGlyph(play.RulesetId)
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
+                                    CornerRadius = 14,
                                 },
                                 new Container(),
                                 new FillFlowContainer
@@ -959,35 +963,36 @@ namespace osu.Game.Overlays.Toolbar
                                     Origin = Anchor.CentreLeft,
                                     AutoSizeAxes = Axes.Y,
                                     RelativeSizeAxes = Axes.X,
-                                    Direction = FillDirection.Horizontal,
-                                    Spacing = new Vector2(6, 0),
+                                    Direction = FillDirection.Vertical,
+                                    Spacing = new Vector2(0, 1),
                                     Children = new Drawable[]
                                     {
                                         new OsuSpriteText
                                         {
-                                            Anchor = Anchor.CentreLeft,
-                                            Origin = Anchor.CentreLeft,
                                             Text = string.IsNullOrEmpty(play.Username) ? "—" : play.Username,
-                                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
                                             Colour = Color4.White,
                                         },
                                         new TruncatingSpriteText
                                         {
-                                            Anchor = Anchor.CentreLeft,
-                                            Origin = Anchor.CentreLeft,
-                                            Text = string.IsNullOrEmpty(play.DisplayTitle) ? "" : $"· {play.DisplayTitle}",
+                                            Text = string.IsNullOrEmpty(play.DisplayTitle) ? "" : play.DisplayTitle,
                                             Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
-                                            Colour = new Color4(255, 255, 255, 145),
+                                            Colour = new Color4(255, 255, 255, 155),
                                             RelativeSizeAxes = Axes.X,
-                                            Width = 1f,
                                         },
                                     }
                                 },
                                 new Container(),
-                                new TimeAgoChip(play.StartedSecondsAgo)
+                                new Container
                                 {
-                                    Anchor = Anchor.CentreRight,
-                                    Origin = Anchor.CentreRight,
+                                    Anchor = Anchor.Centre,
+                                    Origin = Anchor.Centre,
+                                    RelativeSizeAxes = Axes.Both,
+                                    Child = statusBadge.With(d =>
+                                    {
+                                        d.Anchor = Anchor.Centre;
+                                        d.Origin = Anchor.Centre;
+                                    }),
                                 },
                             }
                         }
@@ -996,64 +1001,17 @@ namespace osu.Game.Overlays.Toolbar
             }
         }
 
-        // ─── RulesetGlyph ────────────────────────────────────────────
-        private partial class RulesetGlyph : CompositeDrawable
+        // ─── PlayingNowBadge ─────────────────────────────────────────
+        // For in-flight plays. "PLAYING · 32s" two-line. Vermillion
+        // tint matches the "live" connotation.
+        // ─────────────────────────────────────────────────────────────
+        private partial class PlayingNowBadge : CompositeDrawable
         {
-            public RulesetGlyph(int rulesetId)
-            {
-                Size = new Vector2(16, 16);
-                Masking = true;
-                CornerRadius = 8;
-
-                Color4 fill;
-                string label;
-                switch (rulesetId)
-                {
-                    case 1:
-                        fill = new Color4(225, 80, 105, 255);
-                        label = "T";
-                        break;
-                    case 2:
-                        fill = new Color4(255, 158, 60, 255);
-                        label = "C";
-                        break;
-                    case 3:
-                        fill = new Color4(110, 220, 130, 255);
-                        label = "M";
-                        break;
-                    default:
-                        fill = new Color4(255, 130, 195, 255);
-                        label = "O";
-                        break;
-                }
-
-                InternalChildren = new Drawable[]
-                {
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = fill.Opacity(0.85f),
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        Text = label,
-                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold),
-                        Colour = Color4.White,
-                    },
-                };
-            }
-        }
-
-        // ─── TimeAgoChip ─────────────────────────────────────────────
-        private partial class TimeAgoChip : CompositeDrawable
-        {
-            public TimeAgoChip(int secondsAgo)
+            public PlayingNowBadge(int secondsAgo)
             {
                 AutoSizeAxes = Axes.Both;
 
-                string text = secondsAgo < 5 ? "just now"
+                string secondsText = secondsAgo < 5 ? "now"
                     : secondsAgo < 60 ? $"{secondsAgo}s"
                     : secondsAgo < 3600 ? $"{secondsAgo / 60}m"
                     : "1h+";
@@ -1062,22 +1020,138 @@ namespace osu.Game.Overlays.Toolbar
                 {
                     AutoSizeAxes = Axes.Both,
                     Masking = true,
-                    CornerRadius = 8,
+                    CornerRadius = 9,
                     Children = new Drawable[]
                     {
                         new Box
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Colour = torii_red.Opacity(0.18f),
+                            Colour = torii_red.Opacity(0.20f),
                         },
-                        new OsuSpriteText
+                        new FillFlowContainer
                         {
-                            Text = text,
-                            Font = OsuFont.GetFont(size: 9, weight: FontWeight.SemiBold),
-                            Colour = torii_red,
-                            Margin = new MarginPadding { Horizontal = 7, Vertical = 2 },
+                            AutoSizeAxes = Axes.Both,
+                            Direction = FillDirection.Vertical,
+                            Spacing = new Vector2(0, 0),
+                            Padding = new MarginPadding { Horizontal = 9, Vertical = 4 },
+                            Children = new Drawable[]
+                            {
+                                new OsuSpriteText
+                                {
+                                    Anchor = Anchor.TopCentre,
+                                    Origin = Anchor.TopCentre,
+                                    Text = "PLAYING",
+                                    Font = OsuFont.GetFont(size: 8, weight: FontWeight.Bold),
+                                    Spacing = new Vector2(0.6f, 0),
+                                    Colour = torii_red,
+                                },
+                                new OsuSpriteText
+                                {
+                                    Anchor = Anchor.TopCentre,
+                                    Origin = Anchor.TopCentre,
+                                    Text = secondsText,
+                                    Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                    Colour = Color4.White,
+                                },
+                            }
                         }
                     }
+                };
+            }
+        }
+
+        // ─── SubmittedScoreBadge ─────────────────────────────────────
+        // For a submitted score. Two-line: rank letter + accuracy on
+        // top, +Npp on bottom. Whole badge tinted by the rank colour
+        // so the eye reads "they just got an S, look how big the pp
+        // was". Replaces the "+1 PP" feedback the user was missing.
+        // ─────────────────────────────────────────────────────────────
+        private partial class SubmittedScoreBadge : CompositeDrawable
+        {
+            public SubmittedScoreBadge(APIToriiServerPulseRecentPlay play)
+            {
+                AutoSizeAxes = Axes.Both;
+
+                Color4 rankColour = colourForRank(play.Rank);
+                string rankText = string.IsNullOrEmpty(play.Rank) ? "—" : play.Rank;
+                string accText = $"{play.Accuracy * 100:0.##}%";
+                string ppText = play.Pp >= 1 ? $"+{play.Pp:0}pp" : "+0pp";
+
+                InternalChild = new Container
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Masking = true,
+                    CornerRadius = 9,
+                    Children = new Drawable[]
+                    {
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = rankColour.Opacity(0.18f),
+                        },
+                        new FillFlowContainer
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Direction = FillDirection.Vertical,
+                            Spacing = new Vector2(0, -1),
+                            Padding = new MarginPadding { Horizontal = 8, Vertical = 4 },
+                            Children = new Drawable[]
+                            {
+                                new FillFlowContainer
+                                {
+                                    Anchor = Anchor.TopCentre,
+                                    Origin = Anchor.TopCentre,
+                                    AutoSizeAxes = Axes.Both,
+                                    Direction = FillDirection.Horizontal,
+                                    Spacing = new Vector2(4, 0),
+                                    Children = new Drawable[]
+                                    {
+                                        new OsuSpriteText
+                                        {
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            Text = rankText,
+                                            Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
+                                            Colour = rankColour,
+                                        },
+                                        new OsuSpriteText
+                                        {
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            Text = accText,
+                                            Font = OsuFont.GetFont(size: 9, weight: FontWeight.Regular),
+                                            Colour = new Color4(255, 255, 255, 175),
+                                            Margin = new MarginPadding { Top = 2 },
+                                        },
+                                    },
+                                },
+                                new OsuSpriteText
+                                {
+                                    Anchor = Anchor.TopCentre,
+                                    Origin = Anchor.TopCentre,
+                                    Text = ppText,
+                                    Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                    Colour = Color4.White,
+                                },
+                            }
+                        }
+                    }
+                };
+            }
+
+            // Standard osu! rank palette — gold for SS / S, descending
+            // through silver, bronze, into muted greys for low ranks.
+            private static Color4 colourForRank(string rank)
+            {
+                return (rank ?? string.Empty).ToUpperInvariant() switch
+                {
+                    "SS" or "X" or "XH" or "SSH" => new Color4(255, 215, 90, 255),
+                    "S" or "SH"                  => new Color4(255, 200, 80, 255),
+                    "A"                          => new Color4(110, 220, 130, 255),
+                    "B"                          => new Color4(100, 175, 255, 255),
+                    "C"                          => new Color4(195, 130, 220, 255),
+                    "D" or "F"                   => new Color4(220, 100, 100, 255),
+                    _                            => new Color4(180, 180, 200, 255),
                 };
             }
         }
@@ -1307,25 +1381,23 @@ namespace osu.Game.Overlays.Toolbar
 
     /// <summary>
     /// Async-loading beatmap-cover image with rounded corners and a
-    /// dark placeholder. Wraps a <see cref="DelayedLoadUnloadWrapper"/>
-    /// so the texture only fetches once the image is on screen, and
-    /// fades in over the placeholder when the texture finishes
-    /// loading.
+    /// dark placeholder. Loads the texture on a worker thread via
+    /// <see cref="CompositeDrawable.LoadComponentAsync{TLoadable}"/>
+    /// so the placeholder shows immediately and the loaded sprite
+    /// fades in once its <see cref="Drawable.LoadAsync"/> completes
+    /// (the texture's GPU upload is part of that load step).
     ///
-    /// Replaces the previous "raw <see cref="Sprite"/> with sync
-    /// <c>textures.Get(url)</c>" approach — that one rendered the
-    /// sprite immediately with a not-yet-loaded texture, which painted
-    /// as solid white until the download completed (visible in the
-    /// "white squares where covers should be" bug).
+    /// Replaces the previous DelayedLoadWrapper approach. That one
+    /// gated on viewport detection, which didn't fire reliably for
+    /// covers inside the masked carousel viewport on the popover —
+    /// users saw solid coloured / white placeholder squares forever
+    /// even on the visible page.
     /// </summary>
     internal partial class LazyCoverImage : CompositeDrawable
     {
         private readonly Color4 placeholderColour;
         private string? url;
         private Container coverHolder = null!;
-
-        [Resolved(canBeNull: true)]
-        private LargeTextureStore? textures { get; set; }
 
         public string? Url
         {
@@ -1376,26 +1448,34 @@ namespace osu.Game.Overlays.Toolbar
             if (coverHolder == null) return;
             coverHolder.Clear(true);
 
-            if (string.IsNullOrEmpty(url) || textures == null) return;
+            if (string.IsNullOrEmpty(url)) return;
 
             string capturedUrl = url;
-            // DelayedLoadWrapper triggers when the wrapper enters the
-            // viewport. timeBeforeLoad=0 means as soon as on screen,
-            // we kick off the texture fetch; the wrapper handles the
-            // async dance, fades in the result automatically when the
-            // sprite's BackgroundDependencyLoader finishes.
-            coverHolder.Child = new DelayedLoadWrapper(
-                () => new CoverSprite(capturedUrl),
-                timeBeforeLoad: 0)
+
+            // LoadComponentAsync runs the sprite's LoadAsync on a worker
+            // thread (the texture's GPU upload happens there too) and
+            // calls our continuation on the update thread when the
+            // sprite is fully loaded — at which point we add it and
+            // fade it in over the placeholder.
+            var sprite = new CoverSprite(capturedUrl);
+            LoadComponentAsync(sprite, loaded =>
             {
-                RelativeSizeAxes = Axes.Both,
-            };
+                // url may have changed between scheduling and
+                // completion. If it has, drop this stale load.
+                if (capturedUrl != url || coverHolder == null)
+                    return;
+
+                coverHolder.Add(loaded);
+                loaded.FadeInFromZero(280, Easing.OutQuint);
+            });
         }
 
-        // Internal sprite that resolves the texture in its own
-        // BackgroundDependencyLoader so the actual download runs on a
-        // worker thread; the framework only adds it to the visual tree
-        // once load completes.
+        /// <summary>
+        /// Inner sprite that resolves the texture on the worker thread
+        /// in its own <see cref="BackgroundDependencyLoaderAttribute"/>
+        /// pass. Failure to resolve (404, blocked domain, etc.) leaves
+        /// the inner child empty so the placeholder shows through.
+        /// </summary>
         private partial class CoverSprite : CompositeDrawable
         {
             private readonly string url;
@@ -1404,7 +1484,6 @@ namespace osu.Game.Overlays.Toolbar
             {
                 this.url = url;
                 RelativeSizeAxes = Axes.Both;
-                Alpha = 0;
             }
 
             [BackgroundDependencyLoader]
@@ -1413,12 +1492,7 @@ namespace osu.Game.Overlays.Toolbar
                 Texture? tex = null;
                 try { tex = textures.Get(url); } catch { tex = null; }
 
-                if (tex == null)
-                {
-                    // Failed lookup — let the placeholder show through
-                    // by leaving Alpha=0 and adding nothing.
-                    return;
-                }
+                if (tex == null) return;
 
                 InternalChild = new Sprite
                 {
@@ -1428,12 +1502,6 @@ namespace osu.Game.Overlays.Toolbar
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                 };
-            }
-
-            protected override void LoadComplete()
-            {
-                base.LoadComplete();
-                this.FadeIn(280, Easing.OutQuint);
             }
         }
     }
