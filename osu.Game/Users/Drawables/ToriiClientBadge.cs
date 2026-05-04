@@ -10,6 +10,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osuTK;
 using osuTK.Graphics;
 
@@ -113,80 +114,10 @@ namespace osu.Game.Users.Drawables
             this.FadeTo(isTorii ? 1f : 0f, 200, Easing.OutQuint);
         }
 
-        /// <summary>
-        /// Vector torii-gate glyph. Drawn from four <see cref="Box"/>
-        /// primitives (top kasagi beam, smaller nuki beam, two hashira
-        /// pillars) so the icon scales crisply at any DPI without needing
-        /// a texture asset.
-        /// </summary>
-        /// <remarks>
-        /// Proportions are loosely modelled after a stylised myojin torii
-        /// — the upper beam overhangs the pillars on both sides; the lower
-        /// beam sits inset between them. Stroke widths are picked so the
-        /// gate reads clearly at the 11px size used in the badge but stays
-        /// recognisable when scaled up by the parent (e.g. profile cards
-        /// at 2x size).
-        /// </remarks>
-        private partial class ToriiGateGlyph : Container
-        {
-            public ToriiGateGlyph()
-            {
-                // All children laid out relative to a canonical 1.0 × 1.0
-                // box so the glyph scales with Size.
-                Children = new Drawable[]
-                {
-                    // Kasagi (top beam) — overhangs the pillars by 10% on
-                    // each side, sits at the very top of the glyph.
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        RelativePositionAxes = Axes.Y,
-                        Anchor = Anchor.TopCentre,
-                        Origin = Anchor.TopCentre,
-                        Width = 1.0f,
-                        Height = 2.5f,
-                        // Height is in pixels, RelativeSizeAxes = X means
-                        // width relative to parent, height absolute.
-                    },
-                    // Nuki (secondary beam) — narrower than the pillars'
-                    // outer edges, sits about 30% from the top.
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        RelativePositionAxes = Axes.Y,
-                        Anchor = Anchor.TopCentre,
-                        Origin = Anchor.TopCentre,
-                        Y = 0.30f,
-                        Width = 0.78f,
-                        Height = 1.5f,
-                    },
-                    // Left hashira (pillar) — anchored to the bottom-left,
-                    // running from below the top beam down to the bottom.
-                    new Box
-                    {
-                        RelativePositionAxes = Axes.Both,
-                        Anchor = Anchor.TopLeft,
-                        Origin = Anchor.TopLeft,
-                        X = 0.16f,
-                        Y = 0.0f,
-                        Width = 2f,
-                        RelativeSizeAxes = Axes.Y,
-                        Height = 1.0f,
-                    },
-                    // Right hashira (pillar) — mirror of the left.
-                    new Box
-                    {
-                        RelativePositionAxes = Axes.Both,
-                        Anchor = Anchor.TopRight,
-                        Origin = Anchor.TopRight,
-                        X = -0.16f,
-                        Y = 0.0f,
-                        Width = 2f,
-                        RelativeSizeAxes = Axes.Y,
-                        Height = 1.0f,
-                    },
-                };
-            }
-        }
+        // ToriiGateGlyph was previously a private inner class here; promoted
+        // to a public class at osu.Game/Graphics/UserInterface/ToriiGateGlyph.cs
+        // so other Torii-branded UI (cursor-size preview overlay's "Torii
+        // Exclusive" badge, future call-outs) can reuse the same gate
+        // geometry without duplicating proportions / stroke widths.
     }
 }

@@ -15,6 +15,7 @@ using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Cursor;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osuTK;
 using osuTK.Graphics;
 
@@ -61,6 +62,13 @@ namespace osu.Game.Overlays
         // larger than the bounding box (most legacy skins ship
         // 128×128 cursor.png) still have somewhere to render.
         private const float host_size = 130f;
+
+        // Vermillion — same shade ToriiClientBadge uses for the user-panel
+        // gate glyph. Tying both surfaces to one constant keeps the Torii
+        // brand colour consistent across the client (badge in social panel,
+        // badge in cursor preview, anywhere else we might add a Torii
+        // call-out) — change once and everything follows.
+        private static readonly Color4 torii_red = new Color4(204, 41, 41, 255);
 
         private Container pill = null!;
         private Container previewHost = null!;
@@ -117,52 +125,106 @@ namespace osu.Game.Overlays
                         RelativeSizeAxes = Axes.Both,
                         Colour = new Color4(12, 14, 32, 232),
                     },
+                    // Outer vertical flow: small "TORII EXCLUSIVE" header
+                    // strip on top, then the original [cursor preview] +
+                    // [size value] horizontal layout. The header reads as
+                    // a quiet "powered by" caption — vermillion gate +
+                    // small label, low-contrast against the dark pill so
+                    // it doesn't compete with the actual cursor preview
+                    // for attention but immediately communicates "this
+                    // size hotkey is a Torii feature, not vanilla lazer".
                     new FillFlowContainer
                     {
                         AutoSizeAxes = Axes.Both,
-                        Direction = FillDirection.Horizontal,
-                        Spacing = new Vector2(14, 0),
+                        Direction = FillDirection.Vertical,
+                        Spacing = new Vector2(0, 6),
                         Padding = new MarginPadding { Horizontal = 18, Vertical = 12 },
                         Children = new Drawable[]
                         {
-                            // Stable host sized to fit the preview at
-                            // its largest scale (2.0×) plus a touch of
-                            // padding. The inner preview keeps its
-                            // base Size constant and is animated via
-                            // .Scale instead — Scale-based animation
-                            // is more robust against layout-cycle
-                            // surprises that we hit when resizing the
-                            // child directly (the cursor sprite was
-                            // ignoring the new Size and rendering at
-                            // its texture's native footprint, making
-                            // the preview look identical regardless
-                            // of the actual cursor-size value).
-                            previewHost = new Container
+                            // "TORII EXCLUSIVE" header — gate glyph + label
+                            // pill, sized small + sat slightly to the side
+                            // so the eye doesn't read it as the primary
+                            // content. Same vermillion as ToriiClientBadge
+                            // for brand cohesion across the client.
+                            new FillFlowContainer
                             {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Size = new Vector2(host_size),
+                                AutoSizeAxes = Axes.Both,
+                                Anchor = Anchor.TopLeft,
+                                Origin = Anchor.TopLeft,
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new Vector2(5, 0),
+                                Children = new Drawable[]
+                                {
+                                    new ToriiGateGlyph
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        Size = new Vector2(10, 10),
+                                        Colour = torii_red,
+                                    },
+                                    new OsuSpriteText
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        Text = @"TORII EXCLUSIVE",
+                                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold),
+                                        Spacing = new Vector2(1.2f, 0),
+                                        Colour = torii_red,
+                                        // Tiny optical-centring nudge — the
+                                        // glyph's visual centre sits slightly
+                                        // above the text baseline because
+                                        // capitals don't have descenders.
+                                        Margin = new MarginPadding { Bottom = 1 },
+                                    },
+                                },
                             },
                             new FillFlowContainer
                             {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
                                 AutoSizeAxes = Axes.Both,
-                                Direction = FillDirection.Vertical,
-                                Spacing = new Vector2(0, 2),
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new Vector2(14, 0),
                                 Children = new Drawable[]
                                 {
-                                    new OsuSpriteText
+                                    // Stable host sized to fit the preview at
+                                    // its largest scale (2.0×) plus a touch of
+                                    // padding. The inner preview keeps its
+                                    // base Size constant and is animated via
+                                    // .Scale instead — Scale-based animation
+                                    // is more robust against layout-cycle
+                                    // surprises that we hit when resizing the
+                                    // child directly (the cursor sprite was
+                                    // ignoring the new Size and rendering at
+                                    // its texture's native footprint, making
+                                    // the preview look identical regardless
+                                    // of the actual cursor-size value).
+                                    previewHost = new Container
                                     {
-                                        Text = @"CURSOR SIZE",
-                                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
-                                        Spacing = new Vector2(1.4f, 0),
-                                        Colour = Color4.White.Opacity(0.6f),
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        Size = new Vector2(host_size),
                                     },
-                                    valueText = new OsuSpriteText
+                                    new FillFlowContainer
                                     {
-                                        Font = OsuFont.Numeric.With(size: 22, fixedWidth: true),
-                                        Colour = Color4.White,
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                        AutoSizeAxes = Axes.Both,
+                                        Direction = FillDirection.Vertical,
+                                        Spacing = new Vector2(0, 2),
+                                        Children = new Drawable[]
+                                        {
+                                            new OsuSpriteText
+                                            {
+                                                Text = @"CURSOR SIZE",
+                                                Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                                Spacing = new Vector2(1.4f, 0),
+                                                Colour = Color4.White.Opacity(0.6f),
+                                            },
+                                            valueText = new OsuSpriteText
+                                            {
+                                                Font = OsuFont.Numeric.With(size: 22, fixedWidth: true),
+                                                Colour = Color4.White,
+                                            },
+                                        },
                                     },
                                 },
                             },
