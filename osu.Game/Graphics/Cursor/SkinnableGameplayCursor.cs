@@ -119,6 +119,27 @@ namespace osu.Game.Graphics.Cursor
         // even if their skin DOES ship its own cursor textures.
         private readonly bool forceTorii;
 
+        /// <summary>
+        /// The cursor's CURRENT visual scale on screen — gameplay-cursor-size
+        /// multiplied by the in-flight expand factor (1.0× released, 1.2×
+        /// pressed). Mirror of <c>OsuCursor.CurrentExpandedScale</c>; used by
+        /// <see cref="MenuCursorContainer"/> to size the trail particles
+        /// (<c>MenuCursorTrail.NewPartScale</c>) so the trail tracks the
+        /// cursor's apparent size — same wiring as
+        /// <c>OsuCursorContainer.Update</c>.
+        /// </summary>
+        public Vector2 CurrentExpandedScale => new Vector2(gameplayCursorSize.Value * currentExpandFactor);
+
+        /// <summary>
+        /// The rotation (in degrees) currently applied to the spinning cursor
+        /// sprite stack. Mirror of <c>OsuCursor.CurrentRotation</c>; used by
+        /// <see cref="MenuCursorContainer"/> to drive
+        /// <c>MenuCursorTrail.PartRotation</c> so trail particles match the
+        /// cursor's spin orientation — keeps disjoint-trail dots visually
+        /// consistent with the cursor head.
+        /// </summary>
+        public float CurrentRotation => rotationTarget?.Rotation ?? 0f;
+
         [Resolved(canBeNull: true)]
         private ISkinSource? skinSource { get; set; }
 
@@ -218,23 +239,20 @@ namespace osu.Game.Graphics.Cursor
         private Vector2 targetScale(float expandFactor) => new Vector2(gameplayCursorSize.Value * expandFactor);
 
         /// <summary>
-        /// Read the skin's cursor-rotate configuration. The osu!
-        /// ruleset stores this under
-        /// <c>OsuSkinConfiguration.CursorRotate</c>, but that enum
-        /// lives in the ruleset DLL we can't reference. Falls back
-        /// to <c>true</c> (default behaviour) if the skin doesn't
-        /// declare an opinion.
+        /// Read the skin's cursor-rotate configuration. The osu! ruleset reads
+        /// this from <c>OsuSkinConfiguration.CursorRotate</c>; since that enum
+        /// lives in the ruleset DLL we can't reference, we use a name-equivalent
+        /// local enum (<see cref="LegacyCursorSkinConfiguration.CursorRotate"/>).
+        /// <see cref="LegacySkin.genericLookup{TLookup,TValue}"/> keys the parsed
+        /// <c>[General]</c> dictionary by <see cref="object.ToString"/>, so the
+        /// two enums resolve to the SAME entry in the SAME skin.ini, byte-for-byte
+        /// matching what the playfield cursor sees.
+        ///
+        /// Defaults to <c>true</c> when the skin doesn't declare a value, matching
+        /// upstream <see cref="LegacyCursor.load"/>: <c>?? true</c>.
         /// </summary>
         private bool shouldRotate()
-        {
-            // We can't reach OsuSkinConfiguration from here, so we
-            // defer to the chain's effective default. Most legacy
-            // skins ship cursorrotate enabled (it's the default in
-            // skin.ini) — turning it on unconditionally matches
-            // upstream's "default to true if unset" behaviour seen
-            // in LegacyCursor.cs.
-            return true;
-        }
+            => skinSource?.GetConfig<LegacyCursorSkinConfiguration, bool>(LegacyCursorSkinConfiguration.CursorRotate)?.Value ?? true;
 
         /// <summary>
         /// Build the cursor sprite stack. Mirrors LegacyCursor's

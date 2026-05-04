@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
+using osu.Game.Skinning;
 using osuTK;
 
 namespace osu.Game.Graphics.Cursor
@@ -51,12 +52,29 @@ namespace osu.Game.Graphics.Cursor
 
         private MouseInputDetector mouseInputDetector = null!;
 
+        // Live cursor trail. Recreated whenever the user switches
+        // MenuCursorStyle or the active skin changes — same lifecycle
+        // contract as the gameplay-cursor visual itself, so the trail
+        // texture / disjoint-mode flag never drifts away from what
+        // the active skin chain currently exposes.
+        private SkinnableMenuCursorTrail? cursorTrail;
+
+        private Bindable<MenuCursorStyle> menuCursorStyle = null!;
+
+        // Resolved here (not just inside the inner Cursor) so the
+        // trail rebuild can observe skin changes at the container
+        // level — the trail lives as a sibling of the cursor visual,
+        // not inside it.
+        [Resolved(canBeNull: true)]
+        private ISkinSource? skinSource { get; set; }
+
         private bool visible;
 
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config, ScreenshotManager? screenshotManager, AudioManager audio)
         {
             cursorRotate = config.GetBindable<bool>(OsuSetting.CursorRotation);
+            menuCursorStyle = config.GetBindable<MenuCursorStyle>(OsuSetting.MenuCursorStyle);
 
             if (screenshotManager != null)
                 screenshotCursorVisibility.BindTo(screenshotManager.CursorVisibility);
@@ -88,6 +106,71 @@ namespace osu.Game.Graphics.Cursor
                 gameActive.BindTo(game.IsActive);
                 gameActive.BindValueChanged(_ => updateState());
             }
+
+            // Initial trail build + react to either the user picking a
+            // different style OR the user switching skins. Same hooks
+            // the inner Cursor uses for its head-rebuild — keeping the
+            // two in lock-step prevents a stale-trail-after-skin-swap
+            // glitch where the trail texture is from skin A but the
+            // cursor head from skin B for a frame.
+            //
+            // Both paths funnel through scheduleRebuild — ISkinSource.SourceChanged
+            // can fire off the update thread, and rebuildCursorTrail mutates
+            // the children collection (Add / Remove), which must happen on
+            // the update thread. Same Schedule-wrapping shape as
+            // SkinnableGameplayCursor.onSkinSourceChanged.
+            menuCursorStyle.BindValueChanged(_ => scheduleRebuildCursorTrail(), true);
+
+            if (skinSource != null)
+                skinSource.SourceChanged += scheduleRebuildCursorTrail;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (skinSource != null)
+                skinSource.SourceChanged -= scheduleRebuildCursorTrail;
+
+            base.Dispose(isDisposing);
+        }
+
+        private void scheduleRebuildCursorTrail() => Schedule(rebuildCursorTrail);
+
+        /// <summary>
+        /// Tear down the existing trail and, if we're in a gameplay-shaped
+        /// cursor mode, build a fresh one from the current skin chain.
+        /// LazerDefault mode intentionally has no trail — it would feel
+        /// out of place with the textured-arrow menu cursor and isn't
+        /// part of upstream's menu UX.
+        /// </summary>
+        private void rebuildCursorTrail()
+        {
+            if (cursorTrail != null)
+            {
+                Remove(cursorTrail, true);
+                cursorTrail = null;
+            }
+
+            bool gameplayShaped = menuCursorStyle.Value == MenuCursorStyle.SkinCursor
+                                  || menuCursorStyle.Value == MenuCursorStyle.ToriiCursor;
+
+            if (!gameplayShaped)
+                return;
+
+            // Depth = 1 (higher = drawn FIRST = behind) so the cursor
+            // head — added at default depth 0 by the framework via
+            // CreateCursor — stays on top of the trail. Mirrors the
+            // child ordering inside OsuCursorContainer.fadeContainer
+            // where the trail is placed BEFORE the cursor in the
+            // children list.
+            //
+            // RelativeSizeAxes.Both so the trail's local space matches
+            // the screen — required for ToLocalSpace(screenPos) to
+            // produce sane coordinates inside MenuCursorTrail.AddTrail.
+            Add(cursorTrail = new SkinnableMenuCursorTrail
+            {
+                RelativeSizeAxes = Axes.Both,
+                Depth = 1,
+            });
         }
 
         protected override void UpdateState(ValueChangedEvent<Visibility> state) => updateState();
@@ -137,6 +220,21 @@ namespace osu.Game.Graphics.Cursor
             {
                 // make the rotation centre point floating.
                 positionMouseDown = Interpolation.ValueAt(0.04f, positionMouseDown, lastMovePosition, 0, Clock.ElapsedFrameTime);
+            }
+
+            // Push the gameplay cursor head's CURRENT visual state into the
+            // trail every frame. Mirror of OsuCursorContainer.Update — the
+            // trail particles need to track the cursor's expand state (so
+            // they grow when the user clicks) and the cursor's rotation (so
+            // disjoint trail dots stay aligned with a spinning cursor head).
+            // Using CursorScale (not NewPartScale only) so the existing
+            // in-flight particles also refresh against the new cursor scale,
+            // matching the playfield trail's responsiveness to size changes.
+            if (cursorTrail != null && activeCursor.UsesGameplayCursor && activeCursor.GameplayCursor != null)
+            {
+                cursorTrail.NewPartScale = activeCursor.GameplayCursor.CurrentExpandedScale;
+                cursorTrail.CursorScale = activeCursor.GameplayCursor.CurrentExpandedScale;
+                cursorTrail.PartRotation = activeCursor.GameplayCursor.CurrentRotation;
             }
         }
 
@@ -297,6 +395,16 @@ namespace osu.Game.Graphics.Cursor
             // public property below to swap its scale-down animation
             // for the gameplay-style scale-up Expand.
             public bool UsesGameplayCursor => gameplayCursor != null;
+
+            /// <summary>
+            /// The active gameplay-cursor head, or <c>null</c> when in
+            /// <see cref="MenuCursorStyle.LazerDefault"/> mode. Exposed so
+            /// the outer <see cref="MenuCursorContainer.Update"/> can read
+            /// the cursor's CURRENT scale + rotation each frame and push
+            /// them into <see cref="SkinnableMenuCursorTrail"/> — same
+            /// wiring shape as <c>OsuCursorContainer.Update</c>.
+            /// </summary>
+            public SkinnableGameplayCursor? GameplayCursor => gameplayCursor;
 
             public Cursor()
             {
