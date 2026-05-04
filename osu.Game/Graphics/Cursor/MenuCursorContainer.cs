@@ -176,12 +176,28 @@ namespace osu.Game.Graphics.Cursor
         {
             if (State.Value == Visibility.Visible)
             {
-                // only trigger animation for main mouse buttons
-                activeCursor.Scale = new Vector2(1);
-                activeCursor.ScaleTo(0.90f, 800, Easing.OutQuint);
+                if (activeCursor.UsesGameplayCursor)
+                {
+                    // Gameplay-cursor mode: scale UP via the cursor's
+                    // own Expand animation (matches the in-game cursor
+                    // press feel — pressed_scale = 1.2× with
+                    // OutElasticHalf curve, see SkinnableGameplayCursor).
+                    // Skip the menu-style scale-down on the outer
+                    // wrapper and skip the additive flash (the
+                    // gameplay cursor doesn't use it).
+                    activeCursor.Expand();
+                }
+                else
+                {
+                    // Menu cursor: original lazer behaviour — outer
+                    // wrapper scales down to 0.9, additive layer
+                    // flashes pink.
+                    activeCursor.Scale = new Vector2(1);
+                    activeCursor.ScaleTo(0.90f, 800, Easing.OutQuint);
 
-                activeCursor.AdditiveLayer.Alpha = 0;
-                activeCursor.AdditiveLayer.FadeInFromZero(800, Easing.OutQuint);
+                    activeCursor.AdditiveLayer.Alpha = 0;
+                    activeCursor.AdditiveLayer.FadeInFromZero(800, Easing.OutQuint);
+                }
 
                 if (cursorRotate.Value && dragRotationState != DragRotationState.Rotating)
                 {
@@ -200,8 +216,16 @@ namespace osu.Game.Graphics.Cursor
         {
             if (!e.HasAnyButtonPressed)
             {
-                activeCursor.AdditiveLayer.FadeOutFromOne(500, Easing.OutQuint);
-                activeCursor.ScaleTo(1, 500, Easing.OutElastic);
+                if (activeCursor.UsesGameplayCursor)
+                {
+                    // Release the gameplay cursor's expand state.
+                    activeCursor.Contract();
+                }
+                else
+                {
+                    activeCursor.AdditiveLayer.FadeOutFromOne(500, Easing.OutQuint);
+                    activeCursor.ScaleTo(1, 500, Easing.OutElastic);
+                }
 
                 if (dragRotationState != DragRotationState.NotDragging)
                 {
@@ -250,17 +274,16 @@ namespace osu.Game.Graphics.Cursor
         public partial class Cursor : Container
         {
             private Container cursorContainer = null!;
+            private SkinnableGameplayCursor? gameplayCursor;
+
             private Bindable<float> menuCursorScale = null!;
             private Bindable<bool> useGameplayCursor = null!;
             private const float base_scale = 0.15f;
 
-            // Always non-null even in gameplay-cursor mode — see the
-            // build-mode dispatch in load() — so MenuCursorContainer's
-            // OnMouseDown can keep poking AdditiveLayer.Alpha without
-            // null-checking. In gameplay mode it just stays invisible
-            // forever (the gameplay cursor doesn't need a click flash;
-            // the visual press would come from a future Expand
-            // animation hooked into SkinnableGameplayCursor).
+            // Always non-null even in gameplay-cursor mode (we put a
+            // texture-less stub in there — see buildCursor below) so
+            // the parent class's OnMouseDown / OnMouseUp can poke
+            // .Alpha without mode-aware null guards.
             public Sprite AdditiveLayer = null!;
 
             // Cached deps so we can rebuild the cursor visual when the
@@ -269,8 +292,16 @@ namespace osu.Game.Graphics.Cursor
             private TextureStore textures = null!;
             private OsuColour colour = null!;
 
+            // True while the parent is dispatching a gameplay-style
+            // press (OnMouseDown). The parent reads this through the
+            // public property below to swap its scale-down animation
+            // for the gameplay-style scale-up Expand.
+            public bool UsesGameplayCursor => gameplayCursor != null;
+
             public Cursor()
             {
+                // Auto-size by default; the gameplay branch overrides
+                // to a fixed Size + centred Origin in buildCursor().
                 AutoSizeAxes = Axes.Both;
             }
 
@@ -289,8 +320,8 @@ namespace osu.Game.Graphics.Cursor
 
                 // Menu cursor mode uses MenuCursorSize as the scaling
                 // factor (multiplied by base_scale). Gameplay-cursor
-                // mode uses GameplayCursorSize internally inside
-                // SkinnableGameplayCursor — see that component.
+                // mode delegates scaling to SkinnableGameplayCursor
+                // which reads GameplayCursorSize internally.
                 menuCursorScale.BindValueChanged(scale =>
                 {
                     if (!useGameplayCursor.Value && cursorContainer != null!)
@@ -298,38 +329,76 @@ namespace osu.Game.Graphics.Cursor
                 }, true);
             }
 
+            /// <summary>
+            /// Forwarded by <see cref="MenuCursorContainer.OnMouseDown"/>
+            /// when the cursor is in gameplay mode — performs the same
+            /// scale-up Expand the in-game cursor uses for click feel.
+            /// </summary>
+            public void Expand() => gameplayCursor?.Expand();
+
+            /// <summary>
+            /// Forwarded by <see cref="MenuCursorContainer.OnMouseUp"/>
+            /// when the cursor is in gameplay mode — releases the
+            /// Expand state.
+            /// </summary>
+            public void Contract() => gameplayCursor?.Contract();
+
             private void buildCursor()
             {
-                // Swap the visual content based on the toggle. Every
-                // mode produces a cursorContainer + AdditiveLayer so
-                // the parent class's transforms (mouse-down flash,
-                // pop-in scale, hover-rotation) keep working without
-                // mode-aware special cases up there.
+                // Swap the visual content based on the toggle. Both
+                // branches expose a cursorContainer + AdditiveLayer so
+                // the parent class's transforms (pop-in fade, hover
+                // rotation, alpha tweaks) keep working unchanged.
                 Clear();
+                gameplayCursor = null;
 
                 if (useGameplayCursor.Value)
                 {
-                    // Skin gameplay cursor mode. SkinnableGameplayCursor
-                    // handles its own GameplayCursorSize scaling.
+                    // Gameplay-cursor mode. We mirror OsuCursor's
+                    // structure as closely as we can from osu.Game:
+                    //
+                    // - Cursor (this) Origin = Centre — the visual
+                    //   middle of the cursor sits at the host-reported
+                    //   mouse position. Same as OsuCursor.Origin.
+                    //   Without this the cursor renders TopLeft-
+                    //   anchored and the click point appears offset
+                    //   from the cursor middle (the alignment bug
+                    //   the user spotted).
+                    //
+                    // - Fixed Size (BASE_SIZE = 50, matching
+                    //   LegacyCursor) instead of AutoSize — the
+                    //   gameplay-cursor sprites live inside a
+                    //   bounded box centred on the mouse.
+                    //
+                    // - cursorContainer fills with RelativeSize so
+                    //   our future scale animations (Expand /
+                    //   Contract via the Cursor wrapper) compose
+                    //   correctly with SkinnableGameplayCursor's
+                    //   own GameplayCursorSize scaling without
+                    //   layout reflow.
+                    AutoSizeAxes = Axes.None;
+                    Size = new Vector2(SkinnableGameplayCursor.BASE_SIZE);
+                    Origin = Anchor.Centre;
+
                     Children = new Drawable[]
                     {
                         cursorContainer = new Container
                         {
-                            AutoSizeAxes = Axes.Both,
-                            Anchor = Anchor.TopLeft,
-                            Origin = Anchor.TopLeft,
+                            RelativeSizeAxes = Axes.Both,
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
                             Children = new Drawable[]
                             {
-                                new SkinnableGameplayCursor
-                                {
-                                    Anchor = Anchor.TopLeft,
-                                    Origin = Anchor.TopLeft,
-                                },
-                                // Stub additive layer kept around for
-                                // the parent's OnMouseDown/Up flash
-                                // logic. Texture-less, alpha 0, never
-                                // visible — but lets the existing
-                                // animations apply harmlessly.
+                                gameplayCursor = new SkinnableGameplayCursor(),
+                                // Stub additive layer for the
+                                // parent's mouse-handler API
+                                // surface — texture-less, alpha 0,
+                                // never visible. The actual press
+                                // feedback comes from
+                                // SkinnableGameplayCursor.Expand()
+                                // (called via the parent's mouse
+                                // handlers, see Expand() forwarder
+                                // above).
                                 AdditiveLayer = new Sprite
                                 {
                                     Blending = BlendingParameters.Additive,
@@ -340,15 +409,21 @@ namespace osu.Game.Graphics.Cursor
                         },
                     };
 
-                    // No base_scale multiplier — SkinnableGameplayCursor
-                    // already applies GameplayCursorSize internally.
+                    // Don't apply any extra scale here — gameplay
+                    // sizing is fully owned by SkinnableGameplayCursor.
                     cursorContainer.Scale = Vector2.One;
                 }
                 else
                 {
                     // Original menu cursor (Cursor/menu-cursor +
                     // additive flash). Behaviour unchanged from
-                    // upstream lazer.
+                    // upstream lazer — TopLeft-anchored sprite,
+                    // base_scale (0.15) × MenuCursorSize, the menu
+                    // cursor texture's click point is the top-left
+                    // pixel.
+                    AutoSizeAxes = Axes.Both;
+                    Origin = Anchor.TopLeft;
+
                     Children = new Drawable[]
                     {
                         cursorContainer = new Container

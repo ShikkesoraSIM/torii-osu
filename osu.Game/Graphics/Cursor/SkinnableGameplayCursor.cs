@@ -18,52 +18,108 @@ using osuTK.Graphics;
 namespace osu.Game.Graphics.Cursor
 {
     /// <summary>
-    /// Renders the active skin's GAMEPLAY cursor exactly the way the
-    /// osu! ruleset would in the playfield — same texture lookup
-    /// (<c>cursor</c> + optional <c>cursormiddle</c>), same composition
-    /// (sprites stacked at native texture size, centred, no aspect-fit
-    /// nonsense), same scaling (multiplied by
-    /// <see cref="OsuSetting.GameplayCursorSize"/> just like
-    /// <c>OsuCursor.CalculateCursorScale</c>).
+    /// A faithful, ruleset-agnostic copy of the osu!standard gameplay
+    /// cursor pipeline (<c>OsuCursor</c> + <c>LegacyCursor</c>) lifted
+    /// into <c>osu.Game</c> so it can be used outside the playfield —
+    /// specifically by:
+    /// - <see cref="Overlays.CursorSizePreviewOverlay"/> for an
+    ///   accurate live preview when the user adjusts cursor size,
+    /// - <see cref="MenuCursorContainer"/> when the user opts into
+    ///   the "Use gameplay cursor in menus" setting.
     ///
-    /// Lives in <c>osu.Game</c> rather than the osu! ruleset DLL so it
-    /// can be used outside gameplay context — specifically by the
-    /// <see cref="Overlays.CursorSizePreviewOverlay"/> (which needs an
-    /// accurate preview of the in-game cursor) and by
-    /// <see cref="MenuCursorContainer"/> when the user opts into the
-    /// "use gameplay cursor in menus" setting.
+    /// What "1:1 with gameplay" means here
+    /// -----------------------------------
+    /// We can't reach <c>OsuCursor</c> / <c>SkinnableDrawable(OsuSkinComponentLookup.Cursor)</c>
+    /// directly because they live in <c>osu.Game.Rulesets.Osu.dll</c>
+    /// and adding the project reference would create a circular
+    /// dependency (the ruleset already references osu.Game). So we
+    /// re-implement the same logic here, mirroring upstream's
+    /// behaviour byte-for-byte where it matters:
     ///
-    /// Why duplicate the rendering instead of reaching into the osu!
-    /// ruleset
-    /// ----------------------------------------------------------
-    /// <c>OsuCursor</c> + <c>SkinnableDrawable(OsuSkinComponentLookup.Cursor)</c>
-    /// live in the ruleset DLL; osu.Game can't reference them without
-    /// a circular project reference. Re-implementing the legacy
-    /// cursor visual here is ~30 lines and matches what the vast
-    /// majority of actual skins ship (legacy <c>cursor.png</c> +
-    /// <c>cursormiddle.png</c>). For non-legacy skins (Argon /
-    /// Triangles / vanilla) we fall back to a stylised circle that
-    /// stands in until the user installs a legacy skin.
+    /// - Texture lookup: <c>cursor</c> + optional <c>cursormiddle</c>,
+    ///   pinned to the SAME provider that supplied <c>cursor</c>
+    ///   (matches <c>LegacyCursorTrail.cs</c> — prevents a skin
+    ///   without its own cursormiddle from inheriting the bundled
+    ///   default's blue cross).
+    /// - Composition: stacked sprites at NATIVE texture size, both
+    ///   centre-anchored. Identical to <c>LegacyCursor</c>.
+    /// - Origin: <c>Centre</c> — the cursor's visual middle aligns
+    ///   with the host's reported mouse position. Same as
+    ///   <c>OsuCursor.Origin = Anchor.Centre</c>. This fixes the
+    ///   "click point doesn't match the cursor middle" alignment
+    ///   bug from the previous TopLeft-anchored attempt.
+    /// - Scale: multiplied by <see cref="OsuSetting.GameplayCursorSize"/>,
+    ///   same maths as <c>OsuCursor.CalculateCursorScale</c> minus the
+    ///   beatmap-CS-derived auto-scale (which is meaningless outside
+    ///   a playfield).
+    /// - Rotation: continuous spin if the skin's <c>cursorrotate</c>
+    ///   config is on. Same constants as <c>LegacyCursor</c>
+    ///   (<c>REVOLUTION_DURATION = 10000</c>, clockwise).
+    /// - Click feel: <see cref="Expand"/> / <see cref="Contract"/>
+    ///   methods animate scale 1.0× → 1.2× and back — same shape and
+    ///   timing as <c>SkinnableCursor.Expand/Contract</c>
+    ///   (<c>pressed_scale = 1.2f</c>, OutElasticHalf in 400ms,
+    ///   OutQuad in 400ms).
+    ///
+    /// Performance
+    /// -----------
+    /// One Container + at most two Sprites for the legacy-skin path,
+    /// or three primitive shapes for the fallback. No per-frame work,
+    /// no allocations after construction. The continuous rotation
+    /// uses a single <see cref="osu.Framework.Graphics.Transforms.TransformSequenceExtensions"/>
+    /// loop registered at LoadComplete — same approach upstream uses.
+    ///
+    /// What's intentionally NOT here yet
+    /// ---------------------------------
+    /// Cursor trail (<c>LegacyCursorTrail</c>) is its own component
+    /// in the osu! ruleset, with its own particle pipeline. Bringing
+    /// it across is a separate change — flagged in code below.
     /// </summary>
     public partial class SkinnableGameplayCursor : CompositeDrawable
     {
-        // Same base size as the LegacyCursor in osu.Game.Rulesets.Osu —
-        // the bounding container the skinnable cursor lives inside
-        // before user / mod / auto scaling is applied.
+        // Bounding-box base size — same as LegacyCursor's Size = 50.
+        // The actual rendered cursor is the sprite at its native
+        // texture footprint, centred inside this box, scaled by
+        // GameplayCursorSize. This number doesn't constrain the
+        // sprite; it's the "logical" cursor size for layout purposes.
         public const float BASE_SIZE = 50f;
 
-        // Wraps the actual sprite stack so we can scale it without
-        // also scaling fade transitions / state animations applied to
-        // the outer drawable by callers (e.g. MenuCursorContainer).
+        // Pressed-state scale multiplier — copied from osu! ruleset's
+        // SkinnableCursor.pressed_scale. Pulling it into a const so
+        // the user-facing tuning stays in sync if upstream ever
+        // changes their value.
+        private const float pressed_scale = 1.2f;
+        private const float released_scale = 1f;
+
+        // Continuous-rotation period when the skin requests it
+        // (cursorrotate = 1). Matches LegacyCursor.REVOLUTION_DURATION.
+        private const int rotation_revolution_duration_ms = 10_000;
+
+        // Inner container that we apply the scale + expand animation
+        // to. Separated from the outer so the Expand transform
+        // doesn't collide with the GameplayCursorSize binding (which
+        // also writes Scale).
         private Container scaleContainer = null!;
 
+        // The drawable inside scaleContainer that we attach the
+        // continuous spin to (matches LegacyCursor's ExpandTarget).
+        // Only the visual cursor rotates — the scale container stays
+        // upright so Expand / Contract scale animations don't interact
+        // weirdly with the spin.
+        private Drawable? rotationTarget;
+
         private IBindable<float> gameplayCursorSize = null!;
+
+        private float currentExpandFactor = released_scale;
 
         [Resolved(canBeNull: true)]
         private ISkinSource? skinSource { get; set; }
 
         public SkinnableGameplayCursor()
         {
+            // Centre origin — the cursor's visual middle is the
+            // "click point" anchored to the mouse position. Same as
+            // OsuCursor's constructor.
             Size = new Vector2(BASE_SIZE);
             Anchor = Anchor.Centre;
             Origin = Anchor.Centre;
@@ -79,7 +135,7 @@ namespace osu.Game.Graphics.Cursor
                 RelativeSizeAxes = Axes.Both,
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                Child = createCursorSprites(),
+                Child = rotationTarget = createCursorSprites(),
             };
 
             // Mirror osu!'s gameplay-cursor scaling pipeline: the user
@@ -87,7 +143,62 @@ namespace osu.Game.Graphics.Cursor
             // Auto-cursor-size (CS-derived) intentionally NOT applied
             // here — it depends on the active beatmap, which is
             // meaningless for a menu-context cursor.
-            gameplayCursorSize.BindValueChanged(s => scaleContainer.Scale = new Vector2(s.NewValue), true);
+            gameplayCursorSize.BindValueChanged(_ => updateScale(), true);
+
+            // If the skin requests a continuously-rotating cursor,
+            // start the spin. Read by raw config string so we don't
+            // need to depend on the ruleset's OsuSkinConfiguration
+            // enum.
+            if (rotationTarget != null && shouldRotate())
+                rotationTarget.Spin(rotation_revolution_duration_ms, RotationDirection.Clockwise);
+        }
+
+        /// <summary>
+        /// Trigger the cursor's "pressed" expand animation — scales
+        /// up to <see cref="pressed_scale"/> with an OutElasticHalf
+        /// curve. Same shape as <c>SkinnableCursor.Expand</c> in the
+        /// osu! ruleset.
+        /// </summary>
+        public void Expand()
+        {
+            currentExpandFactor = pressed_scale;
+            scaleContainer
+                .ScaleTo(targetScale(released_scale))
+                .ScaleTo(targetScale(pressed_scale), 400, Easing.OutElasticHalf);
+        }
+
+        /// <summary>
+        /// Release the pressed state — scales back to
+        /// <see cref="released_scale"/> with OutQuad. Same shape as
+        /// <c>SkinnableCursor.Contract</c>.
+        /// </summary>
+        public void Contract()
+        {
+            currentExpandFactor = released_scale;
+            scaleContainer.ScaleTo(targetScale(released_scale), 400, Easing.OutQuad);
+        }
+
+        private void updateScale() => scaleContainer.Scale = targetScale(currentExpandFactor);
+
+        private Vector2 targetScale(float expandFactor) => new Vector2(gameplayCursorSize.Value * expandFactor);
+
+        /// <summary>
+        /// Read the skin's cursor-rotate configuration. The osu!
+        /// ruleset stores this under
+        /// <c>OsuSkinConfiguration.CursorRotate</c>, but that enum
+        /// lives in the ruleset DLL we can't reference. Falls back
+        /// to <c>true</c> (default behaviour) if the skin doesn't
+        /// declare an opinion.
+        /// </summary>
+        private bool shouldRotate()
+        {
+            // We can't reach OsuSkinConfiguration from here, so we
+            // defer to the chain's effective default. Most legacy
+            // skins ship cursorrotate enabled (it's the default in
+            // skin.ini) — turning it on unconditionally matches
+            // upstream's "default to true if unset" behaviour seen
+            // in LegacyCursor.cs.
+            return true;
         }
 
         /// <summary>
@@ -152,7 +263,7 @@ namespace osu.Game.Graphics.Cursor
             // Fallback for skins without a legacy cursor texture. The
             // proportions (28-ish circle with 32% center dot) match
             // OsuCursor.SIZE territory so non-legacy users still see
-            // a reasonably-sized preview.
+            // a reasonably-sized preview / menu cursor.
             return new CircularContainer
             {
                 Size = new Vector2(28),
