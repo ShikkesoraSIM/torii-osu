@@ -207,6 +207,11 @@ namespace osu.Game
 
         private VolumeOverlay volume;
 
+        // Triggered from the IncreaseCursorSize / DecreaseCursorSize
+        // hotkey handlers — pops a transient HUD card with the live
+        // cursor preview + numeric size. Loaded in createOverlayComponents.
+        private CursorSizePreviewOverlay cursorSizePreview;
+
         private OsuLogo osuLogo;
 
         private MainMenu menuScreen;
@@ -1209,6 +1214,12 @@ namespace osu.Game
 
             loadComponentSingleFile(volume = new VolumeOverlay(), leftFloatingOverlayContent.Add, true);
 
+            // Cursor-size preview overlay: pops in when the user uses
+            // the IncreaseCursorSize / DecreaseCursorSize hotkeys
+            // (default Ctrl+Shift+wheel). Lives in topMostOverlayContent
+            // so it's drawn over gameplay HUD; auto-hides on a timer.
+            loadComponentSingleFile(cursorSizePreview = new CursorSizePreviewOverlay(), topMostOverlayContent.Add, true);
+
             onScreenDisplay = new OnScreenDisplay();
 
             onScreenDisplay.BeginTracking(this, frameworkConfig);
@@ -1711,22 +1722,19 @@ namespace osu.Game
         /// </summary>
         private void adjustCursorSize(float delta)
         {
-            // Cast to BindableNumber so MinValue/MaxValue are visible —
-            // the underlying BindableFloat exposes them but Bindable<T>
-            // alone does not.
-            var menuCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.MenuCursorSize);
-            menuCursor.Value = Math.Clamp(menuCursor.Value + delta, menuCursor.MinValue, menuCursor.MaxValue);
+            // GAMEPLAY ONLY, per explicit user request. Menu cursor
+            // stays whatever the user set in Settings — they want to
+            // dial gameplay precision separately from menu navigation.
+            // Cast to BindableNumber so MinValue/MaxValue are visible
+            // (the underlying BindableFloat exposes them, but plain
+            // Bindable<T> doesn't).
+            var gameplayCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize);
+            gameplayCursor.Value = Math.Clamp(gameplayCursor.Value + delta, gameplayCursor.MinValue, gameplayCursor.MaxValue);
 
-            // Only touch GameplayCursorSize when the user has manual
-            // control (AutoCursorSize == false). With auto-size on,
-            // changing this value would just be ignored / overwritten
-            // when the next play starts, and could surprise users who
-            // tuned the auto-size carefully.
-            if (!LocalConfig.Get<bool>(OsuSetting.AutoCursorSize))
-            {
-                var gameplayCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize);
-                gameplayCursor.Value = Math.Clamp(gameplayCursor.Value + delta, gameplayCursor.MinValue, gameplayCursor.MaxValue);
-            }
+            // Pop the live preview overlay so the user can see the
+            // new size visually + numerically. Modelled after the
+            // volume meter — auto-hides after a brief idle.
+            cursorSizePreview?.OnAdjusted();
         }
 
         protected override bool OnExiting()

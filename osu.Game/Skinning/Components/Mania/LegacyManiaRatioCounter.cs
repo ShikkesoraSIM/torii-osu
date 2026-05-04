@@ -36,8 +36,15 @@ namespace osu.Game.Skinning.Components.Mania
     /// </summary>
     public partial class LegacyManiaRatioCounter : ManiaRatioCounter
     {
-        [Resolved]
-        private ISkinSource skinSource { get; set; } = null!;
+        // canBeNull: true because the skin editor's toolbox preview
+        // instantiates components in a dependency-borrowing container
+        // that doesn't always have ISkinSource cached. Without the
+        // guard, CreateSpriteText would NRE during the base
+        // RollingCounter.load() call and crash the editor on first
+        // open. We treat "no source" the same as "no bitmap font" —
+        // fall back to the default font and the user sees the value.
+        [Resolved(canBeNull: true)]
+        private ISkinSource? skinSource { get; set; }
 
         public LegacyManiaRatioCounter()
         {
@@ -78,14 +85,31 @@ namespace osu.Game.Skinning.Components.Mania
 
         /// <summary>
         /// Probe the active skin for the <c>score-0</c> bitmap glyph.
-        /// If absent, the skin doesn't ship score digits and using
-        /// <see cref="LegacySpriteText"/> will render blank — caller
-        /// falls back to default text rendering instead.
+        /// If absent (or there's no skin source at all — e.g. when
+        /// living inside the editor's toolbox preview), the skin
+        /// doesn't have score digits and <see cref="LegacySpriteText"/>
+        /// would render blank. The caller falls back to default text
+        /// rendering in that case so the counter always shows
+        /// something.
         /// </summary>
         private bool hasLegacyScoreFont()
         {
-            string prefix = skinSource.GetFontPrefix(LegacyFont.Score);
-            return skinSource.GetTexture($@"{prefix}-0") != null;
+            if (skinSource == null)
+                return false;
+
+            try
+            {
+                string prefix = skinSource.GetFontPrefix(LegacyFont.Score);
+                return skinSource.GetTexture($@"{prefix}-0") != null;
+            }
+            catch
+            {
+                // Defensive: GetFontPrefix internally calls source.GetConfig
+                // which can throw in some skin-source compositions
+                // we have no easy visibility into. Treat any throw as
+                // "no font available" rather than crashing the editor.
+                return false;
+            }
         }
     }
 }
