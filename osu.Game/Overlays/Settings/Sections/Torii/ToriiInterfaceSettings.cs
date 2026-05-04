@@ -126,6 +126,19 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                     Caption = UserInterfaceStrings.ApplyHueToSettingsPanel,
                     Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel),
                 }),
+
+                // Server pulse widget — toolbar pill that shows live
+                // "currently playing / plays per minute / top map" stats.
+                // Bindable shared with ToriiServerPulseButton + Provider;
+                // toggling here stops polling immediately.
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show server pulse on toolbar",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiServerPulseEnabled),
+                })
+                {
+                    Keywords = new[] { @"pulse", @"toolbar", @"server", @"activity", @"online", @"live", @"torii", @"playing", @"heartbeat" },
+                },
             };
 
             // Donator-only accent picker — built ALWAYS, optionally locked.

@@ -1201,6 +1201,13 @@ namespace osu.Game
             loadComponentSingleFile(statisticsProvider = new LocalUserStatisticsProvider(), Add, true);
             loadComponentSingleFile(difficultyRecommender = new DifficultyRecommender(statisticsProvider), Add, true);
             loadComponentSingleFile(new UserStatisticsWatcher(statisticsProvider), Add, true);
+
+            // Torii server pulse provider — DI-cached singleton that polls
+            // /api/v2/torii/server-pulse and exposes bindables consumed by
+            // ToriiServerPulseButton + ToriiServerPulsePopover. cacheable=true
+            // so the toolbar widget can [Resolved] it without an explicit
+            // wiring path.
+            loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
             loadComponentSingleFile(Toolbar = new Toolbar
             {
                 OnHome = delegate

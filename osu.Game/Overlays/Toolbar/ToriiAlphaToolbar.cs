@@ -527,6 +527,13 @@ namespace osu.Game.Overlays.Toolbar
 
             clockPill = new AlphaClockPill();
 
+            // Torii server pulse — small heartbeat pill with currently-
+            // playing count + hover popover. Sits between the bell and
+            // the user chip; "Server activity" is conceptually closer to
+            // the social neighbourhood (notifications, user) than to the
+            // utility cluster on the far right (settings + clock).
+            var pulseButton = new ToriiServerPulseButton();
+
             return new FillFlowContainer
             {
                 Anchor = Anchor.CentreLeft,
@@ -539,6 +546,7 @@ namespace osu.Game.Overlays.Toolbar
                     musicButton,
                     settingsButton,
                     notificationButton,
+                    pulseButton,
                     userChip,
                     clockPill,
                 }

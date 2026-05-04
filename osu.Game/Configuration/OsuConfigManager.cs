@@ -241,6 +241,14 @@ namespace osu.Game.Configuration
             // anyone asks for tuning.
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
 
+            // Torii server pulse — toolbar pill that shows live "currently
+            // playing / plays per minute / top map" stats on hover. Default
+            // ON because that's the whole point of shipping it; users who
+            // find it noisy can toggle off in Settings → Torii → Interface
+            // (and the provider stops polling immediately when the bindable
+            // flips to false).
+            SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -627,5 +635,16 @@ namespace osu.Game.Configuration
         /// <see cref="osu.Game.Graphics.Cursor.MenuCursorStyle"/>.
         /// </summary>
         MenuCursorStyle,
+
+        /// <summary>
+        /// Torii: toolbar server-pulse widget. When on, the toolbar shows
+        /// a small heartbeat pill with currently-playing count and a
+        /// hover-popover with sparkline + top map. See
+        /// <see cref="osu.Game.Online.Server.ToriiServerPulseProvider"/>
+        /// for the polling provider and
+        /// <c>ToriiServerPulseButton</c> / <c>ToriiServerPulsePopover</c>
+        /// for the UI surfaces.
+        /// </summary>
+        ToriiServerPulseEnabled,
     }
 }
