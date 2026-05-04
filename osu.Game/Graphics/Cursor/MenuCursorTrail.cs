@@ -546,11 +546,33 @@ namespace osu.Game.Graphics.Cursor
                 Blending = BlendingParameters.Additive;
             }
 
-            if (Texture != null)
-            {
-                // stable "magic ratio". see OsuPlayfieldAdjustmentContainer for full explanation.
-                Texture.ScaleAdjust *= 1.6f;
-            }
+            // !! IMPORTANT — DO NOT mutate Texture.ScaleAdjust here. !!
+            //
+            // Upstream LegacyCursorTrail does `Texture.ScaleAdjust *= 1.6f`
+            // (the "stable magic ratio" that compensates for
+            // OsuPlayfieldAdjustmentContainer's 0.625× playfield downscale,
+            // landing trail particles at native screen size in gameplay).
+            //
+            // We CANNOT do that here because LegacySkin.GetTexture
+            // (osu.Game/Skinning/LegacySkin.cs:576) hands out the SAME
+            // Texture wrapper instance across calls, then resets its
+            // ScaleAdjust to `ratio` on every call. Multiplying it from
+            // here mutates the shared instance the playfield trail
+            // already grabbed for OsuCursorContainer — concretely, every
+            // time MenuCursorContainer rebuilds the trail (skin change /
+            // style change), we'd reset the texture's ScaleAdjust to 1
+            // and re-multiply by 1.6, while the gameplay trail is still
+            // alive holding the same Texture reference and reading its
+            // live DisplayWidth. The net visible bug: gameplay cursor
+            // surrounded by oversized green/cyan trail particles painting
+            // over the cursor.png — exactly what the user reported.
+            //
+            // The 1.6× was a playfield-compensation multiplier anyway.
+            // Menus have NO playfield downscale, so leaving the texture
+            // at its natural ScaleAdjust (1.0 from LegacySkin.GetTexture
+            // for non-@2x assets) makes our trail particles render at the
+            // SAME on-screen size as the playfield trail does in gameplay
+            // (native × 0.625 × 1.6 = native). No compensation needed.
         }
 
         protected override double FadeDuration => DisjointTrail ? 150 : 500;

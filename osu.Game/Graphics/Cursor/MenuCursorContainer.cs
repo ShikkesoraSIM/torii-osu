@@ -343,6 +343,14 @@ namespace osu.Game.Graphics.Cursor
             activeCursor.FadeTo(1, 250, Easing.OutQuint);
             activeCursor.ScaleTo(1, 400, Easing.OutQuint);
 
+            // Trail follows the cursor visibility. Without this, gameplay
+            // would Hide() the MenuCursorContainer (which fades activeCursor
+            // here in PopOut) but the trail — which is added as a sibling
+            // via Add(...), not inside activeCursor — stays at Alpha=1 and
+            // keeps drawing over the playfield cursor. That's the
+            // "gameplay cursor looks weird, something covering it" bug.
+            cursorTrail?.FadeTo(1, 250, Easing.OutQuint);
+
             if (dragRotationState == DragRotationState.NotDragging)
                 activeCursor.RotateTo(0, 400, Easing.OutQuint);
         }
@@ -351,6 +359,11 @@ namespace osu.Game.Graphics.Cursor
         {
             activeCursor.FadeTo(0, 250, Easing.OutQuint);
             activeCursor.ScaleTo(0.6f, 250, Easing.In);
+
+            // Mirror PopIn — see the note there. Critical to fade this
+            // when gameplay takes over so OsuCursorContainer's trail isn't
+            // composited under our menu trail.
+            cursorTrail?.FadeTo(0, 250, Easing.OutQuint);
 
             if (dragRotationState == DragRotationState.NotDragging)
                 activeCursor.RotateTo(0, 400, Easing.OutQuint);

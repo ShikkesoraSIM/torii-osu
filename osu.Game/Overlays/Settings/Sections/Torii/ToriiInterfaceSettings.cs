@@ -58,6 +58,42 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         {
             Children = new Drawable[]
             {
+                // Torii cursor controls — DUPLICATED here on purpose. The
+                // canonical home is Settings → User Interface → General
+                // (alongside the other lazer cursor knobs), but the user
+                // also wants them surfaced inside the Torii section since
+                // the "Use Torii cursor" option is a Torii-branded feature
+                // and people browsing Torii-specific settings expect to
+                // find it here. Both copies bind to the same OsuSetting
+                // bindables, so changes round-trip live regardless of which
+                // panel the user touched.
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.CursorRotation,
+                    Current = config.GetBindable<bool>(OsuSetting.CursorRotation),
+                })
+                {
+                    Keywords = new[] { @"cursor", @"spin", @"rotate", @"drag", @"torii" },
+                },
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = UserInterfaceStrings.MenuCursorSize,
+                    Current = config.GetBindable<float>(OsuSetting.MenuCursorSize),
+                    KeyboardStep = 0.01f,
+                    LabelFormat = v => $"{v:0.##}x",
+                })
+                {
+                    Keywords = new[] { @"cursor", @"size", @"menu", @"torii" },
+                },
+                new SettingsItemV2(new FormEnumDropdown<osu.Game.Graphics.Cursor.MenuCursorStyle>
+                {
+                    Caption = UserInterfaceStrings.MenuCursorStyle,
+                    Current = config.GetBindable<osu.Game.Graphics.Cursor.MenuCursorStyle>(OsuSetting.MenuCursorStyle),
+                })
+                {
+                    Keywords = new[] { @"cursor", @"gameplay", @"skin", @"torii", @"style" },
+                },
+
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = UserInterfaceStrings.EnableCustomUIHue,
