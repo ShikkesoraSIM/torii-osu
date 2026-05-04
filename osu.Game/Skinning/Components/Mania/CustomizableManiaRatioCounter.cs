@@ -201,7 +201,13 @@ namespace osu.Game.Skinning.Components.Mania
                 {
                     AutoSizeAxes = Axes.Both,
                     Direction = FillDirection.Vertical,
-                    Spacing = new Vector2(0, -2),
+                    // Comfortable gap between the small "RATIO" header
+                    // (size 11) and the large value (size 26). Was -2
+                    // (the two were crowding each other / clipping
+                    // baseline-to-baseline); upstream feedback called
+                    // it out. 4px reads as a deliberate breathing room
+                    // without separating the two elements visually.
+                    Spacing = new Vector2(0, 4),
                     Children = new Drawable[]
                     {
                         labelContainer = new Container

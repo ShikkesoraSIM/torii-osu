@@ -29,14 +29,16 @@ namespace osu.Game.Skinning.Components.Mania
     /// users never open.
     ///
     /// Display semantics:
-    /// - Below <see cref="min_judgements_required"/> total Perfect+Great
-    ///   hits, the counter shows "--". This kills the wild value swings
-    ///   at the very start of a map (a single Perfect with no Greats
-    ///   reads as ∞ for example) so players don't get a misleading
-    ///   number until enough samples have landed.
-    /// - With at least <see cref="min_judgements_required"/> hits and
-    ///   non-zero Greats, displays the ratio with two decimals (e.g.
-    ///   <c>2.34</c>).
+    /// - Before ANY accuracy-affecting judgement has landed, the counter
+    ///   shows "--". The very first hit transitions it to a real value
+    ///   (or "MAX" — see below). This is the only "not enough data"
+    ///   threshold; an earlier 15-judgement requirement was removed
+    ///   after upstream feedback (the original concern that 0 greats
+    ///   would produce NaN / 1.84e19 garbage was wrong — the
+    ///   <c>greats == 0</c> branch already coerces to "MAX" cleanly,
+    ///   so showing the live ratio from the first hit is fine).
+    /// - With non-zero Greats, displays the ratio with two decimals
+    ///   (e.g. <c>2.34</c>).
     /// - With non-zero Perfects but zero Greats, displays "MAX" — the
     ///   ratio is technically infinite but "∞" reads weird in a HUD,
     ///   "MAX" is the convention other VSRGs use.
@@ -48,22 +50,23 @@ namespace osu.Game.Skinning.Components.Mania
     /// </summary>
     public abstract partial class ManiaRatioCounter : RollingCounter<double>, ISerialisableDrawable, IToriiSkinComponent
     {
-        /// <summary>
-        /// Minimum number of accuracy-affecting hits we need before the
-        /// counter shows a number. Everything below this threshold
-        /// renders as "--". Picked at the request of the original
-        /// feature suggestion to avoid the value bouncing around (e.g.
-        /// from ∞ to 1.5 to 4.0) in the first few seconds of a map
-        /// before enough samples have accumulated.
-        /// </summary>
-        private const int min_judgements_required = 15;
-
         // Sentinel values flowed through the bindable so the formatter
-        // can branch without needing extra state. Choosing
-        // double.NaN for "not enough data" means the rolling counter
-        // doesn't try to interpolate from a real ratio down to it
-        // (NaN comparisons short-circuit the transform), which keeps
-        // the early-game "--" stable instead of flickering.
+        // can branch without needing extra state. Choosing double.NaN
+        // for "no judgements yet" means the rolling counter doesn't try
+        // to interpolate from a real ratio down to it (NaN comparisons
+        // short-circuit the transform), which keeps the pre-first-hit
+        // "--" stable instead of flickering.
+        //
+        // We previously also gated on a min_judgements_required = 15
+        // threshold but it was load-bearing on a misunderstanding —
+        // the worry was that 0 greats would yield NaN or a giant float
+        // garbage value, but the `greats == 0 → sentinel_max` branch
+        // below already coerces that case to "MAX" cleanly. Upstream
+        // feedback flagged the 15 threshold as unnecessary and a bit
+        // surprising (counter sat on "--" for the first second-or-so
+        // of every map), so it was removed. The only remaining "not
+        // enough data" state is `total == 0` — i.e. literally before
+        // a single accuracy-affecting hit has landed.
         private const double sentinel_not_enough_data = double.NaN;
         private const double sentinel_max = double.PositiveInfinity;
 
@@ -109,9 +112,14 @@ namespace osu.Game.Skinning.Components.Mania
             int perfects = scoreProcessor.Statistics.GetValueOrDefault(HitResult.Perfect);
             int greats = scoreProcessor.Statistics.GetValueOrDefault(HitResult.Great);
 
-            int total = perfects + greats;
-
-            if (total < min_judgements_required)
+            // Only "not enough data" state we still keep: literally zero
+            // accuracy-affecting hits. Showing "MAX" before the player
+            // has even started hitting notes (which is what the bare
+            // `greats == 0 → sentinel_max` branch would do) reads as
+            // misleading; "--" + "MAX flips on the first hit" reads as
+            // honest. From the first judgement onwards we show the
+            // live value.
+            if (perfects + greats == 0)
             {
                 Current.Value = sentinel_not_enough_data;
                 return;
