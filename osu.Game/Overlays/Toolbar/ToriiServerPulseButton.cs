@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
@@ -295,39 +296,78 @@ namespace osu.Game.Overlays.Toolbar
 
         private void togglePopover()
         {
-            if (popover == null)
+            // Wrap the entire toggle in try/catch + verbose logging so that
+            // a regression in popover construction or wiring takes down the
+            // CLICK rather than the entire game. The pulse widget is
+            // best-effort decoration; a buggy build hitting an unhandled
+            // exception in load() would otherwise crash the application's
+            // exception ceiling, which is a much worse user experience
+            // than "click did nothing".
+            try
             {
-                popover = new ToriiServerPulsePopover
+                Logger.Log("[ToriiServerPulse] togglePopover start", LoggingTarget.Runtime, LogLevel.Verbose);
+
+                if (popover == null)
                 {
-                    // BypassAutoSizeAxes so adding the wide popover as a
-                    // sibling doesn't expand our pill's auto-sized width.
-                    // The popover positions itself relative to our screen-
-                    // space rectangle in its own Update(), so its position
-                    // in our local space doesn't affect layout.
-                    BypassAutoSizeAxes = Axes.Both,
-                    // Attached at the same level the button sits at so it
-                    // renders sibling-to-pill (i.e. outside the masked
-                    // pill but still inside the toolbar's coordinate
-                    // space). The button itself is NOT masked (only the
-                    // inner pillContainer is), so AddInternal here puts
-                    // the popover above the pill in the draw order
-                    // without clipping.
-                };
+                    Logger.Log("[ToriiServerPulse] creating popover", LoggingTarget.Runtime, LogLevel.Verbose);
 
-                AddInternal(popover);
-                popover.AnchoredAt = this;
-            }
+                    popover = new ToriiServerPulsePopover
+                    {
+                        // BypassAutoSizeAxes so adding the wide popover as a
+                        // sibling doesn't expand our pill's auto-sized width.
+                        // The popover positions itself relative to our screen-
+                        // space rectangle in its own Update(), so its position
+                        // in our local space doesn't affect layout.
+                        BypassAutoSizeAxes = Axes.Both,
+                        // Attached at the same level the button sits at so it
+                        // renders sibling-to-pill (i.e. outside the masked
+                        // pill but still inside the toolbar's coordinate
+                        // space). The button itself is NOT masked (only the
+                        // inner pillContainer is), so AddInternal here puts
+                        // the popover above the pill in the draw order
+                        // without clipping.
+                    };
 
-            if (popover.State.Value == Visibility.Visible)
-            {
-                popover.Hide();
-                pulse?.SetPopoverOpen(false);
+                    AddInternal(popover);
+                    popover.AnchoredAt = this;
+
+                    Logger.Log("[ToriiServerPulse] popover added internally", LoggingTarget.Runtime, LogLevel.Verbose);
+                }
+
+                if (popover.State.Value == Visibility.Visible)
+                {
+                    Logger.Log("[ToriiServerPulse] hiding popover", LoggingTarget.Runtime, LogLevel.Verbose);
+                    popover.Hide();
+                    pulse?.SetPopoverOpen(false);
+                }
+                else
+                {
+                    Logger.Log("[ToriiServerPulse] showing popover", LoggingTarget.Runtime, LogLevel.Verbose);
+                    popover.Show();
+                    pulse?.SetPopoverOpen(true);
+                    pulse?.RefreshNow();
+                }
             }
-            else
+            catch (Exception ex)
             {
-                popover.Show();
-                pulse?.SetPopoverOpen(true);
-                pulse?.RefreshNow();
+                Logger.Log($"[ToriiServerPulse] togglePopover threw: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}", LoggingTarget.Runtime, LogLevel.Error);
+
+                // If the popover got into a bad state (half-constructed,
+                // disposed mid-add), tear it down so the next click starts
+                // fresh instead of compounding the failure.
+                if (popover != null)
+                {
+                    try
+                    {
+                        RemoveInternal(popover, true);
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        Logger.Log($"[ToriiServerPulse] popover cleanup also threw: {cleanupEx.Message}", LoggingTarget.Runtime, LogLevel.Error);
+                    }
+
+                    popover = null;
+                }
             }
         }
 

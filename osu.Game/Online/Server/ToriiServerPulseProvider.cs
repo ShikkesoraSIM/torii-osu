@@ -104,15 +104,45 @@ namespace osu.Game.Online.Server
         /// <summary>
         /// Most-played beatmap of the last 5 min. Null when no plays have
         /// landed (server returns null) — UI shows a calm empty state in
-        /// that case.
+        /// that case. Equivalent to <see cref="TopMaps"/>[0] when the
+        /// list is non-empty.
         /// </summary>
         public Bindable<APIToriiServerPulseTopMap?> TopMap { get; } = new Bindable<APIToriiServerPulseTopMap?>();
+
+        /// <summary>
+        /// Top 5 most-played beatmaps of the last 5 min, ordered by play
+        /// count desc. Drives the Hot Maps carousel page.
+        /// </summary>
+        public Bindable<IReadOnlyList<APIToriiServerPulseTopMap>> TopMaps { get; } =
+            new Bindable<IReadOnlyList<APIToriiServerPulseTopMap>>(Array.Empty<APIToriiServerPulseTopMap>());
+
+        /// <summary>
+        /// Per-ruleset in-flight play counts (keys are ruleset IDs as
+        /// strings: <c>"0"</c>/<c>"1"</c>/<c>"2"</c>/<c>"3"</c>). Drives
+        /// the Mode Split carousel page.
+        /// </summary>
+        public Bindable<IReadOnlyDictionary<string, int>> ModeBreakdown { get; } =
+            new Bindable<IReadOnlyDictionary<string, int>>(new Dictionary<string, int>());
+
+        /// <summary>
+        /// Recent in-flight plays (up to 8). Drives the Live Plays
+        /// carousel page.
+        /// </summary>
+        public Bindable<IReadOnlyList<APIToriiServerPulseRecentPlay>> RecentPlays { get; } =
+            new Bindable<IReadOnlyList<APIToriiServerPulseRecentPlay>>(Array.Empty<APIToriiServerPulseRecentPlay>());
 
         /// <summary>
         /// 12 × 1-min bucket counts, oldest first. Always populated; an
         /// idle server returns all zeros.
         /// </summary>
         public Bindable<IReadOnlyList<int>> Sparkline { get; } = new Bindable<IReadOnlyList<int>>(Array.Empty<int>());
+
+        /// <summary>
+        /// Last carousel page the user looked at, persisted across popover
+        /// open/close (but not across app restarts) so reopening lands on
+        /// the page the user was browsing. Defaults to Overview.
+        /// </summary>
+        public Bindable<int> LastViewedCarouselPage { get; } = new Bindable<int>(0);
 
         /// <summary>
         /// Server-side capture timestamp of the most recent successful
@@ -295,6 +325,9 @@ namespace osu.Game.Online.Server
             playsLast5Min.Value = snapshot.PlaysLast5Min;
             onlineUsers.Value = snapshot.OnlineUsers;
             TopMap.Value = snapshot.TopMap;
+            TopMaps.Value = snapshot.TopMaps ?? (IReadOnlyList<APIToriiServerPulseTopMap>)Array.Empty<APIToriiServerPulseTopMap>();
+            ModeBreakdown.Value = snapshot.ModeBreakdown ?? (IReadOnlyDictionary<string, int>)new Dictionary<string, int>();
+            RecentPlays.Value = snapshot.RecentPlays ?? (IReadOnlyList<APIToriiServerPulseRecentPlay>)Array.Empty<APIToriiServerPulseRecentPlay>();
             Sparkline.Value = snapshot.Sparkline?.Buckets ?? (IReadOnlyList<int>)Array.Empty<int>();
             LastUpdated.Value = snapshot.CapturedAt;
             ConnectionState.Value = ToriiServerPulseConnectionState.Connected;

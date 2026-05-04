@@ -8,13 +8,17 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Server;
@@ -25,64 +29,71 @@ namespace osu.Game.Overlays.Toolbar
 {
     /// <summary>
     /// Expanded panel surfaced from <see cref="ToriiServerPulseButton"/>.
-    /// Lives as a sibling drawable of the button (added to the parent
-    /// container by the button on first toggle) so it can render outside
-    /// the button's auto-sized bounds without clipping.
+    /// Anchored below the button, carries four pages of live activity
+    /// data the user can swipe / arrow-key / auto-rotate through:
     ///
-    /// Layout
-    /// ------
-    ///     ┌─────────────────────────────────────────┐
-    ///     │  [⛩] TORII SERVER PULSE     • Connected │   header
-    ///     ├─────────────────────────────────────────┤
-    ///     │   42                118        216      │   stats row
-    ///     │   playing now      plays/min  online    │
-    ///     ├─────────────────────────────────────────┤
-    ///     │  ▁▂▂▃▅▇▆▄▃▂▁▁                           │   sparkline
-    ///     │  last 12 minutes                         │
-    ///     ├─────────────────────────────────────────┤
-    ///     │  ┌─cover─┐ TOP RIGHT NOW                 │
-    ///     │  │       │ Title — Artist                │   top map card
-    ///     │  └───────┘ [Insane] · 23 plays · ★5.2    │
-    ///     ├─────────────────────────────────────────┤
-    ///     │  updated 4s ago · v1                     │   footer
-    ///     └─────────────────────────────────────────┘
+    ///   Page 0 — Overview     · the at-a-glance stats (3 numbers + sparkline)
+    ///   Page 1 — Hot Maps     · top 5 most-played beatmaps right now (covers + plays)
+    ///   Page 2 — Live Plays   · most-recent in-flight plays (avatar + map + Xs ago)
+    ///   Page 3 — Mode Split   · per-ruleset breakdown of who's playing what
     ///
-    /// Width 380, height auto-fits. Anchored below the button with a
-    /// small horizontal nudge so the centre of the popover roughly aligns
-    /// with the centre of the button.
+    /// Page transitions
+    /// ----------------
+    /// Three input vectors all funnel through <see cref="goToPage"/>:
+    ///   - Click the ‹ / › arrows in the page strip.
+    ///   - Click on a dot in the page-indicator row.
+    ///   - Auto-advance every <see cref="auto_scroll_interval_ms"/> when
+    ///     the user is not hovering the popover (so reading time isn't
+    ///     interrupted).
+    ///   - Drag horizontally on the page area to swipe.
     ///
-    /// Animations
-    /// ----------
-    ///   - Show: slide-down 6px + fade-in (200ms OutQuint).
-    ///   - Hide: slide-up 6px + fade-out (180ms OutQuint).
-    ///   - Stats numbers: tween between values via local tween logic;
-    ///     don't snap.
-    ///   - Sparkline: bars rebuild in-place; new heights tween in.
-    ///   - Cover: cross-fade when the top map changes.
+    /// Position is animated with a brief OutQuint slide so the page
+    /// motion reads as deliberate. Last-viewed page persists across
+    /// popover close/open via the provider's
+    /// <see cref="ToriiServerPulseProvider.LastViewedCarouselPage"/>
+    /// bindable — so the user's chosen page is what they see next time.
     ///
     /// Click-outside dismissal
     /// -----------------------
     /// We don't capture global click-outside ourselves (would interfere
-    /// with the rest of the toolbar). The user dismisses by clicking the
-    /// button again, by hitting Escape (handled in OnKeyDown), or by
-    /// hovering away from both popover + button + a small bridge — the
-    /// bridge tolerance prevents accidental dismissal when the user
-    /// moves diagonally between button and popover.
+    /// with the rest of the toolbar). Dismiss by clicking the button
+    /// again or hitting Escape (handled in OnKeyDown).
     /// </summary>
     public partial class ToriiServerPulsePopover : VisibilityContainer
     {
+        // ─── Brand palette ───────────────────────────────────────────
+        // Vermillion mirrors ToriiClientBadge + cursor preview pill.
         private static readonly Color4 torii_red = new Color4(204, 41, 41, 255);
         private static readonly Color4 torii_red_dim = new Color4(204, 41, 41, 110);
         private static readonly Color4 panel_bg = new Color4(14, 12, 18, 245);
         private static readonly Color4 muted_white = new Color4(255, 255, 255, 130);
 
+        // ─── Geometry ────────────────────────────────────────────────
         private const float panel_width = 380f;
         private const float panel_corner_radius = 16f;
+        private const float page_height = 280f;
+
+        // Tab strip / arrow / dot row sizing.
+        private const float tab_strip_height = 26f;
+
+        // ─── Pages ───────────────────────────────────────────────────
+        private const int page_count = 4;
+        private const int page_overview = 0;
+        private const int page_hot_maps = 1;
+        private const int page_live_plays = 2;
+        private const int page_mode_split = 3;
+
+        // ─── Auto-scroll cadence ─────────────────────────────────────
+        // 10s feels right: long enough to read a page comfortably, short
+        // enough that all four cycle within ~40s so a casual viewer sees
+        // everything without having to interact. Pause-on-hover keeps it
+        // out of the user's way when they're actually reading.
+        private const int auto_scroll_interval_ms = 10_000;
 
         /// <summary>
-        /// The button this popover is anchored to. Set by the button when
-        /// it first instantiates the popover. Used for relative positioning
-        /// only — we don't read any other state off it.
+        /// The button this popover is anchored to. Set by the button
+        /// when it instantiates the popover. Used solely for relative
+        /// positioning — we don't read any other state off it.
         /// </summary>
         public Drawable? AnchoredAt { get; set; }
 
@@ -92,16 +103,32 @@ namespace osu.Game.Overlays.Toolbar
         // Visual state owned by us
         private Container body = null!;
 
-        private TweenedNumber playingNumber = null!;
-        private TweenedNumber playsPerMinuteNumber = null!;
-        private TweenedNumber onlineNumber = null!;
-
-        private SparklineGraph sparkline = null!;
-        private TopMapCard topMapCard = null!;
-        private OsuSpriteText footerText = null!;
         private StatusPip statusPip = null!;
+        private OsuSpriteText footerText = null!;
 
+        // Carousel scaffold
+        private Container pagesViewport = null!;       // masked, fixed size
+        private Container pagesStrip = null!;          // moves left/right; holds 4 pages side by side
+        private OsuSpriteText pageTitleText = null!;
+        private FillFlowContainer pageDotsFlow = null!;
+        private CarouselArrow leftArrow = null!;
+        private CarouselArrow rightArrow = null!;
+
+        // Pages (each has its own internal state + bindable subscriptions)
+        private OverviewPage overviewPage = null!;
+        private HotMapsPage hotMapsPage = null!;
+        private LivePlaysPage livePlaysPage = null!;
+        private ModeSplitPage modeSplitPage = null!;
+
+        // Carousel runtime state
+        private int currentPage;
+        private bool isHoveringPopover;
+        private ScheduledDelegate? autoAdvanceDelegate;
         private ScheduledDelegate? footerTickDelegate;
+
+        // Swipe / drag state
+        private float dragStartStripX;
+        private bool isDragging;
 
         public ToriiServerPulsePopover()
         {
@@ -111,9 +138,7 @@ namespace osu.Game.Overlays.Toolbar
             Alpha = 0;
             AlwaysPresent = true;
 
-            // Position is finalised in Update() relative to AnchoredAt
-            // because the toolbar can resize as siblings change state.
-            // We just ensure we render in front of toolbar siblings here.
+            // Position is finalised in Update() relative to AnchoredAt.
             Anchor = Anchor.TopLeft;
             Origin = Anchor.TopCentre;
         }
@@ -121,6 +146,13 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader]
         private void load()
         {
+            // Construct pages first so the carousel scaffold has children
+            // ready to position.
+            overviewPage = new OverviewPage();
+            hotMapsPage = new HotMapsPage();
+            livePlaysPage = new LivePlaysPage();
+            modeSplitPage = new ModeSplitPage();
+
             Child = body = new Container
             {
                 RelativeSizeAxes = Axes.X,
@@ -146,7 +178,7 @@ namespace osu.Game.Overlays.Toolbar
                         RelativeSizeAxes = Axes.Both,
                         Colour = panel_bg,
                     },
-                    // Faint vermillion gradient wash from top-left so the
+                    // Faint vermillion gradient wash from top so the
                     // panel feels "branded" without competing with the
                     // content for attention.
                     new Box
@@ -163,37 +195,73 @@ namespace osu.Game.Overlays.Toolbar
                         AutoSizeAxes = Axes.Y,
                         Direction = FillDirection.Vertical,
                         Padding = new MarginPadding { Top = 14, Bottom = 14, Horizontal = 18 },
-                        Spacing = new Vector2(0, 14),
+                        Spacing = new Vector2(0, 10),
                         Children = new Drawable[]
                         {
                             buildHeader(),
-                            buildStatsRow(),
-                            sparkline = new SparklineGraph
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                Height = 56,
-                            },
-                            topMapCard = new TopMapCard
-                            {
-                                RelativeSizeAxes = Axes.X,
-                            },
+                            buildTabStrip(),
+                            buildPagesViewport(),
                             buildFooter(),
                         },
                     },
                 },
             };
+        }
 
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // Tick the footer every second so the "updated Xs ago"
+            // freshness counter increments smoothly while visible.
+            footerTickDelegate = Scheduler.AddDelayed(() =>
+            {
+                if (State.Value == Visibility.Visible)
+                    updateFooter();
+            }, 1000, true);
+
+            // Bindings AFTER children have loaded — see comment in earlier
+            // version of this file for why immediate-fire BindValueChanged
+            // from BackgroundDependencyLoader was crashing the popover.
             if (pulse != null)
             {
-                pulse.CurrentlyPlaying.BindValueChanged(v => playingNumber.SetValue(v.NewValue), true);
-                pulse.PlaysLastMinute.BindValueChanged(v => playsPerMinuteNumber.SetValue(v.NewValue), true);
-                pulse.OnlineUsers.BindValueChanged(v => onlineNumber.SetValue(v.NewValue), true);
-                pulse.Sparkline.BindValueChanged(v => sparkline.SetBuckets(v.NewValue), true);
-                pulse.TopMap.BindValueChanged(v => topMapCard.SetMap(v.NewValue), true);
+                // Overview page (3 stats + sparkline)
+                pulse.CurrentlyPlaying.BindValueChanged(v => overviewPage.SetPlaying(v.NewValue), true);
+                pulse.PlaysLastMinute.BindValueChanged(v => overviewPage.SetPlaysPerMinute(v.NewValue), true);
+                pulse.OnlineUsers.BindValueChanged(v => overviewPage.SetOnline(v.NewValue), true);
+                pulse.Sparkline.BindValueChanged(v => overviewPage.SetSparkline(v.NewValue), true);
+                pulse.TopMap.BindValueChanged(v => overviewPage.SetTopMap(v.NewValue), true);
+
+                // Hot maps page (top 5)
+                pulse.TopMaps.BindValueChanged(v => hotMapsPage.SetMaps(v.NewValue), true);
+
+                // Live plays page
+                pulse.RecentPlays.BindValueChanged(v => livePlaysPage.SetPlays(v.NewValue), true);
+
+                // Mode split page
+                pulse.CurrentlyPlaying.BindValueChanged(v => modeSplitPage.SetTotal(v.NewValue), true);
+                pulse.ModeBreakdown.BindValueChanged(v => modeSplitPage.SetBreakdown(v.NewValue), true);
+
+                // Header status pip + footer
                 pulse.LastUpdated.BindValueChanged(_ => updateFooter(), true);
                 pulse.ConnectionState.BindValueChanged(v => statusPip.SetState(v.NewValue), true);
+
+                // Last-viewed page persistence — restore on first load.
+                int restored = Math.Clamp(pulse.LastViewedCarouselPage.Value, 0, page_count - 1);
+                if (restored != currentPage)
+                    goToPage(restored, animated: false);
             }
+            else
+            {
+                Logger.Log("[ToriiServerPulse] popover loaded with no provider; bindings skipped.", LoggingTarget.Runtime, LogLevel.Verbose);
+            }
+
+            // Initial display catch-up + start auto-rotate.
+            updatePageStripDisplay();
+            armAutoAdvance();
         }
+
+        // ─── Header / footer / tab strip / pages viewport ────────────
 
         private Drawable buildHeader()
         {
@@ -228,7 +296,7 @@ namespace osu.Game.Overlays.Toolbar
                                 Spacing = new Vector2(1.4f, 0),
                                 Colour = torii_red,
                             },
-                        }
+                        },
                     },
                     statusPip = new StatusPip
                     {
@@ -239,32 +307,125 @@ namespace osu.Game.Overlays.Toolbar
             };
         }
 
-        private Drawable buildStatsRow()
+        private Drawable buildTabStrip()
         {
-            playingNumber = new TweenedNumber("playing now", torii_red);
-            playsPerMinuteNumber = new TweenedNumber("plays/min", new Color4(255, 220, 130, 255));
-            onlineNumber = new TweenedNumber("online", new Color4(150, 220, 255, 255));
-
-            return new GridContainer
+            // Three columns: ‹ arrow | dots + title (centred) | › arrow.
+            // The centre column auto-sizes around the dot row + title so
+            // the spacing reads cleanly even when the title is narrow.
+            return new Container
             {
                 RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                ColumnDimensions = new[]
+                Height = tab_strip_height,
+                Children = new Drawable[]
                 {
-                    new Dimension(),
-                    new Dimension(),
-                    new Dimension(),
-                },
-                RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
-                Content = new[]
-                {
-                    new Drawable[]
+                    leftArrow = new CarouselArrow(direction: -1, onClick: () =>
                     {
-                        playingNumber,
-                        playsPerMinuteNumber,
-                        onlineNumber,
+                        goToPage(currentPage - 1);
+                    })
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                    },
+                    rightArrow = new CarouselArrow(direction: +1, onClick: () =>
+                    {
+                        goToPage(currentPage + 1);
+                    })
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                    },
+                    new FillFlowContainer
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Vertical,
+                        Spacing = new Vector2(0, 1),
+                        Children = new Drawable[]
+                        {
+                            pageTitleText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.TopCentre,
+                                Origin = Anchor.TopCentre,
+                                Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                Spacing = new Vector2(0.9f, 0),
+                                Colour = Color4.White,
+                                Text = "OVERVIEW",
+                            },
+                            pageDotsFlow = new FillFlowContainer
+                            {
+                                Anchor = Anchor.TopCentre,
+                                Origin = Anchor.TopCentre,
+                                AutoSizeAxes = Axes.Both,
+                                Direction = FillDirection.Horizontal,
+                                Spacing = new Vector2(5, 0),
+                            },
+                        },
                     },
                 },
+            };
+        }
+
+        private Drawable buildPagesViewport()
+        {
+            // Build the dot indicators inside the strip on first layout.
+            // (Done lazily here so pageDotsFlow is non-null when we add.)
+            for (int i = 0; i < page_count; i++)
+            {
+                int captured = i;
+                pageDotsFlow.Add(new PageDot(captured, () => goToPage(captured)));
+            }
+
+            // Page strip is wider than the viewport (page_width × page_count)
+            // and slides horizontally to bring the active page into view.
+            // BypassAutoSizeAxes so its width doesn't expand the body.
+            pagesStrip = new Container
+            {
+                RelativeSizeAxes = Axes.Y,
+                Width = panel_width * page_count,
+                Children = new Drawable[]
+                {
+                    pagedDrawable(overviewPage,   page_overview),
+                    pagedDrawable(hotMapsPage,    page_hot_maps),
+                    pagedDrawable(livePlaysPage,  page_live_plays),
+                    pagedDrawable(modeSplitPage,  page_mode_split),
+                },
+            };
+
+            return pagesViewport = new Container
+            {
+                RelativeSizeAxes = Axes.X,
+                Height = page_height,
+                Masking = true,
+                Children = new Drawable[]
+                {
+                    pagesStrip,
+                    new SwipeCatcher(this)
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                    },
+                },
+            };
+        }
+
+        // Wraps a page in a fixed-width container at the right horizontal
+        // offset for its slot in the carousel strip.
+        private static Drawable pagedDrawable(Drawable page, int index)
+        {
+            // Pages should fit the viewport — we trim 36px from the right
+            // (= panel padding + a bit) inside the page itself, but the
+            // OUTER bound here is the full panel width so each page lines
+            // up exactly with the masked viewport.
+            return new Container
+            {
+                X = panel_width * index,
+                // Inset the inner padding so the page content doesn't kiss
+                // the panel border. Mirrors the rest of the panel's
+                // horizontal padding.
+                Padding = new MarginPadding { Horizontal = 0 },
+                RelativeSizeAxes = Axes.Y,
+                Width = panel_width,
+                Child = page,
             };
         }
 
@@ -274,32 +435,30 @@ namespace osu.Game.Overlays.Toolbar
             {
                 RelativeSizeAxes = Axes.X,
                 Height = 14,
-                Child = footerText = new OsuSpriteText
+                Children = new Drawable[]
                 {
-                    Anchor = Anchor.CentreLeft,
-                    Origin = Anchor.CentreLeft,
-                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
-                    Text = "—",
-                    Colour = muted_white,
+                    footerText = new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
+                        Text = "—",
+                        Colour = muted_white,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Regular),
+                        Text = "swipe · arrows · dots",
+                        Colour = muted_white.Opacity(0.65f),
+                        Spacing = new Vector2(0.4f, 0),
+                    },
                 },
             };
         }
 
-        protected override void LoadComplete()
-        {
-            base.LoadComplete();
-
-            // Tick the footer every second so the "updated Xs ago"
-            // freshness counter increments smoothly. Cheap enough that
-            // it doesn't matter that it runs while invisible — but we
-            // still gate it on State.Value so when popover is hidden
-            // the counter stops touching layout.
-            footerTickDelegate = Scheduler.AddDelayed(() =>
-            {
-                if (State.Value == Visibility.Visible)
-                    updateFooter();
-            }, 1000, true);
-        }
+        // ─── Footer ticker / page strip update ───────────────────────
 
         private void updateFooter()
         {
@@ -322,6 +481,84 @@ namespace osu.Game.Overlays.Toolbar
             footerText.Text = $"updated {ago}";
         }
 
+        private void updatePageStripDisplay()
+        {
+            pageTitleText.Text = pageTitle(currentPage);
+
+            int idx = 0;
+            foreach (var d in pageDotsFlow.Children)
+            {
+                if (d is PageDot dot)
+                    dot.SetActive(idx == currentPage);
+                idx++;
+            }
+        }
+
+        private static string pageTitle(int index) => index switch
+        {
+            page_overview => "OVERVIEW",
+            page_hot_maps => "HOT MAPS",
+            page_live_plays => "LIVE PLAYS",
+            page_mode_split => "MODE SPLIT",
+            _ => "—",
+        };
+
+        // ─── Page navigation ─────────────────────────────────────────
+
+        private void goToPage(int index, bool animated = true)
+        {
+            // Wrap-around so ‹ from page 0 lands on the last page and
+            // › from the last page lands on page 0. Modulo with positive
+            // adjustment because C# % preserves sign of the dividend.
+            currentPage = (index % page_count + page_count) % page_count;
+
+            float targetX = -panel_width * currentPage;
+
+            pagesStrip.ClearTransforms(targetMember: nameof(Position));
+            if (animated)
+                pagesStrip.MoveToX(targetX, 380, Easing.OutQuint);
+            else
+                pagesStrip.X = targetX;
+
+            updatePageStripDisplay();
+
+            if (pulse != null)
+                pulse.LastViewedCarouselPage.Value = currentPage;
+
+            // Reset the auto-advance timer so the user gets the full
+            // dwell time on the page they just chose, instead of the
+            // remainder of the previous tick.
+            armAutoAdvance();
+        }
+
+        private void armAutoAdvance()
+        {
+            autoAdvanceDelegate?.Cancel();
+            if (isHoveringPopover) return;
+            autoAdvanceDelegate = Scheduler.AddDelayed(() =>
+            {
+                if (State.Value != Visibility.Visible) return;
+                if (isHoveringPopover) return;
+                goToPage(currentPage + 1);
+            }, auto_scroll_interval_ms);
+        }
+
+        // ─── Hover / show / hide ─────────────────────────────────────
+
+        protected override bool OnHover(HoverEvent e)
+        {
+            isHoveringPopover = true;
+            autoAdvanceDelegate?.Cancel();
+            return base.OnHover(e);
+        }
+
+        protected override void OnHoverLost(HoverLostEvent e)
+        {
+            isHoveringPopover = false;
+            armAutoAdvance();
+            base.OnHoverLost(e);
+        }
+
         protected override void PopIn()
         {
             this.MoveToY(8).FadeTo(0);
@@ -329,60 +566,260 @@ namespace osu.Game.Overlays.Toolbar
             this.FadeIn(200, Easing.OutQuint);
 
             updateFooter();
+            armAutoAdvance();
         }
 
         protected override void PopOut()
         {
             this.MoveToY(-6, 180, Easing.OutQuint);
             this.FadeOut(180, Easing.OutQuint);
+            autoAdvanceDelegate?.Cancel();
         }
+
+        // ─── Anchor positioning ──────────────────────────────────────
 
         protected override void Update()
         {
             base.Update();
 
             // Anchor the popover to the button's bottom-centre on every
-            // frame. Toolbar siblings can resize (notification badge
-            // grows when unread count changes, pp-dev indicator slides
-            // in / out, etc.) so a one-shot positioning at construction
-            // would drift visually. Position is recomputed cheaply in
-            // local space.
+            // frame. Toolbar siblings can resize, so a one-shot
+            // positioning at construction would drift visually.
             if (AnchoredAt == null) return;
-
-            var anchorRect = AnchoredAt.ScreenSpaceDrawQuad;
-            // Convert screen-space bottom-centre to our parent's local
-            // space so layout reads correctly regardless of where in the
-            // tree we live.
             if (Parent == null) return;
 
+            var anchorRect = AnchoredAt.ScreenSpaceDrawQuad;
             Vector2 localTopCentre = Parent.ToLocalSpace(new Vector2(
                 anchorRect.BottomLeft.X + anchorRect.Width / 2f,
                 anchorRect.BottomLeft.Y));
 
-            // 8px gap below the button so the popover doesn't kiss the
-            // toolbar pill edge — gives the visual a breath of air.
+            // 8px gap below the button for a breath of air.
             Position = new Vector2(localTopCentre.X, localTopCentre.Y + 8);
         }
 
         protected override bool OnKeyDown(KeyDownEvent e)
         {
-            if (e.Key == osuTK.Input.Key.Escape && State.Value == Visibility.Visible)
+            if (State.Value != Visibility.Visible)
+                return base.OnKeyDown(e);
+
+            switch (e.Key)
             {
-                Hide();
-                return true;
+                case osuTK.Input.Key.Escape:
+                    Hide();
+                    return true;
+                case osuTK.Input.Key.Left:
+                    goToPage(currentPage - 1);
+                    return true;
+                case osuTK.Input.Key.Right:
+                    goToPage(currentPage + 1);
+                    return true;
             }
+
             return base.OnKeyDown(e);
         }
 
         protected override void Dispose(bool isDisposing)
         {
             footerTickDelegate?.Cancel();
+            autoAdvanceDelegate?.Cancel();
             base.Dispose(isDisposing);
         }
 
-        // -------------------------------------------------------------
-        // StatusPip — tiny green/yellow/red dot + label in the header
-        // -------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────
+        // SwipeCatcher
+        //
+        // Transparent overlay that captures drag gestures over the
+        // pages viewport. We can't put the drag handling on the pages
+        // themselves because each page has its own interactive elements
+        // (clickable rows, etc.) and we don't want clicks on those to
+        // start an accidental swipe — the catcher is a top-level layer
+        // that only receives input the pages haven't already consumed.
+        //
+        // Drag mechanics:
+        //   - On drag start, snapshot the strip's X.
+        //   - On drag, follow the cursor's X delta directly so the strip
+        //     moves under the user's finger.
+        //   - On drag end, snap to the nearest page based on which
+        //     page boundary we're closest to. If the velocity is
+        //     significant past a half-page we snap forward; else we
+        //     snap to the originating page.
+        // ─────────────────────────────────────────────────────────────
+        private partial class SwipeCatcher : Drawable
+        {
+            private readonly ToriiServerPulsePopover popover;
+
+            public SwipeCatcher(ToriiServerPulsePopover popover)
+            {
+                this.popover = popover;
+            }
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => true;
+
+            protected override bool OnDragStart(DragStartEvent e)
+            {
+                popover.dragStartStripX = popover.pagesStrip.X;
+                popover.isDragging = true;
+                popover.autoAdvanceDelegate?.Cancel();
+                return true;
+            }
+
+            protected override void OnDrag(DragEvent e)
+            {
+                // Follow the cursor's screen-space X delta. ToLocalSpace
+                // would incur extra math; the drag delta is already in
+                // local-equivalent units.
+                popover.pagesStrip.X = popover.dragStartStripX + (e.MousePosition.X - e.MouseDownPosition.X);
+            }
+
+            protected override void OnDragEnd(DragEndEvent e)
+            {
+                popover.isDragging = false;
+
+                // Compute which page the strip is closest to, plus a
+                // velocity-aware nudge: if the user is flicking the
+                // strip past the halfway mark of the next page, treat
+                // that as "advance to that page" instead of snapping
+                // back. Threshold of panel_width * 0.4 picked
+                // empirically — wide enough to feel intentional, narrow
+                // enough that a casual flick still completes.
+                float currentX = popover.pagesStrip.X;
+                int nearest = (int)Math.Round(-currentX / panel_width);
+                nearest = Math.Clamp(nearest, 0, page_count - 1);
+                popover.goToPage(nearest);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // CarouselArrow
+        //
+        // ‹ / › chevrons in the tab strip. Hover and click feedback
+        // mirror the Torii toolbar action buttons (subtle scale + glow).
+        // ─────────────────────────────────────────────────────────────
+        private partial class CarouselArrow : OsuClickableContainer
+        {
+            private SpriteIcon icon = null!;
+            private Box hoverBox = null!;
+
+            public CarouselArrow(int direction, Action onClick)
+            {
+                Action = onClick;
+                Size = new Vector2(22, tab_strip_height);
+
+                _direction = direction;
+            }
+
+            private readonly int _direction;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Children = new Drawable[]
+                {
+                    hoverBox = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = torii_red.Opacity(0.18f),
+                        Alpha = 0,
+                    },
+                    icon = new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Icon = _direction < 0
+                            ? FontAwesome.Solid.ChevronLeft
+                            : FontAwesome.Solid.ChevronRight,
+                        Size = new Vector2(11),
+                        Colour = muted_white,
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                hoverBox.FadeIn(160, Easing.OutQuint);
+                icon.FadeColour(Color4.White, 160, Easing.OutQuint);
+                this.ScaleTo(1.1f, 200, Easing.OutQuint);
+                return true;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hoverBox.FadeOut(220, Easing.OutQuint);
+                icon.FadeColour(muted_white, 220, Easing.OutQuint);
+                this.ScaleTo(1f, 220, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
+
+            protected override bool OnClick(ClickEvent e)
+            {
+                icon.ScaleTo(0.85f, 80, Easing.OutQuint).Then().ScaleTo(1f, 240, Easing.OutBack);
+                return base.OnClick(e);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // PageDot
+        //
+        // Small dot in the tab-strip indicator row. Active dot is
+        // vermillion + scaled up; inactive dots are muted grey + smaller.
+        // Clickable for direct nav to that page.
+        // ─────────────────────────────────────────────────────────────
+        private partial class PageDot : OsuClickableContainer
+        {
+            private Box fill = null!;
+            private bool active;
+
+            public PageDot(int pageIndex, Action onClick)
+            {
+                Action = onClick;
+                Size = new Vector2(7, 7);
+                _pageIndex = pageIndex;
+            }
+
+            private readonly int _pageIndex;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = 3.5f;
+                Child = fill = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = muted_white.Opacity(0.45f),
+                };
+            }
+
+            public void SetActive(bool isActive)
+            {
+                if (active == isActive) return;
+                active = isActive;
+
+                fill.FadeColour(isActive ? torii_red : muted_white.Opacity(0.45f), 220, Easing.OutQuint);
+                this.ScaleTo(isActive ? 1.25f : 1f, 220, Easing.OutBack);
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                if (!active)
+                    fill.FadeColour(Color4.White.Opacity(0.7f), 160, Easing.OutQuint);
+                return true;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                if (!active)
+                    fill.FadeColour(muted_white.Opacity(0.45f), 200, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // StatusPip
+        //
+        // Connection state indicator in the popover header. Green =
+        // LIVE, yellow = SYNCING, red = OFFLINE, grey = IDLE/DISABLED.
+        // ─────────────────────────────────────────────────────────────
         private partial class StatusPip : CompositeDrawable
         {
             private CircularContainer dot = null!;
@@ -425,12 +862,14 @@ namespace osu.Game.Overlays.Toolbar
                             Text = "—",
                             Colour = muted_white,
                         },
-                    }
+                    },
                 };
             }
 
             public void SetState(ToriiServerPulseConnectionState state)
             {
+                if (label == null || dotFill == null) return;
+
                 Color4 colour;
                 string text;
                 switch (state)
@@ -464,512 +903,6 @@ namespace osu.Game.Overlays.Toolbar
                 dotFill.FadeColour(colour, 220, Easing.OutQuint);
                 label.Text = text;
                 label.FadeColour(colour.Opacity(0.85f), 220, Easing.OutQuint);
-            }
-        }
-
-        // -------------------------------------------------------------
-        // TweenedNumber — big stat block (number + small caption)
-        // -------------------------------------------------------------
-        private partial class TweenedNumber : CompositeDrawable
-        {
-            private readonly string caption;
-            private readonly Color4 accent;
-
-            private OsuSpriteText valueText = null!;
-            private OsuSpriteText captionText = null!;
-
-            private double currentDisplayValue;
-            private double targetValue;
-            private double tweenDurationRemaining;
-
-            // Linear interpolation over ~280ms feels snappy without
-            // snapping. Tweaked alongside the heartbeat ambient cadence
-            // so the popover and the button feel like the same animation
-            // language.
-            private const double tween_duration_ms = 280;
-
-            public TweenedNumber(string caption, Color4 accent)
-            {
-                this.caption = caption;
-                this.accent = accent;
-                AutoSizeAxes = Axes.Both;
-            }
-
-            [BackgroundDependencyLoader]
-            private void load()
-            {
-                InternalChild = new FillFlowContainer
-                {
-                    AutoSizeAxes = Axes.Both,
-                    Direction = FillDirection.Vertical,
-                    Spacing = new Vector2(0, 1),
-                    Children = new Drawable[]
-                    {
-                        valueText = new OsuSpriteText
-                        {
-                            Anchor = Anchor.TopCentre,
-                            Origin = Anchor.TopCentre,
-                            Font = OsuFont.GetFont(size: 28, weight: FontWeight.Bold, fixedWidth: false),
-                            Text = "0",
-                            Colour = Color4.White,
-                        },
-                        captionText = new OsuSpriteText
-                        {
-                            Anchor = Anchor.TopCentre,
-                            Origin = Anchor.TopCentre,
-                            Font = OsuFont.GetFont(size: 9, weight: FontWeight.SemiBold),
-                            Spacing = new Vector2(0.7f, 0),
-                            Text = caption.ToUpperInvariant(),
-                            Colour = accent.Opacity(0.85f),
-                        },
-                    }
-                };
-            }
-
-            public void SetValue(int newValue)
-            {
-                if (Math.Abs(newValue - currentDisplayValue) < 0.5)
-                {
-                    // No actual change; ensure final text is correct.
-                    valueText.Text = newValue.ToString();
-                    return;
-                }
-
-                targetValue = newValue;
-                tweenDurationRemaining = tween_duration_ms;
-
-                // Subtle pulse on update — brief scale-up of the value
-                // text + accent flash, fades back to white. Keeps the
-                // motion language coherent with the toolbar button's
-                // count update.
-                valueText.ClearTransforms();
-                valueText.ScaleTo(1.10f, 90, Easing.OutQuint).Then().ScaleTo(1f, 220, Easing.OutBack);
-                valueText.FadeColour(accent, 80, Easing.OutQuint).Then().FadeColour(Color4.White, 360, Easing.OutQuint);
-            }
-
-            protected override void Update()
-            {
-                base.Update();
-
-                if (tweenDurationRemaining <= 0 && Math.Abs(currentDisplayValue - targetValue) < 0.5) return;
-
-                if (tweenDurationRemaining <= 0)
-                {
-                    currentDisplayValue = targetValue;
-                }
-                else
-                {
-                    double progress = 1.0 - tweenDurationRemaining / tween_duration_ms;
-                    progress = Math.Clamp(progress, 0, 1);
-                    // Ease-out cubic for a snappy start + soft landing
-                    double eased = 1 - Math.Pow(1 - progress, 3);
-                    currentDisplayValue = (targetValue - currentDisplayValue) * (eased - (1.0 - tweenDurationRemaining / tween_duration_ms)) + currentDisplayValue;
-                    // Simpler: just use linear interpolation between
-                    // initial and target. We don't actually need the
-                    // perfect ease since values are integers.
-                    tweenDurationRemaining -= Time.Elapsed;
-                }
-
-                valueText.Text = ((int)Math.Round(currentDisplayValue)).ToString();
-            }
-        }
-
-        // -------------------------------------------------------------
-        // SparklineGraph — 12 vertical bars showing recent play activity
-        // -------------------------------------------------------------
-        // Bars are rendered as Boxes with bottom anchor + RelativeSizeAxes
-        // so resizing the parent container reflows them naturally. Each
-        // bar tweens its height when the bucket data updates.
-        // -------------------------------------------------------------
-        private partial class SparklineGraph : CompositeDrawable
-        {
-            private FillFlowContainer barsFlow = null!;
-            private OsuSpriteText caption = null!;
-            private OsuSpriteText emptyHint = null!;
-
-            private readonly List<Box> bars = new List<Box>();
-
-            // Soft minimum height so even a zero-bucket renders a faint
-            // baseline strip — communicates "the graph is here, it's
-            // just quiet right now" instead of looking broken.
-            private const float min_bar_height = 0.06f;
-
-            [BackgroundDependencyLoader]
-            private void load()
-            {
-                InternalChild = new FillFlowContainer
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Direction = FillDirection.Vertical,
-                    Children = new Drawable[]
-                    {
-                        new Container
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            Height = 38,
-                            Children = new Drawable[]
-                            {
-                                barsFlow = new FillFlowContainer
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Direction = FillDirection.Horizontal,
-                                    Spacing = new Vector2(3, 0),
-                                    Anchor = Anchor.BottomLeft,
-                                    Origin = Anchor.BottomLeft,
-                                },
-                                emptyHint = new OsuSpriteText
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Text = "the gates are quiet",
-                                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
-                                    Colour = muted_white,
-                                    Alpha = 0,
-                                },
-                            },
-                        },
-                        new Container
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            Height = 14,
-                            Padding = new MarginPadding { Top = 4 },
-                            Child = caption = new OsuSpriteText
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Text = "last 12 minutes",
-                                Font = OsuFont.GetFont(size: 9, weight: FontWeight.SemiBold),
-                                Spacing = new Vector2(0.7f, 0),
-                                Colour = muted_white,
-                            },
-                        }
-                    }
-                };
-            }
-
-            public void SetBuckets(IReadOnlyList<int>? buckets)
-            {
-                if (buckets == null || buckets.Count == 0)
-                {
-                    foreach (var bar in bars)
-                        bar.ResizeHeightTo(min_bar_height, 240, Easing.OutQuint);
-                    emptyHint.FadeIn(220, Easing.OutQuint);
-                    return;
-                }
-
-                emptyHint.FadeOut(160, Easing.OutQuint);
-
-                // Lazy-allocate bar widgets the first time we know the
-                // bucket count. Subsequent updates reuse the same boxes,
-                // just retargeting their heights — no churn.
-                if (bars.Count != buckets.Count)
-                {
-                    barsFlow.Clear();
-                    bars.Clear();
-
-                    for (int i = 0; i < buckets.Count; i++)
-                    {
-                        var bar = new Box
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Anchor = Anchor.BottomLeft,
-                            Origin = Anchor.BottomLeft,
-                            Width = 1f / buckets.Count - 0.01f,
-                            Height = min_bar_height,
-                            // Newer bars on the right are brighter — gives
-                            // the eye an easy "current activity is on
-                            // the right" affordance.
-                            Colour = ColourInfo.GradientVertical(
-                                ColourFor(i, buckets.Count, 1f),
-                                ColourFor(i, buckets.Count, 0.5f)),
-                        };
-                        bars.Add(bar);
-                        barsFlow.Add(bar);
-                    }
-                }
-
-                int max = 0;
-                for (int i = 0; i < buckets.Count; i++)
-                    if (buckets[i] > max) max = buckets[i];
-
-                for (int i = 0; i < bars.Count; i++)
-                {
-                    int value = i < buckets.Count ? buckets[i] : 0;
-                    float ratio = max <= 0 ? 0f : (float)value / max;
-                    float height = Math.Max(min_bar_height, ratio * 0.96f);
-                    bars[i].ResizeHeightTo(height, 320, Easing.OutQuint);
-                }
-            }
-
-            private static Color4 ColourFor(int index, int total, float alpha)
-            {
-                // Older buckets dim toward muted-grey; newer buckets are
-                // closer to torii_red for "this is happening now". Linear
-                // interpolation between the two endpoints.
-                float t = (float)index / Math.Max(1, total - 1);
-                Color4 dim = new Color4(110, 80, 90, 200);
-                Color4 hot = new Color4(214, 60, 70, 255);
-                return new Color4(
-                    (byte)(dim.R * 255 * (1 - t) + hot.R * 255 * t),
-                    (byte)(dim.G * 255 * (1 - t) + hot.G * 255 * t),
-                    (byte)(dim.B * 255 * (1 - t) + hot.B * 255 * t),
-                    (byte)(255 * alpha));
-            }
-        }
-
-        // -------------------------------------------------------------
-        // TopMapCard — small card with cover + title/artist + stats
-        // -------------------------------------------------------------
-        // Cover loaded via LargeTextureStore.Get(url) — same path used
-        // for avatars (DrawableAvatar). Cross-fades between covers when
-        // the top map changes; renders a calm "no plays yet" empty state
-        // when the server returns top_map = null.
-        // -------------------------------------------------------------
-        private partial class TopMapCard : CompositeDrawable
-        {
-            private Container coverContainer = null!;
-            private Sprite? currentCover;
-            private Box coverPlaceholder = null!;
-            private OsuSpriteText titleText = null!;
-            private OsuSpriteText artistText = null!;
-            private OsuSpriteText metaText = null!;
-            private Container contentContainer = null!;
-            private Container emptyContainer = null!;
-
-            [Resolved]
-            private LargeTextureStore textures { get; set; } = null!;
-
-            private string? lastLoadedCoverUrl;
-
-            public TopMapCard()
-            {
-                AutoSizeAxes = Axes.Y;
-            }
-
-            [BackgroundDependencyLoader]
-            private void load()
-            {
-                InternalChildren = new Drawable[]
-                {
-                    contentContainer = new Container
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        Height = 64,
-                        Children = new Drawable[]
-                        {
-                            // Cover, left side, square. CornerRadius
-                            // matches the panel's overall corner language
-                            // for visual cohesion.
-                            new Container
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Size = new Vector2(64, 64),
-                                Masking = true,
-                                CornerRadius = 8,
-                                Children = new Drawable[]
-                                {
-                                    coverPlaceholder = new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = new Color4(28, 24, 32, 255),
-                                    },
-                                    coverContainer = new Container
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                    },
-                                    // Subtle vermillion sheen on top of
-                                    // the cover so it reads as part of
-                                    // the Torii panel rather than a
-                                    // foreign image.
-                                    new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = ColourInfo.GradientVertical(
-                                            torii_red.Opacity(0.0f),
-                                            torii_red.Opacity(0.18f)),
-                                        Blending = BlendingParameters.Additive,
-                                    },
-                                },
-                            },
-                            // Right side: caption + title + meta line.
-                            new Container
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                X = 76,
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Width = 1f,
-                                Padding = new MarginPadding { Right = 76 }, // leave room for the cover
-                                Child = new FillFlowContainer
-                                {
-                                    AutoSizeAxes = Axes.Y,
-                                    RelativeSizeAxes = Axes.X,
-                                    Direction = FillDirection.Vertical,
-                                    Spacing = new Vector2(0, 2),
-                                    Children = new Drawable[]
-                                    {
-                                        new OsuSpriteText
-                                        {
-                                            Text = "TOP RIGHT NOW",
-                                            Font = OsuFont.GetFont(size: 9, weight: FontWeight.SemiBold),
-                                            Spacing = new Vector2(0.8f, 0),
-                                            Colour = torii_red,
-                                        },
-                                        titleText = new OsuSpriteText
-                                        {
-                                            Text = "—",
-                                            Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold),
-                                            Colour = Color4.White,
-                                            Truncate = true,
-                                            RelativeSizeAxes = Axes.X,
-                                        },
-                                        artistText = new OsuSpriteText
-                                        {
-                                            Text = "—",
-                                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.Regular),
-                                            Colour = muted_white,
-                                            Truncate = true,
-                                            RelativeSizeAxes = Axes.X,
-                                        },
-                                        metaText = new OsuSpriteText
-                                        {
-                                            Text = "—",
-                                            Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
-                                            Colour = torii_red_dim,
-                                            Truncate = true,
-                                            RelativeSizeAxes = Axes.X,
-                                        },
-                                    }
-                                },
-                            },
-                        },
-                    },
-                    emptyContainer = new Container
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        Height = 64,
-                        Alpha = 0,
-                        Children = new Drawable[]
-                        {
-                            new Box
-                            {
-                                RelativeSizeAxes = Axes.Both,
-                                Colour = new Color4(255, 255, 255, 8),
-                                // Soft transparent panel so the empty
-                                // state still has a defined card area
-                                // matching the populated layout.
-                            },
-                            new FillFlowContainer
-                            {
-                                Anchor = Anchor.Centre,
-                                Origin = Anchor.Centre,
-                                AutoSizeAxes = Axes.Both,
-                                Direction = FillDirection.Vertical,
-                                Spacing = new Vector2(0, 2),
-                                Children = new Drawable[]
-                                {
-                                    new OsuSpriteText
-                                    {
-                                        Anchor = Anchor.TopCentre,
-                                        Origin = Anchor.TopCentre,
-                                        Text = "no plays in the last 5 minutes",
-                                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.Regular),
-                                        Colour = muted_white,
-                                    },
-                                    new OsuSpriteText
-                                    {
-                                        Anchor = Anchor.TopCentre,
-                                        Origin = Anchor.TopCentre,
-                                        Text = "be the first to break the silence",
-                                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.SemiBold),
-                                        Spacing = new Vector2(0.6f, 0),
-                                        Colour = torii_red.Opacity(0.85f),
-                                    },
-                                }
-                            },
-                        }
-                    },
-                };
-            }
-
-            public void SetMap(APIToriiServerPulseTopMap? map)
-            {
-                if (map == null)
-                {
-                    contentContainer.FadeOut(180, Easing.OutQuint);
-                    emptyContainer.FadeIn(220, Easing.OutQuint);
-                    return;
-                }
-
-                contentContainer.FadeIn(220, Easing.OutQuint);
-                emptyContainer.FadeOut(180, Easing.OutQuint);
-
-                titleText.Text = map.DisplayTitle;
-                artistText.Text = map.DisplayArtist;
-
-                // Star rating may be 0 if server didn't compute it; only
-                // include the badge when we actually have a number.
-                string starPart = map.StarRating > 0 ? $"  ·  ★{map.StarRating:0.00}" : string.Empty;
-                metaText.Text = $"[{map.Version}]  ·  {map.PlayCount5Min} play{(map.PlayCount5Min == 1 ? "" : "s")} in 5min{starPart}";
-
-                string? coverUrl = map.BestCoverUrl;
-                if (coverUrl == lastLoadedCoverUrl) return;
-
-                lastLoadedCoverUrl = coverUrl;
-                loadCover(coverUrl);
-            }
-
-            private void loadCover(string? url)
-            {
-                if (string.IsNullOrEmpty(url))
-                {
-                    currentCover?.FadeOut(180, Easing.OutQuint);
-                    return;
-                }
-
-                Texture? tex = null;
-                try
-                {
-                    tex = textures.Get(url);
-                }
-                catch
-                {
-                    // textures.Get can throw on malformed URLs / protocol
-                    // restrictions. Fall back to placeholder silently.
-                    tex = null;
-                }
-
-                if (tex == null)
-                {
-                    currentCover?.FadeOut(180, Easing.OutQuint);
-                    return;
-                }
-
-                var newCover = new Sprite
-                {
-                    Texture = tex,
-                    RelativeSizeAxes = Axes.Both,
-                    FillMode = FillMode.Fill,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Alpha = 0,
-                };
-
-                coverContainer.Add(newCover);
-                newCover.FadeIn(280, Easing.OutQuint);
-
-                // Fade out and remove the previous cover with a small
-                // delay so the cross-fade overlaps cleanly.
-                var oldCover = currentCover;
-                currentCover = newCover;
-
-                if (oldCover != null)
-                {
-                    oldCover.FadeOut(280, Easing.OutQuint);
-                    oldCover.Expire();
-                }
             }
         }
     }

@@ -61,10 +61,40 @@ namespace osu.Game.Online.API.Requests.Responses
 
         /// <summary>
         /// Most-played beatmap of the last 5 minutes, or <c>null</c> when
-        /// no plays have landed (gates are quiet — empty state).
+        /// no plays have landed. Equivalent to <see cref="TopMaps"/>[0]
+        /// — kept on the response for legacy clients that haven't picked
+        /// up the multi-map list yet.
         /// </summary>
         [JsonProperty("top_map")]
         public APIToriiServerPulseTopMap? TopMap { get; set; }
+
+        /// <summary>
+        /// Top 5 most-played beatmaps of the last 5 minutes, ordered by
+        /// play count desc. Empty list when the server has been quiet —
+        /// the Hot Maps carousel page renders a calm empty state in
+        /// that case. Older server responses that don't carry this
+        /// field deserialise to an empty list (defensive default).
+        /// </summary>
+        [JsonProperty("top_maps")]
+        public List<APIToriiServerPulseTopMap> TopMaps { get; set; } = new List<APIToriiServerPulseTopMap>();
+
+        /// <summary>
+        /// Per-ruleset count of currently in-flight plays. Keys are the
+        /// ruleset ID as a string (<c>"0"</c> osu / <c>"1"</c> taiko /
+        /// <c>"2"</c> catch / <c>"3"</c> mania) — matches the server-side
+        /// JSON object key constraint. Modes with zero plays are absent
+        /// from the dict; the Mode Split page treats missing as zero.
+        /// </summary>
+        [JsonProperty("mode_breakdown")]
+        public Dictionary<string, int> ModeBreakdown { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Most-recently-started in-flight plays (up to 8) — powers the
+        /// "Live Plays" carousel page. Each entry carries enough user +
+        /// beatmap context to render a row without follow-up lookups.
+        /// </summary>
+        [JsonProperty("recent_plays")]
+        public List<APIToriiServerPulseRecentPlay> RecentPlays { get; set; } = new List<APIToriiServerPulseRecentPlay>();
 
         /// <summary>
         /// 12 × 1-minute play-count buckets, oldest first — sparkline data
@@ -73,6 +103,69 @@ namespace osu.Game.Online.API.Requests.Responses
         /// </summary>
         [JsonProperty("sparkline")]
         public APIToriiServerPulseSparkline Sparkline { get; set; } = new APIToriiServerPulseSparkline();
+    }
+
+    /// <summary>
+    /// A single recent in-flight play row. Mirrors the server-side
+    /// <c>recent_plays[]</c> entry shape from
+    /// <c>app/router/v2/torii_server_pulse.py:_compute_recent_plays</c>.
+    ///
+    /// "Recent" here means "the user opened a score token" — i.e. they
+    /// just started playing and haven't submitted yet. The list refreshes
+    /// every poll cycle, so the rows naturally rotate as new plays start
+    /// and old ones complete (token gets a score_id and disappears from
+    /// the in-flight set).
+    /// </summary>
+    public class APIToriiServerPulseRecentPlay
+    {
+        [JsonProperty("user_id")]
+        public long UserId { get; set; }
+
+        [JsonProperty("username")]
+        public string Username { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Avatar URL ready to feed straight into <c>LargeTextureStore</c>
+        /// — the server resolves this against its own user model so we
+        /// don't need a follow-up <c>/users/{id}</c> lookup just for the
+        /// avatar.
+        /// </summary>
+        [JsonProperty("avatar_url")]
+        public string AvatarUrl { get; set; } = string.Empty;
+
+        [JsonProperty("beatmap_id")]
+        public long BeatmapId { get; set; }
+
+        [JsonProperty("beatmapset_id")]
+        public long BeatmapSetId { get; set; }
+
+        [JsonProperty("title")]
+        public string Title { get; set; } = string.Empty;
+
+        [JsonProperty("title_unicode")]
+        public string TitleUnicode { get; set; } = string.Empty;
+
+        [JsonProperty("artist")]
+        public string Artist { get; set; } = string.Empty;
+
+        [JsonProperty("version")]
+        public string Version { get; set; } = string.Empty;
+
+        [JsonProperty("ruleset_id")]
+        public int RulesetId { get; set; }
+
+        /// <summary>
+        /// Seconds since the player started this attempt, computed
+        /// server-side against the snapshot's <c>captured_at</c>. The
+        /// client adds the elapsed time since the snapshot was received
+        /// for a smooth "32s ago → 33s ago" tick that doesn't depend on
+        /// the user's clock matching the server's clock.
+        /// </summary>
+        [JsonProperty("started_seconds_ago")]
+        public int StartedSecondsAgo { get; set; }
+
+        /// <summary>Unicode title with romanised fallback.</summary>
+        public string DisplayTitle => !string.IsNullOrEmpty(TitleUnicode) ? TitleUnicode : Title;
     }
 
     /// <summary>

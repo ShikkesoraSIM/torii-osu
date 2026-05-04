@@ -284,6 +284,28 @@ namespace osu.Game.Overlays.Toolbar
                                         new ToolbarChatButton(),
                                         new ToolbarSocialButton(),
                                         new ToolbarMusicButton(),
+                                        // Torii server pulse — sits between
+                                        // music and user-button so it reads
+                                        // as part of the "social /
+                                        // people-on-the-server" neighbourhood
+                                        // rather than the utility cluster
+                                        // (clock + notifications) on the
+                                        // far right. Vertically centred
+                                        // because the pill (32px) is shorter
+                                        // than the classic toolbar (40px) —
+                                        // without the explicit Anchor it
+                                        // would top-align with an awkward
+                                        // gap underneath.
+                                        // TopLeft anchor (NOT CentreLeft) to match the
+                                        // other ToolbarButton siblings — FillDirection.Horizontal
+                                        // siblings must share their Y anchor component, otherwise
+                                        // the framework throws "0 != 0.5" on layout. The pill is
+                                        // 32px tall vs the toolbar's 40px, so a Margin.Top = 4
+                                        // visually centres it without breaking the anchor contract.
+                                        new ToriiServerPulseButton
+                                        {
+                                            Margin = new MarginPadding { Top = 4, Horizontal = 4 },
+                                        },
                                         userButton = new ToolbarUserButton(),
                                         new ToolbarClock(),
                                         new ToolbarNotificationButton(),
