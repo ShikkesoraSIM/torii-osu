@@ -64,6 +64,19 @@ namespace osu.Game.Rulesets.Mania.Skinning.Argon
                             {
                                 new DrawableGameplayLeaderboard(),
                                 new ArgonManiaComboCounter(),
+                                // Default ("Torii") variant of the
+                                // ratio counter is shipped here even
+                                // though we're inside the Argon
+                                // transformer — there isn't an Argon
+                                // wireframe variant because the
+                                // wireframe-digit treatment doesn't
+                                // render decimal points cleanly.
+                                new Default.DefaultManiaRatioCounter
+                                {
+                                    Anchor = Anchor.TopCentre,
+                                    Origin = Anchor.TopCentre,
+                                    Y = 280,
+                                },
                                 new SpectatorList
                                 {
                                     Anchor = Anchor.BottomLeft,

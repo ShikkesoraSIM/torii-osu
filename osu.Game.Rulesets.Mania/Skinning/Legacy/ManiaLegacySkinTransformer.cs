@@ -128,6 +128,7 @@ namespace osu.Game.Rulesets.Mania.Skinning.Legacy
                             })
                             {
                                 new LegacyManiaComboCounter(),
+                                new LegacyManiaRatioCounter(),
                                 new SpectatorList(),
                                 new DrawableGameplayLeaderboard(),
                             };

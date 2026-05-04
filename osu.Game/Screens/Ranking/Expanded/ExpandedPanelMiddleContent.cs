@@ -82,6 +82,16 @@ namespace osu.Game.Screens.Ranking.Expanded
                 new PerformanceStatistic(score),
             };
 
+            // Insert the VSRG-style PA Ratio (Perfects/Greats) between
+            // max combo and PP for mania scores only — it doesn't make
+            // sense for std/taiko/catch where there's no equivalent
+            // notion of "MAX vs Perfect" judgement granularity. Using
+            // OnlineID == 3 here (mania) keeps the display generic to
+            // any mania ruleset variant (osu!mania, mania-special)
+            // without a hard project reference back to the mania DLL.
+            if (score.Ruleset.OnlineID == 3)
+                topStatistics.Insert(2, new RatioStatistic(score));
+
             var bottomStatistics = new List<HitResultStatistic>();
 
             foreach (var result in score.GetStatisticsForDisplay())
