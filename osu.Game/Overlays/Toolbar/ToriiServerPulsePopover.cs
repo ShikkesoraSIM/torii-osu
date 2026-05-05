@@ -73,6 +73,16 @@ namespace osu.Game.Overlays.Toolbar
         private const float panel_corner_radius = 16f;
         private const float page_height = 280f;
 
+        // Horizontal padding on the body's vertical FillFlow. Header,
+        // tab strip, and footer all live INSIDE this padded flow. The
+        // page carousel ALSO lives inside it, so each page's effective
+        // visible width is panel_width - 2 * panel_horizontal_padding.
+        // page_step is what the carousel slides by per page — making
+        // this match the visible width is what stops the right edge of
+        // each page from being clipped by the body's padding.
+        private const float panel_horizontal_padding = 18f;
+        private const float page_step = panel_width - 2 * panel_horizontal_padding;
+
         // Tab strip / arrow / dot row sizing.
         private const float tab_strip_height = 26f;
 
@@ -194,7 +204,7 @@ namespace osu.Game.Overlays.Toolbar
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
                         Direction = FillDirection.Vertical,
-                        Padding = new MarginPadding { Top = 14, Bottom = 14, Horizontal = 18 },
+                        Padding = new MarginPadding { Top = 14, Bottom = 14, Horizontal = panel_horizontal_padding },
                         Spacing = new Vector2(0, 10),
                         Children = new Drawable[]
                         {
@@ -376,13 +386,17 @@ namespace osu.Game.Overlays.Toolbar
                 pageDotsFlow.Add(new PageDot(captured, () => goToPage(captured)));
             }
 
-            // Page strip is wider than the viewport (page_width × page_count)
+            // Page strip is wider than the viewport (page_step × page_count)
             // and slides horizontally to bring the active page into view.
-            // BypassAutoSizeAxes so its width doesn't expand the body.
+            // We use page_step (= panel_width - 2 * padding) instead of
+            // raw panel_width because the strip lives INSIDE the body's
+            // padded FillFlow — so its viewport's effective width is
+            // already inset by the padding. Sizing pages to page_step
+            // keeps every page snapped to the visible area.
             pagesStrip = new Container
             {
                 RelativeSizeAxes = Axes.Y,
-                Width = panel_width * page_count,
+                Width = page_step * page_count,
                 Children = new Drawable[]
                 {
                     pagedDrawable(overviewPage,   page_overview),
@@ -409,22 +423,16 @@ namespace osu.Game.Overlays.Toolbar
         }
 
         // Wraps a page in a fixed-width container at the right horizontal
-        // offset for its slot in the carousel strip.
+        // offset for its slot in the carousel strip. Width matches
+        // page_step so every page snaps to the masked viewport's
+        // visible area exactly.
         private static Drawable pagedDrawable(Drawable page, int index)
         {
-            // Pages should fit the viewport — we trim 36px from the right
-            // (= panel padding + a bit) inside the page itself, but the
-            // OUTER bound here is the full panel width so each page lines
-            // up exactly with the masked viewport.
             return new Container
             {
-                X = panel_width * index,
-                // Inset the inner padding so the page content doesn't kiss
-                // the panel border. Mirrors the rest of the panel's
-                // horizontal padding.
-                Padding = new MarginPadding { Horizontal = 0 },
+                X = page_step * index,
                 RelativeSizeAxes = Axes.Y,
-                Width = panel_width,
+                Width = page_step,
                 Child = page,
             };
         }
@@ -500,7 +508,7 @@ namespace osu.Game.Overlays.Toolbar
             // adjustment because C# % preserves sign of the dividend.
             currentPage = (index % page_count + page_count) % page_count;
 
-            float targetX = -panel_width * currentPage;
+            float targetX = -page_step * currentPage;
 
             pagesStrip.ClearTransforms(targetMember: nameof(Position));
             if (animated)
@@ -663,15 +671,13 @@ namespace osu.Game.Overlays.Toolbar
             {
                 popover.isDragging = false;
 
-                // Compute which page the strip is closest to, plus a
-                // velocity-aware nudge: if the user is flicking the
-                // strip past the halfway mark of the next page, treat
-                // that as "advance to that page" instead of snapping
-                // back. Threshold of panel_width * 0.4 picked
-                // empirically — wide enough to feel intentional, narrow
-                // enough that a casual flick still completes.
+                // Compute which page the strip is closest to. Using
+                // page_step (the actual carousel step size) rather than
+                // panel_width so the snap math matches the slide
+                // geometry — getting these out of sync would land the
+                // user between pages on swipe-end.
                 float currentX = popover.pagesStrip.X;
-                int nearest = (int)Math.Round(-currentX / panel_width);
+                int nearest = (int)Math.Round(-currentX / page_step);
                 nearest = Math.Clamp(nearest, 0, page_count - 1);
                 popover.goToPage(nearest);
             }

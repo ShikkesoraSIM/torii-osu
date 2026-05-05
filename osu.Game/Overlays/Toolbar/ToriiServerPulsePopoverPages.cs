@@ -608,6 +608,14 @@ namespace osu.Game.Overlays.Toolbar
                 this.map = map;
                 RelativeSizeAxes = Axes.X;
                 Height = 40;
+                // Masking + CornerRadius on the row container itself so
+                // the background Box renders with rounded corners.
+                // Previously the Box was a sharp rectangle; upstream
+                // feedback flagged the look as "muy sharp" — fixed at
+                // the row level rather than inside the Box (Box has no
+                // CornerRadius of its own).
+                Masking = true;
+                CornerRadius = 8;
             }
 
             [BackgroundDependencyLoader]
@@ -908,6 +916,11 @@ namespace osu.Game.Overlays.Toolbar
                 this.play = play;
                 RelativeSizeAxes = Axes.X;
                 Height = 36;
+                // Same rounded-corner rationale as HotMapRow — masking
+                // on the row itself so the subtle background tint reads
+                // as a proper pill instead of a sharp rectangle.
+                Masking = true;
+                CornerRadius = 8;
             }
 
             [BackgroundDependencyLoader]
@@ -1396,17 +1409,26 @@ namespace osu.Game.Overlays.Toolbar
     internal partial class LazyCoverImage : CompositeDrawable
     {
         private readonly Color4 placeholderColour;
-        private string? url;
+        private string? pendingUrl;
+        private string? activeUrl;
         private Container coverHolder = null!;
 
         public string? Url
         {
-            get => url;
+            get => pendingUrl;
             set
             {
-                if (url == value) return;
-                url = value;
-                rebuild();
+                if (pendingUrl == value) return;
+                pendingUrl = value;
+                // Only kick off the actual cover load once we're loaded.
+                // Setters fired BEFORE LoadComplete (e.g. from a parent's
+                // [BackgroundDependencyLoader] initialiser like
+                // `new LazyCoverImage { Url = ... }`) just stash the URL;
+                // the LoadComplete handler runs `applyUrl` once we're
+                // safely in the loaded state and LoadComponentAsync is
+                // legal to call.
+                if (LoadState == LoadState.Loaded)
+                    applyUrl();
             }
         }
 
@@ -1437,34 +1459,50 @@ namespace osu.Game.Overlays.Toolbar
                     RelativeSizeAxes = Axes.Both,
                 },
             };
+        }
 
-            rebuild();
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+            // Apply whatever URL was stashed by the setter while we
+            // were still loading. After this point, every subsequent
+            // Url setter call applies immediately (see the LoadState
+            // check there).
+            applyUrl();
         }
 
         public void SetUrl(string? newUrl) => Url = newUrl;
 
-        private void rebuild()
+        private void applyUrl()
         {
             if (coverHolder == null) return;
-            coverHolder.Clear(true);
 
-            if (string.IsNullOrEmpty(url)) return;
+            // Empty / cleared URL — drop any current cover, restore
+            // placeholder visibility.
+            if (string.IsNullOrEmpty(pendingUrl))
+            {
+                coverHolder.Clear(true);
+                activeUrl = null;
+                return;
+            }
 
-            string capturedUrl = url;
+            // Already loading or loaded the same URL? No-op so we don't
+            // restart the fade animation on every poll cycle when the
+            // top map hasn't changed.
+            if (pendingUrl == activeUrl) return;
+            activeUrl = pendingUrl;
 
-            // LoadComponentAsync runs the sprite's LoadAsync on a worker
-            // thread (the texture's GPU upload happens there too) and
-            // calls our continuation on the update thread when the
-            // sprite is fully loaded — at which point we add it and
-            // fade it in over the placeholder.
+            string capturedUrl = pendingUrl;
             var sprite = new CoverSprite(capturedUrl);
             LoadComponentAsync(sprite, loaded =>
             {
-                // url may have changed between scheduling and
-                // completion. If it has, drop this stale load.
-                if (capturedUrl != url || coverHolder == null)
-                    return;
+                // URL may have rotated between scheduling and
+                // completion (e.g. snapshot poll changed the top
+                // map). Drop the stale load instead of clobbering
+                // the row that's already showing the new cover.
+                if (capturedUrl != activeUrl) return;
 
+                coverHolder.Clear(true);
                 coverHolder.Add(loaded);
                 loaded.FadeInFromZero(280, Easing.OutQuint);
             });
