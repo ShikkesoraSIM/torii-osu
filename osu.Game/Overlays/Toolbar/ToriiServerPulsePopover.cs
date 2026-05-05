@@ -741,7 +741,24 @@ namespace osu.Game.Overlays.Toolbar
                 if (popover == null || popover.State.Value != Visibility.Visible)
                     return false;
 
-                return !popover.ScreenSpaceDrawQuad.Contains(screenSpacePos);
+                if (popover.ScreenSpaceDrawQuad.Contains(screenSpacePos))
+                    return false;
+
+                // Critical: ALSO ignore clicks on the anchor button
+                // (the toolbar pill that owns the popover). Otherwise
+                // this catcher fires on the button click → Hide() →
+                // click propagates to the button → togglePopover sees
+                // State.Hidden → Show() → popover re-opens with the
+                // pop-in animation. Net effect: clicking the button
+                // while open never closed it, every click looked like a
+                // re-open. By excluding the anchor's screen-space rect
+                // here, the button's click reaches togglePopover with
+                // State still Visible, which then routes to Hide() as
+                // expected.
+                if (popover.AnchoredAt?.ScreenSpaceDrawQuad.Contains(screenSpacePos) == true)
+                    return false;
+
+                return true;
             }
 
             protected override bool OnMouseDown(MouseDownEvent e)
