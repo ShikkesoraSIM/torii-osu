@@ -94,6 +94,26 @@ namespace osu.Game.Overlays
             // currently-signed-in user, not on whoever last enabled it
             // on this machine. Re-fires automatically on login/logout.
             customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays, API);
+
+            // Always paint the initial state, regardless of whether
+            // BindFullScheme's update() landed on a hue identical to the
+            // one the provider was constructed with. ChangeColourScheme
+            // early-returns when the new hue matches the current one and
+            // does NOT fire ColoursChanged — that's the case for every new
+            // install of Torii, where the default config has
+            // CustomUIHueEnabled=false and the resolver returns the
+            // overlay's own scheme hue (which is also what the provider
+            // started at). Without this explicit call, UpdateColours
+            // never ran for those users, the `background` Box stayed at
+            // its initialiser default (Color4.White), and rankings /
+            // dashboard / beatmap-listing / changelog all rendered with a
+            // glaring white panel underneath the dark content. Users with
+            // a custom hue active never saw the bug because their
+            // resolved hue differed from the constructor's default and
+            // the event did fire. Calling UpdateColours unconditionally
+            // here is idempotent — same code path BindFullScheme would
+            // have triggered if the hue had changed.
+            UpdateColours();
         }
 
         protected abstract T CreateHeader();
