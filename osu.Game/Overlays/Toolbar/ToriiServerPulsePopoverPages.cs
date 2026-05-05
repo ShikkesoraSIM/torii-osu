@@ -1109,7 +1109,15 @@ namespace osu.Game.Overlays.Toolbar
                             new Dimension(GridSizeMode.Absolute, 8),  // gap
                             new Dimension(),                           // text — flex
                             new Dimension(GridSizeMode.Absolute, 6),  // pad before badge
-                            new Dimension(GridSizeMode.Absolute, 78), // status badge — fixed width
+                            // Status badge fixed width — must accommodate
+                            // the widest content the SubmittedScoreBadge
+                            // can render: "S 99.99%" / "300pp +99pp" at
+                            // its inline-delta variant. 90px gives the
+                            // badge ~74px of text width after horizontal
+                            // padding, comfortably fitting that worst
+                            // case without forcing the play-value to
+                            // wrap.
+                            new Dimension(GridSizeMode.Absolute, 90), // status badge — fixed width
                         },
                         RowDimensions = new[] { new Dimension() },
                         Content = new[]
@@ -1245,15 +1253,21 @@ namespace osu.Game.Overlays.Toolbar
                 Color4 rankColour = colourForRank(play.Rank);
                 string rankText = string.IsNullOrEmpty(play.Rank) ? "—" : play.Rank;
                 string accText = $"{play.Accuracy * 100:0.##}%";
-                // No "+" prefix — this is the play's intrinsic pp value
-                // (what the score is worth), not the delta added to the
-                // user's total pp after weighting. A "+" was implying
-                // "your account just gained N pp" which was misleading
-                // for low-rank scores that contributed 0 weighted pp.
-                // A future iteration can add a server-computed
-                // account-delta and show both ("80pp · +5 to total")
-                // when the delta is non-zero.
+                // No "+" prefix on the play's intrinsic pp value — that's
+                // what the score is worth, not a delta to the user's
+                // total. The "+Xpp" delta below it (when >= 1) IS a real
+                // account-level gain (statistics.pp_after - pp_before),
+                // captured server-side at submission time.
                 string ppText = play.Pp >= 1 ? $"{play.Pp:0}pp" : "0pp";
+
+                // Account-pp delta is only shown when the score
+                // meaningfully moved the user's overall pp (>= 1). Sub-1
+                // deltas are noise — the score is too far down the
+                // weighted top-100 to register as a "gain". Showing only
+                // the play's value in those cases avoids the misleading
+                // "+0 to total" line.
+                bool showDelta = play.AccountPpDelta >= 1.0;
+                string deltaText = showDelta ? $"+{play.AccountPpDelta:0}pp" : string.Empty;
 
                 InternalChild = new Container
                 {
@@ -1303,17 +1317,65 @@ namespace osu.Game.Overlays.Toolbar
                                         },
                                     },
                                 },
-                                new OsuSpriteText
+                                new FillFlowContainer
                                 {
                                     Anchor = Anchor.TopCentre,
                                     Origin = Anchor.TopCentre,
-                                    Text = ppText,
-                                    Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
-                                    Colour = Color4.White,
+                                    AutoSizeAxes = Axes.Both,
+                                    Direction = FillDirection.Horizontal,
+                                    Spacing = new Vector2(3, 0),
+                                    Children = buildPpRow(ppText, deltaText, showDelta),
                                 },
                             }
                         }
                     }
+                };
+            }
+
+            // Builds the bottom row of the badge: the play's pp value,
+            // followed by a small green "+Xpp" only when this score
+            // actually lifted the user's account-level pp by at least
+            // 1pp. The delta uses a brand-friendly "gain green" so the
+            // viewer immediately reads the colour as a positive
+            // outcome — distinct from the white play-value next to it.
+            private static Drawable[] buildPpRow(string ppText, string deltaText, bool showDelta)
+            {
+                if (!showDelta)
+                {
+                    return new Drawable[]
+                    {
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            Text = ppText,
+                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                            Colour = Color4.White,
+                        },
+                    };
+                }
+
+                return new Drawable[]
+                {
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = ppText,
+                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                        Colour = Color4.White,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = deltaText,
+                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold),
+                        // Soft mint green — reads as "+ to your account"
+                        // without competing with the rank colour above.
+                        Colour = new Color4(140, 230, 165, 255),
+                        Margin = new MarginPadding { Top = 1 },
+                    },
                 };
             }
 

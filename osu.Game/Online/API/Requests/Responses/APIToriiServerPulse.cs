@@ -191,6 +191,18 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty("pp")]
         public double Pp { get; set; }
 
+        /// <summary>
+        /// Change in the user's account-level pp this score introduced
+        /// (<c>statistics.pp_after − pp_before</c>, clamped to ≥ 0).
+        /// Captured at submission time and stored on the Score row, so
+        /// reads are O(1). Used by the badge to render a secondary
+        /// "+Xpp to total" line when this score actually moved the
+        /// user's overall ranking pp; otherwise the badge shows just
+        /// the score's pp value.
+        /// </summary>
+        [JsonProperty("account_pp_delta")]
+        public double AccountPpDelta { get; set; }
+
         /// <summary>Accuracy as 0..1 (multiply by 100 for display).</summary>
         [JsonProperty("accuracy")]
         public double Accuracy { get; set; }
