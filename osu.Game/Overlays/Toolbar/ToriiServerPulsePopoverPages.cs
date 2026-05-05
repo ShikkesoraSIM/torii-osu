@@ -9,13 +9,17 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Users.Drawables;
 using osuTK;
@@ -603,7 +607,7 @@ namespace osu.Game.Overlays.Toolbar
         // No more X-offset + RelativeSizeAxes overflow that was making
         // the title text overlap the cover at certain widths.
         // ─────────────────────────────────────────────────────────────
-        private partial class HotMapRow : CompositeDrawable
+        private partial class HotMapRow : CompositeDrawable, IHasContextMenu
         {
             private readonly int rank;
             private readonly APIToriiServerPulseTopMap map;
@@ -611,6 +615,9 @@ namespace osu.Game.Overlays.Toolbar
 
             [Resolved(canBeNull: true)]
             private OsuGame? game { get; set; }
+
+            [Resolved(canBeNull: true)]
+            private IAPIProvider? api { get; set; }
 
             public HotMapRow(int rank, APIToriiServerPulseTopMap map)
             {
@@ -633,6 +640,34 @@ namespace osu.Game.Overlays.Toolbar
             {
                 game?.ShowBeatmap((int)map.BeatmapId);
                 return true;
+            }
+
+            // Right-click context menu mirrors what chat-style beatmap
+            // links offer: a primary "view" action, a copy-link, and a
+            // "view set" sibling. Falls back to a single-item menu if
+            // we don't have an API provider resolved yet (extremely
+            // unlikely in normal use, but keeps the popover from
+            // crashing on a partially initialised cycle).
+            public MenuItem[] ContextMenuItems
+            {
+                get
+                {
+                    var items = new System.Collections.Generic.List<MenuItem>
+                    {
+                        new OsuMenuItem("View beatmap", MenuItemType.Highlighted, () => game?.ShowBeatmap((int)map.BeatmapId)),
+                    };
+
+                    if (map.BeatmapSetId > 0)
+                        items.Add(new OsuMenuItem("View beatmap set", MenuItemType.Standard, () => game?.ShowBeatmapSet((int)map.BeatmapSetId)));
+
+                    if (api != null && map.BeatmapId > 0)
+                    {
+                        string beatmapUrl = $@"{api.Endpoints.WebsiteUrl}/b/{map.BeatmapId}";
+                        items.Add(new OsuMenuItem("Copy beatmap link", MenuItemType.Standard, () => game?.CopyToClipboard(beatmapUrl)));
+                    }
+
+                    return items.ToArray();
+                }
             }
 
             protected override bool OnHover(HoverEvent e)
@@ -954,13 +989,16 @@ namespace osu.Game.Overlays.Toolbar
         // for in-flight. Status badge column is fixed-width (78px) so
         // there's no AutoSize-column-clipping artefact.
         // ─────────────────────────────────────────────────────────────
-        private partial class LivePlayRow : CompositeDrawable
+        private partial class LivePlayRow : CompositeDrawable, IHasContextMenu
         {
             private readonly APIToriiServerPulseRecentPlay play;
             private Box hoverOverlay = null!;
 
             [Resolved(canBeNull: true)]
             private OsuGame? game { get; set; }
+
+            [Resolved(canBeNull: true)]
+            private IAPIProvider? api { get; set; }
 
             public LivePlayRow(APIToriiServerPulseRecentPlay play)
             {
@@ -971,15 +1009,55 @@ namespace osu.Game.Overlays.Toolbar
                 CornerRadius = 8;
             }
 
-            // Click anywhere on the row → open the user profile
-            // (UserProfileOverlay route via OsuGame.ShowUser). Future
-            // round will add a right-click context menu with "open
-            // map", "copy profile link", etc.
+            // Left-click goes straight to the user profile — that's
+            // the most common follow-up on a live-plays glance ("who
+            // is that, can I follow them?"). Right-click reveals the
+            // beatmap actions for when the listener is curious about
+            // the map instead.
             protected override bool OnClick(ClickEvent e)
             {
                 if (play.UserId > 0)
                     game?.ShowUser(new APIUser { Id = (int)play.UserId, Username = play.Username });
                 return true;
+            }
+
+            // Right-click context menu — surfaces the secondary
+            // navigations (open the beatmap, copy either link). The
+            // primary "view profile" entry is highlighted so it reads
+            // as the expected default even when the user is using
+            // right-click.
+            public MenuItem[] ContextMenuItems
+            {
+                get
+                {
+                    var items = new System.Collections.Generic.List<MenuItem>();
+
+                    if (play.UserId > 0)
+                    {
+                        items.Add(new OsuMenuItem("View profile", MenuItemType.Highlighted, () =>
+                            game?.ShowUser(new APIUser { Id = (int)play.UserId, Username = play.Username })));
+                    }
+
+                    if (play.BeatmapId > 0)
+                        items.Add(new OsuMenuItem("View beatmap", MenuItemType.Standard, () => game?.ShowBeatmap((int)play.BeatmapId)));
+
+                    if (api != null)
+                    {
+                        if (play.UserId > 0)
+                        {
+                            string profileUrl = $@"{api.Endpoints.WebsiteUrl}/users/{play.UserId}";
+                            items.Add(new OsuMenuItem("Copy profile link", MenuItemType.Standard, () => game?.CopyToClipboard(profileUrl)));
+                        }
+
+                        if (play.BeatmapId > 0)
+                        {
+                            string beatmapUrl = $@"{api.Endpoints.WebsiteUrl}/b/{play.BeatmapId}";
+                            items.Add(new OsuMenuItem("Copy beatmap link", MenuItemType.Standard, () => game?.CopyToClipboard(beatmapUrl)));
+                        }
+                    }
+
+                    return items.ToArray();
+                }
             }
 
             protected override bool OnHover(HoverEvent e)
@@ -1481,35 +1559,38 @@ namespace osu.Game.Overlays.Toolbar
 
     /// <summary>
     /// Beatmap-cover image with rounded corners + a dark placeholder.
-    /// Resolves the texture from <see cref="LargeTextureStore"/>
-    /// synchronously on <see cref="LoadComplete"/>, mirroring the
-    /// pattern <see cref="osu.Game.Users.Drawables.DrawableAvatar"/>
-    /// uses (which works reliably across all popover lifecycle states).
+    /// Final implementation after v1/v2/v3 attempts all silently
+    /// failed to render the loaded sprite. Architecture:
     ///
-    /// History
-    /// -------
-    /// v1: <c>DelayedLoadWrapper</c> — viewport detection didn't fire
-    ///     reliably inside the masked carousel viewport, covers stuck
-    ///     on placeholder forever.
-    /// v2: <c>LoadComponentAsync</c> from the URL setter —
-    ///     LoadComponentAsync silently no-ops when the host drawable
-    ///     isn't yet in <see cref="LoadState.Loaded"/>; setters fired
-    ///     from the parent's <c>[BackgroundDependencyLoader]</c>
-    ///     initialiser (<c>new LazyCoverImage { Url = ... }</c>) hit
-    ///     that case and the cover never appeared.
-    /// v3 (this one): pure-sync <see cref="LargeTextureStore.Get"/>
-    ///     in <see cref="LoadComplete"/>. Same approach DrawableAvatar
-    ///     ships in production, no async dance, no edge cases.
+    ///   Container (this, Masking + CornerRadius)
+    ///     ├─ Box (placeholderColour, full bleed)
+    ///     └─ CoverSprite (a <see cref="Sprite"/> subclass — its own
+    ///                     [BackgroundDependencyLoader] resolves the
+    ///                     texture and assigns Sprite.Texture)
+    ///
+    /// Why a Sprite subclass instead of a Sprite + a synchronous
+    /// resolve in this CompositeDrawable's load: the inner Sprite's
+    /// own load runs on a worker thread with its own
+    /// LargeTextureStore [Resolved] — exactly the pattern used by
+    /// <see cref="osu.Game.Users.Drawables.DrawableAvatar"/>, which
+    /// reliably renders avatars across the entire client. Empirically
+    /// the previous "this CompositeDrawable Resolves the store + adds
+    /// a child Sprite manually" approaches did NOT hit my
+    /// diagnostic Logger.Log lines on inspection of the user's
+    /// runtime.log — applyUrl was never being reached. Moving the
+    /// texture resolution INTO the Sprite's own BDL makes the load
+    /// path fully self-contained.
+    ///
+    /// The Url is captured at construction by the inner CoverSprite,
+    /// so changing it after creation requires a tear-down + rebuild
+    /// (handled here transparently in <see cref="SetUrl"/>).
     /// </summary>
     internal partial class LazyCoverImage : CompositeDrawable
     {
         private readonly Color4 placeholderColour;
         private string? pendingUrl;
         private string? activeUrl;
-        private Sprite? currentSprite;
-
-        [Resolved]
-        private LargeTextureStore textures { get; set; } = null!;
+        private CoverSprite? currentSprite;
 
         public string? Url
         {
@@ -1555,6 +1636,7 @@ namespace osu.Game.Overlays.Toolbar
 
         private void applyUrl()
         {
+            // Tear down prior cover (cross-fade to the new one).
             if (currentSprite != null)
             {
                 currentSprite.FadeOut(180, Easing.OutQuint).Expire();
@@ -1568,46 +1650,16 @@ namespace osu.Game.Overlays.Toolbar
             }
 
             // No-op repolls so the fade doesn't restart when the
-            // snapshot rotates with an unchanged top-map.
+            // snapshot rotates with an unchanged URL.
             if (pendingUrl == activeUrl) return;
             activeUrl = pendingUrl;
 
-            Texture? tex = null;
-            Exception? loadException = null;
-            try { tex = textures.Get(pendingUrl); }
-            catch (Exception ex) { loadException = ex; }
-
-            // Diagnostic logging — the cover load has been a recurring
-            // bug across three polish iterations. Logging the exact
-            // outcome for each attempt makes the next diagnosis a
-            // log-grep instead of another guess-and-rebuild cycle.
-            if (loadException != null)
+            // Construct the inner Sprite — its OWN BDL will fetch
+            // the texture on the worker thread (DrawableAvatar
+            // pattern). The framework wires Sprite into the visual
+            // tree on its own when it loads.
+            currentSprite = new CoverSprite(pendingUrl)
             {
-                osu.Framework.Logging.Logger.Log(
-                    $"[LazyCoverImage] textures.Get threw for url={pendingUrl}: {loadException.GetType().Name}: {loadException.Message}",
-                    osu.Framework.Logging.LoggingTarget.Network,
-                    osu.Framework.Logging.LogLevel.Important);
-            }
-            else if (tex == null)
-            {
-                osu.Framework.Logging.Logger.Log(
-                    $"[LazyCoverImage] textures.Get returned null for url={pendingUrl} (likely blocked by TrustedDomainOnlineStore or 404)",
-                    osu.Framework.Logging.LoggingTarget.Network,
-                    osu.Framework.Logging.LogLevel.Verbose);
-            }
-            else
-            {
-                osu.Framework.Logging.Logger.Log(
-                    $"[LazyCoverImage] textures.Get succeeded for url={pendingUrl} ({tex.Width}x{tex.Height})",
-                    osu.Framework.Logging.LoggingTarget.Network,
-                    osu.Framework.Logging.LogLevel.Verbose);
-            }
-
-            if (tex == null) return;
-
-            currentSprite = new Sprite
-            {
-                Texture = tex,
                 RelativeSizeAxes = Axes.Both,
                 FillMode = FillMode.Fill,
                 Anchor = Anchor.Centre,
@@ -1616,6 +1668,29 @@ namespace osu.Game.Overlays.Toolbar
             };
             AddInternal(currentSprite);
             currentSprite.FadeInFromZero(280, Easing.OutQuint);
+        }
+
+        /// <summary>
+        /// Sprite subclass that resolves its texture in its own
+        /// <see cref="BackgroundDependencyLoader"/> via a [Resolved]
+        /// <see cref="LargeTextureStore"/> — the same shape
+        /// <see cref="osu.Game.Users.Drawables.DrawableAvatar"/>
+        /// uses for user avatars (which works in production).
+        /// </summary>
+        private partial class CoverSprite : Sprite
+        {
+            private readonly string url;
+
+            public CoverSprite(string url)
+            {
+                this.url = url;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load(LargeTextureStore textures)
+            {
+                Texture = textures.Get(url);
+            }
         }
     }
 }
