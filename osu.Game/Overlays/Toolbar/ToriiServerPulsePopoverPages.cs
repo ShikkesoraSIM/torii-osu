@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
+using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API.Requests.Responses;
@@ -501,8 +502,12 @@ namespace osu.Game.Overlays.Toolbar
                 contentContainer.FadeIn(220, Easing.OutQuint);
                 emptyText.FadeOut(180, Easing.OutQuint);
 
-                titleText.Text = map.DisplayTitle;
-                artistText.Text = map.DisplayArtist;
+                // RomanisableString respects the user's
+                // PreferOriginalLanguage / ShowUnicode setting — defaults
+                // to romanised so JP titles render readably; users who've
+                // opted into unicode get the kanji/kana version.
+                titleText.Text = new RomanisableString(map.TitleUnicode, map.Title);
+                artistText.Text = new RomanisableString(map.ArtistUnicode, map.Artist);
                 metaText.Text = $"[{map.Version}]  ·  {map.PlayCount5Min} play{(map.PlayCount5Min == 1 ? "" : "s")} in 5min";
 
                 cover.SetUrl(map.BestCoverUrl);
@@ -686,14 +691,22 @@ namespace osu.Game.Overlays.Toolbar
                                     {
                                         new TruncatingSpriteText
                                         {
-                                            Text = map.DisplayTitle,
+                                            Text = new RomanisableString(map.TitleUnicode, map.Title),
                                             Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
                                             Colour = Color4.White,
                                             RelativeSizeAxes = Axes.X,
                                         },
                                         new TruncatingSpriteText
                                         {
-                                            Text = $"{map.DisplayArtist}  ·  [{map.Version}]",
+                                            // Artist + difficulty in one line. RomanisableString
+                                            // doesn't compose with regular strings via $"...",
+                                            // so we build two RomanisableStrings via
+                                            // LocalisableString.Format with the version suffix
+                                            // appended to both halves — keeps the romanise/unicode
+                                            // toggle working end-to-end.
+                                            Text = new RomanisableString(
+                                                $"{map.ArtistUnicode}  ·  [{map.Version}]",
+                                                $"{map.Artist}  ·  [{map.Version}]"),
                                             Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
                                             Colour = new Color4(255, 255, 255, 155),
                                             RelativeSizeAxes = Axes.X,
@@ -988,7 +1001,9 @@ namespace osu.Game.Overlays.Toolbar
                                         },
                                         new TruncatingSpriteText
                                         {
-                                            Text = string.IsNullOrEmpty(play.DisplayTitle) ? "" : play.DisplayTitle,
+                                            Text = string.IsNullOrEmpty(play.Title) && string.IsNullOrEmpty(play.TitleUnicode)
+                                                ? (LocalisableString)""
+                                                : new RomanisableString(play.TitleUnicode, play.Title),
                                             Font = OsuFont.GetFont(size: 10, weight: FontWeight.Regular),
                                             Colour = new Color4(255, 255, 255, 155),
                                             RelativeSizeAxes = Axes.X,
@@ -1088,7 +1103,15 @@ namespace osu.Game.Overlays.Toolbar
                 Color4 rankColour = colourForRank(play.Rank);
                 string rankText = string.IsNullOrEmpty(play.Rank) ? "—" : play.Rank;
                 string accText = $"{play.Accuracy * 100:0.##}%";
-                string ppText = play.Pp >= 1 ? $"+{play.Pp:0}pp" : "+0pp";
+                // No "+" prefix — this is the play's intrinsic pp value
+                // (what the score is worth), not the delta added to the
+                // user's total pp after weighting. A "+" was implying
+                // "your account just gained N pp" which was misleading
+                // for low-rank scores that contributed 0 weighted pp.
+                // A future iteration can add a server-computed
+                // account-delta and show both ("80pp · +5 to total")
+                // when the delta is non-zero.
+                string ppText = play.Pp >= 1 ? $"{play.Pp:0}pp" : "0pp";
 
                 InternalChild = new Container
                 {
@@ -1393,25 +1416,36 @@ namespace osu.Game.Overlays.Toolbar
     // ═════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Async-loading beatmap-cover image with rounded corners and a
-    /// dark placeholder. Loads the texture on a worker thread via
-    /// <see cref="CompositeDrawable.LoadComponentAsync{TLoadable}"/>
-    /// so the placeholder shows immediately and the loaded sprite
-    /// fades in once its <see cref="Drawable.LoadAsync"/> completes
-    /// (the texture's GPU upload is part of that load step).
+    /// Beatmap-cover image with rounded corners + a dark placeholder.
+    /// Resolves the texture from <see cref="LargeTextureStore"/>
+    /// synchronously on <see cref="LoadComplete"/>, mirroring the
+    /// pattern <see cref="osu.Game.Users.Drawables.DrawableAvatar"/>
+    /// uses (which works reliably across all popover lifecycle states).
     ///
-    /// Replaces the previous DelayedLoadWrapper approach. That one
-    /// gated on viewport detection, which didn't fire reliably for
-    /// covers inside the masked carousel viewport on the popover —
-    /// users saw solid coloured / white placeholder squares forever
-    /// even on the visible page.
+    /// History
+    /// -------
+    /// v1: <c>DelayedLoadWrapper</c> — viewport detection didn't fire
+    ///     reliably inside the masked carousel viewport, covers stuck
+    ///     on placeholder forever.
+    /// v2: <c>LoadComponentAsync</c> from the URL setter —
+    ///     LoadComponentAsync silently no-ops when the host drawable
+    ///     isn't yet in <see cref="LoadState.Loaded"/>; setters fired
+    ///     from the parent's <c>[BackgroundDependencyLoader]</c>
+    ///     initialiser (<c>new LazyCoverImage { Url = ... }</c>) hit
+    ///     that case and the cover never appeared.
+    /// v3 (this one): pure-sync <see cref="LargeTextureStore.Get"/>
+    ///     in <see cref="LoadComplete"/>. Same approach DrawableAvatar
+    ///     ships in production, no async dance, no edge cases.
     /// </summary>
     internal partial class LazyCoverImage : CompositeDrawable
     {
         private readonly Color4 placeholderColour;
         private string? pendingUrl;
         private string? activeUrl;
-        private Container coverHolder = null!;
+        private Sprite? currentSprite;
+
+        [Resolved]
+        private LargeTextureStore textures { get; set; } = null!;
 
         public string? Url
         {
@@ -1420,13 +1454,6 @@ namespace osu.Game.Overlays.Toolbar
             {
                 if (pendingUrl == value) return;
                 pendingUrl = value;
-                // Only kick off the actual cover load once we're loaded.
-                // Setters fired BEFORE LoadComplete (e.g. from a parent's
-                // [BackgroundDependencyLoader] initialiser like
-                // `new LazyCoverImage { Url = ... }`) just stash the URL;
-                // the LoadComplete handler runs `applyUrl` once we're
-                // safely in the loaded state and LoadComponentAsync is
-                // legal to call.
                 if (LoadState == LoadState.Loaded)
                     applyUrl();
             }
@@ -1447,27 +1474,16 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader]
         private void load()
         {
-            InternalChildren = new Drawable[]
+            InternalChild = new Box
             {
-                new Box
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = placeholderColour,
-                },
-                coverHolder = new Container
-                {
-                    RelativeSizeAxes = Axes.Both,
-                },
+                RelativeSizeAxes = Axes.Both,
+                Colour = placeholderColour,
             };
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            // Apply whatever URL was stashed by the setter while we
-            // were still loading. After this point, every subsequent
-            // Url setter call applies immediately (see the LoadState
-            // check there).
             applyUrl();
         }
 
@@ -1475,72 +1491,38 @@ namespace osu.Game.Overlays.Toolbar
 
         private void applyUrl()
         {
-            if (coverHolder == null) return;
+            if (currentSprite != null)
+            {
+                currentSprite.FadeOut(180, Easing.OutQuint).Expire();
+                currentSprite = null;
+            }
 
-            // Empty / cleared URL — drop any current cover, restore
-            // placeholder visibility.
             if (string.IsNullOrEmpty(pendingUrl))
             {
-                coverHolder.Clear(true);
                 activeUrl = null;
                 return;
             }
 
-            // Already loading or loaded the same URL? No-op so we don't
-            // restart the fade animation on every poll cycle when the
-            // top map hasn't changed.
+            // No-op repolls so the fade doesn't restart when the
+            // snapshot rotates with an unchanged top-map.
             if (pendingUrl == activeUrl) return;
             activeUrl = pendingUrl;
 
-            string capturedUrl = pendingUrl;
-            var sprite = new CoverSprite(capturedUrl);
-            LoadComponentAsync(sprite, loaded =>
+            Texture? tex = null;
+            try { tex = textures.Get(pendingUrl); } catch { tex = null; }
+            if (tex == null) return;
+
+            currentSprite = new Sprite
             {
-                // URL may have rotated between scheduling and
-                // completion (e.g. snapshot poll changed the top
-                // map). Drop the stale load instead of clobbering
-                // the row that's already showing the new cover.
-                if (capturedUrl != activeUrl) return;
-
-                coverHolder.Clear(true);
-                coverHolder.Add(loaded);
-                loaded.FadeInFromZero(280, Easing.OutQuint);
-            });
-        }
-
-        /// <summary>
-        /// Inner sprite that resolves the texture on the worker thread
-        /// in its own <see cref="BackgroundDependencyLoaderAttribute"/>
-        /// pass. Failure to resolve (404, blocked domain, etc.) leaves
-        /// the inner child empty so the placeholder shows through.
-        /// </summary>
-        private partial class CoverSprite : CompositeDrawable
-        {
-            private readonly string url;
-
-            public CoverSprite(string url)
-            {
-                this.url = url;
-                RelativeSizeAxes = Axes.Both;
-            }
-
-            [BackgroundDependencyLoader]
-            private void load(LargeTextureStore textures)
-            {
-                Texture? tex = null;
-                try { tex = textures.Get(url); } catch { tex = null; }
-
-                if (tex == null) return;
-
-                InternalChild = new Sprite
-                {
-                    Texture = tex,
-                    RelativeSizeAxes = Axes.Both,
-                    FillMode = FillMode.Fill,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                };
-            }
+                Texture = tex,
+                RelativeSizeAxes = Axes.Both,
+                FillMode = FillMode.Fill,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Alpha = 0,
+            };
+            AddInternal(currentSprite);
+            currentSprite.FadeInFromZero(280, Easing.OutQuint);
         }
     }
 }

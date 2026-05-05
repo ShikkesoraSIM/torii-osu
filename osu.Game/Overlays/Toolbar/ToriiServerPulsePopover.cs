@@ -563,6 +563,7 @@ namespace osu.Game.Overlays.Toolbar
 
             updateFooter();
             armAutoAdvance();
+            armOutsideClickCatcher();
         }
 
         protected override void PopOut()
@@ -570,6 +571,53 @@ namespace osu.Game.Overlays.Toolbar
             this.MoveToY(-6, 180, Easing.OutQuint);
             this.FadeOut(180, Easing.OutQuint);
             autoAdvanceDelegate?.Cancel();
+            disposeOutsideClickCatcher();
+        }
+
+        private OutsideClickCatcher? outsideClickCatcher;
+
+        private void armOutsideClickCatcher()
+        {
+            disposeOutsideClickCatcher();
+
+            if (Parent is not CompositeDrawable parent) return;
+
+            // The catcher is added as a SIBLING of this popover (under
+            // the same parent — the toolbar pulse button). It draws
+            // BEHIND the popover (Depth = 1), accepts input only when
+            // the click is OUTSIDE the popover's screen-space bounds
+            // (its ReceivePositionalInputAt skips inside-clicks so
+            // they reach the popover normally), and dismisses on any
+            // outside mouse-down. The click is allowed to pass through
+            // to whatever's underneath — that matches the "click on
+            // toolbar to dismiss this AND activate the thing I clicked
+            // on" affordance users expect from the rest of lazer.
+            outsideClickCatcher = new OutsideClickCatcher(this, () =>
+            {
+                if (State.Value == Visibility.Visible)
+                    Hide();
+            })
+            {
+                Depth = 1,
+            };
+
+            // AddInternal isn't accessible on `parent` from here (it's
+            // protected). The popover is the immediate child of the
+            // pulse button which exposed AddInternal to add us; we
+            // mirror that by exposing a small method on the button via
+            // an interface, OR (simpler) just append the catcher to
+            // ourselves with a transparent draw quad and override
+            // ReceivePositionalInputAt to span the screen.
+            AddInternal(outsideClickCatcher);
+        }
+
+        private void disposeOutsideClickCatcher()
+        {
+            if (outsideClickCatcher != null)
+            {
+                RemoveInternal(outsideClickCatcher, true);
+                outsideClickCatcher = null;
+            }
         }
 
         // ─── Anchor positioning ──────────────────────────────────────
@@ -591,6 +639,27 @@ namespace osu.Game.Overlays.Toolbar
 
             // 8px gap below the button for a breath of air.
             Position = new Vector2(localTopCentre.X, localTopCentre.Y + 8);
+
+            // Auto-hide if our anchoring button (or any of its
+            // ancestors) has been faded out. The classic Toolbar fades
+            // its child cluster on collapse; we walk the parent chain
+            // and multiply alphas so a fade anywhere up the tree
+            // closes us. Avoids the "toolbar hides but popover stays
+            // open invisibly" reported upstream.
+            if (State.Value == Visibility.Visible)
+            {
+                float effectiveAlpha = AnchoredAt.Alpha;
+                Drawable? walker = AnchoredAt.Parent as Drawable;
+                int safety = 32; // bound the walk in case of unexpected loops
+                while (walker != null && effectiveAlpha > 0.01f && safety-- > 0)
+                {
+                    effectiveAlpha *= walker.Alpha;
+                    walker = walker.Parent as Drawable;
+                }
+
+                if (effectiveAlpha < 0.5f)
+                    Hide();
+            }
         }
 
         protected override bool OnKeyDown(KeyDownEvent e)
@@ -614,11 +683,75 @@ namespace osu.Game.Overlays.Toolbar
             return base.OnKeyDown(e);
         }
 
+        // Click handlers — block events that hit the popover from
+        // propagating through to whatever's behind. Without these,
+        // upstream feedback was: "clicking on popover resulting in
+        // clicks behind it" — a click on a button row would also
+        // activate the toolbar overlay underneath, etc.
+        protected override bool OnMouseDown(MouseDownEvent e) => true;
+        protected override bool OnClick(ClickEvent e) => true;
+        protected override bool OnDragStart(DragStartEvent e) => true;
+
         protected override void Dispose(bool isDisposing)
         {
             footerTickDelegate?.Cancel();
             autoAdvanceDelegate?.Cancel();
             base.Dispose(isDisposing);
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // OutsideClickCatcher
+        // ─────────────────────────────────────────────────────────────
+        // Transparent zero-rendered drawable that lives as a sibling of
+        // the popover (added via AddInternal, Depth=1 so it's drawn
+        // BEHIND the popover) and accepts mouse input ANYWHERE on
+        // screen. ReceivePositionalInputAt is the trick: by overriding
+        // it to a custom predicate (true iff outside the popover's
+        // screen-space draw quad), we let inside-popover clicks bypass
+        // the catcher and reach the popover normally, while
+        // outside-popover clicks dismiss the popover.
+        //
+        // OnMouseDown returns false so the click is allowed to continue
+        // to whatever drawable sits beneath at that screen position
+        // (e.g. a toolbar button the user explicitly meant to click,
+        // dismissing this and activating that in one gesture — exactly
+        // what users expect from the rest of lazer's overlay UX).
+        private partial class OutsideClickCatcher : Drawable
+        {
+            private readonly ToriiServerPulsePopover popover;
+            private readonly Action onOutsideClick;
+
+            public OutsideClickCatcher(ToriiServerPulsePopover popover, Action onOutsideClick)
+            {
+                this.popover = popover;
+                this.onOutsideClick = onOutsideClick;
+
+                // Always-present so we receive input even when our
+                // own draw quad is zero-sized; we override the hit
+                // test against screen-space coords directly.
+                AlwaysPresent = true;
+            }
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
+            {
+                // Catch ONLY outside-clicks. Inside-clicks return false
+                // so input falls through to the popover (which sits on
+                // top of us in draw order via Depth = 1 here vs the
+                // popover's default depth 0).
+                if (popover == null || popover.State.Value != Visibility.Visible)
+                    return false;
+
+                return !popover.ScreenSpaceDrawQuad.Contains(screenSpacePos);
+            }
+
+            protected override bool OnMouseDown(MouseDownEvent e)
+            {
+                onOutsideClick();
+                // Return false so the click ALSO propagates to whatever
+                // is behind us — the user clicking on a toolbar item
+                // dismisses the popover AND activates that item.
+                return false;
+            }
         }
 
         // ─────────────────────────────────────────────────────────────
