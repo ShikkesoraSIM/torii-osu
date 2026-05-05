@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
+using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
@@ -606,6 +607,10 @@ namespace osu.Game.Overlays.Toolbar
         {
             private readonly int rank;
             private readonly APIToriiServerPulseTopMap map;
+            private Box hoverOverlay = null!;
+
+            [Resolved(canBeNull: true)]
+            private OsuGame? game { get; set; }
 
             public HotMapRow(int rank, APIToriiServerPulseTopMap map)
             {
@@ -615,12 +620,31 @@ namespace osu.Game.Overlays.Toolbar
                 Height = 40;
                 // Masking + CornerRadius on the row container itself so
                 // the background Box renders with rounded corners.
-                // Previously the Box was a sharp rectangle; upstream
-                // feedback flagged the look as "muy sharp" — fixed at
-                // the row level rather than inside the Box (Box has no
-                // CornerRadius of its own).
                 Masking = true;
                 CornerRadius = 8;
+            }
+
+            // Click anywhere on the row → open the beatmap in the in-app
+            // BeatmapSetOverlay. Mirrors the chat link handler's
+            // OpenBeatmap LinkAction route. Returning true consumes the
+            // event so it doesn't fall through to the popover's
+            // dismiss-on-outside catcher.
+            protected override bool OnClick(ClickEvent e)
+            {
+                game?.ShowBeatmap((int)map.BeatmapId);
+                return true;
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                hoverOverlay.FadeIn(120, Easing.OutQuint);
+                return true;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hoverOverlay.FadeOut(220, Easing.OutQuint);
+                base.OnHoverLost(e);
             }
 
             [BackgroundDependencyLoader]
@@ -632,6 +656,16 @@ namespace osu.Game.Overlays.Toolbar
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = Color4.White.Opacity(0.025f),
+                    },
+                    // Hover-state tint layer. Faded in/out by the
+                    // OnHover / OnHoverLost handlers above. Vermillion
+                    // tint matches the brand's "hover affordance"
+                    // language used elsewhere in the popover.
+                    hoverOverlay = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = torii_red.Opacity(0.14f),
+                        Alpha = 0,
                     },
                     new GridContainer
                     {
@@ -923,17 +957,41 @@ namespace osu.Game.Overlays.Toolbar
         private partial class LivePlayRow : CompositeDrawable
         {
             private readonly APIToriiServerPulseRecentPlay play;
+            private Box hoverOverlay = null!;
+
+            [Resolved(canBeNull: true)]
+            private OsuGame? game { get; set; }
 
             public LivePlayRow(APIToriiServerPulseRecentPlay play)
             {
                 this.play = play;
                 RelativeSizeAxes = Axes.X;
                 Height = 36;
-                // Same rounded-corner rationale as HotMapRow — masking
-                // on the row itself so the subtle background tint reads
-                // as a proper pill instead of a sharp rectangle.
                 Masking = true;
                 CornerRadius = 8;
+            }
+
+            // Click anywhere on the row → open the user profile
+            // (UserProfileOverlay route via OsuGame.ShowUser). Future
+            // round will add a right-click context menu with "open
+            // map", "copy profile link", etc.
+            protected override bool OnClick(ClickEvent e)
+            {
+                if (play.UserId > 0)
+                    game?.ShowUser(new APIUser { Id = (int)play.UserId, Username = play.Username });
+                return true;
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                hoverOverlay.FadeIn(120, Easing.OutQuint);
+                return true;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hoverOverlay.FadeOut(220, Easing.OutQuint);
+                base.OnHoverLost(e);
             }
 
             [BackgroundDependencyLoader]
@@ -956,6 +1014,12 @@ namespace osu.Game.Overlays.Toolbar
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = Color4.White.Opacity(0.025f),
+                    },
+                    hoverOverlay = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = torii_red.Opacity(0.14f),
+                        Alpha = 0,
                     },
                     new GridContainer
                     {
@@ -1509,7 +1573,36 @@ namespace osu.Game.Overlays.Toolbar
             activeUrl = pendingUrl;
 
             Texture? tex = null;
-            try { tex = textures.Get(pendingUrl); } catch { tex = null; }
+            Exception? loadException = null;
+            try { tex = textures.Get(pendingUrl); }
+            catch (Exception ex) { loadException = ex; }
+
+            // Diagnostic logging — the cover load has been a recurring
+            // bug across three polish iterations. Logging the exact
+            // outcome for each attempt makes the next diagnosis a
+            // log-grep instead of another guess-and-rebuild cycle.
+            if (loadException != null)
+            {
+                osu.Framework.Logging.Logger.Log(
+                    $"[LazyCoverImage] textures.Get threw for url={pendingUrl}: {loadException.GetType().Name}: {loadException.Message}",
+                    osu.Framework.Logging.LoggingTarget.Network,
+                    osu.Framework.Logging.LogLevel.Important);
+            }
+            else if (tex == null)
+            {
+                osu.Framework.Logging.Logger.Log(
+                    $"[LazyCoverImage] textures.Get returned null for url={pendingUrl} (likely blocked by TrustedDomainOnlineStore or 404)",
+                    osu.Framework.Logging.LoggingTarget.Network,
+                    osu.Framework.Logging.LogLevel.Verbose);
+            }
+            else
+            {
+                osu.Framework.Logging.Logger.Log(
+                    $"[LazyCoverImage] textures.Get succeeded for url={pendingUrl} ({tex.Width}x{tex.Height})",
+                    osu.Framework.Logging.LoggingTarget.Network,
+                    osu.Framework.Logging.LogLevel.Verbose);
+            }
+
             if (tex == null) return;
 
             currentSprite = new Sprite
