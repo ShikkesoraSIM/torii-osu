@@ -453,21 +453,22 @@ namespace osu.Game.Overlays.ToriiBriefing
 
             var scores = pending.TopScores ?? new List<SoloScoreInfo>();
             string variant = pending.UsePpDev ? "pp_dev" : "stable";
-            string snapshotKey = $"{user.Id}:{pending.Ruleset.ShortName}:{variant}";
-            string stableSnapshotKey = $"{user.Id}:{pending.Ruleset.ShortName}:stable";
-            string promotionMigrationKey = $"{user.Id}:{pending.Ruleset.ShortName}:ppdev-promotion";
+            string rulesetShortName = pending.Ruleset?.ShortName ?? "osu";
+            string snapshotKey = $"{user.Id}:{rulesetShortName}:{variant}";
+            string stableSnapshotKey = $"{user.Id}:{rulesetShortName}:stable";
+            string promotionMigrationKey = $"{user.Id}:{rulesetShortName}:ppdev-promotion";
 
             var currentSnapshot = new BriefingSnapshot
             {
                 UserId = user.Id,
                 Username = user.Username,
-                Ruleset = pending.Ruleset.ShortName,
+                Ruleset = rulesetShortName,
                 Variant = variant,
                 CapturedAt = DateTimeOffset.UtcNow,
                 GlobalRank = user.Statistics?.GlobalRank,
                 CountryRank = user.Statistics?.CountryRank,
                 PP = toDouble(user.Statistics?.PP),
-                TopScores = scores.Select(createScoreSnapshot).Where(s => s.ScoreId > 0).ToList(),
+                TopScores = scores.Where(s => s != null).Select(createScoreSnapshot).Where(s => s.ScoreId > 0).ToList(),
             };
 
             var state = loadSnapshotState();
