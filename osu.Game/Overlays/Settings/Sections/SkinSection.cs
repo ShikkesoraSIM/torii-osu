@@ -76,12 +76,12 @@ namespace osu.Game.Overlays.Settings.Sections
                     Children = new Drawable[]
                     {
                         // This is all super-temporary until we move skin settings to their own panel / overlay.
-                        new PinSkinButton { Padding = new MarginPadding { Right = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
-                        new RenameSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
-                        new ExportSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
-                        new DeleteSkinButton { Padding = new MarginPadding { Left = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
+                        new RenameSkinButton { Padding = new MarginPadding { Right = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
+                        new ExportSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
+                        new DeleteSkinButton { Padding = new MarginPadding { Left = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
                     }
                 },
+                new SkinFavouriteButton(),
                 new SettingsCheckbox
                 {
                     LabelText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnly,
@@ -139,20 +139,41 @@ namespace osu.Game.Overlays.Settings.Sections
 
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
         {
-            protected override LocalisableString GenerateItemText(Live<SkinInfo> item) => item.ToString();
+            // Prefix pinned skins with a heart so the user can spot favourites at a glance,
+            // both in the closed header (showing the current selection) and in the menu list.
+            protected override LocalisableString GenerateItemText(Live<SkinInfo> item)
+                => item.PerformRead(s => s.Pinned ? $"♥ {s}" : s.ToString());
         }
 
-        public partial class PinSkinButton : SettingsButtonV2
+        /// <summary>
+        /// Toggles the pinned state of the currently-selected skin. Reuses
+        /// <see cref="HeartIcon"/> to match the favourite affordance shown in the
+        /// beatmap title wedge — same outline/filled heart, same pop animation when
+        /// transitioning to the active state — so pinning a skin reads as the same
+        /// gesture players already know from favouriting beatmaps.
+        /// </summary>
+        public partial class SkinFavouriteButton : SettingsButtonV2
         {
             [Resolved]
-            private SkinManager skins { get; set; }
+            private SkinManager skins { get; set; } = null!;
 
-            private Bindable<Skin> currentSkin;
+            private Bindable<Skin> currentSkin = null!;
+            private HeartIcon heart = null!;
 
             [BackgroundDependencyLoader]
             private void load()
             {
                 Action = togglePin;
+
+                // Heart sits at the left of the button content; the centred Text label
+                // remains untouched, exactly the same as the rest of the SettingsButtonV2 row.
+                Content.Add(heart = new HeartIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    X = 16,
+                    Size = new Vector2(16),
+                });
             }
 
             protected override void LoadComplete()
@@ -160,13 +181,14 @@ namespace osu.Game.Overlays.Settings.Sections
                 base.LoadComplete();
 
                 currentSkin = skins.CurrentSkin.GetBoundCopy();
-                currentSkin.BindValueChanged(_ => updateState());
-                currentSkin.BindDisabledChanged(_ => updateState(), true);
+                currentSkin.BindValueChanged(_ => updateState(withAnimation: false));
+                currentSkin.BindDisabledChanged(_ => updateState(withAnimation: false), true);
             }
 
-            private void updateState()
+            private void updateState(bool withAnimation)
             {
                 bool currentlyPinned = currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned);
+                heart.SetActive(currentlyPinned, withAnimation);
                 Text = currentlyPinned ? SkinSettingsStrings.UnpinSkin : SkinSettingsStrings.PinSkin;
                 Enabled.Value = !currentSkin.Disabled;
             }
@@ -175,8 +197,11 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 skins.TogglePinned(skins.CurrentSkinInfo.Value);
                 // The skin manager doesn't fire CurrentSkin.ValueChanged on a pure pinned-flag mutation
-                // (the underlying Skin instance is unchanged), so refresh the label manually.
-                updateState();
+                // (the underlying Skin instance is unchanged), so refresh the label manually. Animate
+                // the heart only when transitioning into the active state — that's the moment that
+                // earns the celebration.
+                bool nowPinned = currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned);
+                updateState(withAnimation: nowPinned);
             }
         }
 
