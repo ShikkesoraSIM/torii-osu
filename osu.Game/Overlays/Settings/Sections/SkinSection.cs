@@ -82,16 +82,17 @@ namespace osu.Game.Overlays.Settings.Sections
                     }
                 },
                 new SkinFavouriteButton(),
-                new SettingsCheckbox
-                {
-                    LabelText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnly,
-                    Current = config.GetBindable<bool>(OsuSetting.CycleSkinsThroughFavoritesOnly),
-                    Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin" },
-                },
                 new SettingsButtonV2
                 {
                     Text = SkinSettingsStrings.SkinLayoutEditor,
                     Action = () => skinEditor?.ToggleVisibility(),
+                },
+                new SettingsCheckbox
+                {
+                    LabelText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnly,
+                    TooltipText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnlyDescription,
+                    Current = config.GetBindable<bool>(OsuSetting.CycleSkinsThroughFavoritesOnly),
+                    Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin", "hotkey", "keybind" },
                 },
             };
         }
