@@ -496,10 +496,12 @@ namespace osu.Game.Database.RealmDowngrader
         }
 
         /// <summary>
-        /// Type list for the v52 source — uses the regular SkinInfo
-        /// (with Pinned). This must mirror exactly what RealmAccess
-        /// implicitly registered when the source was last written, or
-        /// Realm will refuse to open with a schema-mismatch.
+        /// Type list for the v52 source — uses <see cref="SkinInfoV52"/>
+        /// (with Pinned). The production <see cref="SkinInfo"/> no
+        /// longer carries Pinned, so reading a v52 file with the
+        /// production schema would fail with "schema mismatch: file has
+        /// extra column 'Pinned'". This mirror restores the v52 shape
+        /// just for the runner's source-side open.
         /// </summary>
         private static Type[] sourceSchemaTypes() => new[]
         {
@@ -516,7 +518,7 @@ namespace osu.Game.Database.RealmDowngrader
             typeof(RealmUser),
             typeof(RulesetInfo),
             typeof(ScoreInfo),
-            typeof(SkinInfo),
+            typeof(SkinInfoV52),
             typeof(ModPreset),
         };
 
