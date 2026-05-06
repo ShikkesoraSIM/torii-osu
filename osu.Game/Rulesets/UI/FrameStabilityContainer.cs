@@ -166,18 +166,29 @@ namespace osu.Game.Rulesets.UI
             // A difference of more than 500 ms seems like a sane number we should never exceed.
             //
             // Double-checking against the parent clock ensures we don't accidentally freeze time when the game stutters due to a long running frame.
+            //
+            // Torii: previous behaviour was to block the gameplay clock indefinitely whenever this hit, with the expectation that BASS would recover
+            // within a frame or two. In the wild we've seen reports (and ppy/osu#34733) where BASS stays stuck reporting invalid times forever — so
+            // the user's gameplay clock is permanently frozen and the play is unrecoverable. After 3 frames of consecutive invalid readings we now
+            // give up the workaround and let the clock advance with whatever BASS reports, on the theory that "time jumps and the user misses a couple
+            // of objects they never saw" is strictly better than "screen frozen, can't continue". Tracks ppy/osu#35967 (which is still labelled
+            // blocked/don't merge upstream as of 2026-05); we keep the upstream `game?.Clock.ElapsedFrameTime <= 500` stutter guard that peppy's PR
+            // dropped, so the block doesn't fire during normal long-frame stutters.
             if (!allowReferenceClockSeeks && Math.Abs(proposedTime - referenceClock.CurrentTime) > 500 && game?.Clock.ElapsedFrameTime <= 500)
             {
-                if (invalidBassTimeLogCount < 10)
+                const int max_frames_to_ignore = 3;
+
+                // When the BASS-side issue occurs, it usually recovers in a single frame. If it doesn't recover after `max_frames_to_ignore` frames,
+                // fall through and let normal execution resume — better degraded gameplay than a permanent freeze.
+                if (++invalidBassTimeLogCount <= max_frames_to_ignore)
                 {
-                    invalidBassTimeLogCount++;
-                    Logger.Log("Ignoring likely invalid time value provided by BASS during gameplay");
+                    Logger.Log($"Ignoring likely invalid time value provided by BASS during gameplay ({invalidBassTimeLogCount} / {max_frames_to_ignore} frames ignored)");
                     Logger.Log($"- provided: {referenceClock.CurrentTime:N2}");
                     Logger.Log($"- expected: {proposedTime:N2}");
+                    state = PlaybackState.NotValid;
+                    return;
                 }
-
-                state = PlaybackState.NotValid;
-                return;
+                // counter exceeded — fall through and let the clock advance with whatever BASS reports.
             }
 
             invalidBassTimeLogCount = 0;
