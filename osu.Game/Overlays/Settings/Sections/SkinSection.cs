@@ -197,14 +197,11 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 skins.TogglePinned(skins.CurrentSkinInfo.Value);
                 // The skin manager doesn't fire CurrentSkin.ValueChanged on a pure pinned-flag mutation
-                // (the underlying Skin instance is unchanged), so refresh the label manually. The heart
-                // animation here intentionally does NOT use the emphasis path — that path triggers a
-                // particle/expanding-circle burst sized relative to HeartIcon.DrawWidth, which at our
-                // 16px icon scales to a 160px explosion that splashes across the rest of the button.
-                // The plain icon transition (outline ↔ filled + colour fade) is enough celebration for a
-                // settings interaction; the bigger burst remains reserved for the beatmap favourite
-                // button where the heart is much larger and the surface is dedicated to the gesture.
-                updateState(withAnimation: false);
+                // (the underlying Skin instance is unchanged), so refresh the label manually. Animate
+                // the heart only when transitioning into the active state — that's the moment that
+                // earns the celebration.
+                bool nowPinned = currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned);
+                updateState(withAnimation: nowPinned);
             }
         }
 
