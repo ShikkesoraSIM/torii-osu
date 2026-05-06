@@ -231,36 +231,39 @@ namespace osu.Game.Overlays.Toolbar
 
         private void updateCount(ValueChangedEvent<int> e)
         {
-            // Counter-style soft pop on update so the eye registers the
-            // change without a jarring snap. Easing.OutBack gives a tiny
-            // overshoot — same feel as the chat unread badge.
-            countText.Text = e.NewValue.ToString();
-            countText.ScaleTo(1.18f, 80, Easing.OutQuint)
-                     .Then()
-                     .ScaleTo(1f, 220, Easing.OutBack);
+            // Provider drives this from its polling task, which can run off
+            // the update thread. Marshal back before touching transforms.
+            Schedule(() =>
+            {
+                countText.Text = e.NewValue.ToString();
+                countText.ScaleTo(1.18f, 80, Easing.OutQuint)
+                         .Then()
+                         .ScaleTo(1f, 220, Easing.OutBack);
+            });
         }
 
         private void updateConnectionState(ValueChangedEvent<ToriiServerPulseConnectionState> e)
         {
-            switch (e.NewValue)
+            // Fired from APIAccess.handleFailure on the API thread when the
+            // user disconnects, so transforms have to be scheduled.
+            Schedule(() =>
             {
-                case ToriiServerPulseConnectionState.Connected:
-                case ToriiServerPulseConnectionState.Connecting:
-                    desaturationVeil.FadeOut(220, Easing.OutQuint);
-                    heartbeat.SetActive(true);
-                    break;
+                switch (e.NewValue)
+                {
+                    case ToriiServerPulseConnectionState.Connected:
+                    case ToriiServerPulseConnectionState.Connecting:
+                        desaturationVeil.FadeOut(220, Easing.OutQuint);
+                        heartbeat.SetActive(true);
+                        break;
 
-                case ToriiServerPulseConnectionState.Offline:
-                case ToriiServerPulseConnectionState.Idle:
-                case ToriiServerPulseConnectionState.Disabled:
-                    // Veil at half opacity so the chip still reads as
-                    // present (and clickable to retry the connection
-                    // through the provider's polling loop) but visually
-                    // signals "no fresh data".
-                    desaturationVeil.FadeTo(0.55f, 220, Easing.OutQuint);
-                    heartbeat.SetActive(false);
-                    break;
-            }
+                    case ToriiServerPulseConnectionState.Offline:
+                    case ToriiServerPulseConnectionState.Idle:
+                    case ToriiServerPulseConnectionState.Disabled:
+                        desaturationVeil.FadeTo(0.55f, 220, Easing.OutQuint);
+                        heartbeat.SetActive(false);
+                        break;
+                }
+            });
         }
 
         private void onPlayDetected(int delta)
