@@ -56,12 +56,42 @@ namespace osu.Game.Database.RealmDowngrader
             public bool Success { get; init; }
             public Phase StoppedAt { get; init; }
             public string? ErrorMessage { get; init; }
+
+            /// <summary>
+            /// Absolute path of the backup file IF it was successfully
+            /// created. Null if the backup phase failed before producing
+            /// a verified file — callers must NOT advertise this path
+            /// to the user when null, as the file would not exist.
+            /// </summary>
             public string? BackupPath { get; init; }
+
+            /// <summary>
+            /// Free-form actionable hint for the user keyed off the
+            /// failure mode (low disk space, permission denied, file
+            /// locked, etc.). Empty when the run succeeded or when no
+            /// specific guidance is available.
+            /// </summary>
+            public string ActionableHint { get; init; } = string.Empty;
+
             public IReadOnlyDictionary<string, (int source, int dest)> Counts { get; init; }
                 = new Dictionary<string, (int, int)>();
         }
 
         public ulong SourceSchemaVersion { get; private set; } = 0;
+
+        /// <summary>
+        /// Optional progress sink. Called from inside Run() whenever
+        /// the runner reaches a new phase or a sub-phase milestone
+        /// (per-class object copy progress). The argument is a
+        /// human-readable status line suitable for printing to a
+        /// progress console / overlay.
+        ///
+        /// Invoked from the same thread that called <see cref="Run"/>;
+        /// callbacks must be cheap (a few microseconds) to avoid
+        /// stalling the migration. Setting this is optional — if null
+        /// the runner just logs to the framework Logger as usual.
+        /// </summary>
+        public Action<string>? OnProgress { get; set; }
 
         private readonly Storage storage;
         private readonly string realmFilename;
@@ -70,6 +100,12 @@ namespace osu.Game.Database.RealmDowngrader
         {
             this.storage = storage;
             this.realmFilename = realmFilename;
+        }
+
+        private void emit(string message)
+        {
+            Logger.Log($"[RealmDowngrade] {message}", LoggingTarget.Database);
+            OnProgress?.Invoke(message);
         }
 
         /// <summary>
@@ -90,7 +126,7 @@ namespace osu.Game.Database.RealmDowngrader
 
             try
             {
-                Logger.Log($"[RealmDowngrade] Starting downgrade for {realmPath}", LoggingTarget.Database);
+                emit($"Starting downgrade for {realmPath}");
 
                 // -----------------------------------------------------
                 // Phase 0 — pre-flight
@@ -99,7 +135,7 @@ namespace osu.Game.Database.RealmDowngrader
 
                 if (SourceSchemaVersion < 52)
                 {
-                    Logger.Log($"[RealmDowngrade] Source already at v{SourceSchemaVersion}, no work to do.", LoggingTarget.Database);
+                    emit($"Source already at v{SourceSchemaVersion}, no work to do.");
                     return new RunResult
                     {
                         Success = true,
@@ -111,14 +147,17 @@ namespace osu.Game.Database.RealmDowngrader
                 // Phase 1 — side-car the Pinned skins
                 // -----------------------------------------------------
                 currentPhase = Phase.SidecarPinnedSkins;
+                emit("Saving pinned skin state to side-car JSON...");
                 sidecarPinnedSkins(realmPath);
 
                 // -----------------------------------------------------
                 // Phase 2 — backup
                 // -----------------------------------------------------
                 currentPhase = Phase.Backup;
+                emit("Creating verified backup of the v52 realm (this can take a few seconds for large libraries)...");
                 backup = new RealmDowngradeBackup(realmPath);
                 backup.Create();
+                emit($"Backup written to {backup.BackupPath}");
 
                 // -----------------------------------------------------
                 // Phase 3 / 4 — open source read-only, build dest at v51
@@ -129,11 +168,17 @@ namespace osu.Game.Database.RealmDowngrader
                 if (File.Exists(tempPath))
                     File.Delete(tempPath);
 
+                emit("Opening source realm read-only...");
+
                 using (var source = Realm.GetInstance(buildSourceConfig(realmPath)))
                 {
                     currentPhase = Phase.BuildDestination;
+                    emit("Rebuilding realm at v51 (this is the slow phase, please wait)...");
 
-                    var copier = new RealmDowngradeCopier();
+                    var copier = new RealmDowngradeCopier
+                    {
+                        OnProgress = OnProgress,
+                    };
 
                     using (var dest = Realm.GetInstance(buildDestConfig(tempPath)))
                     {
@@ -145,15 +190,27 @@ namespace osu.Game.Database.RealmDowngrader
                         // Phase 5 — verify
                         // -----------------------------------------------
                         currentPhase = Phase.Verify;
+                        emit("Verifying rebuilt realm matches the source counts...");
                         var verifier = new RealmDowngradeVerifier();
                         var verifyResult = verifier.Verify(source, dest, expectedSchemaVersion: 51);
                         counts = verifyResult.Counts;
+
+                        // Emit each integrity-check note so the user can
+                        // see what was actually examined (sampled rows,
+                        // file-entries compared, etc.). Cheap, and a
+                        // strong defence against false-pass scenarios
+                        // where a check trivially clears because it
+                        // iterated zero rows.
+                        foreach (string note in verifyResult.Notes)
+                            emit("  verify: " + note);
 
                         if (!verifyResult.Ok)
                         {
                             string issues = string.Join("; ", verifyResult.Issues);
                             throw new InvalidOperationException($"Verifier rejected the rebuilt realm: {issues}");
                         }
+
+                        emit("Verification passed — every class round-tripped exactly.");
                     }
                 }
 
@@ -161,6 +218,7 @@ namespace osu.Game.Database.RealmDowngrader
                 // Phase 6 — atomic swap
                 // -----------------------------------------------------
                 currentPhase = Phase.AtomicSwap;
+                emit("Swapping the rebuilt realm into place...");
                 backup.Verify();
                 atomicSwap(realmPath, tempPath);
 
@@ -168,6 +226,7 @@ namespace osu.Game.Database.RealmDowngrader
                 // Phase 7 — re-open at v51 to confirm
                 // -----------------------------------------------------
                 currentPhase = Phase.ReopenCheck;
+                emit("Re-opening the new v51 realm to confirm it's healthy...");
                 using (var verify = Realm.GetInstance(buildDestConfig(realmPath, isReadOnly: true)))
                 {
                     if (verify.Config.SchemaVersion != 51)
@@ -212,15 +271,76 @@ namespace osu.Game.Database.RealmDowngrader
                     }
                 }
 
+                // Validate the backup actually exists on disk before
+                // we report its path to the user — phase Backup may
+                // have failed before producing a verified file, in
+                // which case advertising a path the user cannot find
+                // is worse than admitting "no backup was created".
+                string? reportableBackup = null;
+                if (backup?.BackupPath != null && File.Exists(backup.BackupPath))
+                    reportableBackup = backup.BackupPath;
+
                 return new RunResult
                 {
                     Success = false,
                     StoppedAt = currentPhase,
                     ErrorMessage = ex.Message,
-                    BackupPath = backup?.BackupPath,
+                    BackupPath = reportableBackup,
+                    ActionableHint = ClassifyError(ex, currentPhase),
                     Counts = counts,
                 };
             }
+        }
+
+        /// <summary>
+        /// Maps a raised exception to a one-paragraph user-facing hint
+        /// telling them how to recover. Empty string when nothing
+        /// specific applies. Used by the failure dialog to give the
+        /// user a clear next step instead of a raw stack trace.
+        /// </summary>
+        private static string ClassifyError(Exception ex, Phase phase)
+        {
+            string msg = ex.Message;
+            string lower = msg.ToLowerInvariant();
+
+            // Disk-space exhaustion. Windows raises UnauthorizedAccessException
+            // or "There is not enough space on the disk" depending on which
+            // API hit the wall first.
+            if (lower.Contains("not enough space")
+                || lower.Contains("disk full")
+                || lower.Contains("insufficient disk space"))
+            {
+                return "Your drive ran out of space during the migration. Free up at least 2 GB on the drive containing your osu! folder, then run Torii again to retry.";
+            }
+
+            // UnauthorizedAccessException on a path inside the osu! storage
+            // folder is most often (a) Windows Controlled Folder Access
+            // blocking writes, (b) antivirus quarantining temp files, or
+            // (c) the drive being so full Windows is preemptively
+            // refusing writes.
+            if (ex is UnauthorizedAccessException || lower.Contains("access to the path") && lower.Contains("denied"))
+            {
+                return "Windows refused to write a file in your osu! folder. The most common causes are:\n"
+                       + "  - Disk almost full: free up at least 2 GB on the drive and retry.\n"
+                       + "  - Controlled Folder Access blocking the write: open Windows Security -> Virus & threat protection -> Manage ransomware protection, and either disable it or add Torii's exe to the allowed list.\n"
+                       + "  - Antivirus quarantining temp files: temporarily disable real-time protection and retry.";
+            }
+
+            // The file is held open by another process (Torii itself, vanilla
+            // osu!, a backup tool, etc.).
+            if (ex is IOException && (lower.Contains("being used") || lower.Contains("file is locked") || lower.Contains("sharing violation")))
+            {
+                return "The realm file is being used by another process. Close any other osu! / Torii / lazer instance, plus any backup tool currently scanning the folder, then retry.";
+            }
+
+            // Pre-flight failed to open the realm at v52 — usually
+            // either still locked or the file isn't a v52 realm.
+            if (phase == Phase.PreFlight)
+            {
+                return "Could not open the realm for inspection. Make sure no other osu! / Torii instance is running, then retry. If the file is corrupt, restore it from your most recent backup before running the migration.";
+            }
+
+            return string.Empty;
         }
 
         // =================================================================
@@ -229,6 +349,8 @@ namespace osu.Game.Database.RealmDowngrader
 
         private void preFlight(string realmPath)
         {
+            emit("Checking realm and disk space...");
+
             if (!File.Exists(realmPath))
                 throw new FileNotFoundException("Realm file not found at the live path.", realmPath);
 
@@ -249,9 +371,50 @@ namespace osu.Game.Database.RealmDowngrader
                     $"Could not open '{realmPath}' for pre-flight inspection. The file may be locked by another process: {ex.Message}", ex);
             }
 
+            long fileSize = new FileInfo(realmPath).Length;
+
+            // Empirical write-test against the actual target folder.
+            // The canary is intentionally tiny (4 KB) and uses a plain
+            // filename without a leading dot or .tmp extension, because
+            // Windows' Smart App Control + some antivirus heuristics
+            // flag .tmp creation by unsigned apps in user folders as
+            // ransomware-like behaviour and silently deny the write.
+            // We're only trying to detect "can I create files here?",
+            // not "do I have GB to spare?" — that part is handled by
+            // the DriveInfo check below.
+            string? folder = Path.GetDirectoryName(realmPath);
+            if (folder != null)
+            {
+                string canary = Path.Combine(folder, $"torii_migration_writetest_{Guid.NewGuid():N}.bin");
+                const int canary_size = 4 * 1024;
+                try
+                {
+                    using (var fs = new FileStream(canary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    {
+                        fs.Write(new byte[canary_size], 0, canary_size);
+                        fs.Flush(flushToDisk: true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new IOException(
+                        "Could not create a small test file in the osu! folder. " +
+                        "The migration needs write access there before it can start. " +
+                        "The most common reasons:\n" +
+                        "  - Another osu! / Torii / lazer process is still running and holding the folder open. Close it via Task Manager and retry.\n" +
+                        "  - Antivirus / Windows Defender real-time scanning is blocking the write briefly. Try again, or temporarily disable real-time protection.\n" +
+                        "  - The folder is on a removable / network drive that disconnected.\n" +
+                        $"Underlying error: {ex.Message}", ex);
+                }
+                finally
+                {
+                    try { if (File.Exists(canary)) File.Delete(canary); }
+                    catch { /* best-effort cleanup; the file is harmless if it persists */ }
+                }
+            }
+
             // Disk space sanity: we need backup + temp + headroom. A
             // realm that's 100MB needs ~300MB free on the same volume.
-            long fileSize = new FileInfo(realmPath).Length;
             long required = fileSize * 3 + 50_000_000;
 
             string? volumePath = Path.GetPathRoot(realmPath);

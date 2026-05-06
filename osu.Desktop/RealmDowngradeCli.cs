@@ -34,7 +34,14 @@ namespace osu.Desktop
             Console.WriteLine($"Realm: {realmPath} ({new FileInfo(realmPath).Length:N0} bytes)");
 
             var storage = new NativeStorage(folder);
-            var runner = new RealmDowngradeRunner(storage, "client.realm");
+            var runner = new RealmDowngradeRunner(storage, "client.realm")
+            {
+                // Wire progress to stdout so the CLI shows the same
+                // per-phase status the runtime overlay would show. The
+                // runner also writes to Logger, but Logger is silent
+                // here because the CLI bypasses GameHost.
+                OnProgress = line => Console.WriteLine("  " + line),
+            };
 
             var result = runner.Run();
 

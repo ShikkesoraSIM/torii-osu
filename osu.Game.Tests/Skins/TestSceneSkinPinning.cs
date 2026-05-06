@@ -28,13 +28,9 @@ namespace osu.Game.Tests.Skins
         [SetUpSteps]
         public void SetUpSteps()
         {
-            // Realm persists across tests in this fixture, so reset pin state up-front so
-            // ordering / cycle assertions never pick up stale items.
-            AddStep("reset pin state", () => realm.Write(r =>
-            {
-                foreach (var s in r.All<SkinInfo>())
-                    s.Pinned = false;
-            }));
+            // Side-car persists across tests in this fixture, so reset pin state
+            // up-front so ordering / cycle assertions never pick up stale items.
+            AddStep("reset pin state", () => skins.PinnedSkins.ReplaceAll(Array.Empty<Guid>()));
 
             AddStep("seed test skins", () =>
             {
@@ -56,23 +52,23 @@ namespace osu.Game.Tests.Skins
         [Test]
         public void TestNewSkinIsUnpinnedByDefault()
         {
-            AddAssert("seeded skins start unpinned", () => realm.Run(r => seededIds.All(id => !r.Find<SkinInfo>(id)!.Pinned)));
+            AddAssert("seeded skins start unpinned", () => seededIds.All(id => !skins.PinnedSkins.IsPinned(id)));
         }
 
         [Test]
         public void TestTogglePinnedFlipsState()
         {
             AddStep("toggle pin on bravo", () => skins.TogglePinned(realm.Run(r => r.Find<SkinInfo>(seededIds[1])!.ToLive(realm))));
-            AddAssert("bravo is pinned", () => realm.Run(r => r.Find<SkinInfo>(seededIds[1])!.Pinned));
+            AddAssert("bravo is pinned", () => skins.PinnedSkins.IsPinned(seededIds[1]));
 
             AddStep("toggle pin on bravo again", () => skins.TogglePinned(realm.Run(r => r.Find<SkinInfo>(seededIds[1])!.ToLive(realm))));
-            AddAssert("bravo is unpinned", () => realm.Run(r => !r.Find<SkinInfo>(seededIds[1])!.Pinned));
+            AddAssert("bravo is unpinned", () => !skins.PinnedSkins.IsPinned(seededIds[1]));
         }
 
         [Test]
         public void TestPinnedSkinsSurfaceFirst()
         {
-            AddStep("pin charlie", () => realm.Write(r => r.Find<SkinInfo>(seededIds[2])!.Pinned = true));
+            AddStep("pin charlie", () => skins.PinnedSkins.SetPinned(seededIds[2], true));
 
             AddAssert("charlie precedes other seeded skins", () =>
             {
@@ -85,11 +81,11 @@ namespace osu.Game.Tests.Skins
         [Test]
         public void TestPinnedBucketKeepsAlphabeticalOrder()
         {
-            AddStep("pin alpha and charlie", () => realm.Write(r =>
+            AddStep("pin alpha and charlie", () =>
             {
-                r.Find<SkinInfo>(seededIds[0])!.Pinned = true;
-                r.Find<SkinInfo>(seededIds[2])!.Pinned = true;
-            }));
+                skins.PinnedSkins.SetPinned(seededIds[0], true);
+                skins.PinnedSkins.SetPinned(seededIds[2], true);
+            });
 
             AddAssert("alpha precedes charlie ahead of bravo", () =>
             {
@@ -110,24 +106,24 @@ namespace osu.Game.Tests.Skins
         [Test]
         public void TestCycleRestrictsToFavouritesWhenEnoughArePinned()
         {
-            AddStep("pin alpha and charlie", () => realm.Write(r =>
+            AddStep("pin alpha and charlie", () =>
             {
-                r.Find<SkinInfo>(seededIds[0])!.Pinned = true;
-                r.Find<SkinInfo>(seededIds[2])!.Pinned = true;
-            }));
+                skins.PinnedSkins.SetPinned(seededIds[0], true);
+                skins.PinnedSkins.SetPinned(seededIds[2], true);
+            });
             AddStep("select alpha", () => skins.CurrentSkinInfo.Value = realm.Run(r => r.Find<SkinInfo>(seededIds[0])!.ToLive(realm)));
 
             AddStep("cycle next", () => skins.SelectNextSkin(favouritesOnly: true));
-            AddAssert("now on a pinned skin", () => skins.CurrentSkinInfo.Value.PerformRead(s => s.Pinned));
+            AddAssert("now on a pinned skin", () => skins.PinnedSkins.IsPinned(skins.CurrentSkinInfo.Value.ID));
 
             AddStep("cycle next again", () => skins.SelectNextSkin(favouritesOnly: true));
-            AddAssert("still on a pinned skin", () => skins.CurrentSkinInfo.Value.PerformRead(s => s.Pinned));
+            AddAssert("still on a pinned skin", () => skins.PinnedSkins.IsPinned(skins.CurrentSkinInfo.Value.ID));
         }
 
         [Test]
         public void TestCycleFallsBackToAllSkinsWithFewerThanTwoPinned()
         {
-            AddStep("pin only alpha", () => realm.Write(r => r.Find<SkinInfo>(seededIds[0])!.Pinned = true));
+            AddStep("pin only alpha", () => skins.PinnedSkins.SetPinned(seededIds[0], true));
 
             assertCycleVisitsAllSeededSkins(favouritesOnly: true);
         }

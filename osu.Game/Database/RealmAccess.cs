@@ -21,6 +21,7 @@ using osu.Framework.Statistics;
 using osu.Framework.Threading;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Legacy;
+using osu.Game.Collections;
 using osu.Game.Configuration;
 using osu.Game.Extensions;
 using osu.Game.Input;
@@ -101,9 +102,18 @@ namespace osu.Game.Database
         /// 49   2025-06-10    Reset the LegacyOnlineID to -1 for all scores that have it set to 0 (which is semantically the same) for consistency of handling with OnlineID.
         /// 50   2025-07-11    Add UserTags to BeatmapMetadata.
         /// 51   2025-07-22    Add ScoreInfo.Pauses.
-        /// 52   2026-05-06    Add SkinInfo.Pinned.
+        ///
+        /// Note: schema 52 was a temporary Torii-only bump that added
+        /// SkinInfo.Pinned. It bricked vanilla osu! lazer's ability to open
+        /// Torii-shared realm folders, so the field was moved to a
+        /// side-car JSON store (see PinnedSkinsStore) and the schema
+        /// dropped back to 51 to restore vanilla compatibility. Existing
+        /// users on 52 are migrated down to 51 by the
+        /// RealmDowngradeRunner (see osu.Game/Database/RealmDowngrader/),
+        /// triggered automatically at startup when a "schema too new"
+        /// condition is detected.
         /// </summary>
-        private const int schema_version = 52;
+        private const int schema_version = 51;
 
         /// <summary>
         /// Lock object which is held during <see cref="BlockAllOperations"/> sections, blocking realm retrieval during blocking periods.
@@ -810,6 +820,38 @@ namespace osu.Game.Database
                 SchemaVersion = schema_version,
                 MigrationCallback = onMigration,
                 FallbackPipePath = tempPathLocation,
+                // Explicit production schema — pins which classes Realm registers
+                // for THIS instance instead of letting it auto-discover every
+                // RealmObject in the assembly. Critical because the realm
+                // downgrade machinery (osu.Game.Database.RealmDowngrader/) ships
+                // mirror classes (SkinInfoV51, SkinInfoV52) that map to the same
+                // realm-class slot (`[MapTo("Skin")]`) as the production
+                // SkinInfo. With auto-discovery on, Realm sees three classes for
+                // the "Skin" slot and refuses to open the realm at startup —
+                // which is exactly what bricked the v2026.506.10/.11 releases
+                // and forced an emergency revert. By specifying a curated list
+                // here, the production realm only sees SkinInfo. The downgrade
+                // runner uses its own RealmConfiguration with its own schema
+                // list, so the mirrors only enter the picture during an
+                // explicit migration run.
+                Schema = new[]
+                {
+                    typeof(BeatmapInfo),
+                    typeof(BeatmapMetadata),
+                    typeof(BeatmapSetInfo),
+                    typeof(BeatmapDifficulty),
+                    typeof(BeatmapUserSettings),
+                    typeof(BeatmapCollection),
+                    typeof(RealmKeyBinding),
+                    typeof(RealmRulesetSetting),
+                    typeof(RealmFile),
+                    typeof(RealmNamedFileUsage),
+                    typeof(RealmUser),
+                    typeof(RulesetInfo),
+                    typeof(ScoreInfo),
+                    typeof(SkinInfo),
+                    typeof(ModPreset),
+                },
             };
         }
 

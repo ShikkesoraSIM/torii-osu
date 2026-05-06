@@ -83,6 +83,15 @@ namespace osu.Game.Skinning
             }
         }
 
+        /// <summary>
+        /// Side-car JSON store of pinned skin GUIDs. Lives under
+        /// <c>storage/torii/pinned-skins.json</c>. Pin state used to live on
+        /// <see cref="SkinInfo"/> as a Realm-managed property but was moved
+        /// off-schema to keep Torii's realm compatible with vanilla osu! lazer
+        /// (the schema bump bricked vanilla on shared folders).
+        /// </summary>
+        public readonly PinnedSkinsStore PinnedSkins;
+
         public SkinManager(Storage storage, RealmAccess realm, GameHost host, IResourceStore<byte[]> resources, AudioManager audio, Scheduler scheduler)
             : base(storage, realm)
         {
@@ -90,6 +99,8 @@ namespace osu.Game.Skinning
             this.scheduler = scheduler;
             this.host = host;
             this.resources = resources;
+
+            PinnedSkins = new PinnedSkinsStore(storage);
 
             userFiles = new StorageBackedResourceStore(storage.GetStorageForDirectory("files"));
 
@@ -167,16 +178,21 @@ namespace osu.Game.Skinning
                     skins.Add(s);
 
                 // OrderBy is stable, so equal-Pinned entries keep the category ordering established above.
-                skins = skins.OrderByDescending(s => s.Value.Pinned).ToList();
+                skins = skins.OrderByDescending(s => PinnedSkins.IsPinned(s.ID)).ToList();
             });
 
             return skins;
         }
 
         /// <summary>
-        /// Toggles the pinned state of the given skin.
+        /// Toggles the pinned state of the given skin. Persists to the
+        /// <see cref="PinnedSkinsStore"/> side-car file.
         /// </summary>
-        public void TogglePinned(Live<SkinInfo> skin) => skin.PerformWrite(s => s.Pinned = !s.Pinned);
+        public void TogglePinned(Live<SkinInfo> skin)
+        {
+            Guid id = skin.ID;
+            PinnedSkins.SetPinned(id, !PinnedSkins.IsPinned(id));
+        }
 
         public void SelectRandomSkin()
         {
@@ -218,7 +234,7 @@ namespace osu.Game.Skinning
 
             if (favouritesOnly)
             {
-                var favourites = skins.Where(s => s.Value.Pinned).ToList();
+                var favourites = skins.Where(s => PinnedSkins.IsPinned(s.ID)).ToList();
 
                 // Fall back to the full list when there aren't enough pinned skins to cycle through;
                 // otherwise the keybind would silently no-op or lock onto a single entry.

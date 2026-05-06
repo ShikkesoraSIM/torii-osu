@@ -142,8 +142,14 @@ namespace osu.Game.Overlays.Settings.Sections
 
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
         {
+            [Resolved]
+            private SkinManager skinManager { get; set; }
+
             protected override LocalisableString GenerateItemText(Live<SkinInfo> item)
-                => item.PerformRead(s => s.Pinned ? $"♥ {s}" : s.ToString());
+            {
+                bool pinned = skinManager.PinnedSkins.IsPinned(item.ID);
+                return item.PerformRead(s => pinned ? $"♥ {s}" : s.ToString());
+            }
         }
 
         public partial class SkinFavouriteButton : SettingsButtonV2
@@ -179,7 +185,7 @@ namespace osu.Game.Overlays.Settings.Sections
 
             private void updateState(bool withAnimation = false)
             {
-                bool currentlyPinned = currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned);
+                bool currentlyPinned = skins.PinnedSkins.IsPinned(currentSkin.Value.SkinInfo.ID);
                 heart.SetActive(currentlyPinned, withAnimation);
                 Text = currentlyPinned ? SkinSettingsStrings.UnpinSkin : SkinSettingsStrings.PinSkin;
                 Enabled.Value = !currentSkin.Disabled;
@@ -189,7 +195,7 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 skins.TogglePinned(skins.CurrentSkinInfo.Value);
                 // CurrentSkin.ValueChanged isn't fired by a pinned-flag mutation; refresh manually.
-                updateState(withAnimation: currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned));
+                updateState(withAnimation: skins.PinnedSkins.IsPinned(currentSkin.Value.SkinInfo.ID));
             }
         }
 

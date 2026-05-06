@@ -157,6 +157,26 @@ namespace osu.Desktop
                 }
             }
 
+            // Detect a v52 realm left behind by an earlier Torii build and
+            // walk the user through the in-process downgrade BEFORE any
+            // realm-touching code runs. If the realm is already on v51 or
+            // doesn't exist, this returns silently. If it's on v52 the
+            // user gets an SDL message box, the migration runs, and on
+            // success we continue with the rest of startup. On failure
+            // RealmDowngradeStartupPrompt terminates the process with a
+            // clear error dialog rather than letting RealmAccess crash
+            // later with a confusing "schema too new" exception.
+            try
+            {
+                RealmDowngradeStartupPrompt.RunIfNeeded(ResolveDefaultRealmFolder());
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Realm downgrade startup prompt failed: {ex}", level: LogLevel.Important);
+                // Fall through — let normal startup surface the issue if
+                // the realm is genuinely on a too-new schema.
+            }
+
             // NVIDIA profiles are based on the executable name of a process.
             // Lazer and stable share the same executable name.
             // Stable sets this setting to "Off", which may not be what we want, so let's force it back to the default "Auto" on startup.
