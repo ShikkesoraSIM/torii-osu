@@ -39,21 +39,6 @@ namespace osu.Desktop
             // last time has been fixed, let's not tempt fate.
             setupVelopack(args);
 
-            // Internal CLI mode: run the realm downgrade against a folder
-            // and exit. Used for manual integration testing of the
-            // v52 → v51 migration. Caller is responsible for using a
-            // SCRATCH copy, not their real realm.
-            //
-            // Usage: osu!.exe --realm-downgrade-test <folder>
-            for (int i = 0; i < args.Length - 1; i++)
-            {
-                if (args[i] == "--realm-downgrade-test")
-                {
-                    Environment.Exit(RealmDowngradeCli.Run(args[i + 1]));
-                    return;
-                }
-            }
-
             if (OperatingSystem.IsWindows())
             {
                 var windowsVersion = Environment.OSVersion.Version;
