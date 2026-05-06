@@ -167,7 +167,6 @@ namespace osu.Game.Skinning
                     skins.Add(s);
 
                 // OrderBy is stable, so equal-Pinned entries keep the category ordering established above.
-                // Done inside the Realm.Run so the .Value reads are guaranteed to be on the realm context.
                 skins = skins.OrderByDescending(s => s.Value.Pinned).ToList();
             });
 
@@ -175,9 +174,7 @@ namespace osu.Game.Skinning
         }
 
         /// <summary>
-        /// Toggles the pin state of the given skin. Pinned skins are surfaced first by
-        /// <see cref="GetAllUsableSkins"/> and are the only candidates for the next/previous-skin
-        /// keybinds when <see cref="OsuSetting.CycleSkinsThroughFavoritesOnly"/> is enabled.
+        /// Toggles the pinned state of the given skin.
         /// </summary>
         public void TogglePinned(Live<SkinInfo> skin) => skin.PerformWrite(s => s.Pinned = !s.Pinned);
 
@@ -223,9 +220,8 @@ namespace osu.Game.Skinning
             {
                 var favourites = skins.Where(s => s.Value.Pinned).ToList();
 
-                // Fall back to the full list if there aren't enough pinned skins to make the cycle meaningful.
-                // Without this the keybind would either no-op (single favourite) or do nothing (no favourites)
-                // while leaving the user with no obvious indication that the filter is what's silencing it.
+                // Fall back to the full list when there aren't enough pinned skins to cycle through;
+                // otherwise the keybind would silently no-op or lock onto a single entry.
                 if (favourites.Count >= 2)
                     skins = favourites;
             }
