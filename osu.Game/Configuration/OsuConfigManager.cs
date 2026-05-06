@@ -50,6 +50,7 @@ namespace osu.Game.Configuration
             // UI/selection defaults
             SetDefault(OsuSetting.Ruleset, string.Empty);
             SetDefault(OsuSetting.Skin, SkinInfo.ARGON_SKIN.ToString());
+            SetDefault(OsuSetting.CycleSkinsThroughFavoritesOnly, false);
 
             SetDefault(OsuSetting.BeatmapDetailTab, BeatmapDetailTab.Local);
             SetDefault(OsuSetting.BeatmapLeaderboardSortMode, LeaderboardSortMode.Score);
@@ -646,5 +647,6 @@ namespace osu.Game.Configuration
         /// for the UI surfaces.
         /// </summary>
         ToriiServerPulseEnabled,
+        CycleSkinsThroughFavoritesOnly,
     }
 }

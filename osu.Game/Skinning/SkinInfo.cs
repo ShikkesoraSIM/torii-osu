@@ -40,6 +40,14 @@ namespace osu.Game.Skinning
 
         public bool Protected { get; set; }
 
+        /// <summary>
+        /// Whether the user has pinned this skin to the top of their skin list.
+        /// Pinned skins are surfaced first by <see cref="SkinManager.GetAllUsableSkins"/>
+        /// and are the only candidates for the next/previous-skin keybinds when
+        /// <see cref="OsuSetting.CycleSkinsThroughFavoritesOnly"/> is enabled.
+        /// </summary>
+        public bool Pinned { get; set; }
+
         public virtual Skin CreateInstance(IStorageResourceProvider resources)
         {
             var type = string.IsNullOrEmpty(InstantiationInfo)

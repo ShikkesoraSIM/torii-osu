@@ -17,6 +17,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.UserInterface;
@@ -55,7 +56,7 @@ namespace osu.Game.Overlays.Settings.Sections
         private IDisposable realmSubscription;
 
         [BackgroundDependencyLoader(permitNulls: true)]
-        private void load([CanBeNull] SkinEditorOverlay skinEditor)
+        private void load(OsuConfigManager config, [CanBeNull] SkinEditorOverlay skinEditor)
         {
             Children = new Drawable[]
             {
@@ -75,10 +76,17 @@ namespace osu.Game.Overlays.Settings.Sections
                     Children = new Drawable[]
                     {
                         // This is all super-temporary until we move skin settings to their own panel / overlay.
-                        new RenameSkinButton { Padding = new MarginPadding { Right = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
-                        new ExportSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
-                        new DeleteSkinButton { Padding = new MarginPadding { Left = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
+                        new PinSkinButton { Padding = new MarginPadding { Right = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
+                        new RenameSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
+                        new ExportSkinButton { Padding = new MarginPadding { Horizontal = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
+                        new DeleteSkinButton { Padding = new MarginPadding { Left = 2.5f }, RelativeSizeAxes = Axes.X, Width = 0.25f },
                     }
+                },
+                new SettingsCheckbox
+                {
+                    LabelText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnly,
+                    Current = config.GetBindable<bool>(OsuSetting.CycleSkinsThroughFavoritesOnly),
+                    Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin" },
                 },
                 new SettingsButtonV2
                 {
@@ -132,6 +140,44 @@ namespace osu.Game.Overlays.Settings.Sections
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
         {
             protected override LocalisableString GenerateItemText(Live<SkinInfo> item) => item.ToString();
+        }
+
+        public partial class PinSkinButton : SettingsButtonV2
+        {
+            [Resolved]
+            private SkinManager skins { get; set; }
+
+            private Bindable<Skin> currentSkin;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Action = togglePin;
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                currentSkin = skins.CurrentSkin.GetBoundCopy();
+                currentSkin.BindValueChanged(_ => updateState());
+                currentSkin.BindDisabledChanged(_ => updateState(), true);
+            }
+
+            private void updateState()
+            {
+                bool currentlyPinned = currentSkin.Value.SkinInfo.PerformRead(s => s.Pinned);
+                Text = currentlyPinned ? SkinSettingsStrings.UnpinSkin : SkinSettingsStrings.PinSkin;
+                Enabled.Value = !currentSkin.Disabled;
+            }
+
+            private void togglePin()
+            {
+                skins.TogglePinned(skins.CurrentSkinInfo.Value);
+                // The skin manager doesn't fire CurrentSkin.ValueChanged on a pure pinned-flag mutation
+                // (the underlying Skin instance is unchanged), so refresh the label manually.
+                updateState();
+            }
         }
 
         public partial class RenameSkinButton : SettingsButtonV2, IHasPopover
