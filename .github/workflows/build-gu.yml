@@ -1038,6 +1038,69 @@ jobs:
 
     # Use the precomputed version as the tag
 
+    - name: Build release body from CHANGELOG.md + downloads list
+      shell: bash
+      run: |
+        # Extract the top "## Latest" or "## <version>" section from
+        # CHANGELOG.md (everything from the first ## heading to the
+        # next ## or ---). If CHANGELOG.md is missing or has no
+        # section, fall back to a generic blurb so the release body
+        # never ends up empty.
+        CHANGELOG_BODY=""
+        if [[ -f CHANGELOG.md ]]; then
+          CHANGELOG_BODY=$(awk '
+            /^---$/ { if (in_section) exit }
+            /^## / {
+              if (in_section) exit
+              in_section = 1
+              next
+            }
+            in_section { print }
+          ' CHANGELOG.md | sed -e :a -e '/^[[:space:]]*$/{$d;N;ba' -e '}')
+        fi
+        if [[ -z "$CHANGELOG_BODY" ]]; then
+          CHANGELOG_BODY="Routine release; see commit log for details."
+        fi
+
+        cat > release_body.md <<EOF
+        ## osu! Torii ${{ needs.version.outputs.version }}
+
+        ### What's new
+
+        ${CHANGELOG_BODY}
+
+        ---
+
+        ### Downloads
+        - **Windows (x64) Installer:** \`install-win-x64.exe\`
+        - **Windows (ARM64) Installer:** \`install-win-arm64.exe\`
+        - **Windows Portable (x64):** \`portable-win-x64.zip\`
+        - **Windows Portable (ARM64):** \`portable-win-arm64.zip\`
+        - **Linux (x64) AppImage:** \`osu-torii-linux-x64.AppImage\`
+        - **Linux (ARM64) AppImage:** \`osu-torii-linux-arm64.AppImage\`
+        - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
+        - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
+        - **macOS (Intel):** \`osu.app.Intel.zip\`
+        - **macOS (Apple Silicon):** \`osu.app.Apple.Silicon.zip\`
+        - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
+        - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
+        - **Android APK:** \`osu-torii.apk\`
+
+        ### Installation Notes
+        1. Download the installer or portable archive for your platform.
+        2. Desktop builds use an isolated data directory (\`osu-torii\`) to avoid conflicts with official osu!(lazer).
+        3. The \`osu://\` protocol remains unchanged.
+        4. First launch may take longer due to initial setup.
+
+        ### Platform Notes
+        - **macOS:** If needed, allow the app in System Settings because it is not notarized.
+        - **Android:** If your device rejects the APK due to signature policy, use your server distribution page as fallback.
+        EOF
+
+        echo "::group::Composed release body"
+        cat release_body.md
+        echo "::endgroup::"
+
     - name: Create or update GitHub Release
       uses: softprops/action-gh-release@v1
       with:
@@ -1048,35 +1111,7 @@ jobs:
         draft: false
         prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') }}
         generate_release_notes: true
-        body: |
-          ## osu! Torii ${{ needs.version.outputs.version }}
-
-          Custom osu!(lazer) build for the Torii ecosystem.
-
-          ### Downloads
-          - **Windows (x64) Installer:** `install-win-x64.exe`
-          - **Windows (ARM64) Installer:** `install-win-arm64.exe`
-          - **Windows Portable (x64):** `portable-win-x64.zip`
-          - **Windows Portable (ARM64):** `portable-win-arm64.zip`
-          - **Linux (x64) AppImage:** `osu-torii-linux-x64.AppImage`
-          - **Linux (ARM64) AppImage:** `osu-torii-linux-arm64.AppImage`
-          - **Linux Portable (x64):** `portable-linux-x64.tar.gz`
-          - **Linux Portable (ARM64):** `portable-linux-arm64.tar.gz`
-          - **macOS (Intel):** `osu.app.Intel.zip`
-          - **macOS (Apple Silicon):** `osu.app.Apple.Silicon.zip`
-          - **macOS Portable (Intel):** `portable-osx-x64.zip`
-          - **macOS Portable (Apple Silicon):** `portable-osx-arm64.zip`
-          - **Android APK:** `osu-torii.apk`
-
-          ### Installation Notes
-          1. Download the installer or portable archive for your platform.
-          2. Desktop builds use an isolated data directory (`osu-torii`) to avoid conflicts with official osu!(lazer).
-          3. The `osu://` protocol remains unchanged.
-          4. First launch may take longer due to initial setup.
-
-          ### Platform Notes
-          - **macOS:** If needed, allow the app in System Settings because it is not notarized.
-          - **Android:** If your device rejects the APK due to signature policy, use your server distribution page as fallback.
+        body_path: release_body.md
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to osu! Torii. The "Latest" section here is what
+ships in the body of the next GitHub Release; once a tag goes out, the
+section is renamed with the version number and a new "Latest" is
+opened on top.
+
+---
+
+## Latest — May 7, 2026
+
+### New
+
+- **Strictly vertical Song Select UI.** Optional toggle under
+  *Settings → User Interface → Song Select*. Re-renders the slanted
+  wedges, leaderboard rows, dropdowns, and metadata panel as plain
+  rectangles. The slanted (sheared) style stays the default; this is
+  opt-in.
+- **Realm v52 → v51 migration tool.** Auto-prompts at startup if your
+  local database is on the now-defunct v52 schema. Creates a verified
+  SHA-256 backup, rebuilds the realm at v51, and runs a 7-layer
+  verifier (deep-equality recursion, RealmFile orphan parity, file-usage
+  hash sampling) before any irreversible step. Restores compatibility
+  with vanilla osu! lazer on shared folders.
+
+### Android
+
+- **CoreCLR runtime + .NET 10.** Replaces the legacy Mono interpreter
+  with the same JIT-backed runtime the desktop builds use. Roughly
+  3× speedup on hot paths (difficulty calculator, audio mixer).
+- **arm64-only APK.** Fixes the "App not installed as package appears
+  to be invalid" sideload errors that some phones threw on the
+  multi-architecture package.
+- **New package id `sh.shikkesora.torii`** (was `com.googuteam.osu`).
+  Side-by-side install with vanilla osu! lazer is supported; users
+  on the old package need to uninstall before installing this build.
+- **Rewritten APK signing pipeline.** Explicit zipalign + apksigner
+  with v1+v2+v3 signature schemes plus a hard-fail verify step. No
+  more unsigned APKs slipping into a release.
+- **Native libraries patched at packaging time.** The CoreCLR RID
+  resolver was bundling Linux-flavoured `libbass.so` / `libffmpeg.so`
+  in the APK; the build now substitutes the Android-bionic builds
+  from the framework checkout before signing.
+
+### Fixes
+
+- File-store cleanup no longer deletes user content during the realm
+  migration. The deep-equality verifier explicitly checks that every
+  destination `RealmFile` has at least one inbound `RealmNamedFileUsage`
+  reference and aborts the swap if it doesn't.
+
+---
