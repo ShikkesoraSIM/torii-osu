@@ -18,6 +18,16 @@
          the desktop builds use. -->
     <UseMonoRuntime>false</UseMonoRuntime>
 
+    <!-- Disable ReadyToRun: there's no R2R compiler shipped for
+         android-arm64 yet (CoreCLR-on-Android is experimental in .NET
+         10, the AOT/R2R toolchain hasn't caught up). Without this
+         override the publish step errors out with NETSDK1094 ("Unable
+         to optimize assemblies for performance: a valid runtime
+         package was not found"). The CoreCLR JIT still runs at full
+         speed at app startup, so we just lose the marginal cold-start
+         advantage R2R would have given. -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+
     <!-- Android application properties -->
     <ApplicationId>sh.shikkesora.torii</ApplicationId>
     <ApplicationTitle>osu! Torii</ApplicationTitle>
