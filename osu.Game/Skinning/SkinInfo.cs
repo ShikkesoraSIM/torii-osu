@@ -40,13 +40,13 @@ namespace osu.Game.Skinning
 
         public bool Protected { get; set; }
 
-        /// <summary>
-        /// Whether the user has pinned this skin to the top of their skin list.
-        /// Pinned skins are surfaced first by <see cref="SkinManager.GetAllUsableSkins"/>
-        /// and are the only candidates for the next/previous-skin keybinds when
-        /// <see cref="OsuSetting.CycleSkinsThroughFavoritesOnly"/> is enabled.
-        /// </summary>
-        public bool Pinned { get; set; }
+        // Pin state used to live here as `public bool Pinned { get; set; }`
+        // on schema version 52. That schema bump turned out to break vanilla
+        // osu! lazer's ability to open shared-with-Torii realm folders, so
+        // pin state has been moved to PinnedSkinsStore (a side-car JSON
+        // file under storage/torii/) and the Realm schema has dropped back
+        // to 51 to match vanilla. The downgrade tool reads pre-existing
+        // Pinned values out of v52 realms before stripping the column.
 
         public virtual Skin CreateInstance(IStorageResourceProvider resources)
         {
