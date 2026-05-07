@@ -132,7 +132,12 @@ namespace osu.Game.Graphics.UserInterface
                         SliderContainer = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Padding = new MarginPadding { Left = -10 },
+                            // Negative padding pulls the slider track under the label
+                            // box's slanted right edge so the first nub sits just past
+                            // the label visually. Without shear the label is a plain
+                            // rectangle and -10 just smashes the "0.0" nub against
+                            // "Star Rating" — flip to a small positive gap instead.
+                            Padding = new MarginPadding { Left = OsuGame.SHEAR.X != 0 ? -10 : 8 },
                             Children = new[]
                             {
                                 UpperBoundSlider = CreateBoundSlider(true).With(d =>

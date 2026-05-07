@@ -90,7 +90,14 @@ namespace osu.Game.Screens.SelectV2
             AutoSizeAxes = Axes.Y;
 
             Shear = OsuGame.SHEAR;
-            Margin = new MarginPadding { Top = -corner_radius, Right = -40 };
+            // Negative right margin slides the FilterControl 40px past the
+            // screen's right edge so the slanted right side (which would
+            // otherwise show empty space) tucks under the edge. With shear
+            // off the panel is rectangular and that overflow becomes pure
+            // off-screen clipping; align the right edge exactly with the
+            // parent's right edge instead so the controls reach the
+            // intended position without leaving a visible gap.
+            Margin = new MarginPadding { Top = -corner_radius, Right = OsuGame.SHEAR.X != 0 ? -40 : 0 };
 
             InternalChildren = new Drawable[]
             {
@@ -111,7 +118,12 @@ namespace osu.Game.Screens.SelectV2
                     AutoSizeAxes = Axes.Y,
                     Direction = FillDirection.Vertical,
                     Spacing = new Vector2(0f, 5f),
-                    Padding = new MarginPadding { Top = corner_radius + 5, Bottom = 2, Right = 40f, Left = 2f },
+                    // Right = 40f used to compensate for the parent's overflowing
+                    // slanted shape (Margin.Right = -40 above) — together they net
+                    // out to "contents end roughly at the screen edge". With shear
+                    // off, the parent no longer overflows, so 40f turns into a
+                    // 40px dead zone on the right; collapse it to a token padding.
+                    Padding = new MarginPadding { Top = corner_radius + 5, Bottom = 2, Right = OsuGame.SHEAR.X != 0 ? 40f : 8f, Left = 2f },
                     Children = new Drawable[]
                     {
                         new Container
@@ -135,7 +147,11 @@ namespace osu.Game.Screens.SelectV2
                             ColumnDimensions = new[]
                             {
                                 new Dimension(),
-                                new Dimension(GridSizeMode.Absolute), // can probably be removed?
+                                // Slim spacer between the difficulty range slider and the Show Converts toggle.
+                                // With shear on, the visual slant separates them naturally; with shear off
+                                // (UnslantedSongSelectUI) they butted right up against each other so we
+                                // explicitly carve out 10px to keep the row from looking cramped.
+                                new Dimension(GridSizeMode.Absolute, OsuGame.SHEAR.X != 0 ? 0 : 10),
                                 new Dimension(GridSizeMode.AutoSize),
                             },
                             Content = new[]

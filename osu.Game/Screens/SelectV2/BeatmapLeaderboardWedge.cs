@@ -122,7 +122,12 @@ namespace osu.Game.Screens.SelectV2
                             {
                                 Top = 5,
                                 // Left padding offsets the shear to create a visually appealing list display.
-                                Left = 80f,
+                                // When the user has opted in to the unslanted layout
+                                // (OsuSetting.UnslantedSongSelectUI) the slant doesn't
+                                // exist and 80f turns into pure dead space — but 0 is
+                                // too aggressive (the rows hug the wedge edge with no
+                                // breathing room). 15px keeps the list visually sane.
+                                Left = OsuGame.SHEAR.X != 0 ? 80f : 35f,
                                 // Bottom padding ensures the last entry's full width is displayed
                                 // (ie it is fully on screen after shear is considered).
                                 Bottom = BeatmapLeaderboardScore.HEIGHT * 3
@@ -138,13 +143,21 @@ namespace osu.Game.Screens.SelectV2
                         Shear = OsuGame.SHEAR,
                         Margin = new MarginPadding
                         {
-                            Left = -40f,
+                            // Same shear-compensation collapse as the scrolled list above —
+                            // small positive margin instead of 0 so the personal best wedge
+                            // doesn't sit hard against the parent edge.
+                            Left = OsuGame.SHEAR.X != 0 ? -40f : 0f,
                         },
                         CornerRadius = 10f,
                         Masking = true,
                         // push the personal best 1px down to hide masking issues
                         Y = 1f,
-                        X = -100f,
+                        // X offset existed to slide the wedge under the list's
+                        // sheared overhang. With shear off the wedge is straight
+                        // and -100 drags it off-screen, but 0 makes the wedge
+                        // butt against the leaderboard list above with no
+                        // visual gap; 15px matches the list's left padding.
+                        X = OsuGame.SHEAR.X != 0 ? -100f : 35f,
                         Alpha = 0f,
                         Children = new Drawable[]
                         {

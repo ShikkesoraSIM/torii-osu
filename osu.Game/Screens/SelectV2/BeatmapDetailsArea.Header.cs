@@ -79,7 +79,9 @@ namespace osu.Game.Screens.SelectV2
                                         Text = UserInterfaceStrings.SelectedMods,
                                         Height = 30f,
                                         // Eyeballed to make spacing match. Because shear is silly and implemented in different ways between dropdown and button.
-                                        Margin = new MarginPadding { Left = -9.2f },
+                                        // When the user has opted in to the unslanted layout the offset would
+                                        // OVERLAP the toggle into the sort dropdown — drop it to zero.
+                                        Margin = new MarginPadding { Left = OsuGame.SHEAR.X != 0 ? -9.2f : 0f },
                                     },
                                     sortDropdown = new ShearedDropdown<LeaderboardSortMode>(BeatmapLeaderboardWedgeStrings.Sort)
                                     {
