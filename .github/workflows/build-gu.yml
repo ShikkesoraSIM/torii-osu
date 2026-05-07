@@ -472,7 +472,16 @@ jobs:
             # writes a fresh v2/v3 block.
             rm -rf "$PATCH_DIR/META-INF/CERT.RSA" "$PATCH_DIR/META-INF/CERT.SF" "$PATCH_DIR/META-INF/MANIFEST.MF" 2>/dev/null || true
             REPACKED="$GITHUB_WORKSPACE/${APK_FILE%.apk}-bionic.apk"
-            ( cd "$PATCH_DIR" && zip -qrX "$REPACKED" . )
+            # -0 (store, no compression) for the WHOLE archive. Android
+            # target SDK 30+ requires resources.arsc to be uncompressed
+            # and 4-byte aligned, and .so files have always preferred
+            # being uncompressed so the OS can mmap them directly. Using
+            # -0 across the board sidesteps having to enumerate which
+            # entries can/can't be compressed; zipalign -p -f -v 4
+            # below then sets the page-alignment that the runtime mmap
+            # path expects. APK size grows ~5-10% vs a compressed pack
+            # — acceptable cost for a guaranteed-installable APK.
+            ( cd "$PATCH_DIR" && zip -qrX0 "$REPACKED" . )
             APK_FILE="${REPACKED#$GITHUB_WORKSPACE/}"
             echo "Repacked APK: $APK_FILE"
             # Quick sanity check: confirm libbass.so in the new APK does
