@@ -85,6 +85,16 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
 
+            // Torii: when enabled, the slanted (sheared) UI elements in
+            // Song Select v2 — wedges, the leaderboard rows, the metadata
+            // panel, the dropdowns — render strictly vertical instead.
+            // Off by default because the slanted style is part of the
+            // lazer aesthetic; some users prefer a clean rectangular
+            // layout. Live-toggleable: changes take effect on next
+            // entry to song select (or any screen reload). See
+            // OsuGame.SHEAR for how the value propagates.
+            SetDefault(OsuSetting.UnslantedSongSelectUI, false);
+
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
             SetDefault(OsuSetting.Token, string.Empty);
@@ -499,6 +509,15 @@ namespace osu.Game.Configuration
         AlphaPpDevModeEnabled,
         AlphaStableSongSelectEnabled,
         SongSelectBackgroundBlur,
+
+        /// <summary>
+        /// When true, slanted (sheared) UI elements in Song Select v2
+        /// render strictly vertical. The shear factor read by every
+        /// component is sourced from <see cref="OsuGame.SHEAR"/>, which
+        /// honours this setting; toggling at runtime takes effect on
+        /// the next screen entry.
+        /// </summary>
+        UnslantedSongSelectUI,
         Version,
         ShowFirstRunSetup,
         ShowConvertedBeatmaps,
