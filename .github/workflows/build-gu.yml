@@ -411,20 +411,87 @@ jobs:
           
           # Create output directory and copy APK
           mkdir -p "publish/${{ matrix.runtime }}"
-          
-          # Find the signed APK
-          APK_FILE=$(find osu.Android/bin/Release/ -name "*.apk" | head -1)
-          if [[ -z "$APK_FILE" ]]; then
+
+          # Find the candidate APK. Prefer a *-Signed.apk if dotnet publish
+          # produced one (the historical Xamarin / Mono path), but accept
+          # any .apk otherwise — under .NET 10 + CoreCLR-experimental the
+          # build sometimes drops only an unsigned APK and we'll sign it
+          # explicitly below.
+          ALL_APKS=$(find osu.Android/bin/Release/ -name "*.apk" 2>/dev/null || true)
+          if [[ -z "$ALL_APKS" ]]; then
             echo "ERROR: No APK file found after build!"
+            find osu.Android/bin/Release/ -type f 2>&1 | head -50 || true
             exit 1
           fi
-          
+
+          APK_FILE=$(echo "$ALL_APKS" | grep -- '-Signed.apk' | head -1)
+          if [[ -z "$APK_FILE" ]]; then
+            APK_FILE=$(echo "$ALL_APKS" | head -1)
+            echo "No -Signed.apk found; using $APK_FILE and signing it explicitly below."
+          else
+            echo "Using pre-signed APK: $APK_FILE"
+          fi
+
+          # Locate apksigner from the Android SDK build-tools. We need it
+          # both to (re-)sign the APK if dotnet publish skipped that
+          # step under CoreCLR, and to verify the result before we ship
+          # an unsigned APK that Android will refuse to install with the
+          # generic "App not installed" dialog.
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -maxdepth 2 -name apksigner 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$APKSIGNER" ]]; then
+            echo "ERROR: apksigner not found under $ANDROID_SDK_ROOT/build-tools"
+            ls -la "$ANDROID_SDK_ROOT/build-tools" 2>&1 || true
+            exit 1
+          fi
+          echo "Using apksigner: $APKSIGNER"
+
+          # ZIP-align before signing. Required for v2+ signature schemes;
+          # the SDK's APK build path normally aligns automatically, but
+          # if the CoreCLR path skipped both alignment and signing we
+          # need to redo both. zipalign is in the same build-tools
+          # directory as apksigner.
+          ZIPALIGN=$(dirname "$APKSIGNER")/zipalign
+          if [[ -x "$ZIPALIGN" ]]; then
+            ALIGNED_APK="${APK_FILE%.apk}-aligned.apk"
+            "$ZIPALIGN" -p -f -v 4 "$APK_FILE" "$ALIGNED_APK" >/dev/null 2>&1 || {
+              echo "zipalign failed; continuing with original APK"
+              cp "$APK_FILE" "$ALIGNED_APK"
+            }
+            APK_FILE="$ALIGNED_APK"
+          fi
+
+          # Sign (or re-sign) the APK with the keystore we set up earlier.
+          # apksigner is idempotent — if the APK is already signed with
+          # the same key, this just rewrites the same signature; if it
+          # isn't signed at all, this adds v2+v3 signatures. Either way
+          # we end up with a signed APK Android will accept.
+          echo "Signing APK with apksigner..."
+          "$APKSIGNER" sign \
+            --ks osu.keystore \
+            --ks-pass "pass:$KEYSTORE_PASS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASS" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            "$APK_FILE"
+
+          # Hard-fail if the APK still isn't signed after our explicit
+          # signing pass. Without this the workflow would happily ship an
+          # unsigned APK and users would hit "App not installed" the
+          # moment they sideload.
+          echo "Verifying APK signature..."
+          "$APKSIGNER" verify --verbose "$APK_FILE" || {
+            echo "ERROR: APK signature verification failed after explicit signing!"
+            exit 1
+          }
+
           echo "Found APK: $APK_FILE"
           cp "$APK_FILE" "publish/${{ matrix.runtime }}/${{ matrix.executable }}"
-          
+
           # Optionally inspect resulting APK metadata.
           if command -v aapt2 &> /dev/null; then
-            echo "Verifying APK signature..."
+            echo "Inspecting APK metadata..."
             aapt2 dump badging "publish/${{ matrix.runtime }}/${{ matrix.executable }}" | grep -E "application-label|package" || true
           fi
         else
