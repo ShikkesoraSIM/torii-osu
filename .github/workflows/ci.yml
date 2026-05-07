@@ -39,7 +39,9 @@ jobs:
       - name: Install .NET 8.0.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore Tools
         run: dotnet tool restore
@@ -102,7 +104,9 @@ jobs:
       - name: Install .NET 8.0.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Compile
         run: dotnet build -c Debug -warnaserror osu.Desktop.slnf
@@ -149,7 +153,9 @@ jobs:
       - name: Install .NET 8.0.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Install .NET workloads
         run: dotnet workload install android
@@ -170,7 +176,9 @@ jobs:
       - name: Install .NET 8.0.x
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Install .NET Workloads
         run: dotnet workload install ios

@@ -4,7 +4,13 @@
   </ItemGroup>
   <PropertyGroup>
     <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
-    <RuntimeIdentifiers>android-x86;android-arm;android-arm64</RuntimeIdentifiers>
+    <!-- Only ship arm64 — covers ~99% of modern phones. Multi-arch APKs
+         confuse some installers ("App not installed as package appears
+         to be invalid") and bloat the download for no real benefit:
+         x86 phones are vanishingly rare, and 32-bit ARM is dead in 2026
+         (Google requires arm64 for Play Store anyway). Slimmer APK,
+         fewer install failures. -->
+    <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <MandroidI18n>CJK;Mideast;Rare;West;Other;</MandroidI18n>
     <AndroidHttpClientHandlerType>Xamarin.Android.Net.AndroidMessageHandler</AndroidHttpClientHandlerType>

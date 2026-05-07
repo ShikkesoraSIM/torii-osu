@@ -16,7 +16,6 @@ on:
     types: [ published ]
 
 env:
-  DOTNET_VERSION: '8.0.x'
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
   FRAMEWORK_REF: 'c3faa58909d18343896dd48b395397298f6082c0'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
@@ -175,9 +174,15 @@ jobs:
         mv osu-resources ../osu-resources
 
     - name: Setup .NET
+      # Install both .NET 10 (required by global.json + net10.0-android
+      # + CoreCLR runtime) and .NET 8 (kept around so any tooling that
+      # still hard-codes 8.x — e.g. legacy MSBuild tasks during the
+      # transition — keeps working).
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+        dotnet-version: |
+          8.0.x
+          10.0.x
 
     - name: Setup Java for Android (Android only)
       if: matrix.runtime == 'android'
@@ -811,7 +816,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+        dotnet-version: |
+          8.0.x
+          10.0.x
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:

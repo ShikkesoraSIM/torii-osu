@@ -7,7 +7,10 @@ on:
     branches: [ develop ]
 
 env:
-  DOTNET_VERSION: '8.0.x'
+  # Documented for reference; real install uses both 8.x and 10.x in
+  # the Setup .NET step (global.json pins 10.0.100 since the .NET 10
+  # + CoreCLR Android migration).
+  DOTNET_VERSION: '10.0.x'
 
 jobs:
   build-dev:
@@ -43,7 +46,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+        dotnet-version: |
+          8.0.x
+          10.0.x
 
     - name: Cache NuGet packages
       uses: actions/cache@v4
