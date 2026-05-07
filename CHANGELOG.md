@@ -7,10 +7,17 @@ opened on top.
 
 ---
 
-## Latest — May 7, 2026
+## Latest — May 8, 2026
 
 ### New
 
+- **Pitch Adjust mod (PA).** New Fun mod that shifts the song's pitch
+  up or down without changing playback speed. Slider defaults to a
+  safe range (0.5× to 2.0×); flip the new *Extended limits* toggle
+  inside the mod's settings to widen it to a 0.1×–3.0× range for
+  novelty / chipmunk / sub-bass-warble territory. Conflicts with the
+  rate-adjust family (DT, HT, NC, DC, Wind Up/Down, Adaptive Speed)
+  since they all touch the same audio adjustments.
 - **Strictly vertical Song Select UI.** Optional toggle under
   *Settings → User Interface → Song Select*. Re-renders the slanted
   wedges, leaderboard rows, dropdowns, and metadata panel as plain
