@@ -160,6 +160,7 @@ namespace osu.Game.Graphics
         public static IconUsage ModNoScope => get(OsuIconMapping.ModNoScope);
         public static IconUsage ModOneKey => get(OsuIconMapping.ModOneKey);
         public static IconUsage ModPerfect => get(OsuIconMapping.ModPerfect);
+        public static IconUsage ModPitchAdjust => get(OsuIconMapping.ModPitchAdjust);
         public static IconUsage ModRandom => get(OsuIconMapping.ModRandom);
         public static IconUsage ModRelax => get(OsuIconMapping.ModRelax);
         public static IconUsage ModRepel => get(OsuIconMapping.ModRepel);
@@ -577,6 +578,9 @@ namespace osu.Game.Graphics
 
             [Description(@"Mods/mod-perfect")]
             ModPerfect,
+
+            [Description(@"Mods/mod-pitch-adjust")]
+            ModPitchAdjust,
 
             [Description(@"Mods/mod-random")]
             ModRandom,
