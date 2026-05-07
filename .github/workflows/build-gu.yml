@@ -432,6 +432,60 @@ jobs:
             echo "Using pre-signed APK: $APK_FILE"
           fi
 
+          # ===================================================================
+          # Patch wrong native libs (Linux variants of bass/ffmpeg) with the
+          # Android-bionic ones from osu.Framework.Android/arm64-v8a/.
+          # ===================================================================
+          # Why: under .NET 10 + CoreCLR runtime, the .NET RID resolver falls
+          # back from android-arm64 to linux-arm64 when looking for native
+          # libs in the ppy.osu.Framework.NativeLibs package (which has an
+          # empty runtimes/android/native/ folder). The Linux libbass.so
+          # links to libc.so.6 / libasound.so.2 — names that don't exist on
+          # Android's bionic libc — so dlopen fails the moment osu! tries
+          # to load audio. Result: app dies during BASS init with
+          # "library libc.so.6 not found", before the welcome screen ever
+          # paints.
+          #
+          # Mono runtime did NOT have this problem because its native lib
+          # resolution didn't fall back to linux-arm64 for android-arm64.
+          # CoreCLR-Android does (it shares the desktop CoreCLR resolver).
+          #
+          # Fix: the framework's checkout has the CORRECT Android-bionic
+          # builds at osu.Framework.Android/arm64-v8a/lib*.so — those use
+          # libc.so / libaaudio.so / libmediandk.so (all bionic). We
+          # extract the APK, replace the wrong libs with the right ones,
+          # and re-pack. The downstream zipalign + apksigner steps then
+          # produce a correctly-signed APK that loads audio cleanly.
+          # ===================================================================
+          BIONIC_LIBS_SRC="../osu-framework/osu.Framework.Android/arm64-v8a"
+          if [[ -d "$BIONIC_LIBS_SRC" ]] && compgen -G "$BIONIC_LIBS_SRC/*.so" > /dev/null; then
+            PATCH_DIR="$(mktemp -d)"
+            echo "Patching APK native libs from $BIONIC_LIBS_SRC into $PATCH_DIR"
+            ( cd "$PATCH_DIR" && unzip -q "$GITHUB_WORKSPACE/$APK_FILE" )
+            mkdir -p "$PATCH_DIR/lib/arm64-v8a"
+            for so in "$BIONIC_LIBS_SRC"/*.so; do
+              name=$(basename "$so")
+              echo "  -> overwriting lib/arm64-v8a/$name with bionic build"
+              cp -f "$so" "$PATCH_DIR/lib/arm64-v8a/$name"
+            done
+            # Strip any stale signing files; the upcoming apksigner pass
+            # writes a fresh v2/v3 block.
+            rm -rf "$PATCH_DIR/META-INF/CERT.RSA" "$PATCH_DIR/META-INF/CERT.SF" "$PATCH_DIR/META-INF/MANIFEST.MF" 2>/dev/null || true
+            REPACKED="$GITHUB_WORKSPACE/${APK_FILE%.apk}-bionic.apk"
+            ( cd "$PATCH_DIR" && zip -qrX "$REPACKED" . )
+            APK_FILE="${REPACKED#$GITHUB_WORKSPACE/}"
+            echo "Repacked APK: $APK_FILE"
+            # Quick sanity check: confirm libbass.so in the new APK does
+            # NOT depend on libc.so.6.
+            if unzip -p "$APK_FILE" lib/arm64-v8a/libbass.so 2>/dev/null | grep -aoF 'libc.so.6' >/dev/null; then
+              echo "::error::Patched APK still references libc.so.6 in libbass.so"
+              exit 1
+            fi
+            echo "Verified: bass libs are bionic-compatible (no libc.so.6 dep)."
+          else
+            echo "::warning::Could not find $BIONIC_LIBS_SRC/*.so — APK may ship Linux libbass.so and crash on Android"
+          fi
+
           # Locate apksigner from the Android SDK build-tools. We need it
           # both to (re-)sign the APK if dotnet publish skipped that
           # step under CoreCLR, and to verify the result before we ship
