@@ -24,6 +24,36 @@ opened on top.
   same path the renderer-switch dialog uses) — no manual relaunch.
   Hidden on Windows and mobile, where SDL3 is already the default.
 
+### Polish
+
+- **Torii Briefing — Liquid Glass redesign.** The post-login briefing
+  overlay gets an Apple-polish pass:
+    - **Unified glass material.** Every card and the panel itself now
+      share a single layered surface (translucent gradient base +
+      specular top-edge highlight + hairline stroke + soft tinted
+      shadow), so the overlay reads as one system rather than five
+      patches. Corners use a 2.4 squircle exponent matching iOS / SwiftUI
+      curvature.
+    - **One accent treatment per card, not five.** The old design layered
+      a coloured strip + horizontal wash + circular icon puck + tinted
+      border + tinted shadow — all redundant. New cards use a single
+      iOS-Settings-style coloured icon tile, plus the kicker text and
+      shadow tint, and that's it.
+    - **Recalculation card cleanup.** Drops the duplicate "BEST GAIN" /
+      "WORST LOSS" footer (both rows were already the first entries in
+      their respective gain / loss lists) and replaces the unicode
+      ▲ / ▼ arrows with proper caret icons that scale with the type.
+    - **8-pt grid.** Spacing, type sizes, and corner radii all snap to
+      a unified scale (4 / 8 / 16 / 24 / 32) instead of the previous
+      mix of 3 / 14 / 18 / 22 / 34. Cards now auto-size to content
+      rather than living at hard-coded 126 / 142 px heights.
+    - **Sequenced entrance.** Cards stagger-fade in by 70 ms × index
+      with a spring-y panel scale-in (slight overshoot on entrance,
+      eased dismiss) instead of the previous flat fade.
+    - **Floating close button.** Replaces the bare top-right `×` icon
+      with a soft glass tile that lifts on hover and dims on press,
+      matching the rest of the briefing's vocabulary.
+
 ### Fixes
 
 - **Song Select scrolling: 2-10ms scheduler savings on large beatmap
