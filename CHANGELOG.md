@@ -7,7 +7,7 @@ opened on top.
 
 ---
 
-## Latest — May 8, 2026
+## Latest — May 9, 2026
 
 ### New
 
@@ -53,6 +53,65 @@ opened on top.
     - **Floating close button.** Replaces the bare top-right `×` icon
       with a soft glass tile that lifts on hover and dims on press,
       matching the rest of the briefing's vocabulary.
+- **Torii Briefing — polish iteration on top of Liquid Glass.** A
+  second pass that fixes the things the first pass got wrong:
+    - **No more multi-coloured shadow halo.** Per-card shadows used to
+      tint with the card's accent (cyan rank-pulse, pink recalc, blue
+      session…), and stacked vertically those tinted shadows blended
+      into a rainbow band between cards. Cards now use a tight neutral
+      shadow with high `Roundness` so the falloff is circular rather
+      than parallel to the card's straight sides — clean elevation
+      without the "rectangular halo" feeling.
+    - **Stronger card-to-panel contrast via hairline border.** Card
+      borders bumped from 7% to 12% white opacity so the card
+      silhouette reads on its own, with the shadow now serving only
+      micro-depth rather than carrying the whole separation cue.
+    - **Header torii glyph instead of texture.** The header logo tile
+      ditches the bundled `Torii/logo` bitmap (which colour-multiplied
+      with the pink tile underneath into a muddy purple) for
+      FontAwesome's monochrome `ToriiGate` glyph in pure white. Same
+      icon-tile vocabulary the cards use, just bigger.
+    - **Section dividers ditch the horizontal rule.** The faint line
+      under each section pill was fighting the cards' chrome; just the
+      uppercase tracked label + subtitle now, macOS-Settings-style.
+    - **Refined panel shadow.** The original "wide pink halo" became a
+      "soft deep distant" black drop shadow (chosen via the new
+      visual A/B sandbox below). Cinematic feel without competing
+      with the brand colour for attention — brand identity falls back
+      to the saturated icon tiles, the bottom-right Torii silhouette,
+      and the `enter Torii` CTA.
+
+### Performance
+
+- **Server-pulse popover no longer freezes the toolbar on first
+  click.** Previously, clicking the heartbeat pill in the right
+  toolbar cluster constructed the full ~2.8K LOC popover (4
+  carousel pages with their FillFlows, sparklines, and
+  `BindValueChanged` wiring) synchronously on the UI thread —
+  perceived as a 50–150 ms freeze, worse on slow networks because
+  the same click also kicks off a fresh refresh request. The popover
+  now pre-loads asynchronously the moment the button itself loads,
+  so the first click stays instant.
+- **Briefing show: snapshot persistence + card layout pass moved off
+  the hot path.**
+    - `last-briefing.json` is now written via `Task.Run` rather than
+      synchronously on the show frame. Saves 20–100 ms (worse on
+      mobile flash) before the briefing slides in.
+    - The 7 cards / section headers are now built into an array and
+      added in a single `AddRange` call instead of 7 sequential `Add`
+      calls. Reduces the FillFlowContainer's layout invalidations
+      from O(N²) ≈ 49 passes to a single pass.
+- **Mobile-aware briefing panel shadow.** The "soft deep distant"
+  shadow recipe uses a 60-px Gaussian blur on desktop. On mobile
+  (`RuntimeInfo.IsDesktop == false`) the radius is throttled to
+  18 px — the GPU cost of a Gaussian blur scales with radius², so
+  this is roughly 12× cheaper per frame on the same panel.
+  Opacity / offset are tweaked to compensate for the visual weight
+  loss, so the silhouette still reads as elevated without the
+  cinematic spread.
+- **Briefing dismiss snapped to 160 ms** (was 220). The "enter
+  Torii" CTA now feels immediate while still letting the panel
+  ease out visually rather than vanishing.
 
 ### Fixes
 
