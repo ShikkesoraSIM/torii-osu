@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
@@ -70,6 +71,14 @@ namespace osu.Game.Overlays.ToriiBriefing
         private TextureStore textures;
 
         private BriefingGlass panel;
+
+        /// <summary>
+        /// Test-only accessor for the panel so visual A/B test scenes
+        /// can swap shadow / surface settings live without rebuilding
+        /// the briefing each time.
+        /// </summary>
+        internal BriefingGlass PanelGlass => panel;
+
         private OsuSpriteText title;
         private OsuSpriteText subtitle;
         private FillFlowContainer cardFlow;
@@ -122,58 +131,113 @@ namespace osu.Game.Overlays.ToriiBriefing
                         // default card mode — the GridContainer inside fills the whole panel.
                         RelativeContentSize = Axes.Both,
                         CornerSize = BriefingTheme.CornerLg,
-                        Accent = BriefingTheme.AccentPink,
-                        AccentMix = 0.04f,
-                        SpecularStrength = 0.14f,
-                        ShadowOpacity = 0.28f,
-                        ShadowRadius = 32f,
-                        ShadowOffset = new Vector2(0, 14),
+                        // Default panel shadow — neutral black "soft deep distant" recipe
+                        // (winning vote from the visual test browser). Big radius + low
+                        // opacity = the panel feels far away from whatever is behind it,
+                        // cinematic feel without competing with brand colours.
+                        //
+                        // On mobile the radius is throttled hard: a Gaussian blur's GPU
+                        // cost scales with radius² so a 60-px radius shadow on a tablet
+                        // screen costs ~12× more than an 18-px one. Opacity is bumped a
+                        // touch to compensate for the visual weight loss.
+                        ShadowColor = Color4.Black,
+                        ShadowOpacity = osu.Framework.RuntimeInfo.IsDesktop ? 0.30f : 0.45f,
+                        ShadowRadius = osu.Framework.RuntimeInfo.IsDesktop ? 60f : 18f,
+                        ShadowRoundness = osu.Framework.RuntimeInfo.IsDesktop ? 16f : 8f,
+                        ShadowOffset = new Vector2(0, osu.Framework.RuntimeInfo.IsDesktop ? 24f : 8f),
+                        SurfaceLift = 1.0f, // panel = base; cards lift above it
+                        SpecularStrength = 0.18f,
+                        SpecularHeight = 80f, // bigger ribbon for the panel's larger surface
                         Child = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Padding = new MarginPadding
+                            Children = new Drawable[]
                             {
-                                Horizontal = BriefingTheme.SpacingXl,
-                                Vertical = BriefingTheme.SpacingLg + 4,
-                            },
-                            Child = new GridContainer
-                            {
-                                RelativeSizeAxes = Axes.Both,
-                                RowDimensions = new[]
+                                // Decorative Torii silhouette anchored bottom-right at very
+                                // low opacity — gives the panel something visually behind
+                                // the card stack so the cards feel "above" rather than
+                                // "stickered onto a flat dark slab". Only the corner edges
+                                // peek through; cards cover the centre.
+                                createPanelDecoration(),
+                                new Container
                                 {
-                                    new Dimension(GridSizeMode.AutoSize),
-                                    new Dimension(),
-                                    new Dimension(GridSizeMode.AutoSize),
-                                },
-                                Content = new[]
-                                {
-                                    new Drawable[] { createHeader() },
-                                    new Drawable[]
+                                    RelativeSizeAxes = Axes.Both,
+                                    Padding = new MarginPadding
                                     {
-                                        new OsuScrollContainer
+                                        Horizontal = BriefingTheme.SpacingXl,
+                                        Vertical = BriefingTheme.SpacingLg + 4,
+                                    },
+                                    Child = new GridContainer
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        RowDimensions = new[]
                                         {
-                                            RelativeSizeAxes = Axes.Both,
-                                            ScrollbarOverlapsContent = false,
-                                            Padding = new MarginPadding
+                                            new Dimension(GridSizeMode.AutoSize),
+                                            new Dimension(),
+                                            new Dimension(GridSizeMode.AutoSize),
+                                        },
+                                        Content = new[]
+                                        {
+                                            new Drawable[] { createHeader() },
+                                            new Drawable[]
                                             {
-                                                Top = BriefingTheme.SpacingLg,
-                                                Right = BriefingTheme.SpacingXs + 2,
+                                                new OsuScrollContainer
+                                                {
+                                                    RelativeSizeAxes = Axes.Both,
+                                                    ScrollbarOverlapsContent = false,
+                                                    Padding = new MarginPadding
+                                                    {
+                                                        Top = BriefingTheme.SpacingLg,
+                                                        Right = BriefingTheme.SpacingXs + 2,
+                                                    },
+                                                    Child = cardFlow = new FillFlowContainer
+                                                    {
+                                                        RelativeSizeAxes = Axes.X,
+                                                        AutoSizeAxes = Axes.Y,
+                                                        Direction = FillDirection.Vertical,
+                                                        // Generous gutter (14) so cards breathe individually instead
+                                                        // of merging into a stripe; combined with the small contact
+                                                        // shadow above, no card's shadow reaches into the next one.
+                                                        Spacing = new Vector2(0, BriefingTheme.SpacingMd - 2),
+                                                    },
+                                                },
                                             },
-                                            Child = cardFlow = new FillFlowContainer
-                                            {
-                                                RelativeSizeAxes = Axes.X,
-                                                AutoSizeAxes = Axes.Y,
-                                                Direction = FillDirection.Vertical,
-                                                Spacing = new Vector2(0, BriefingTheme.SpacingMd - 2),
-                                            },
+                                            new Drawable[] { createFooter() },
                                         },
                                     },
-                                    new Drawable[] { createFooter() },
                                 },
                             },
                         },
                     },
                 },
+            };
+        }
+
+        /// <summary>
+        /// Faded Torii brand logo anchored to the bottom-right corner of the
+        /// panel — gives the panel a "behind" element so cards read as
+        /// floating above something rather than stickered onto a flat slab.
+        /// Tinted pink at very low alpha so it blends into the panel
+        /// gradient rather than competing with it.
+        /// </summary>
+        private Drawable createPanelDecoration()
+        {
+            var logo = textures?.Get(@"Torii/logo");
+
+            if (logo == null)
+                return Empty();
+
+            return new Sprite
+            {
+                Anchor = Anchor.BottomRight,
+                Origin = Anchor.BottomRight,
+                X = -BriefingTheme.SpacingLg,
+                Y = -BriefingTheme.SpacingLg,
+                Size = new Vector2(280),
+                FillMode = FillMode.Fit,
+                Texture = logo,
+                Alpha = 0.04f,
+                Colour = BriefingTheme.AccentPink,
             };
         }
 
@@ -185,8 +249,10 @@ namespace osu.Game.Overlays.ToriiBriefing
                 Height = 92,
                 Children = new Drawable[]
                 {
-                    // Logo — soft squircle tile, matches the icon-tile vocabulary
-                    // used on every card. Replaces the old free-floating circular puck.
+                    // Logo tile — matches the saturated-fill + white-icon vocabulary
+                    // every card uses. Same chrome as BriefingCard.buildIconTile, just
+                    // bigger (60px vs 36px) so the header reads as the heaviest tile in
+                    // the visual hierarchy.
                     new Container
                     {
                         Anchor = Anchor.CentreLeft,
@@ -196,16 +262,31 @@ namespace osu.Game.Overlays.ToriiBriefing
                         CornerRadius = BriefingTheme.CornerMd,
                         CornerExponent = BriefingTheme.SquircleExponent,
                         MaskingSmoothness = 1.4f,
-                        BorderThickness = 1f,
-                        BorderColour = BriefingTheme.AccentPink.Opacity(0.32f),
                         Children = new Drawable[]
                         {
+                            // Saturated pink fill — same gradient pattern as the card tiles.
                             new Box
                             {
                                 RelativeSizeAxes = Axes.Both,
                                 Colour = ColourInfo.GradientVertical(
-                                    BriefingTheme.AccentPink.Opacity(0.22f),
-                                    BriefingTheme.AccentPink.Opacity(0.10f)),
+                                    BriefingTheme.AccentPink.Lighten(0.1f),
+                                    BriefingTheme.AccentPink.Darken(0.1f)),
+                            },
+                            // Soft inner top-edge highlight — same lit-from-above cue as
+                            // the card tiles, scaled up for the bigger surface.
+                            new Container
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 22,
+                                Anchor = Anchor.TopCentre,
+                                Origin = Anchor.TopCentre,
+                                Child = new Box
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Colour = ColourInfo.GradientVertical(
+                                        Color4.White.Opacity(0.20f),
+                                        Color4.White.Opacity(0)),
+                                },
                             },
                             createToriiLogo(),
                         },
@@ -266,30 +347,30 @@ namespace osu.Game.Overlays.ToriiBriefing
             };
         }
 
+        /// <summary>
+        /// Header logo glyph — the FontAwesome torii-gate icon rendered in pure
+        /// white on top of the saturated pink tile.
+        /// </summary>
+        /// <remarks>
+        /// The earlier implementation loaded the bundled <c>Torii/logo</c> texture
+        /// (a coloured red/pink torii bitmap) and stacked it on top of a pink
+        /// gradient tile. Two pinks competing on the same square produced a
+        /// muddy purple-ish blend in the middle and made the silhouette hard to
+        /// read at the small header scale. FontAwesome's vector
+        /// <c>ToriiGate</c> glyph is monochrome by design, so a single
+        /// <see cref="Color4.White"/> fill gives high contrast against any
+        /// accent-colour tile underneath — the same vocabulary every card icon
+        /// already uses, so the whole briefing reads as one system.
+        /// </remarks>
         private Drawable createToriiLogo()
         {
-            var logo = textures?.Get(@"Torii/logo");
-
-            if (logo != null)
-            {
-                return new Sprite
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Size = new Vector2(40),
-                    FillMode = FillMode.Fit,
-                    Texture = logo,
-                };
-            }
-
-            // Fallback if the texture isn't shipped — initial letter in brand pink.
-            return new OsuSpriteText
+            return new SpriteIcon
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                Text = "T",
-                Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.Bold),
-                Colour = BriefingTheme.AccentPink,
+                Size = new Vector2(30),
+                Icon = FontAwesome.Solid.ToriiGate,
+                Colour = Color4.White,
             };
         }
 
@@ -622,7 +703,13 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private void displayPayload(BriefingPayload payload)
         {
-            saveLastBriefing(payload);
+            // Snapshot persistence is fire-and-forget on a worker thread —
+            // it's a few KB of JSON written to disk, but on slow flash
+            // (mobile / portable installs) the synchronous write was
+            // adding 20-100 ms to the briefing-show frame. We don't need
+            // to wait for it: a failure logs and is recoverable on the
+            // next briefing.
+            Task.Run(() => saveLastBriefing(payload));
 
             title.Text = $"Welcome back, {payload.User.Username}.";
             var capturedAt = payload.Current?.CapturedAt.ToLocalTime() ?? DateTimeOffset.Now;
@@ -630,14 +717,36 @@ namespace osu.Game.Overlays.ToriiBriefing
 
             cardFlow.Clear();
 
-            addItem(new BriefingSectionHeader("your session", "changes from your plays, rank, and pp snapshots"));
-            addItem(createRankCard(payload));
-            addItem(createScoreCard(payload));
-            addItem(createSyncCard(payload));
+            // Build all items first then batch-add, so the FillFlowContainer
+            // re-runs its layout once instead of N times. Each card is a
+            // composite of ~12 drawables, so 7 sequential adds were
+            // triggering O(N²) layout invalidations on the briefing-show
+            // frame — visible as a brief jitter on lower-end hardware.
+            var items = new Drawable[]
+            {
+                new BriefingSectionHeader("your session", "changes from your plays, rank, and pp snapshots"),
+                createRankCard(payload),
+                createScoreCard(payload),
+                createSyncCard(payload),
+                new BriefingSectionHeader("dojo radar", "things that changed around you while you were away", BriefingTheme.AccentPink),
+                createMessageCard(payload),
+                createRadarCard(payload),
+            };
 
-            addItem(new BriefingSectionHeader("dojo radar", "things that changed around you while you were away", BriefingTheme.AccentPink));
-            addItem(createMessageCard(payload));
-            addItem(createRadarCard(payload));
+            for (int i = 0; i < items.Length; i++)
+            {
+                items[i].Alpha = 0;
+                items[i].Y = BriefingTheme.SpacingMd - 4;
+            }
+
+            cardFlow.AddRange(items);
+
+            for (int i = 0; i < items.Length; i++)
+            {
+                double delay = BriefingTheme.EntranceStagger * i;
+                items[i].Delay(delay).FadeIn(BriefingTheme.EntranceDuration * 0.7, Easing.OutQuint);
+                items[i].Delay(delay).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
+            }
         }
 
         public void ForceBriefingRefresh()
@@ -828,19 +937,6 @@ namespace osu.Game.Overlays.ToriiBriefing
         /// animation that gives the briefing its sequenced feel. Each item
         /// fades in + rises up by its index × <see cref="BriefingTheme.EntranceStagger"/>.
         /// </summary>
-        private void addItem(Drawable drawable)
-        {
-            int index = cardFlow.Count;
-
-            drawable.Alpha = 0;
-            drawable.Y = BriefingTheme.SpacingMd - 4;
-            cardFlow.Add(drawable);
-
-            double delay = BriefingTheme.EntranceStagger * index;
-            drawable.Delay(delay).FadeIn(BriefingTheme.EntranceDuration * 0.7, Easing.OutQuint);
-            drawable.Delay(delay).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
-        }
-
         private BriefingCard createRankCard(BriefingPayload payload)
         {
             var previous = payload.Previous;

@@ -13,72 +13,68 @@ using osuTK.Graphics;
 namespace osu.Game.Overlays.ToriiBriefing
 {
     /// <summary>
-    /// The Liquid Glass material used everywhere in the Torii Briefing
-    /// overlay. A reusable wrapper that turns whatever you put inside it
-    /// into a translucent, lifted glass surface — the panel itself, the
-    /// individual cards, the floating header pill all use this primitive.
+    /// The unified surface primitive used by the Torii Briefing — both the
+    /// outer panel and the individual cards inside it. Defaults are tuned
+    /// for cards (clean elevated dark surface with a black drop shadow);
+    /// the panel opts into the "signature" treatment (pink-tinted shadow +
+    /// top-edge specular ribbon) via the public properties below.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// osu-framework does not have a true backdrop-blur primitive (the
-    /// <c>BufferedContainer</c> only blurs its own children, not what's
-    /// behind it), so the "glass" effect here is faked the same way Apple
-    /// fakes it on opaque dark surfaces: a stack of subtle layers that
-    /// together read as a single material.
+    /// The earlier iteration of this primitive layered four accent
+    /// treatments on top of every consumer (horizontal accent wash,
+    /// always-on specular ribbon, accent-tinted shadow, surface-lift
+    /// gradient). Stacked vertically, the per-card accent shadows
+    /// blended into a multi-coloured halo that fought the cards above
+    /// rather than supporting them. This rewrite keeps only what reads
+    /// well in isolation:
     /// </para>
     /// <list type="number">
     ///     <item>
     ///         <description>
-    ///         <b>Base.</b> A vertical gradient from a slightly warmer mid-tone
-    ///         at the top to the deep panel base at the bottom. This is the
-    ///         "ambient occlusion" cue — the bottom of any glass surface is
-    ///         always slightly darker than the top in real life.
+    ///         <b>Base.</b> Vertical gradient (warmer mid-tone top →
+    ///         deep navy bottom). Brightness is controlled by
+    ///         <see cref="SurfaceLift"/>: 1.0 matches the panel base
+    ///         (use for the panel itself), &gt;1 lifts the surface so
+    ///         cards visibly float above the panel underneath.
     ///         </description>
     ///     </item>
     ///     <item>
     ///         <description>
-    ///         <b>Accent wash.</b> A very faint horizontal gradient from the
-    ///         accent colour fading to transparent. Hints at the card's
-    ///         category without dominating the surface.
+    ///         <b>Optional specular ribbon.</b> A faint white band at
+    ///         the top edge that fades down. Default off; the panel
+    ///         opts in to sell the "ambient light from above" feeling
+    ///         on its larger surface.
     ///         </description>
     ///     </item>
     ///     <item>
     ///         <description>
-    ///         <b>Specular ribbon.</b> A 32px-tall band of white-at-low-opacity
-    ///         at the very top edge that fades downward. Simulates light
-    ///         coming from above hitting the rounded top edge — this is
-    ///         the single most important detail for selling the "glass"
-    ///         feel against a flat-coloured background.
+    ///         <b>Hairline stroke.</b> 1 px white at low opacity for
+    ///         edge definition.
     ///         </description>
     ///     </item>
     ///     <item>
     ///         <description>
-    ///         <b>Hairline stroke.</b> A 1px white border at low opacity
-    ///         catches stray light along the edge.
-    ///         </description>
-    ///     </item>
-    ///     <item>
-    ///         <description>
-    ///         <b>Soft drop shadow.</b> An accent-tinted shadow lifts the
-    ///         surface off whatever is behind it. Tinting the shadow
-    ///         (instead of using neutral black, which disappears against
-    ///         the dark overlay) is what makes it feel like a glowing
-    ///         card rather than a flat sticker.
+    ///         <b>Drop shadow.</b> Configurable colour and opacity. The
+    ///         default is <see cref="Color4.Black"/> at 30% — neutral
+    ///         elevation that doesn't fight whatever's underneath. Only
+    ///         the panel uses a coloured shadow (its pink "signature"
+    ///         glow). Cards stay neutral so a stack of them doesn't
+    ///         turn into a rainbow.
     ///         </description>
     ///     </item>
     /// </list>
     /// <para>
-    /// Corners use <see cref="BriefingTheme.SquircleExponent"/> (2.4) for
-    /// the iOS / SwiftUI continuous-curvature look rather than the perfect
-    /// circular arc you get with the default exponent of 2.
+    /// Corners use <see cref="BriefingTheme.SquircleExponent"/> (2.4)
+    /// for the iOS / SwiftUI continuous-curvature look rather than the
+    /// perfect circular arc of the default exponent 2.
     /// </para>
     /// <para>
-    /// Children added to <see cref="BriefingGlass"/> via the standard
-    /// <c>Child</c> / <c>Children</c> properties go INSIDE the glass — the
-    /// <see cref="Content"/> override routes them to a content-slot
-    /// <see cref="Container"/> that sits on top of the material layers.
-    /// All layer boxes set <see cref="Drawable.BypassAutoSizeAxes"/> so the
-    /// glass works equally well at fixed sizes and with auto-sizing axes.
+    /// Children added via <c>Child</c> / <c>Children</c> route to a
+    /// content-slot <see cref="Container"/> sitting on top of the
+    /// material layers. The slot defaults to X-relative / Y-auto (card
+    /// mode); the panel switches to Both-relative via
+    /// <see cref="RelativeContentSize"/>.
     /// </para>
     /// </remarks>
     internal partial class BriefingGlass : Container
@@ -86,17 +82,17 @@ namespace osu.Game.Overlays.ToriiBriefing
         protected override Container<Drawable> Content => content;
         private readonly Container content;
 
-        private readonly Box accentWash;
-
         private float cornerSize = BriefingTheme.CornerMd;
-        private float shadowOpacity = 0.18f;
-        private float shadowRadius = 22f;
-        private Vector2 shadowOffset = new Vector2(0, 8);
-        private Color4 accent = BriefingTheme.AccentCyan;
-        private float accentMix = 0.05f;
-        private float specularStrength = 0.10f;
+        private float shadowOpacity = 0.22f;
+        private float shadowRadius = 18f;
+        private Vector2 shadowOffset = new Vector2(0, 4);
+        private Color4 shadowColor = Color4.Black;
+        private float shadowRoundness = 6f;
+        private float specularStrength = 0f;
+        private float specularHeight = 38f;
+        private float surfaceLift = 1.0f;
 
-        /// <summary>Corner radius. Defaults to <see cref="BriefingTheme.CornerMd"/> (cards). Use <see cref="BriefingTheme.CornerLg"/> for the panel.</summary>
+        /// <summary>Corner radius. <see cref="BriefingTheme.CornerMd"/> for cards, <see cref="BriefingTheme.CornerLg"/> for the panel.</summary>
         public float CornerSize
         {
             get => cornerSize;
@@ -107,32 +103,18 @@ namespace osu.Game.Overlays.ToriiBriefing
             }
         }
 
-        /// <summary>Tint colour bled into the surface (very faint) and the drop shadow. Defaults to brand cyan.</summary>
-        public Color4 Accent
+        /// <summary>Drop-shadow colour. Defaults to black (neutral elevation).</summary>
+        public Color4 ShadowColor
         {
-            get => accent;
+            get => shadowColor;
             set
             {
-                accent = value;
-                if (accentWash != null)
-                    accentWash.Colour = ColourInfo.GradientHorizontal(accent.Opacity(accentMix), Color4.Transparent);
+                shadowColor = value;
                 applyShadow();
             }
         }
 
-        /// <summary>How strongly the accent tints the surface. Default 0.05 (very subtle).</summary>
-        public float AccentMix
-        {
-            get => accentMix;
-            set
-            {
-                accentMix = value;
-                if (accentWash != null)
-                    accentWash.Colour = ColourInfo.GradientHorizontal(accent.Opacity(accentMix), Color4.Transparent);
-            }
-        }
-
-        /// <summary>Drop-shadow opacity. 0.18 for cards, 0.30 for the panel.</summary>
+        /// <summary>Drop-shadow alpha. Default 0.30. Set to 0 to disable.</summary>
         public float ShadowOpacity
         {
             get => shadowOpacity;
@@ -166,15 +148,25 @@ namespace osu.Game.Overlays.ToriiBriefing
         }
 
         /// <summary>
-        /// Configures the inner content slot's sizing. Defaults to <c>Axes.X</c> (i.e. X-relative,
-        /// Y-auto) which is what cards want. Set this to <c>Axes.Both</c> for fixed-size users
-        /// like the panel itself.
+        /// Extra rounding added to the shadow shape on top of <see cref="CornerSize"/>.
+        /// Higher values make the shadow blob outward more circularly — softer falloff,
+        /// less of the "rectangular halo" feeling on stacked cards. Default 6.
         /// </summary>
-        /// <remarks>
-        /// Internally this swaps which axes use <see cref="Drawable.RelativeSizeAxes"/> vs
-        /// <see cref="CompositeDrawable.AutoSizeAxes"/> on the content slot — the two cannot
-        /// overlap, so we clear auto-size first to avoid the framework's overlap exception.
-        /// </remarks>
+        public float ShadowRoundness
+        {
+            get => shadowRoundness;
+            set
+            {
+                shadowRoundness = value;
+                applyShadow();
+            }
+        }
+
+        /// <summary>
+        /// Configures the inner content slot's sizing. Defaults to <c>Axes.X</c>
+        /// (X-relative + Y-auto, for cards). Set to <c>Axes.Both</c> for fixed-size
+        /// users like the panel.
+        /// </summary>
         public Axes RelativeContentSize
         {
             set
@@ -182,15 +174,13 @@ namespace osu.Game.Overlays.ToriiBriefing
                 content.AutoSizeAxes = Axes.None;
                 content.RelativeSizeAxes = value;
 
-                // Anything not relative-sized falls back to auto-size, mirroring the parent's
-                // most likely intent (Both = pure fixed-relative; X = relative-X + auto-Y).
                 var auto = Axes.Both & ~value;
                 if (auto != Axes.None)
                     content.AutoSizeAxes = auto;
             }
         }
 
-        /// <summary>Top-edge specular highlight strength (0 disables it). Default 0.10.</summary>
+        /// <summary>Top-edge specular highlight strength. Default 0 (off). The panel uses ~0.18.</summary>
         public float SpecularStrength
         {
             get => specularStrength;
@@ -206,7 +196,36 @@ namespace osu.Game.Overlays.ToriiBriefing
             }
         }
 
+        /// <summary>Specular ribbon height. Default 38 (cards if enabled); the panel uses ~70.</summary>
+        public float SpecularHeight
+        {
+            get => specularHeight;
+            set
+            {
+                specularHeight = value;
+                if (specularContainer != null)
+                    specularContainer.Height = value;
+            }
+        }
+
+        /// <summary>
+        /// Surface brightness relative to the panel base. 1.0 matches the panel
+        /// (use for the panel itself); 1.3–1.5 lifts cards above the panel.
+        /// </summary>
+        public float SurfaceLift
+        {
+            get => surfaceLift;
+            set
+            {
+                surfaceLift = value;
+                if (baseBox != null)
+                    applyBaseTone();
+            }
+        }
+
+        private Box baseBox;
         private readonly Box specularRibbon;
+        private Container specularContainer;
 
         public BriefingGlass()
         {
@@ -215,38 +234,25 @@ namespace osu.Game.Overlays.ToriiBriefing
             CornerExponent = BriefingTheme.SquircleExponent;
             MaskingSmoothness = 1.4f;
             BorderThickness = 1f;
-            BorderColour = Color4.White.Opacity(0.10f);
+            // Slightly stronger hairline than the previous 0.07 — at low
+            // opacity the edge gets lost on dark surfaces, especially
+            // where the card meets the panel and the card needs visible
+            // boundaries to read as a separate object.
+            BorderColour = Color4.White.Opacity(0.12f);
 
             applyShadow();
 
-            // 1. Base — vertical gradient (slightly warmer top → deep navy bottom)
-            //    The bypass on auto-size axes lets BriefingGlass be used both
-            //    in fixed-size mode (panel) and auto-size mode (cards).
-            var baseBox = new Box
+            baseBox = new Box
             {
                 RelativeSizeAxes = Axes.Both,
                 BypassAutoSizeAxes = Axes.Both,
-                Colour = ColourInfo.GradientVertical(
-                    BriefingTheme.SurfaceWarm.Opacity(0.78f),
-                    BriefingTheme.SurfaceBase.Opacity(0.94f)),
             };
+            applyBaseTone();
 
-            // 2. Accent wash — fades from accent (very low opacity) → transparent
-            accentWash = new Box
-            {
-                RelativeSizeAxes = Axes.Both,
-                BypassAutoSizeAxes = Axes.Both,
-                Colour = ColourInfo.GradientHorizontal(accent.Opacity(accentMix), Color4.Transparent),
-            };
-
-            // 3. Specular highlight ribbon at the top edge.
-            //    Sized as a fixed-height container at the top so it bypasses
-            //    auto-size on Y but always covers the top 32px regardless of
-            //    panel height.
-            var specularContainer = new Container
+            specularContainer = new Container
             {
                 RelativeSizeAxes = Axes.X,
-                Height = 32,
+                Height = specularHeight,
                 BypassAutoSizeAxes = Axes.Both,
                 Anchor = Anchor.TopCentre,
                 Origin = Anchor.TopCentre,
@@ -259,10 +265,6 @@ namespace osu.Game.Overlays.ToriiBriefing
                 },
             };
 
-            // 4. Content slot — children added via Add/Children land here on top of the material.
-            //    Defaults to "card mode" (X-relative + Y-auto) since the cards are by far
-            //    the most common consumer; panel/fixed-size users override via
-            //    <see cref="RelativeContentSize"/> to switch to Both-relative.
             content = new Container
             {
                 RelativeSizeAxes = Axes.X,
@@ -272,7 +274,6 @@ namespace osu.Game.Overlays.ToriiBriefing
             AddRangeInternal(new Drawable[]
             {
                 baseBox,
-                accentWash,
                 specularContainer,
                 content,
             });
@@ -280,16 +281,36 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private void applyShadow()
         {
-            // EdgeEffectParameters is a struct; assigning the whole property in one shot
-            // avoids "cannot modify members of readonly field" issues that would arise
-            // from caching it in a field.
             EdgeEffect = new EdgeEffectParameters
             {
                 Type = EdgeEffectType.Shadow,
-                Colour = accent.Opacity(shadowOpacity),
+                Colour = shadowColor.Opacity(shadowOpacity),
                 Radius = shadowRadius,
                 Offset = shadowOffset,
+                // Roundness adds to the shadow's corner radius, making the falloff
+                // softer and more circular at the corners. Without this, the
+                // Gaussian blur edges parallel the card's straight sides and
+                // can read as "rectangular haloed" — exactly the brittleness
+                // you want to avoid on stacked cards.
+                Roundness = shadowRoundness,
             };
+        }
+
+        /// <summary>
+        /// Applies the surface gradient. The top stop scales with
+        /// <see cref="SurfaceLift"/> so cards (lift &gt; 1) read as floating above
+        /// the panel (lift = 1) rather than blending into it.
+        /// </summary>
+        private void applyBaseTone()
+        {
+            float liftFactor = System.Math.Clamp(surfaceLift, 0.6f, 1.6f);
+            // Slight brightening at the top stop only; bottom always anchors to the
+            // deep panel base so cards feel grounded.
+            float topOpacity = 0.45f * liftFactor;
+
+            baseBox.Colour = ColourInfo.GradientVertical(
+                BriefingTheme.SurfaceWarm.Opacity(topOpacity),
+                BriefingTheme.SurfaceBase.Opacity(0.92f));
         }
     }
 }

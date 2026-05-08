@@ -20,31 +20,24 @@ using osuTK.Graphics;
 namespace osu.Game.Overlays.ToriiBriefing
 {
     /// <summary>
-    /// Specialised briefing card that lists the top-play recalcs since the
-    /// previous snapshot — gains on top, losses underneath, both capped at
-    /// five rows with an "+ N more" overflow line.
+    /// Specialised briefing card listing the top-play recalcs since the
+    /// previous snapshot — gains on top, losses underneath, both capped
+    /// at five rows with an "+ N more" overflow line.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The previous implementation duplicated the best gain / worst loss as
-    /// "BEST GAIN" / "WORST LOSS" highlight rows in a footer below the lists,
-    /// even though the same scores were already the first entries in their
-    /// respective sections (since both lists are sorted by absolute delta).
-    /// That redundancy doubled the footprint of the card without adding
-    /// information, so this version drops it.
-    /// </para>
-    /// <para>
-    /// Each row now uses a coloured caret icon + a fixed-width delta column
-    /// + the truncated score title, which scans top-to-bottom as a clean
-    /// table even with the auto-sized text flow layout.
-    /// </para>
+    /// Same surface vocabulary as <see cref="BriefingCard"/> (clean
+    /// elevated dark surface + black drop shadow + saturated icon tile).
+    /// The body is a tight two-column table: a fixed-width signed-pp
+    /// column on the left, the truncated score title on the right. Each
+    /// section is captioned by a tinted caret + uppercase label.
     /// </remarks>
     internal partial class BriefingRecalcCard : CompositeDrawable, IHasTooltip
     {
         public LocalisableString TooltipText { get; set; }
 
         private const int max_rows_per_section = 5;
-        private const float delta_column_width = 84f;
+        private const float delta_column_width = 64f;
+        private const float icon_tile_size = 36f;
 
         public BriefingRecalcCard(List<BriefingScoreChange> changes)
         {
@@ -58,13 +51,11 @@ namespace osu.Game.Overlays.ToriiBriefing
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
-                Margin = new MarginPadding { Left = 36 + BriefingTheme.SpacingMd },
-                Padding = new MarginPadding { Right = BriefingTheme.SpacingLg },
+                Margin = new MarginPadding { Left = icon_tile_size + BriefingTheme.SpacingMd - 2 },
                 Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, BriefingTheme.SpacingXs + 1),
+                Spacing = new Vector2(0, 2),
             };
 
-            // Kicker
             body.Add(new OsuSpriteText
             {
                 Text = "RECALCULATION WATCH",
@@ -73,7 +64,6 @@ namespace osu.Game.Overlays.ToriiBriefing
                 Colour = accent,
             });
 
-            // Headline
             string headline = hasChanges
                 ? $"{changes.Count} top {(changes.Count == 1 ? "score" : "scores")} recalculated"
                 : "No top play recalcs detected";
@@ -81,8 +71,9 @@ namespace osu.Game.Overlays.ToriiBriefing
             body.Add(new OsuSpriteText
             {
                 Text = headline,
-                Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.Bold),
+                Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
                 Colour = Color4.White.Opacity(BriefingTheme.InkPrimary),
+                Margin = new MarginPadding { Top = 1 },
             });
 
             if (!hasChanges)
@@ -90,8 +81,9 @@ namespace osu.Game.Overlays.ToriiBriefing
                 body.Add(new OsuSpriteText
                 {
                     Text = "Your top plays match the last briefing snapshot.",
-                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.Regular),
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    Margin = new MarginPadding { Top = 1 },
                 });
             }
             else
@@ -99,14 +91,13 @@ namespace osu.Game.Overlays.ToriiBriefing
                 var gains = changes.Where(c => c.Delta > 0).OrderByDescending(c => c.Delta).ToList();
                 var losses = changes.Where(c => c.Delta < 0).OrderBy(c => c.Delta).ToList();
 
-                // Slim divider above the rows so the sections feel grouped.
-                body.Add(buildSeparator(top: BriefingTheme.SpacingSm - 2, bottom: BriefingTheme.SpacingXs));
+                body.Add(buildSeparator(top: BriefingTheme.SpacingSm, bottom: BriefingTheme.SpacingXs - 1));
 
                 if (gains.Count > 0)
                     addSection(body, "TOP GAINS", FontAwesome.Solid.CaretUp, BriefingTheme.AccentGain, gains);
 
                 if (gains.Count > 0 && losses.Count > 0)
-                    body.Add(buildSeparator(top: BriefingTheme.SpacingSm, bottom: BriefingTheme.SpacingXs));
+                    body.Add(buildSeparator(top: BriefingTheme.SpacingSm, bottom: BriefingTheme.SpacingXs - 1));
 
                 if (losses.Count > 0)
                     addSection(body, "TOP LOSSES", FontAwesome.Solid.CaretDown, BriefingTheme.AccentLoss, losses);
@@ -116,48 +107,70 @@ namespace osu.Game.Overlays.ToriiBriefing
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
-                Accent = accent,
-                AccentMix = 0.05f,
-                ShadowOpacity = 0.16f,
+                SurfaceLift = 1.4f,
+                ShadowOpacity = 0.18f,
+                ShadowRadius = 8f,
+                ShadowRoundness = 4f,
+                ShadowOffset = new Vector2(0, 2),
                 Child = new Container
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
                     Padding = new MarginPadding
                     {
-                        Horizontal = BriefingTheme.SpacingLg,
-                        Vertical = BriefingTheme.SpacingMd + 2,
+                        Horizontal = BriefingTheme.SpacingMd + 4,
+                        Vertical = BriefingTheme.SpacingMd - 2,
                     },
                     Children = new Drawable[]
                     {
-                        // Icon tile (matches BriefingCard for visual consistency).
-                        new Container
-                        {
-                            Anchor = Anchor.TopLeft,
-                            Origin = Anchor.TopLeft,
-                            Size = new Vector2(36),
-                            Masking = true,
-                            CornerRadius = BriefingTheme.CornerSm,
-                            CornerExponent = BriefingTheme.SquircleExponent,
-                            MaskingSmoothness = 1.2f,
-                            Children = new Drawable[]
-                            {
-                                new Box
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Colour = accent.Opacity(0.18f),
-                                },
-                                new SpriteIcon
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Size = new Vector2(16),
-                                    Icon = FontAwesome.Solid.Sync,
-                                    Colour = accent,
-                                },
-                            },
-                        },
+                        buildIconTile(FontAwesome.Solid.Sync, accent),
                         body,
+                    },
+                },
+            };
+        }
+
+        private static Drawable buildIconTile(IconUsage icon, Color4 accent)
+        {
+            return new Container
+            {
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.TopLeft,
+                Size = new Vector2(icon_tile_size),
+                Masking = true,
+                CornerRadius = BriefingTheme.CornerSm - 1,
+                CornerExponent = BriefingTheme.SquircleExponent,
+                MaskingSmoothness = 1.2f,
+                Children = new Drawable[]
+                {
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = ColourInfo.GradientVertical(
+                            accent.Lighten(0.1f),
+                            accent.Darken(0.1f)),
+                    },
+                    new Container
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        Height = 14,
+                        Anchor = Anchor.TopCentre,
+                        Origin = Anchor.TopCentre,
+                        Child = new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = ColourInfo.GradientVertical(
+                                Color4.White.Opacity(0.18f),
+                                Color4.White.Opacity(0)),
+                        },
+                    },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(16),
+                        Icon = icon,
+                        Colour = Color4.White,
                     },
                 },
             };
@@ -174,22 +187,19 @@ namespace osu.Game.Overlays.ToriiBriefing
                 {
                     RelativeSizeAxes = Axes.X,
                     Height = 1,
-                    Colour = ColourInfo.GradientHorizontal(
-                        Color4.White.Opacity(0.10f),
-                        Color4.White.Opacity(0)),
+                    Colour = Color4.White.Opacity(0.07f),
                 },
             };
         }
 
         private static void addSection(FillFlowContainer body, string title, IconUsage caret, Color4 colour, List<BriefingScoreChange> rows)
         {
-            // Section title (e.g. "TOP GAINS") — aligned with the body kicker but tinted gain/loss colour.
             body.Add(new FillFlowContainer
             {
                 AutoSizeAxes = Axes.Both,
                 Direction = FillDirection.Horizontal,
                 Spacing = new Vector2(BriefingTheme.SpacingXs, 0),
-                Margin = new MarginPadding { Bottom = BriefingTheme.SpacingXs - 2 },
+                Margin = new MarginPadding { Bottom = 1 },
                 Children = new Drawable[]
                 {
                     new SpriteIcon
@@ -198,7 +208,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                         Origin = Anchor.CentreLeft,
                         Size = new Vector2(BriefingTheme.TypeCaption - 1f),
                         Icon = caret,
-                        Colour = colour.Opacity(0.85f),
+                        Colour = colour,
                     },
                     new OsuSpriteText
                     {
@@ -207,7 +217,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                         Text = title,
                         Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
                         Spacing = new Vector2(BriefingTheme.CaptionTracking * BriefingTheme.TypeCaption, 0),
-                        Colour = colour.Opacity(0.85f),
+                        Colour = colour,
                     },
                 },
             });
@@ -222,7 +232,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
                     Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(BriefingTheme.SpacingSm, 0),
+                    Spacing = new Vector2(BriefingTheme.SpacingMd - 4, 0),
                     Children = new Drawable[]
                     {
                         new OsuSpriteText
@@ -230,7 +240,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                             Anchor = Anchor.CentreLeft,
                             Origin = Anchor.CentreLeft,
                             Text = formatSignedPP(change.Delta),
-                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1f, weight: FontWeight.Bold),
+                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1f, weight: FontWeight.SemiBold),
                             Colour = colour,
                             Width = delta_column_width,
                         },
@@ -238,9 +248,9 @@ namespace osu.Game.Overlays.ToriiBriefing
                         {
                             Anchor = Anchor.CentreLeft,
                             Origin = Anchor.CentreLeft,
-                            Text = trim(change.Title, 46),
-                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1f, weight: FontWeight.SemiBold),
-                            Colour = Color4.White.Opacity(BriefingTheme.InkPrimary - 0.16f),
+                            Text = trim(change.Title, 50),
+                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1f, weight: FontWeight.Regular),
+                            Colour = Color4.White.Opacity(BriefingTheme.InkPrimary - 0.10f),
                         },
                     },
                 });
@@ -251,9 +261,9 @@ namespace osu.Game.Overlays.ToriiBriefing
                 body.Add(new OsuSpriteText
                 {
                     Text = $"+ {rows.Count - max_rows_per_section} more",
-                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 2f, weight: FontWeight.SemiBold),
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 2f, weight: FontWeight.Regular),
                     Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
-                    Margin = new MarginPadding { Left = delta_column_width + BriefingTheme.SpacingSm, Top = 1 },
+                    Margin = new MarginPadding { Left = delta_column_width + BriefingTheme.SpacingMd - 4, Top = 1 },
                 });
             }
         }

@@ -3,6 +3,7 @@
 
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
@@ -17,29 +18,18 @@ using osuTK.Graphics;
 namespace osu.Game.Overlays.ToriiBriefing
 {
     /// <summary>
-    /// The standard briefing card — kicker, headline, detail. Used for the
+    /// The standard briefing card — kicker, headline, detail. Used for
     /// rank pulse, dojo whispers, dojo radar, and session-mode rows.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The previous implementation used a circular icon "puck" floating
-    /// against the card surface, plus a 1.8% wide accent strip on the left
-    /// edge, plus a horizontal accent gradient overlay, plus per-card
-    /// border + shadow tints. Five accent treatments per card meant the
-    /// accent never quite read as a single signal.
-    /// </para>
-    /// <para>
-    /// This version keeps a single category cue: a small accent-tinted
-    /// icon tile (the same shape vocabulary Apple uses on macOS / iOS
-    /// Settings rows). The card surface itself is unified across all
-    /// cards — same neutral glass — and the only thing that changes per
-    /// category is the tile colour, the kicker colour, and the
-    /// shadow tint inherited from the underlying <see cref="BriefingGlass"/>.
-    /// </para>
-    /// <para>
-    /// Card height is fully driven by content: kicker + headline + however
-    /// many lines of detail. No more 126 vs 142 magic numbers.
-    /// </para>
+    /// Polish through restraint: the card surface is a clean elevated dark
+    /// rectangle with a neutral black drop shadow, the only accent is a
+    /// saturated icon tile + the matching kicker text colour. No accent
+    /// strip on the edge, no accent-tinted shadow (which used to bleed into
+    /// adjacent cards as a multi-coloured halo when stacked vertically),
+    /// no accent wash, no ribbon — the icon tile carries the category
+    /// signal on its own. This is the macOS Settings vocabulary applied
+    /// to a dark theme.
     /// </remarks>
     internal partial class BriefingCard : CompositeDrawable, IHasTooltip
     {
@@ -54,58 +44,41 @@ namespace osu.Game.Overlays.ToriiBriefing
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
-                Accent = accent,
-                AccentMix = 0.05f,
-                ShadowOpacity = 0.16f,
+                SurfaceLift = 1.4f,
+                // Tight, low-opacity contact shadow only — radius small enough that
+                // the shadow falls inside the inter-card gutter rather than bleeding
+                // onto the next card and creating a horizontal "rectangular halo"
+                // band. Apple's dark-mode lists barely use shadow at all (relying on
+                // surface contrast + hairline border for separation); this is the
+                // minimum elevation cue that still reads.
+                ShadowOpacity = 0.18f,
+                ShadowRadius = 8f,
+                ShadowRoundness = 4f,
+                ShadowOffset = new Vector2(0, 2),
                 Child = new Container
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
                     Padding = new MarginPadding
                     {
-                        Horizontal = BriefingTheme.SpacingLg,
-                        Vertical = BriefingTheme.SpacingMd + 2,
+                        Horizontal = BriefingTheme.SpacingMd + 4,
+                        Vertical = BriefingTheme.SpacingMd - 2,
                     },
                     Children = new Drawable[]
                     {
-                        // Icon tile — soft colored square.
-                        // Anchored top-left so multi-line detail flows down rather
-                        // than pushing the icon to the centre of the growing card.
-                        new Container
-                        {
-                            Anchor = Anchor.TopLeft,
-                            Origin = Anchor.TopLeft,
-                            Size = new Vector2(36),
-                            Masking = true,
-                            CornerRadius = BriefingTheme.CornerSm,
-                            CornerExponent = BriefingTheme.SquircleExponent,
-                            MaskingSmoothness = 1.2f,
-                            Children = new Drawable[]
-                            {
-                                new Box
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Colour = accent.Opacity(0.18f),
-                                },
-                                new SpriteIcon
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Size = new Vector2(16),
-                                    Icon = icon,
-                                    Colour = accent,
-                                },
-                            },
-                        },
-                        // Text column. Left-padded by tile size + gap.
+                        // Saturated colour tile — single solid colour, white icon.
+                        // The only accent treatment on the card; everything else is
+                        // neutral so a stack of cards reads as one calm system.
+                        buildIconTile(icon, accent),
+
+                        // Text column.
                         new FillFlowContainer
                         {
                             RelativeSizeAxes = Axes.X,
                             AutoSizeAxes = Axes.Y,
-                            Margin = new MarginPadding { Left = 36 + BriefingTheme.SpacingMd },
-                            Padding = new MarginPadding { Right = 24 }, // leave room for the info chevron
+                            Margin = new MarginPadding { Left = icon_tile_size + BriefingTheme.SpacingMd - 2 },
                             Direction = FillDirection.Vertical,
-                            Spacing = new Vector2(0, BriefingTheme.SpacingXs + 1),
+                            Spacing = new Vector2(0, 2),
                             Children = new Drawable[]
                             {
                                 new OsuSpriteText
@@ -118,32 +91,77 @@ namespace osu.Game.Overlays.ToriiBriefing
                                 new OsuSpriteText
                                 {
                                     Text = headline,
-                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.Bold),
+                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
                                     Colour = Color4.White.Opacity(BriefingTheme.InkPrimary),
+                                    Margin = new MarginPadding { Top = 1 },
                                 },
                                 new OsuTextFlowContainer(t =>
                                 {
-                                    t.Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold);
+                                    t.Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.Regular);
                                     t.Colour = Color4.White.Opacity(BriefingTheme.InkSecondary);
                                 })
                                 {
                                     RelativeSizeAxes = Axes.X,
                                     AutoSizeAxes = Axes.Y,
                                     Text = detail,
+                                    Margin = new MarginPadding { Top = 1 },
                                 },
                             },
                         },
-                        // Info hint — small icon at top-right of the card. Anchored top so
-                        // it doesn't drift as the card grows with multi-line detail.
-                        new SpriteIcon
+                    },
+                },
+            };
+        }
+
+        private const float icon_tile_size = 36f;
+
+        private static Drawable buildIconTile(IconUsage icon, Color4 accent)
+        {
+            // iOS-Settings vocabulary: full-saturation accent tile with subtle
+            // top-to-bottom shading (lighter top → accent bottom) for a hint of
+            // dimensionality, white icon for guaranteed contrast.
+            return new Container
+            {
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.TopLeft,
+                Size = new Vector2(icon_tile_size),
+                Masking = true,
+                CornerRadius = BriefingTheme.CornerSm - 1,
+                CornerExponent = BriefingTheme.SquircleExponent,
+                MaskingSmoothness = 1.2f,
+                Children = new Drawable[]
+                {
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = ColourInfo.GradientVertical(
+                            accent.Lighten(0.1f),
+                            accent.Darken(0.1f)),
+                    },
+                    // Soft inner top highlight — a thin band of brightness at the
+                    // top edge that mirrors the panel-scale specular ribbon. Sells
+                    // the "lit from above" feeling at small scale.
+                    new Container
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        Height = 14,
+                        Anchor = Anchor.TopCentre,
+                        Origin = Anchor.TopCentre,
+                        Child = new Box
                         {
-                            Anchor = Anchor.TopRight,
-                            Origin = Anchor.TopRight,
-                            Y = 6,
-                            Size = new Vector2(12),
-                            Icon = FontAwesome.Solid.InfoCircle,
-                            Colour = Color4.White.Opacity(BriefingTheme.InkTertiary - 0.10f),
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = ColourInfo.GradientVertical(
+                                Color4.White.Opacity(0.18f),
+                                Color4.White.Opacity(0)),
                         },
+                    },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(16),
+                        Icon = icon,
+                        Colour = Color4.White,
                     },
                 },
             };

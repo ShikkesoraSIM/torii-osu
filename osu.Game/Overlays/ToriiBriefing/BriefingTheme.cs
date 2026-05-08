@@ -119,6 +119,10 @@ namespace osu.Game.Overlays.ToriiBriefing
         public const double EntranceDuration = 480;
         public const double EntranceStagger  = 70;     // ms between consecutive cards
         public const double HoverDuration    = 180;
-        public const double DismissDuration  = 220;
+        // Snappy dismiss — was 220 ms, but the "enter Torii" CTA is the
+        // user's "I'm done with this overlay, get me to the menu" gesture.
+        // 160 ms feels immediate while still letting the panel ease out
+        // visually rather than vanishing.
+        public const double DismissDuration  = 160;
     }
 }

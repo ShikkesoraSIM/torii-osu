@@ -3,9 +3,7 @@
 
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Shapes;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osuTK;
@@ -15,16 +13,18 @@ namespace osu.Game.Overlays.ToriiBriefing
 {
     /// <summary>
     /// Section divider used between the two briefing groups
-    /// (your session / dojo radar). A horizontal hairline rule with the
-    /// section title sitting on top of it as a pill, plus a one-liner
-    /// subtitle.
+    /// (your session / dojo radar). Just an uppercase tracked label
+    /// followed by a one-liner subtitle — no horizontal rule, no pill
+    /// chrome. The label and subtitle do all the work; the empty space
+    /// above and below the row is what visually separates the sections.
     /// </summary>
     /// <remarks>
-    /// The previous layout drew the rule as a solid 8%-opacity line edge to
-    /// edge, which fought visually with the floating pill that sat on it.
-    /// Here the rule fades out at both ends (so the pill feels like it's
-    /// "lifting off" the line rather than punching a hole in it) and the
-    /// subtitle uses tertiary ink to keep the eye on the pill first.
+    /// The previous version drew a faded horizontal rule under a pill
+    /// label. The pill chrome competed with the cards' chrome (cards have
+    /// their own borders + shadows + tiles), turning the section divider
+    /// into another piece of UI noise rather than the calm separator it
+    /// should be. This version keeps only the typography, which is what
+    /// macOS Settings / iOS use for grouped-list section headers.
     /// </remarks>
     internal partial class BriefingSectionHeader : CompositeDrawable
     {
@@ -33,40 +33,33 @@ namespace osu.Game.Overlays.ToriiBriefing
             var tint = accent ?? BriefingTheme.AccentCyan;
 
             RelativeSizeAxes = Axes.X;
-            Height = 36;
-            Margin = new MarginPadding { Top = BriefingTheme.SpacingXs };
+            AutoSizeAxes = Axes.Y;
+            Margin = new MarginPadding { Top = BriefingTheme.SpacingSm, Bottom = BriefingTheme.SpacingXs };
+            Padding = new MarginPadding { Left = 2 };
 
-            InternalChildren = new Drawable[]
+            InternalChild = new FillFlowContainer
             {
-                // Hairline rule that fades out at both ends
-                new Box
+                AutoSizeAxes = Axes.Both,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(BriefingTheme.SpacingSm, 0),
+                Children = new Drawable[]
                 {
-                    Anchor = Anchor.CentreLeft,
-                    Origin = Anchor.CentreLeft,
-                    RelativeSizeAxes = Axes.X,
-                    Height = 1,
-                    Colour = ColourInfo.GradientHorizontal(
-                        Color4.White.Opacity(0.10f),
-                        Color4.White.Opacity(0)),
-                },
-                new FillFlowContainer
-                {
-                    Anchor = Anchor.CentreLeft,
-                    Origin = Anchor.CentreLeft,
-                    AutoSizeAxes = Axes.Both,
-                    Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(BriefingTheme.SpacingSm, 0),
-                    Children = new Drawable[]
+                    new OsuSpriteText
                     {
-                        new BriefingPill(title, tint),
-                        new OsuSpriteText
-                        {
-                            Anchor = Anchor.CentreLeft,
-                            Origin = Anchor.CentreLeft,
-                            Text = subtitle,
-                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1.5f, weight: FontWeight.SemiBold),
-                            Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
-                        },
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = title.ToUpperInvariant(),
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                        Spacing = new Vector2(BriefingTheme.CaptionTracking * BriefingTheme.TypeCaption, 0),
+                        Colour = tint,
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = subtitle,
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeBody - 1.5f, weight: FontWeight.Regular),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
                     },
                 },
             };
