@@ -257,6 +257,12 @@ namespace osu.Game
 
         private Bindable<bool> unslantedSongSelectUI;
 
+        // Torii hiccup logger — ON: a component lives in the tree and writes
+        // long-frame records to disk. OFF: this bindable is the only thing
+        // that exists; per-frame cost is zero. See wireToriiHiccupLogger().
+        private Bindable<bool> hiccupLoggerEnabled;
+        private osu.Game.Performance.ToriiHiccupLogger hiccupLogger;
+
         private Bindable<float> uiScale;
 
         private Bindable<UserActivity> configUserActivity;
@@ -1157,6 +1163,8 @@ namespace osu.Game
 
             Add(sessionIdleTracker);
 
+            wireToriiHiccupLogger();
+
             Container logoContainer;
 
             AddRange(new Drawable[]
@@ -1380,6 +1388,60 @@ namespace osu.Game
             
             // Show server information notification on startup
             showServerInfoNotification();
+        }
+
+        /// <summary>
+        /// Subscribes the Torii hiccup logger to its config bindable so it
+        /// can be toggled at runtime without restarting the game.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Designed so when the toggle is OFF (the default) absolutely nothing
+        /// from the logger runs. The total cost of having this method present
+        /// is:
+        /// </para>
+        /// <list type="number">
+        ///     <item><description>One <see cref="OsuConfigManager"/> dictionary lookup at game-load time.</description></item>
+        ///     <item><description>One <see cref="Bindable{T}"/> subscription. Costs nothing per frame; only fires on toggle.</description></item>
+        ///     <item><description>One immediate callback invocation with <c>NewValue == false</c>, which short-circuits the if branch and exits.</description></item>
+        /// </list>
+        /// <para>
+        /// After that there is no <see cref="ToriiHiccupLogger"/> instance, no
+        /// component in the draw tree, no Update tick, no allocations. A profile
+        /// of a Torii build with this method removed would be byte-identical to
+        /// one with the toggle off.
+        /// </para>
+        /// <para>
+        /// When the user toggles ON, a fresh <see cref="ToriiHiccupLogger"/> is
+        /// constructed and added to the draw tree. Toggling OFF removes and
+        /// disposes it. The logger writes JSONL captures to
+        /// <c>&lt;storage&gt;/torii/hiccups/&lt;timestamp&gt;.jsonl</c>; one
+        /// file per session so users sharing logs don't need to filter by date.
+        /// </para>
+        /// </remarks>
+        private void wireToriiHiccupLogger()
+        {
+            hiccupLoggerEnabled = LocalConfig.GetBindable<bool>(OsuSetting.ToriiHiccupLoggerEnabled);
+
+            hiccupLoggerEnabled.BindValueChanged(e =>
+            {
+                if (e.NewValue)
+                {
+                    if (hiccupLogger != null)
+                        return;
+
+                    hiccupLogger = new osu.Game.Performance.ToriiHiccupLogger();
+                    AddInternal(hiccupLogger);
+                }
+                else
+                {
+                    if (hiccupLogger == null)
+                        return;
+
+                    RemoveInternal(hiccupLogger, true);
+                    hiccupLogger = null;
+                }
+            }, true);
         }
 
         private void handleBackButton()

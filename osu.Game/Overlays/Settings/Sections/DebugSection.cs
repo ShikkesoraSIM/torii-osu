@@ -28,6 +28,12 @@ namespace osu.Game.Overlays.Settings.Sections
             }
 
             Add(new MemorySettings());
+
+            // Torii hiccup logger — opt-in frame-time recorder. Last in the
+            // section because it's the most niche tool here; the toggle
+            // exists in release builds too so users sharing lag reports can
+            // capture a session without a debug build.
+            Add(new ToriiHiccupSettings());
         }
     }
 }

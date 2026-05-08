@@ -272,6 +272,16 @@ namespace osu.Game.Configuration
             // flips to false).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
+            // Torii hiccup logger — captures frames slower than ~33 ms (sub-30
+            // fps) into a JSONL file under <storage>/torii/hiccups/<timestamp>.jsonl
+            // along with surrounding context (current screen, visible overlays,
+            // API state, GC stats). Default OFF because it should leave runtime
+            // identical to a Torii build without it. When OFF the logger
+            // component is not even constructed — see OsuGame.cs subscription —
+            // so there is zero per-frame cost. Devs and users sending lag
+            // reports flip it ON, play, send the JSONL.
+            SetDefault(OsuSetting.ToriiHiccupLoggerEnabled, false);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -689,6 +699,16 @@ namespace osu.Game.Configuration
         /// for the UI surfaces.
         /// </summary>
         ToriiServerPulseEnabled,
+
+        /// <summary>
+        /// Torii: hiccup logger toggle. When OFF (default), absolutely nothing
+        /// from the logger runs — it isn't even constructed. When ON, a single
+        /// component is added to the game host that records frames longer than
+        /// the configured threshold to JSONL with surrounding context.
+        /// See <see cref="osu.Game.Performance.ToriiHiccupLogger"/>.
+        /// </summary>
+        ToriiHiccupLoggerEnabled,
+
         CycleSkinsThroughFavoritesOnly,
     }
 }
