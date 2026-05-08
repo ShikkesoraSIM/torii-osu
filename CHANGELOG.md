@@ -83,6 +83,21 @@ opened on top.
 
 ### Performance
 
+- **Hiccup logger (opt-in).** Settings → Debug → Torii hiccup logger
+  has a toggle that, when ON, records frames slower than ~33 ms
+  (sub-30 fps on a 60 fps display) into JSONL with surrounding
+  context (API state, GC stats, recent breadcrumb events, a
+  heuristic guess at the cause — "Gen2 GC pause", "API state changed
+  to Offline 12 ms ago", etc.). The capture file lives at
+  `<storage>/torii/hiccups/<timestamp>.jsonl`; share it with a Torii
+  dev when filing a lag report. Designed for **zero runtime cost when
+  OFF** — the logger component isn't even constructed unless the
+  toggle is ON, so a build with the toggle off is byte-identical to
+  one without the feature. Hot path when ON is one timestamp read +
+  one comparison per frame (~10 ns); the slow path runs only when a
+  hiccup actually fires and writes to disk on a background thread,
+  so even the act of recording a hiccup doesn't make the next frame
+  slower.
 - **Server-pulse popover no longer freezes the toolbar on first
   click.** Previously, clicking the heartbeat pill in the right
   toolbar cluster constructed the full ~2.8K LOC popover (4
