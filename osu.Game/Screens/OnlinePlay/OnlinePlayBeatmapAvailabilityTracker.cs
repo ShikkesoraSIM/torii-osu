@@ -50,6 +50,22 @@ namespace osu.Game.Screens.OnlinePlay
         private BeatmapDownloadTracker? downloadTracker;
         private IDisposable? realmSubscription;
 
+        // Mismatch-warning state. Both fields reset in cancelTracking() so
+        // re-tracking the same playlist item gets a fresh check.
+        //
+        //   - mismatchWarningPending: a debounced timer that defers the actual
+        //     log call by 1.5s. The metadata-lookup pipeline that populates
+        //     OnlineMD5Hash runs on its own scheduler — without this debounce,
+        //     updateAvailability fires while OnlineMD5Hash is still empty and
+        //     incorrectly reports a mismatch even when the file is bit-perfect.
+        //   - mismatchWarningEmitted: dedupe flag so the warning only ever
+        //     surfaces once per import. Without it, the realm subscription and
+        //     the progress tracker each call updateAvailability after import
+        //     completes and both can hit the log line in succession (this is
+        //     the "two notifications in a row" the user reported).
+        private ScheduledDelegate? mismatchWarningPending;
+        private bool mismatchWarningEmitted;
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
@@ -86,6 +102,9 @@ namespace osu.Game.Screens.OnlinePlay
         {
             downloadTracker?.RemoveAndDisposeImmediately();
             realmSubscription?.Dispose();
+            mismatchWarningPending?.Cancel();
+            mismatchWarningPending = null;
+            mismatchWarningEmitted = false;
         }
 
         private void startTracking(APIBeatmap beatmap)
@@ -141,9 +160,31 @@ namespace osu.Game.Screens.OnlinePlay
 
                         availability.Value = available ? BeatmapAvailability.LocallyAvailable() : BeatmapAvailability.NotDownloaded();
 
-                        // only display a message to the user if a download seems to have just completed.
-                        if (!available && downloadTracker.Progress.Value == 1)
-                            Logger.Log("The imported beatmap set does not match the online version.", LoggingTarget.Runtime, LogLevel.Important);
+                        if (available)
+                        {
+                            // We've just confirmed a clean match. If a mismatch warning
+                            // had been queued (because OnlineMD5Hash hadn't propagated
+                            // yet on the previous tick), kill it — the file IS fine.
+                            mismatchWarningPending?.Cancel();
+                            mismatchWarningPending = null;
+                        }
+                        else if (!mismatchWarningEmitted && mismatchWarningPending == null && downloadTracker.Progress.Value == 1)
+                        {
+                            // Defer the warning by 1.5s so the metadata-lookup pipeline
+                            // (which populates OnlineMD5Hash on a separate scheduler)
+                            // gets a chance to settle. If a clean match arrives in the
+                            // meantime the cancel above suppresses this. Otherwise we
+                            // fire ONCE and flip mismatchWarningEmitted so the duplicate
+                            // realm/progress callbacks don't surface a second toast.
+                            mismatchWarningPending = Scheduler.AddDelayed(() =>
+                            {
+                                mismatchWarningPending = null;
+                                if (queryBeatmap().Any())
+                                    return;
+                                mismatchWarningEmitted = true;
+                                Logger.Log("The imported beatmap set does not match the online version.", LoggingTarget.Runtime, LogLevel.Important);
+                            }, 1500);
+                        }
 
                         break;
 
