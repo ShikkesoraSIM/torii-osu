@@ -17,6 +17,14 @@ opened on top.
   silently clamps to 2× when reloaded as a replay or shown in the
   leaderboard. The fix mirrors the deserialisation guard the
   Difficulty Adjust mod already had upstream.
+- **No more spurious "imported beatmap does not match online version"
+  toasts.** Importing a daily-challenge beatmap from one of our mirrors
+  used to surface that warning (sometimes twice) even when the file
+  was perfectly fine — the map opened, leaderboard rendered, ranked
+  badge attached. Caused by a race where the availability tracker ran
+  its checksum query before the metadata-lookup pipeline had populated
+  the online hash. Now the warning waits 1.5s for the lookup to settle
+  and dedupes itself across the two callback paths that can fire it.
 
 ### Android — one-time reinstall required
 
