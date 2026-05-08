@@ -107,6 +107,16 @@ namespace osu.Game.Overlays.Settings.Sections
                                                                          .Where(s => !s.DeletePending)
                                                                          .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase), skinsChanged);
 
+            // Pin state lives in a sidecar JSON store (see PinnedSkinsStore
+            // class docs) — outside Realm — so toggling it never fires the
+            // Realm subscription above. We listen to the store's own
+            // Changed event so the dropdown reorders + the ♥ prefix on
+            // each item refreshes after a pin/unpin. Without this hook the
+            // dropdown stays stale until the next time Realm itself fires
+            // (a skin import, deletion, etc.) — the user-visible bug was
+            // "I pin a skin and it stays at the bottom, no heart appears".
+            skins.PinnedSkins.Changed += refreshSkinList;
+
             skinDropdown.Current.BindValueChanged(skin =>
             {
                 if (skin.NewValue.ID == SkinInfo.RANDOM_SKIN)
@@ -119,6 +129,20 @@ namespace osu.Game.Overlays.Settings.Sections
                 }
             });
         }
+
+        /// <summary>
+        /// Rebuilds the dropdown from the current sorted skin list.
+        /// Marshalled onto the update thread because PinnedSkinsStore.Changed
+        /// can fire from any thread (the sidecar persist runs synchronously
+        /// from whoever called <c>SetPinned</c>, typically the update
+        /// thread, but the contract doesn't guarantee that).
+        /// </summary>
+        private void refreshSkinList() => Schedule(() =>
+        {
+            dropdownItems.Clear();
+            dropdownItems.AddRange(skins.GetAllUsableSkins());
+            skinDropdown.Items = dropdownItems;
+        });
 
         private void skinsChanged(IRealmCollection<SkinInfo> sender, ChangeSet changes)
         {
@@ -138,6 +162,12 @@ namespace osu.Game.Overlays.Settings.Sections
             base.Dispose(isDisposing);
 
             realmSubscription?.Dispose();
+
+            // Unhook the pinned-store event so we don't get callbacks
+            // landing on a disposed section if something else mutates the
+            // sidecar after the settings panel closes.
+            if (skins != null)
+                skins.PinnedSkins.Changed -= refreshSkinList;
         }
 
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
@@ -181,6 +211,22 @@ namespace osu.Game.Overlays.Settings.Sections
                 currentSkin = skins.CurrentSkin.GetBoundCopy();
                 currentSkin.BindValueChanged(_ => updateState());
                 currentSkin.BindDisabledChanged(_ => updateState(), true);
+
+                // Mirror pin-state changes that come from anywhere — not just
+                // our own button. Any external mutation (a future hotkey, a
+                // different settings surface, the realm-downgrade restore
+                // path that calls ReplaceAll) refreshes the heart without
+                // us having to thread an explicit refresh through it.
+                skins.PinnedSkins.Changed += onPinnedChanged;
+            }
+
+            private void onPinnedChanged() => Schedule(() => updateState(withAnimation: false));
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                if (skins != null)
+                    skins.PinnedSkins.Changed -= onPinnedChanged;
             }
 
             private void updateState(bool withAnimation = false)
@@ -194,7 +240,11 @@ namespace osu.Game.Overlays.Settings.Sections
             private void togglePin()
             {
                 skins.TogglePinned(skins.CurrentSkinInfo.Value);
-                // CurrentSkin.ValueChanged isn't fired by a pinned-flag mutation; refresh manually.
+                // The Changed-event handler above will also refresh us
+                // (without animation) but we still call updateState here
+                // explicitly so the user's click animates the heart pop.
+                // The HeartIcon's `if (this.active == active) return;`
+                // guard makes the second invocation a no-op.
                 updateState(withAnimation: skins.PinnedSkins.IsPinned(currentSkin.Value.SkinInfo.ID));
             }
         }

@@ -48,6 +48,28 @@ namespace osu.Game.Skinning
         private readonly HashSet<Guid> pinnedIds = new HashSet<Guid>();
         private bool loaded;
 
+        /// <summary>
+        /// Fires whenever the in-memory pinned set changes (after a
+        /// successful <see cref="SetPinned"/> or <see cref="ReplaceAll"/>).
+        /// Subscribers should expect to be invoked on whatever thread
+        /// performed the mutation; they're responsible for re-marshalling
+        /// onto the update thread (e.g. via <c>Schedule</c>) before
+        /// touching drawables.
+        /// </summary>
+        /// <remarks>
+        /// Why this event exists: the dropdown in <c>SkinSection</c>
+        /// rebuilds its item list from a Realm subscription, but pin
+        /// state lives outside Realm (sidecar JSON, see class docs above)
+        /// so the Realm subscription never fires for pin toggles. Without
+        /// this event the dropdown won't reorder + show the ♥ prefix
+        /// after a pin, even though the underlying state IS persisted —
+        /// the bug a user reported as "I pin a skin and it stays at the
+        /// bottom, no heart appears, but cycle-through-favourites still
+        /// works" (cycle reads <c>IsPinned</c> live, so it's the only
+        /// surface that didn't need the event).
+        /// </remarks>
+        public event Action Changed;
+
         public PinnedSkinsStore(Storage baseStorage)
         {
             // Stored under the same `torii/` subfolder used by the
@@ -90,6 +112,7 @@ namespace osu.Game.Skinning
             }
 
             persist(snapshot);
+            Changed?.Invoke();
             return true;
         }
 
@@ -128,6 +151,7 @@ namespace osu.Game.Skinning
             }
 
             persist(snapshot);
+            Changed?.Invoke();
         }
 
         private void ensureLoaded()
