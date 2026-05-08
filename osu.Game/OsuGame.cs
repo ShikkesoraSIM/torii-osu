@@ -280,6 +280,16 @@ namespace osu.Game
 
         private readonly List<OverlayContainer> visibleBlockingOverlays = new List<OverlayContainer>();
 
+        // Read-only views over the screen stack + tracked overlays so the
+        // Torii hiccup logger can capture context without taking a hard
+        // dependency on (or reflection into) OsuGame internals. Exposed as
+        // `internal` so they're available to osu.Game.Tests too via the
+        // existing InternalsVisibleTo declaration. Cheap properties — no
+        // allocation, just a forwarded reference. Returns `null` if the
+        // screen stack hasn't loaded yet.
+        internal IScreen CurrentTopScreen => ScreenStack?.CurrentScreen;
+        internal IReadOnlyList<OsuFocusedOverlayContainer> RegisteredFocusedOverlays => focusedOverlays;
+
         /// <summary>
         /// Whether the game should be limited to only display officially licensed content.
         /// </summary>
@@ -330,9 +340,29 @@ namespace osu.Game
                 overlayContent.Add(overlayContainer);
 
             if (overlayContainer is OsuFocusedOverlayContainer focusedOverlayContainer)
+            {
                 focusedOverlays.Add(focusedOverlayContainer);
+                hookOverlayBreadcrumbs(focusedOverlayContainer);
+            }
 
             return new InvokeOnDisposal(() => unregisterBlockingOverlay(overlayContainer));
+        }
+
+        /// <summary>
+        /// Subscribes to a focused overlay's visibility changes so the
+        /// hiccup logger sees a breadcrumb every time it opens / closes.
+        /// Cheap when the logger is OFF (single null-check in the sink) so
+        /// we wire this for every overlay regardless.
+        /// </summary>
+        private void hookOverlayBreadcrumbs(OsuFocusedOverlayContainer overlay)
+        {
+            string typeName = overlay.GetType().Name;
+            overlay.State.BindValueChanged(s =>
+            {
+                osu.Game.Performance.HiccupBreadcrumbs.Add(
+                    s.NewValue == Visibility.Visible ? "overlay.show" : "overlay.hide",
+                    typeName);
+            });
         }
 
         void IOverlayManager.ShowBlockingOverlay(OverlayContainer overlay)
@@ -1135,16 +1165,34 @@ namespace osu.Game
             GlobalCursorDisplay.ShowCursor = menuScreen?.CursorVisible ?? false;
 
             // todo: all archive managers should be able to be looped here.
-            SkinManager.PostNotification = n => Notifications.Post(n);
+            // Import managers + downloaders all fire user-visible
+            // notifications via PostNotification. We layer a hiccup
+            // breadcrumb on top so the dashboard sees "score import
+            // happened just before this stall" without us having to thread
+            // a separate event surface through every importer. No-op when
+            // the logger is OFF.
+            SkinManager.PostNotification = n =>
+            {
+                osu.Game.Performance.HiccupBreadcrumbs.Add("notify.skin", n.Text.ToString());
+                Notifications.Post(n);
+            };
             SkinManager.PresentImport = items => PresentSkin(items.First().Value);
 
-            BeatmapManager.PostNotification = n => Notifications.Post(n);
+            BeatmapManager.PostNotification = n =>
+            {
+                osu.Game.Performance.HiccupBreadcrumbs.Add("notify.beatmap", n.Text.ToString());
+                Notifications.Post(n);
+            };
             BeatmapManager.PresentImport = items => PresentBeatmap(items.First().Value);
 
             BeatmapDownloader.PostNotification = n => Notifications.Post(n);
             ScoreDownloader.PostNotification = n => Notifications.Post(n);
 
-            ScoreManager.PostNotification = n => Notifications.Post(n);
+            ScoreManager.PostNotification = n =>
+            {
+                osu.Game.Performance.HiccupBreadcrumbs.Add("notify.score", n.Text.ToString());
+                Notifications.Post(n);
+            };
             ScoreManager.PresentImport = items => PresentScore(items.First().Value);
 
             MultiplayerClient.PostNotification = n => Notifications.Post(n);
@@ -1641,7 +1689,10 @@ namespace osu.Game
             var drawableComponent = component as Drawable ?? throw new ArgumentException($"Component must be a {nameof(Drawable)}", nameof(component));
 
             if (component is OsuFocusedOverlayContainer overlay)
+            {
                 focusedOverlays.Add(overlay);
+                hookOverlayBreadcrumbs(overlay);
+            }
 
             // schedule is here to ensure that all component loads are done after LoadComplete is run (and thus all dependencies are cached).
             // with some better organisation of LoadComplete to do construction and dependency caching in one step, followed by calls to loadComponentSingleFile,
@@ -1958,10 +2009,19 @@ namespace osu.Game
             }
         }
 
-        private void screenPushed(IScreen lastScreen, IScreen newScreen) => ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+        private void screenPushed(IScreen lastScreen, IScreen newScreen)
+        {
+            // Breadcrumb for the hiccup logger — gives a hiccup record
+            // context like "stalled 80 ms after entering SongSelectV2".
+            // No-op when the logger isn't running (zero per-call cost).
+            osu.Game.Performance.HiccupBreadcrumbs.Add("screen.push", newScreen?.GetType().Name);
+            ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+        }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)
         {
+            osu.Game.Performance.HiccupBreadcrumbs.Add("screen.exit",
+                $"{lastScreen?.GetType().Name} → {newScreen?.GetType().Name}");
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
             if (newScreen == null)

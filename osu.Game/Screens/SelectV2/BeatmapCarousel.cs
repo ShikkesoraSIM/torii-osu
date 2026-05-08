@@ -784,6 +784,14 @@ namespace osu.Game.Screens.SelectV2
         {
             bool resetDisplay = grouping.BeatmapSetsGroupedTogether != BeatmapCarouselFilterGrouping.ShouldGroupBeatmapsTogether(criteria);
 
+            // Hiccup breadcrumb: a filter operation is one of the most
+            // expensive things song-select does (LINQ over realm-attached
+            // beatmaps + sort + group + layout). If a stall happens within
+            // a few hundred ms of this, the cause is almost certainly the
+            // filter pipeline.
+            osu.Game.Performance.HiccupBreadcrumbs.Add("carousel.filter",
+                $"text='{criteria.SearchText}' reset={resetDisplay}");
+
             Criteria = criteria;
 
             loadingDebounce ??= Scheduler.AddDelayed(() =>

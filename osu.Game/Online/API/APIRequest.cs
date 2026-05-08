@@ -140,6 +140,14 @@ namespace osu.Game.Online.API
 
             if (isFailing) return;
 
+            // Hiccup-logger breadcrumbs around the network call. The pre/
+            // post pair lets the dashboard see "an API request was in flight
+            // for 2.3s before this stall" — useful for catching sync waits
+            // and slow-network UI cascades. No-op when the logger is OFF.
+            string requestTarget = Target;
+            var perfStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            osu.Game.Performance.HiccupBreadcrumbs.Add("api.request.start", requestTarget);
+
             try
             {
                 Logger.Log($@"Performing request {this}", LoggingTarget.Network);
@@ -149,6 +157,12 @@ namespace osu.Game.Online.API
             {
                 // ignore this. internally Perform is running async and the fail state may have changed since
                 // the last check of `isFailing` above.
+            }
+            finally
+            {
+                double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - perfStart)
+                            * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                osu.Game.Performance.HiccupBreadcrumbs.Add("api.request.end", $"{requestTarget} ({ms:F0} ms)");
             }
 
             if (isFailing) return;

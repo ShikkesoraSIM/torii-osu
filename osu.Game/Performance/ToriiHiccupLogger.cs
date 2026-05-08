@@ -65,8 +65,14 @@ namespace osu.Game.Performance
     /// </remarks>
     public partial class ToriiHiccupLogger : CompositeDrawable
     {
-        /// <summary>Frames slower than this (in ms) are treated as hiccups. ~33 ms = below 30 fps on a 60 fps display.</summary>
-        public const double DefaultThresholdMs = 33.0;
+        /// <summary>
+        /// Frames slower than this (in ms) are treated as hiccups. 80 ms
+        /// leaves the run-of-the-mill ~16-50 ms blips alone (regular
+        /// allocations, occasional vsync miss, harmless GC0s) and only
+        /// captures the real perceived stutters — anything 80+ on the
+        /// update thread is something the user definitely felt.
+        /// </summary>
+        public const double DefaultThresholdMs = 80.0;
 
         /// <summary>Suppress consecutive hiccup records this close together to avoid logging the same stall twice.</summary>
         private const double cooldown_ms = 100.0;
@@ -180,6 +186,11 @@ namespace osu.Game.Performance
 
                 drainCts = new CancellationTokenSource();
                 _ = Task.Run(() => drainLoop(drainCts.Token));
+
+                // Wire the cross-codebase breadcrumb sink to this logger.
+                // From now on, any RecordEvent calls from elsewhere
+                // (HiccupBreadcrumbs.Add) flow into our ring buffer.
+                HiccupBreadcrumbs.Register(this);
 
                 Logger.Log($"[ToriiHiccup] logger started, writing to {outputPath}", LoggingTarget.Runtime, LogLevel.Important);
 
@@ -400,22 +411,83 @@ namespace osu.Game.Performance
         /// Heuristic, ordered most-specific first. Lets a triager grep for
         /// patterns rather than reading every record.
         /// </summary>
+        /// <remarks>
+        /// Now consumes the recent-events ring buffer too: if a known-slow
+        /// operation (realm.run, carousel.filter, api.request, ...) ended in
+        /// the last few hundred ms before the stall, we attribute the cause
+        /// to it. That's a fuzzy correlation, but combined with the
+        /// stack-sample evidence (Path B, see <c>StackTopFrames</c>) it gives
+        /// the dashboard a punchy first guess for the cause column.
+        /// </remarks>
         private string guessCause(double frameMs, int gen0Delta, int gen1Delta, int gen2Delta)
         {
-            // Gen2 collections are the biggest stalls; if one happened on
-            // this frame it's almost certainly the cause.
+            var now = DateTimeOffset.UtcNow;
+
+            // Most-specific GC hits first — Gen2 stalls are unmissable.
             if (gen2Delta > 0)
                 return $"Gen2 GC pause ({gen2Delta} collection{(gen2Delta == 1 ? "" : "s")})";
 
+            // Walk the recent-events ring, newest first. Any event in the
+            // 500 ms window before the stall is a candidate cause; we pick
+            // the freshest matching kind.
+            int head = recentEventsHead;
+            int n = Math.Min(head, recent_events_capacity);
+            for (int i = 0; i < n; i++)
+            {
+                int writeIndex = head - 1 - i;
+                int idx = ((writeIndex % recent_events_capacity) + recent_events_capacity) % recent_events_capacity;
+                var ev = recentEvents[idx];
+
+                if (ev.Kind == null) continue;
+
+                double age = (now - ev.AtUtc).TotalMilliseconds;
+                if (age > 500) break; // beyond correlation window — older events get ignored
+
+                switch (ev.Kind)
+                {
+                    case "realm.run":
+                        return $"Realm query on update thread {(int)age} ms ago — {ev.Detail}";
+
+                    case "carousel.filter":
+                        return $"Carousel filter operation {(int)age} ms ago — {ev.Detail}";
+
+                    case "api.request.start":
+                        // A request still in flight at hiccup time → strongly
+                        // suggests synchronous wait on a network call. End-of-
+                        // request would be a different shape.
+                        return $"API request in flight ({ev.Detail}) — possible synchronous wait";
+
+                    case "api.request.end":
+                        // A long request just finished and the next frame is
+                        // slow → the response handler is doing heavy work
+                        // (parse / bind / layout cascade).
+                        return $"API request handler ({ev.Detail})";
+
+                    case "api_state":
+                        return $"API state cascade ({ev.Detail}) {(int)age} ms ago";
+
+                    case "screen.push":
+                        return $"Screen entry — {ev.Detail} {(int)age} ms ago";
+
+                    case "screen.exit":
+                        return $"Screen exit — {ev.Detail} {(int)age} ms ago";
+
+                    case "overlay.show":
+                        return $"Overlay opened — {ev.Detail} {(int)age} ms ago";
+
+                    case "notify.beatmap":
+                    case "notify.score":
+                    case "notify.skin":
+                        return $"Import / notification — {ev.Kind.Substring("notify.".Length)} {(int)age} ms ago";
+                }
+            }
+
+            // Fallbacks based on GC + frame size only when no breadcrumb explains the stall.
             if (gen1Delta > 0)
                 return $"Gen1 GC pause ({gen1Delta})";
 
             if (gen0Delta > 1)
                 return $"GC pressure ({gen0Delta} Gen0 collections this frame)";
-
-            if (lastApiStateChangedAt != DateTimeOffset.MinValue
-                && (DateTimeOffset.UtcNow - lastApiStateChangedAt).TotalMilliseconds < 500)
-                return $"API state changed to {lastApiState} ({(int)(DateTimeOffset.UtcNow - lastApiStateChangedAt).TotalMilliseconds} ms ago)";
 
             if (frameMs > 500)
                 return "Major stall (>500 ms) — likely a synchronous I/O or a deadlock-recovery";
@@ -440,8 +512,53 @@ namespace osu.Game.Performance
         // expose it from OsuGame as an internal accessor or hook screen
         // navigation events from outside this class via RecordEvent.
 
-        private string currentScreenName() => null;
-        private string[] collectVisibleOverlays() => null;
+        /// <summary>
+        /// Reads the current top-of-stack screen via the internal accessor
+        /// OsuGame exposes for us. Returns null if the host isn't fully
+        /// loaded yet (very-early hiccups during startup) or if the screen
+        /// stack hasn't been initialised. Cheap — single property read.
+        /// </summary>
+        private string currentScreenName()
+        {
+            try
+            {
+                return osuGame?.CurrentTopScreen?.GetType().Name;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Snapshots the type names of every focused overlay that's currently
+        /// visible. Bounded by the registered-focused-overlays list (typically
+        /// &lt; 20), so the loop is fast even on the slow path.
+        /// </summary>
+        private string[] collectVisibleOverlays()
+        {
+            try
+            {
+                var registered = osuGame?.RegisteredFocusedOverlays;
+                if (registered == null) return null;
+
+                List<string> visible = null;
+                foreach (var overlay in registered)
+                {
+                    if (overlay.State.Value == osu.Framework.Graphics.Containers.Visibility.Visible)
+                    {
+                        visible ??= new List<string>(4);
+                        visible.Add(overlay.GetType().Name);
+                    }
+                }
+
+                return visible?.ToArray();
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         // ---------------------------------------------------------------
         //  Recent-events ring buffer (shows what was happening just before)
@@ -528,6 +645,11 @@ namespace osu.Game.Performance
         {
             try
             {
+                // Unregister the static breadcrumb sink first so any
+                // late-firing event hooks (during shutdown) don't try to
+                // write into a disposed channel.
+                HiccupBreadcrumbs.Register(null);
+
                 uploadTimerDelegate?.Cancel();
                 // Drop the upload queue on dispose — local JSONL still
                 // has every record so nothing is truly lost; a fresh

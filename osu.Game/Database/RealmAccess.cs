@@ -452,8 +452,27 @@ namespace osu.Game.Database
         {
             if (ThreadSafety.IsUpdateThread)
             {
+                // On the update thread we breadcrumb the realm run with its
+                // duration so the hiccup logger sees "realm query took 87 ms
+                // 50 ms before this stall". Update-thread runs are the only
+                // ones that can stall the UI; off-thread runs are reported
+                // separately and can't block the user. No-op when the logger
+                // is OFF.
                 total_reads_update.Value++;
-                return action(Realm);
+                long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                try
+                {
+                    return action(Realm);
+                }
+                finally
+                {
+                    double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - start)
+                                * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                    if (ms >= 1.0)
+                    {
+                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"update-thread ({ms:F0} ms)");
+                    }
+                }
             }
 
             total_reads_async.Value++;
@@ -470,7 +489,20 @@ namespace osu.Game.Database
             if (ThreadSafety.IsUpdateThread)
             {
                 total_reads_update.Value++;
-                action(Realm);
+                long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                try
+                {
+                    action(Realm);
+                }
+                finally
+                {
+                    double ms = (System.Diagnostics.Stopwatch.GetTimestamp() - start)
+                                * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                    if (ms >= 1.0)
+                    {
+                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"update-thread ({ms:F0} ms)");
+                    }
+                }
             }
             else
             {
