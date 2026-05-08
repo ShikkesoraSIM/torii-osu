@@ -213,6 +213,38 @@ namespace osu.Game.Overlays.Toolbar
             }
         }
 
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // Pre-load the popover off the UI thread. Constructing it inline
+            // on first click was freezing the game for ~50-150ms while the
+            // BackgroundDependencyLoader walked through ~2.8K LOC of nested
+            // drawables across 4 carousel pages — perceived as a stutter,
+            // exacerbated when the network was slow because the same click
+            // also kicks off a refresh request. Loading async lets the
+            // first click stay instant.
+            //
+            // Edge cases handled by togglePopover:
+            //   - Click before async-load finishes: ignored (rare; the
+            //     toolbar lives long enough that this only happens if the
+            //     user mashes the button within ~50ms of game launch).
+            //   - Async-load failure: caught + logged + retried on the next
+            //     click via the existing try/catch fallback that nulls
+            //     `popover` so a fresh instance is constructed.
+            popover = new ToriiServerPulsePopover
+            {
+                BypassAutoSizeAxes = Axes.Both,
+            };
+
+            LoadComponentAsync(popover, p =>
+            {
+                AddInternal(p);
+                p.AnchoredAt = this;
+                Logger.Log("[ToriiServerPulse] popover preloaded async", LoggingTarget.Runtime, LogLevel.Verbose);
+            });
+        }
+
         private void updateEnabledVisibility(bool isEnabled)
         {
             // Smooth collapse animation so the toolbar reflows cleanly
@@ -299,42 +331,24 @@ namespace osu.Game.Overlays.Toolbar
 
         private void togglePopover()
         {
-            // Wrap the entire toggle in try/catch + verbose logging so that
-            // a regression in popover construction or wiring takes down the
-            // CLICK rather than the entire game. The pulse widget is
-            // best-effort decoration; a buggy build hitting an unhandled
-            // exception in load() would otherwise crash the application's
-            // exception ceiling, which is a much worse user experience
-            // than "click did nothing".
+            // Wrap in try/catch + verbose logging so a regression in popover
+            // wiring takes down the CLICK rather than the entire game. The
+            // pulse widget is best-effort decoration; a buggy build hitting
+            // an unhandled exception here would otherwise crash the
+            // application, which is a much worse user experience than
+            // "click did nothing".
             try
             {
                 Logger.Log("[ToriiServerPulse] togglePopover start", LoggingTarget.Runtime, LogLevel.Verbose);
 
-                if (popover == null)
+                // Popover is pre-loaded async in LoadComplete. If the user
+                // clicks within the brief window before that finishes,
+                // we silently no-op — the next click (typically <100ms
+                // later) will succeed once async-load settles.
+                if (popover == null || popover.LoadState != LoadState.Ready)
                 {
-                    Logger.Log("[ToriiServerPulse] creating popover", LoggingTarget.Runtime, LogLevel.Verbose);
-
-                    popover = new ToriiServerPulsePopover
-                    {
-                        // BypassAutoSizeAxes so adding the wide popover as a
-                        // sibling doesn't expand our pill's auto-sized width.
-                        // The popover positions itself relative to our screen-
-                        // space rectangle in its own Update(), so its position
-                        // in our local space doesn't affect layout.
-                        BypassAutoSizeAxes = Axes.Both,
-                        // Attached at the same level the button sits at so it
-                        // renders sibling-to-pill (i.e. outside the masked
-                        // pill but still inside the toolbar's coordinate
-                        // space). The button itself is NOT masked (only the
-                        // inner pillContainer is), so AddInternal here puts
-                        // the popover above the pill in the draw order
-                        // without clipping.
-                    };
-
-                    AddInternal(popover);
-                    popover.AnchoredAt = this;
-
-                    Logger.Log("[ToriiServerPulse] popover added internally", LoggingTarget.Runtime, LogLevel.Verbose);
+                    Logger.Log("[ToriiServerPulse] popover not ready yet, ignoring click", LoggingTarget.Runtime, LogLevel.Verbose);
+                    return;
                 }
 
                 if (popover.State.Value == Visibility.Visible)
@@ -355,9 +369,10 @@ namespace osu.Game.Overlays.Toolbar
             {
                 Logger.Log($"[ToriiServerPulse] togglePopover threw: {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}", LoggingTarget.Runtime, LogLevel.Error);
 
-                // If the popover got into a bad state (half-constructed,
-                // disposed mid-add), tear it down so the next click starts
-                // fresh instead of compounding the failure.
+                // If the popover got into a bad state (e.g. async-load
+                // crashed mid-construction), tear it down so the next user
+                // gesture isn't permanently locked out. We rebuild via the
+                // same async path so we still don't freeze the UI thread.
                 if (popover != null)
                 {
                     try
@@ -370,6 +385,14 @@ namespace osu.Game.Overlays.Toolbar
                     }
 
                     popover = null;
+
+                    // Kick off a fresh async-load so a future click works.
+                    popover = new ToriiServerPulsePopover { BypassAutoSizeAxes = Axes.Both };
+                    LoadComponentAsync(popover, p =>
+                    {
+                        AddInternal(p);
+                        p.AnchoredAt = this;
+                    });
                 }
             }
         }
