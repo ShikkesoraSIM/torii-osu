@@ -104,6 +104,53 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 }),
             };
 
+            // Force-SDL3 toggle for Linux / macOS only. Windows + mobile are
+            // already SDL3 unconditionally inside osu-framework, so the
+            // toggle would be a no-op there — hide it to keep the panel
+            // honest. The actual backend swap happens at startup via
+            // Program.cs reading game.ini before the host comes up; this
+            // setting just persists the user's preference + drives the
+            // restart prompt below.
+            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS())
+            {
+                var forceSDL3 = osuConfig.GetBindable<bool>(OsuSetting.ForceSDL3);
+
+                AddRange(new Drawable[]
+                {
+                    new SettingsItemV2(new FormCheckBox
+                    {
+                        Caption = GraphicsSettingsStrings.ForceSDL3,
+                        HintText = GraphicsSettingsStrings.ForceSDL3Description,
+                        Current = forceSDL3,
+                    })
+                    {
+                        Keywords = new[] { @"sdl", @"sdl2", @"sdl3", @"backend", @"linux", @"macos", @"window", @"input" },
+                    },
+                });
+
+                forceSDL3.BindValueChanged(change =>
+                {
+                    // Mirrors the renderer-change pattern below: if Velopack
+                    // can re-launch us, just exit and the updater brings the
+                    // game back up with the new env var. Otherwise prompt the
+                    // user with a confirm dialog and roll back the toggle to
+                    // its previous value on Cancel, so the displayed state
+                    // and the backend in use stay consistent until the next
+                    // restart.
+                    if (game?.RestartAppWhenExited() == true)
+                    {
+                        game.AttemptExit();
+                    }
+                    else
+                    {
+                        dialogOverlay?.Push(new ConfirmDialog(
+                            GraphicsSettingsStrings.ChangeSDLBackendConfirmation,
+                            () => game?.AttemptExit(),
+                            () => forceSDL3.Value = change.OldValue));
+                    }
+                });
+            }
+
             // Determine which low latency provider is available
             UpdateLatencyProvider(host);
 

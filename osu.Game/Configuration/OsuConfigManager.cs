@@ -95,6 +95,18 @@ namespace osu.Game.Configuration
             // OsuGame.SHEAR for how the value propagates.
             SetDefault(OsuSetting.UnslantedSongSelectUI, false);
 
+            // Force SDL3 backend on every desktop OS, not just Windows.
+            // Default false on Linux/macOS to match osu-framework's own
+            // default — the framework gates SDL3 behind the OSU_SDL3 env
+            // var on those platforms because of remaining cursor /
+            // controller issues (see osu-framework FrameworkEnvironment.cs).
+            // Windows + mobile are already SDL3 unconditionally upstream;
+            // this toggle is a no-op there. Read by osu.Desktop/Program.cs
+            // BEFORE GameHost is created (env var is the only viable hook
+            // — UseSDL3 is a one-shot static readonly), so changes require
+            // a process restart. The settings UI prompts for that.
+            SetDefault(OsuSetting.ForceSDL3, false);
+
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
             SetDefault(OsuSetting.Token, string.Empty);
@@ -518,6 +530,17 @@ namespace osu.Game.Configuration
         /// the next screen entry.
         /// </summary>
         UnslantedSongSelectUI,
+
+        /// <summary>
+        /// When true on a desktop OS that defaults to SDL2 (Linux, macOS),
+        /// the desktop entry point sets the OSU_SDL3 environment variable
+        /// before constructing the GameHost so osu-framework picks the
+        /// SDL3 windowing backend. Windows + mobile platforms ignore this
+        /// (already SDL3 unconditionally). Requires a process restart to
+        /// take effect — the settings UI prompts for that and uses the
+        /// same Velopack-mediated restart path the renderer setting uses.
+        /// </summary>
+        ForceSDL3,
         Version,
         ShowFirstRunSetup,
         ShowConvertedBeatmaps,

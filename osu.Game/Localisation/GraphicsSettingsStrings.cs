@@ -165,6 +165,21 @@ namespace osu.Game.Localisation
         public static LocalisableString ChangeRendererConfirmation => new TranslatableString(getKey(@"change_renderer_configuration"), @"In order to change the renderer, the game will close. Please open it again.");
 
         /// <summary>
+        /// "Force SDL3 backend"
+        /// </summary>
+        public static LocalisableString ForceSDL3 => new TranslatableString(getKey(@"force_sdl3"), @"Force SDL3 backend");
+
+        /// <summary>
+        /// Hint text shown under the Force SDL3 toggle.
+        /// </summary>
+        public static LocalisableString ForceSDL3Description => new TranslatableString(getKey(@"force_sdl3_description"), @"Switch the windowing/input layer to SDL3 on Linux and macOS. Windows already uses SDL3 unconditionally, so this is a no-op there. Requires a game restart to take effect.");
+
+        /// <summary>
+        /// "In order to switch the SDL backend, the game will close. Please open it again."
+        /// </summary>
+        public static LocalisableString ChangeSDLBackendConfirmation => new TranslatableString(getKey(@"change_sdl_backend_confirmation"), @"In order to switch the SDL backend, the game will close. Please open it again.");
+
+        /// <summary>
         /// "Minimise osu! when switching to another app"
         /// </summary>
         public static LocalisableString MinimiseOnFocusLoss => new TranslatableString(getKey(@"minimise_on_focus_loss"), @"Minimise osu! when switching to another app");

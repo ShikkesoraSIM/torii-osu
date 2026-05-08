@@ -87,6 +87,62 @@ namespace osu.Desktop
 
         private static bool isFirstRun;
 
+        /// <summary>
+        /// Read the persisted <c>ForceSDL3</c> setting straight from the
+        /// on-disk <c>game.ini</c> without spinning up a full
+        /// OsuConfigManager. Used at the very top of <see cref="Main"/>
+        /// because the framework's <see cref="FrameworkEnvironment.UseSDL3"/>
+        /// is a one-shot static-readonly: by the time GameHost is alive,
+        /// the SDL2-vs-SDL3 decision has already been baked in. The only
+        /// way to flip it is to set the OSU_SDL3 env var BEFORE any
+        /// framework code runs, which means we have to peek the user's
+        /// preference using just the file system.
+        /// </summary>
+        /// <remarks>
+        /// We accept the small amount of duplicated parsing logic over
+        /// instantiating Storage + OsuConfigManager twice (once here,
+        /// once again when the host comes up). The .ini format is
+        /// trivial (<c>key = value</c> per line) and the file is a few
+        /// KB at most.
+        /// </remarks>
+        private static bool ReadForceSDL3FromIni(string storageFolder)
+        {
+            string iniPath = Path.Combine(storageFolder, "game.ini");
+            if (!File.Exists(iniPath))
+                return false;
+
+            try
+            {
+                foreach (string rawLine in File.ReadAllLines(iniPath))
+                {
+                    string line = rawLine.Trim();
+                    if (line.Length == 0 || line.StartsWith('#') || line.StartsWith(';'))
+                        continue;
+
+                    int eq = line.IndexOf('=');
+                    if (eq <= 0)
+                        continue;
+
+                    string key = line[..eq].Trim();
+                    if (!string.Equals(key, "ForceSDL3", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string value = line[(eq + 1)..].Trim();
+                    return value.Equals("1", StringComparison.Ordinal)
+                           || value.Equals("True", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+                // If we can't read the ini for any reason (perms, partial
+                // write mid-flight, locked by another process), fall back
+                // to the framework default for this platform — i.e. don't
+                // force SDL3.
+            }
+
+            return false;
+        }
+
         [STAThread]
         public static void Main(string[] args)
         {
@@ -185,6 +241,34 @@ namespace osu.Desktop
 
             // Back up the cwd before DesktopGameHost changes it
             string cwd = Environment.CurrentDirectory;
+
+            // Honour the user's "Force SDL3" setting before the host comes
+            // up. FrameworkEnvironment.UseSDL3 is a one-shot static-readonly
+            // that's evaluated the first time anything in osu-framework
+            // touches it; setting OSU_SDL3 here is the only way to flip the
+            // backend without recompiling the framework. No-op on Windows /
+            // mobile where SDL3 is already unconditional. The "user toggled
+            // this off" path is also covered: if false, we don't touch the
+            // env var at all so any external override (e.g. someone manually
+            // exported OSU_SDL3=1 in their shell) still wins.
+            //
+            // We do this AFTER the realm-downgrade CLI / startup-prompt
+            // branches above (those exit early without ever needing SDL),
+            // but BEFORE Host.GetSuitableDesktopHost() instantiates the
+            // game host.
+            try
+            {
+                if (!OperatingSystem.IsWindows() && ReadForceSDL3FromIni(ResolveDefaultRealmFolder()))
+                {
+                    Environment.SetEnvironmentVariable("OSU_SDL3", "1");
+                    Logger.Log("[Torii] OSU_SDL3=1 set from ForceSDL3 setting; SDL3 backend will be used.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Torii] Failed to read ForceSDL3 setting: {ex.Message}");
+                // Fall through with framework default.
+            }
 
             string gameName = base_game_name;
             bool tournamentClient = false;
