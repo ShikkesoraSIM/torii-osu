@@ -9,8 +9,33 @@ opened on top.
 
 ## Latest — May 8, 2026
 
+### New
+
+- **Dashboard → User Search tab.** The "Friends" / "Currently online"
+  bar in the Home overlay grows a third tab for searching users by
+  name. Same UI as upstream osu! lazer's Dashboard search; backed by
+  the existing Torii navbar search SQL, which now also speaks the
+  official osu! API search shape so the lazer client uses it
+  unchanged.
+- **Force SDL3 backend toggle (Linux / macOS).** Settings → Graphics
+  → Renderer gets a new "Force SDL3 backend" checkbox on platforms
+  where osu-framework defaults to SDL2. Toggling it sets `OSU_SDL3=1`
+  on the next launch and triggers a real game restart (via Velopack,
+  same path the renderer-switch dialog uses) — no manual relaunch.
+  Hidden on Windows and mobile, where SDL3 is already the default.
+
 ### Fixes
 
+- **Song Select scrolling: 2-10ms scheduler savings on large beatmap
+  libraries.** Backports the upstream perf fix
+  ([ppy/osu#37666](https://github.com/ppy/osu/pull/37666)) for the
+  rank display panel: replaces an expensive Realm filter on linked
+  objects with a flat-field query plus .NET-side narrowing. Also
+  fixes the secondary bug where the previous beatmap's rank briefly
+  flashed during transitions on huge databases. (We deliberately
+  skip the `[Indexed]` attribute the upstream PR adds, to avoid
+  bumping the Realm schema and breaking vanilla-osu!-lazer
+  compatibility on shared realm folders.)
 - **Pitch Adjust mod: extended-range values now survive replays.** A
   score submitted with *Extended limits* on and a pitch-shift outside
   the safe 0.5×–2.0× band (e.g. 3× chipmunk, 0.2× sub-bass) no longer
