@@ -1,4 +1,4 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -8,20 +8,16 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Cursor;
-using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Logging;
-using osu.Framework.Localisation;
 using osu.Framework.Platform;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
@@ -40,6 +36,22 @@ using osuTK.Graphics;
 
 namespace osu.Game.Overlays.ToriiBriefing
 {
+    /// <summary>
+    /// Post-login welcome overlay that summarises the changes the user
+    /// missed since their previous session — rank/pp movement, recalcs,
+    /// unread chat, dojo radar events.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This file is the controller / data-flow layer. The view layer is
+    /// split across <see cref="BriefingTheme"/> (visual constants),
+    /// <see cref="BriefingGlass"/> (the Liquid Glass material), the four
+    /// drawable files (<see cref="BriefingCard"/>, <see cref="BriefingRecalcCard"/>,
+    /// <see cref="BriefingPill"/>, <see cref="BriefingSectionHeader"/>),
+    /// and the model file (<c>BriefingModels.cs</c>). The decomposition
+    /// replaced a 1700-line monolith.
+    /// </para>
+    /// </remarks>
     public partial class ToriiBriefingOverlay : OsuFocusedOverlayContainer
     {
         private const string snapshot_filename = @"briefing-state.json";
@@ -57,7 +69,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         private Storage briefingStorage;
         private TextureStore textures;
 
-        private Container panel;
+        private BriefingGlass panel;
         private OsuSpriteText title;
         private OsuSpriteText subtitle;
         private FillFlowContainer cardFlow;
@@ -82,16 +94,18 @@ namespace osu.Game.Overlays.ToriiBriefing
             this.textures = textures;
             briefingStorage = storage.GetStorageForDirectory(@"torii");
 
-            var accentBlue = Color4Extensions.FromHex(@"69d7ff");
-            var accentPink = Color4Extensions.FromHex(@"ff66b3");
-            var deepNavy = Color4Extensions.FromHex(@"090b26");
-
             InternalChildren = new Drawable[]
             {
+                // Scrim. Slightly less opaque than before — lets the panel's
+                // glow bleed onto whatever is behind, which sells the "lifted
+                // glass" feel. The user's eye still parks on the panel because
+                // it's the brightest thing on screen.
                 new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = Color4.Black.Opacity(0.58f),
+                    Colour = ColourInfo.GradientVertical(
+                        Color4.Black.Opacity(0.62f),
+                        Color4.Black.Opacity(0.72f)),
                 },
                 new Container
                 {
@@ -101,94 +115,60 @@ namespace osu.Game.Overlays.ToriiBriefing
                     Size = new Vector2(0.92f, 0.9f),
                     FillMode = FillMode.Fit,
                     FillAspectRatio = 1.62f,
-                    Child = panel = new Container
+                    Child = panel = new BriefingGlass
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Masking = true,
-                        CornerRadius = 26,
-                        BorderThickness = 1.6f,
-                        BorderColour = accentBlue.Opacity(0.35f),
-                        EdgeEffect = new EdgeEffectParameters
+                        // Panel uses fixed (Both-relative) content sizing rather than the
+                        // default card mode — the GridContainer inside fills the whole panel.
+                        RelativeContentSize = Axes.Both,
+                        CornerSize = BriefingTheme.CornerLg,
+                        Accent = BriefingTheme.AccentPink,
+                        AccentMix = 0.04f,
+                        SpecularStrength = 0.14f,
+                        ShadowOpacity = 0.28f,
+                        ShadowRadius = 32f,
+                        ShadowOffset = new Vector2(0, 14),
+                        Child = new Container
                         {
-                            Type = EdgeEffectType.Shadow,
-                            Colour = accentPink.Opacity(0.22f),
-                            Radius = 28,
-                            Offset = new Vector2(0, 10),
-                        },
-                        Children = new Drawable[]
-                        {
-                            new Box
+                            RelativeSizeAxes = Axes.Both,
+                            Padding = new MarginPadding
                             {
-                                RelativeSizeAxes = Axes.Both,
-                                Colour = ColourInfo.GradientVertical(deepNavy.Opacity(0.96f), Color4Extensions.FromHex(@"15112c").Opacity(0.96f)),
+                                Horizontal = BriefingTheme.SpacingXl,
+                                Vertical = BriefingTheme.SpacingLg + 4,
                             },
-                            new Box
+                            Child = new GridContainer
                             {
                                 RelativeSizeAxes = Axes.Both,
-                                Colour = ColourInfo.GradientHorizontal(accentPink.Opacity(0.08f), accentBlue.Opacity(0.08f)),
-                            },
-                            new Container
-                            {
-                                RelativeSizeAxes = Axes.Both,
-                                Padding = new MarginPadding { Horizontal = 32, Vertical = 28 },
-                                Child = new GridContainer
+                                RowDimensions = new[]
                                 {
-                                    RelativeSizeAxes = Axes.Both,
-                                    RowDimensions = new[]
+                                    new Dimension(GridSizeMode.AutoSize),
+                                    new Dimension(),
+                                    new Dimension(GridSizeMode.AutoSize),
+                                },
+                                Content = new[]
+                                {
+                                    new Drawable[] { createHeader() },
+                                    new Drawable[]
                                     {
-                                        new Dimension(GridSizeMode.AutoSize),
-                                        new Dimension(),
-                                        new Dimension(GridSizeMode.AutoSize),
-                                    },
-                                    Content = new[]
-                                    {
-                                        new Drawable[] { createHeader(accentBlue, accentPink) },
-                                        new Drawable[]
+                                        new OsuScrollContainer
                                         {
-                                            new OsuScrollContainer
+                                            RelativeSizeAxes = Axes.Both,
+                                            ScrollbarOverlapsContent = false,
+                                            Padding = new MarginPadding
                                             {
-                                                RelativeSizeAxes = Axes.Both,
-                                                Padding = new MarginPadding { Top = 28, Right = 6 },
-                                                Child = cardFlow = new FillFlowContainer
-                                                {
-                                                    RelativeSizeAxes = Axes.X,
-                                                    AutoSizeAxes = Axes.Y,
-                                                    Direction = FillDirection.Vertical,
-                                                    Spacing = new Vector2(0, 14),
-                                                },
+                                                Top = BriefingTheme.SpacingLg,
+                                                Right = BriefingTheme.SpacingXs + 2,
                                             },
-                                        },
-                                        new Drawable[]
-                                        {
-                                            new Container
+                                            Child = cardFlow = new FillFlowContainer
                                             {
                                                 RelativeSizeAxes = Axes.X,
-                                                Height = 52,
-                                                Margin = new MarginPadding { Top = 20 },
-                                                Children = new Drawable[]
-                                                {
-                                                    new OsuSpriteText
-                                                    {
-                                                        Anchor = Anchor.CentreLeft,
-                                                        Origin = Anchor.CentreLeft,
-                                                        Text = "Generated from live Torii API data and your local session snapshot.",
-                                                        Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
-                                                        Colour = Color4.White.Opacity(0.46f),
-                                                    },
-                                                    new RoundedButton
-                                                    {
-                                                        Anchor = Anchor.CentreRight,
-                                                        Origin = Anchor.CentreRight,
-                                                        Width = 190,
-                                                        Height = 46,
-                                                        Text = "enter Torii",
-                                                        BackgroundColour = accentPink,
-                                                        Action = Hide,
-                                                    },
-                                                },
+                                                AutoSizeAxes = Axes.Y,
+                                                Direction = FillDirection.Vertical,
+                                                Spacing = new Vector2(0, BriefingTheme.SpacingMd - 2),
                                             },
                                         },
                                     },
+                                    new Drawable[] { createFooter() },
                                 },
                             },
                         },
@@ -197,36 +177,37 @@ namespace osu.Game.Overlays.ToriiBriefing
             };
         }
 
-        private Drawable createHeader(Color4 accentBlue, Color4 accentPink)
+        private Drawable createHeader()
         {
             return new Container
             {
                 RelativeSizeAxes = Axes.X,
-                Height = 104,
+                Height = 92,
                 Children = new Drawable[]
                 {
-                    new CircularContainer
+                    // Logo — soft squircle tile, matches the icon-tile vocabulary
+                    // used on every card. Replaces the old free-floating circular puck.
+                    new Container
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        Size = new Vector2(70),
+                        Size = new Vector2(60),
                         Masking = true,
-                        BorderThickness = 1.4f,
-                        BorderColour = accentPink.Opacity(0.36f),
-                        EdgeEffect = new EdgeEffectParameters
-                        {
-                            Type = EdgeEffectType.Shadow,
-                            Colour = accentPink.Opacity(0.3f),
-                            Radius = 18,
-                        },
+                        CornerRadius = BriefingTheme.CornerMd,
+                        CornerExponent = BriefingTheme.SquircleExponent,
+                        MaskingSmoothness = 1.4f,
+                        BorderThickness = 1f,
+                        BorderColour = BriefingTheme.AccentPink.Opacity(0.32f),
                         Children = new Drawable[]
                         {
                             new Box
                             {
                                 RelativeSizeAxes = Axes.Both,
-                                Colour = Color4Extensions.FromHex(@"141336"),
+                                Colour = ColourInfo.GradientVertical(
+                                    BriefingTheme.AccentPink.Opacity(0.22f),
+                                    BriefingTheme.AccentPink.Opacity(0.10f)),
                             },
-                            createToriiLogo(accentPink),
+                            createToriiLogo(),
                         },
                     },
                     new FillFlowContainer
@@ -235,52 +216,57 @@ namespace osu.Game.Overlays.ToriiBriefing
                         Origin = Anchor.CentreLeft,
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
-                        X = 92,
-                        Padding = new MarginPadding { Right = 210 },
+                        X = 60 + BriefingTheme.SpacingMd,
+                        Padding = new MarginPadding { Right = 60 + BriefingTheme.SpacingMd },
                         Direction = FillDirection.Vertical,
-                        Spacing = new Vector2(0, 6),
+                        Spacing = new Vector2(0, BriefingTheme.SpacingXs - 1),
                         Children = new Drawable[]
                         {
                             new FillFlowContainer
                             {
                                 AutoSizeAxes = Axes.Both,
                                 Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(10, 0),
+                                Spacing = new Vector2(BriefingTheme.SpacingSm + 2, 0),
                                 Children = new Drawable[]
                                 {
                                     new OsuSpriteText
                                     {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
                                         Text = "Torii briefing",
-                                        Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
+                                        Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.Bold),
                                     },
-                                    new BriefingPill("daily portal", accentBlue),
+                                    new BriefingPill("daily portal", BriefingTheme.AccentCyan)
+                                    {
+                                        Anchor = Anchor.CentreLeft,
+                                        Origin = Anchor.CentreLeft,
+                                    },
                                 },
                             },
                             title = new OsuSpriteText
                             {
-                                Font = OsuFont.GetFont(size: 19, weight: FontWeight.SemiBold),
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
                                 Colour = Color4.White.Opacity(0.78f),
                             },
                             subtitle = new OsuSpriteText
                             {
-                                Font = OsuFont.GetFont(size: 15, weight: FontWeight.SemiBold),
-                                Colour = Color4.White.Opacity(0.46f),
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                                Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
                             },
                         },
                     },
-                    new IconButton
+                    // Floating close button — small soft tile that hovers in the top-right corner.
+                    new CloseTile
                     {
                         Anchor = Anchor.TopRight,
                         Origin = Anchor.TopRight,
-                        Icon = FontAwesome.Solid.Times,
-                        Colour = Color4.White.Opacity(0.64f),
                         Action = Hide,
                     },
                 },
             };
         }
 
-        private Drawable createToriiLogo(Color4 accentPink)
+        private Drawable createToriiLogo()
         {
             var logo = textures?.Get(@"Torii/logo");
 
@@ -290,19 +276,51 @@ namespace osu.Game.Overlays.ToriiBriefing
                 {
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
-                    Size = new Vector2(50),
+                    Size = new Vector2(40),
                     FillMode = FillMode.Fit,
                     Texture = logo,
                 };
             }
 
+            // Fallback if the texture isn't shipped — initial letter in brand pink.
             return new OsuSpriteText
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
                 Text = "T",
-                Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
-                Colour = accentPink,
+                Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.Bold),
+                Colour = BriefingTheme.AccentPink,
+            };
+        }
+
+        private Drawable createFooter()
+        {
+            return new Container
+            {
+                RelativeSizeAxes = Axes.X,
+                Height = 50,
+                Margin = new MarginPadding { Top = BriefingTheme.SpacingMd },
+                Children = new Drawable[]
+                {
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = "Generated from live Torii API data and your local session snapshot.",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
+                    },
+                    new RoundedButton
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                        Width = 196,
+                        Height = 44,
+                        Text = "enter Torii",
+                        BackgroundColour = BriefingTheme.AccentPink,
+                        Action = Hide,
+                    },
+                },
             };
         }
 
@@ -617,7 +635,7 @@ namespace osu.Game.Overlays.ToriiBriefing
             addItem(createScoreCard(payload));
             addItem(createSyncCard(payload));
 
-            addItem(new BriefingSectionHeader("dojo radar", "things that changed around you while you were away"));
+            addItem(new BriefingSectionHeader("dojo radar", "things that changed around you while you were away", BriefingTheme.AccentPink));
             addItem(createMessageCard(payload));
             addItem(createRadarCard(payload));
         }
@@ -805,22 +823,29 @@ namespace osu.Game.Overlays.ToriiBriefing
             Show();
         }
 
+        /// <summary>
+        /// Adds a card to the flow with the staggered spring entrance
+        /// animation that gives the briefing its sequenced feel. Each item
+        /// fades in + rises up by its index × <see cref="BriefingTheme.EntranceStagger"/>.
+        /// </summary>
         private void addItem(Drawable drawable)
         {
             int index = cardFlow.Count;
 
             drawable.Alpha = 0;
-            drawable.Y = 10;
+            drawable.Y = BriefingTheme.SpacingMd - 4;
             cardFlow.Add(drawable);
-            drawable.Delay(60 * index).FadeIn(320, Easing.OutQuint);
-            drawable.Delay(60 * index).MoveToY(0, 420, Easing.OutQuint);
+
+            double delay = BriefingTheme.EntranceStagger * index;
+            drawable.Delay(delay).FadeIn(BriefingTheme.EntranceDuration * 0.7, Easing.OutQuint);
+            drawable.Delay(delay).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
         }
 
         private BriefingCard createRankCard(BriefingPayload payload)
         {
             var previous = payload.Previous;
             var current = payload.Current;
-            var accent = Color4Extensions.FromHex(@"69d7ff");
+            var accent = BriefingTheme.AccentCyan;
 
             string headline;
             string detail;
@@ -857,7 +882,7 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private BriefingCard createMessageCard(BriefingPayload payload)
         {
-            var accent = payload.UnreadMessages.Count > 0 ? Color4Extensions.FromHex(@"ffd36e") : Color4Extensions.FromHex(@"69d7ff");
+            var accent = payload.UnreadMessages.Count > 0 ? BriefingTheme.AccentAmber : BriefingTheme.AccentCyan;
             string headline = payload.UnreadMessages.Count == 0
                 ? "No unread chat pings"
                 : $"{payload.UnreadMessages.Count} unread chat {(payload.UnreadMessages.Count == 1 ? "ping" : "pings")}";
@@ -866,7 +891,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                 ? "Nothing urgent from joined chat channels yet."
                 : string.Join("\n", payload.UnreadMessages.Take(2).Select(m => $"{m.Sender}: {trim(m.Preview, 54)}"));
 
-            return new BriefingCard(FontAwesome.Solid.Comments, "dojo whispers", headline, detail, accent, payload.UnreadMessages.Count > 0 ? 142 : 126)
+            return new BriefingCard(FontAwesome.Solid.Comments, "dojo whispers", headline, detail, accent)
             {
                 TooltipText = payload.UnreadMessages.Count == 0
                     ? "Open chat to see live channels."
@@ -876,7 +901,7 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private BriefingCard createRadarCard(BriefingPayload payload)
         {
-            var accent = payload.RadarEvents.Count > 0 ? Color4Extensions.FromHex(@"8bffcf") : Color4Extensions.FromHex(@"73b7ff");
+            var accent = payload.RadarEvents.Count > 0 ? BriefingTheme.AccentGain : BriefingTheme.AccentSky;
             string headline = payload.RadarEvents.Count == 0
                 ? payload.RadarFirstSnapshot ? "Dojo radar baseline synced" : "No map radar alerts"
                 : $"{payload.RadarEvents.Count} tracked {(payload.RadarEvents.Count == 1 ? "shift" : "shifts")} noticed";
@@ -887,7 +912,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                     : $"No watched map positions moved since the last briefing ({payload.RadarTrackedCount} tracked)."
                 : string.Join("\n", payload.RadarEvents.Take(2).Select(e => $"{trim(e.Title, 48)}: {e.Detail}"));
 
-            return new BriefingCard(FontAwesome.Solid.Crosshairs, "dojo radar", headline, detail, accent, payload.RadarEvents.Count > 0 ? 142 : 126)
+            return new BriefingCard(FontAwesome.Solid.Crosshairs, "dojo radar", headline, detail, accent)
             {
                 TooltipText = payload.RadarEvents.Count == 0
                     ? "Torii tracks your watched map leaderboard positions server-side and compares them on each briefing."
@@ -898,7 +923,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         private BriefingCard createSyncCard(BriefingPayload payload)
         {
             string variantName = payload.Variant == "pp_dev" ? "pp-dev" : "stable";
-            var accent = payload.Variant == "pp_dev" ? Color4Extensions.FromHex(@"73b7ff") : Color4Extensions.FromHex(@"8bffcf");
+            var accent = payload.Variant == "pp_dev" ? BriefingTheme.AccentSky : BriefingTheme.AccentGain;
 
             return new BriefingCard(FontAwesome.Solid.InfoCircle, "session mode", $"{variantName} profile synced", $"Tracking {payload.Current.TopScores.Count} top plays for future briefings.", accent)
             {
@@ -908,7 +933,7 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private string getRankHeadline(int? previousRank, int? currentRank, out Color4 accent)
         {
-            accent = Color4Extensions.FromHex(@"69d7ff");
+            accent = BriefingTheme.AccentCyan;
 
             if (!previousRank.HasValue || !currentRank.HasValue)
                 return "Rank data is warming up";
@@ -917,13 +942,13 @@ namespace osu.Game.Overlays.ToriiBriefing
 
             if (delta > 0)
             {
-                accent = Color4Extensions.FromHex(@"8bffcf");
+                accent = BriefingTheme.AccentGain;
                 return $"You gained {delta.ToString("N0", CultureInfo.InvariantCulture)} ranks";
             }
 
             if (delta < 0)
             {
-                accent = Color4Extensions.FromHex(@"ff8f9c");
+                accent = BriefingTheme.AccentLoss;
                 return $"You lost {Math.Abs(delta).ToString("N0", CultureInfo.InvariantCulture)} ranks";
             }
 
@@ -1054,17 +1079,21 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         protected override void PopIn()
         {
+            // Spring-y entrance: scale up from 0.94 → 1.0 with a slight overshoot
+            // (OutBack at low strength) and the panel rising into place from below.
+            // OsuFocusedOverlayContainer.PopIn() handles the alpha fade for us, so
+            // we just animate the panel transform.
             this.FadeIn(220, Easing.OutQuint);
-            panel.ScaleTo(0.965f).Then().ScaleTo(1, 360, Easing.OutQuint);
-            panel.MoveToY(18).Then().MoveToY(0, 360, Easing.OutQuint);
+            panel.ScaleTo(0.94f).Then().ScaleTo(1, BriefingTheme.EntranceDuration, Easing.OutBack);
+            panel.MoveToY(22).Then().MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
         }
 
         protected override void PopOut()
         {
             base.PopOut();
-            this.FadeOut(180, Easing.OutQuint);
-            panel.ScaleTo(0.985f, 180, Easing.OutQuint);
-            panel.MoveToY(10, 180, Easing.OutQuint);
+            this.FadeOut(BriefingTheme.DismissDuration - 40, Easing.OutQuint);
+            panel.ScaleTo(0.985f, BriefingTheme.DismissDuration, Easing.OutQuint);
+            panel.MoveToY(10, BriefingTheme.DismissDuration, Easing.OutQuint);
         }
 
         private static double? toDouble(decimal? value) => value.HasValue ? (double)value.Value : null;
@@ -1083,614 +1112,85 @@ namespace osu.Game.Overlays.ToriiBriefing
             return $"{text[..Math.Max(0, maxLength - 3)]}...";
         }
 
-        private sealed class PendingBriefing
+        /// <summary>
+        /// Floating close button used in the header. Soft-tinted squircle
+        /// tile that lifts on hover and dims on press, matching the rest
+        /// of the briefing's Liquid Glass vocabulary.
+        /// </summary>
+        private partial class CloseTile : OsuClickableContainer
         {
-            // We only block on the two requests whose payload meaningfully changes the briefing
-            // (user stats and top scores). The radar is purely additive UI, so we display the
-            // briefing as soon as User+TopScores are in and let the radar fill in afterwards.
-            // This shaves the slowest (or failing) request out of the critical path on login.
-            private int remainingBlockingRequests = 2;
+            private Box hoverBox;
+            private Container tile;
 
-            public readonly int RequestId;
-            public readonly APIUser LocalUser;
-            public readonly RulesetInfo Ruleset;
-            public readonly bool UsePpDev;
-            public readonly string SessionKey;
-
-            public APIUser User;
-            public List<SoloScoreInfo> TopScores;
-            public ToriiBriefingRadarResponse Radar;
-            public bool IsComplete => remainingBlockingRequests <= 0;
-
-            public PendingBriefing(int requestId, string sessionKey, APIUser localUser, RulesetInfo ruleset, bool usePpDev)
+            public CloseTile()
             {
-                RequestId = requestId;
-                SessionKey = sessionKey;
-                LocalUser = localUser;
-                Ruleset = ruleset;
-                UsePpDev = usePpDev;
+                Size = new Vector2(36);
             }
 
-            public void MarkBlockingComplete() => remainingBlockingRequests--;
-        }
-
-        private sealed class BriefingPayload
-        {
-            public APIUser User;
-            public RulesetInfo Ruleset;
-            public string Variant;
-            public BriefingSnapshot Current;
-            public BriefingSnapshot Previous;
-            public List<BriefingScoreChange> ScoreChanges;
-            public List<BriefingMessage> UnreadMessages;
-            public List<BriefingRadarEvent> RadarEvents;
-            public bool RadarFirstSnapshot;
-            public int RadarTrackedCount;
-        }
-
-        private sealed class BriefingState
-        {
-            [JsonProperty("users")]
-            public Dictionary<string, BriefingSnapshot> Users { get; set; } = new Dictionary<string, BriefingSnapshot>();
-
-            [JsonProperty("consumed_promotion_migrations")]
-            public HashSet<string> ConsumedPromotionMigrations { get; set; } = new HashSet<string>();
-        }
-
-        private sealed class StoredBriefing
-        {
-            public int UserId { get; set; }
-            public string Username { get; set; }
-            public string Ruleset { get; set; }
-            public string Variant { get; set; }
-            public BriefingSnapshot Current { get; set; }
-            public BriefingSnapshot Previous { get; set; }
-            public List<BriefingScoreChange> ScoreChanges { get; set; } = new List<BriefingScoreChange>();
-            public List<BriefingMessage> UnreadMessages { get; set; } = new List<BriefingMessage>();
-            public List<BriefingRadarEvent> RadarEvents { get; set; } = new List<BriefingRadarEvent>();
-            public bool RadarFirstSnapshot { get; set; }
-            public int RadarTrackedCount { get; set; }
-        }
-
-        private sealed class BriefingSnapshot
-        {
-            public int UserId { get; set; }
-            public string Username { get; set; }
-            public string Ruleset { get; set; }
-            public string Variant { get; set; }
-            public DateTimeOffset CapturedAt { get; set; }
-            public int? GlobalRank { get; set; }
-            public int? CountryRank { get; set; }
-            public double? PP { get; set; }
-            public List<BriefingScoreSnapshot> TopScores { get; set; } = new List<BriefingScoreSnapshot>();
-        }
-
-        private sealed class BriefingScoreSnapshot
-        {
-            public ulong ScoreId { get; set; }
-            public string Title { get; set; }
-            public string Rank { get; set; }
-            public double? PP { get; set; }
-            public double Accuracy { get; set; }
-        }
-
-        private sealed class BriefingScoreChange
-        {
-            public string Title { get; set; }
-            public double OldPP { get; set; }
-            public double NewPP { get; set; }
-            public double Delta { get; set; }
-        }
-
-        private sealed class BriefingMessage
-        {
-            public string Sender { get; set; }
-            public string Channel { get; set; }
-            public string Preview { get; set; }
-        }
-
-        private sealed class BriefingRadarEvent
-        {
-            public string Title { get; set; }
-            public string Detail { get; set; }
-            public string Severity { get; set; }
-        }
-
-        private partial class BriefingCard : CompositeDrawable, IHasTooltip
-        {
-            public LocalisableString TooltipText { get; set; }
-
-            public BriefingCard(IconUsage icon, string kicker, string headline, string detail, Color4 accent, float height = 126)
+            [BackgroundDependencyLoader]
+            private void load()
             {
-                RelativeSizeAxes = Axes.X;
-                Height = height;
-                Masking = true;
-                CornerRadius = 20;
-                BorderThickness = 1;
-                BorderColour = accent.Opacity(0.28f);
-                EdgeEffect = new EdgeEffectParameters
+                Children = new Drawable[]
                 {
-                    Type = EdgeEffectType.Shadow,
-                    Colour = accent.Opacity(0.12f),
-                    Radius = 14,
-                };
-
-                InternalChildren = new Drawable[]
-                {
-                    new Box
+                    tile = new Container
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = Color4Extensions.FromHex(@"18162d").Opacity(0.92f),
-                    },
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = ColourInfo.GradientHorizontal(accent.Opacity(0.08f), Color4.Transparent),
-                    },
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Width = 0.018f,
-                        Colour = accent,
-                    },
-                    new Container
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Horizontal = 22, Vertical = 18 },
+                        Masking = true,
+                        CornerRadius = BriefingTheme.CornerSm,
+                        CornerExponent = BriefingTheme.SquircleExponent,
+                        MaskingSmoothness = 1.2f,
+                        BorderThickness = 1f,
+                        BorderColour = Color4.White.Opacity(0.10f),
                         Children = new Drawable[]
                         {
-                            new CircularContainer
+                            new Box
                             {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Size = new Vector2(58),
-                                Masking = true,
-                                Children = new Drawable[]
-                                {
-                                    new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = accent.Opacity(0.16f),
-                                    },
-                                    new SpriteIcon
-                                    {
-                                        Anchor = Anchor.Centre,
-                                        Origin = Anchor.Centre,
-                                        Size = new Vector2(22),
-                                        Icon = icon,
-                                        Colour = accent,
-                                    },
-                                },
+                                RelativeSizeAxes = Axes.Both,
+                                Colour = Color4.White.Opacity(0.06f),
                             },
-                            new FillFlowContainer
+                            hoverBox = new Box
                             {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                X = 76,
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Padding = new MarginPadding { Right = 78 },
-                                Direction = FillDirection.Vertical,
-                                Spacing = new Vector2(0, 5),
-                                Children = new Drawable[]
-                                {
-                                    new OsuSpriteText
-                                    {
-                                        Text = kicker.ToUpperInvariant(),
-                                        Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
-                                        Colour = accent,
-                                    },
-                                    new OsuSpriteText
-                                    {
-                                        Text = headline,
-                                        Font = OsuFont.GetFont(size: 22, weight: FontWeight.Bold),
-                                    },
-                                    new OsuTextFlowContainer(t =>
-                                    {
-                                        t.Font = OsuFont.GetFont(size: 14.5f, weight: FontWeight.SemiBold);
-                                        t.Colour = Color4.White.Opacity(0.62f);
-                                    })
-                                    {
-                                        RelativeSizeAxes = Axes.X,
-                                        AutoSizeAxes = Axes.Y,
-                                        Text = detail,
-                                    },
-                                },
+                                RelativeSizeAxes = Axes.Both,
+                                Alpha = 0,
+                                Colour = Color4.White.Opacity(0.10f),
                             },
                             new SpriteIcon
                             {
-                                Anchor = Anchor.CentreRight,
-                                Origin = Anchor.CentreRight,
-                                Size = new Vector2(14),
-                                Icon = FontAwesome.Solid.InfoCircle,
-                                Colour = Color4.White.Opacity(0.32f),
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Size = new Vector2(13),
+                                Icon = FontAwesome.Solid.Times,
+                                Colour = Color4.White.Opacity(0.78f),
                             },
                         },
                     },
                 };
             }
-        }
 
-        private partial class BriefingSectionHeader : CompositeDrawable
-        {
-            public BriefingSectionHeader(string title, string subtitle)
+            protected override bool OnHover(osu.Framework.Input.Events.HoverEvent e)
             {
-                RelativeSizeAxes = Axes.X;
-                Height = 34;
-                Margin = new MarginPadding { Top = 4 };
-
-                InternalChildren = new Drawable[]
-                {
-                    new Box
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        RelativeSizeAxes = Axes.X,
-                        Height = 1,
-                        Colour = Color4.White.Opacity(0.08f),
-                    },
-                    new FillFlowContainer
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        AutoSizeAxes = Axes.Both,
-                        Direction = FillDirection.Horizontal,
-                        Spacing = new Vector2(10, 0),
-                        Children = new Drawable[]
-                        {
-                            new BriefingPill(title, Color4Extensions.FromHex(@"69d7ff")),
-                            new OsuSpriteText
-                            {
-                                Anchor = Anchor.CentreLeft,
-                                Origin = Anchor.CentreLeft,
-                                Text = subtitle,
-                                Font = OsuFont.GetFont(size: 12.5f, weight: FontWeight.SemiBold),
-                                Colour = Color4.White.Opacity(0.42f),
-                            },
-                        },
-                    },
-                };
-            }
-        }
-
-        private partial class BriefingRecalcCard : CompositeDrawable, IHasTooltip
-        {
-            private static readonly Color4 accent_changes = Color4Extensions.FromHex(@"ff66b3");
-            private static readonly Color4 accent_no_changes = Color4Extensions.FromHex(@"69d7ff");
-            private static readonly Color4 color_gain = Color4Extensions.FromHex(@"8bffcf");
-            private static readonly Color4 color_loss = Color4Extensions.FromHex(@"ff8f9c");
-
-            public LocalisableString TooltipText { get; set; }
-
-            public BriefingRecalcCard(List<BriefingScoreChange> changes)
-            {
-                var accent = changes.Count > 0 ? accent_changes : accent_no_changes;
-                bool hasChanges = changes.Count > 0;
-
-                RelativeSizeAxes = Axes.X;
-                AutoSizeAxes = Axes.Y;
-                Masking = true;
-                CornerRadius = 20;
-                BorderThickness = 1;
-                BorderColour = accent.Opacity(0.28f);
-                EdgeEffect = new EdgeEffectParameters
-                {
-                    Type = EdgeEffectType.Shadow,
-                    Colour = accent.Opacity(0.12f),
-                    Radius = 14,
-                };
-
-                var textFlow = new FillFlowContainer
-                {
-                    X = 76,
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Padding = new MarginPadding { Right = 30 },
-                    Direction = FillDirection.Vertical,
-                    Spacing = new Vector2(0, 4),
-                };
-
-                // Kicker
-                textFlow.Add(new OsuSpriteText
-                {
-                    Text = "RECALCULATION WATCH",
-                    Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
-                    Colour = accent,
-                });
-
-                // Headline
-                string headline = hasChanges
-                    ? $"{changes.Count} top {(changes.Count == 1 ? "score" : "scores")} recalculated"
-                    : "No top play recalcs detected";
-
-                textFlow.Add(new OsuSpriteText
-                {
-                    Text = headline,
-                    Font = OsuFont.GetFont(size: 22, weight: FontWeight.Bold),
-                    Margin = new MarginPadding { Bottom = 2 },
-                });
-
-                if (!hasChanges)
-                {
-                    textFlow.Add(new OsuSpriteText
-                    {
-                        Text = "Your top plays match the last briefing snapshot.",
-                        Font = OsuFont.GetFont(size: 14.5f, weight: FontWeight.SemiBold),
-                        Colour = Color4.White.Opacity(0.62f),
-                    });
-                }
-                else
-                {
-                    // Top separator
-                    textFlow.Add(new Box
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        Height = 1,
-                        Colour = Color4.White.Opacity(0.10f),
-                        Margin = new MarginPadding { Vertical = 3 },
-                        BypassAutoSizeAxes = Axes.None,
-                    });
-
-                    // Split into top gains and top losses
-                    var gains = changes.Where(c => c.Delta > 0).OrderByDescending(c => c.Delta).ToList();
-                    var losses = changes.Where(c => c.Delta < 0).OrderBy(c => c.Delta).ToList();
-
-                    // -- TOP GAINS --
-                    if (gains.Count > 0)
-                    {
-                        textFlow.Add(new OsuSpriteText
-                        {
-                            Text = "TOP GAINS",
-                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
-                            Colour = color_gain.Opacity(0.72f),
-                            Margin = new MarginPadding { Top = 2, Bottom = 1 },
-                        });
-
-                        int gainDisplay = Math.Min(5, gains.Count);
-                        for (int i = 0; i < gainDisplay; i++)
-                        {
-                            var change = gains[i];
-                            textFlow.Add(new FillFlowContainer
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(6, 0),
-                                Children = new Drawable[]
-                                {
-                                    new OsuSpriteText
-                                    {
-                                        Text = $"▲ {formatSignedPP(change.Delta)}",
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
-                                        Colour = color_gain,
-                                        Width = 88,
-                                    },
-                                    new OsuSpriteText
-                                    {
-                                        Text = trim(change.Title, 44),
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold),
-                                        Colour = Color4.White.Opacity(0.78f),
-                                    },
-                                },
-                            });
-                        }
-
-                        if (gains.Count > 5)
-                        {
-                            textFlow.Add(new OsuSpriteText
-                            {
-                                Text = $"  + {gains.Count - 5} more gains",
-                                Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                                Colour = Color4.White.Opacity(0.38f),
-                            });
-                        }
-                    }
-
-                    // Separator between sections (only when both exist)
-                    if (gains.Count > 0 && losses.Count > 0)
-                    {
-                        textFlow.Add(new Box
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            Height = 1,
-                            Colour = Color4.White.Opacity(0.08f),
-                            Margin = new MarginPadding { Vertical = 5 },
-                        });
-                    }
-
-                    // -- TOP LOSSES --
-                    if (losses.Count > 0)
-                    {
-                        textFlow.Add(new OsuSpriteText
-                        {
-                            Text = "TOP LOSSES",
-                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
-                            Colour = color_loss.Opacity(0.72f),
-                            Margin = new MarginPadding { Top = 2, Bottom = 1 },
-                        });
-
-                        int lossDisplay = Math.Min(5, losses.Count);
-                        for (int i = 0; i < lossDisplay; i++)
-                        {
-                            var change = losses[i];
-                            textFlow.Add(new FillFlowContainer
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Direction = FillDirection.Horizontal,
-                                Spacing = new Vector2(6, 0),
-                                Children = new Drawable[]
-                                {
-                                    new OsuSpriteText
-                                    {
-                                        Text = $"▼ {formatSignedPP(change.Delta)}",
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
-                                        Colour = color_loss,
-                                        Width = 88,
-                                    },
-                                    new OsuSpriteText
-                                    {
-                                        Text = trim(change.Title, 44),
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold),
-                                        Colour = Color4.White.Opacity(0.78f),
-                                    },
-                                },
-                            });
-                        }
-
-                        if (losses.Count > 5)
-                        {
-                            textFlow.Add(new OsuSpriteText
-                            {
-                                Text = $"  + {losses.Count - 5} more losses",
-                                Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                                Colour = Color4.White.Opacity(0.38f),
-                            });
-                        }
-                    }
-
-                    // Highlight footer (best gain / worst loss summary)
-                    if (gains.Count > 0 || losses.Count > 0)
-                    {
-                        textFlow.Add(new Box
-                        {
-                            RelativeSizeAxes = Axes.X,
-                            Height = 1,
-                            Colour = Color4.White.Opacity(0.10f),
-                            Margin = new MarginPadding { Vertical = 3 },
-                        });
-
-                        if (gains.Count > 0)
-                        {
-                            var g = gains[0];
-                            textFlow.Add(buildHighlightRow("▲ BEST GAIN", g.Title, formatSignedPP(g.Delta), color_gain));
-                        }
-
-                        if (losses.Count > 0)
-                        {
-                            var l = losses[0];
-                            textFlow.Add(buildHighlightRow("▼ WORST LOSS", l.Title, formatSignedPP(l.Delta), color_loss));
-                        }
-                    }
-                }
-
-                InternalChildren = new Drawable[]
-                {
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = Color4Extensions.FromHex(@"18162d").Opacity(0.92f),
-                        BypassAutoSizeAxes = Axes.Y,
-                    },
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = ColourInfo.GradientHorizontal(accent.Opacity(0.08f), Color4.Transparent),
-                        BypassAutoSizeAxes = Axes.Y,
-                    },
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Width = 0.018f,
-                        Colour = accent,
-                        BypassAutoSizeAxes = Axes.Y,
-                    },
-                    new Container
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Padding = new MarginPadding { Horizontal = 22, Vertical = 18 },
-                        Children = new Drawable[]
-                        {
-                            new CircularContainer
-                            {
-                                Anchor = Anchor.TopLeft,
-                                Origin = Anchor.TopLeft,
-                                Y = 6,
-                                Size = new Vector2(58),
-                                Masking = true,
-                                Children = new Drawable[]
-                                {
-                                    new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = accent.Opacity(0.16f),
-                                    },
-                                    new SpriteIcon
-                                    {
-                                        Anchor = Anchor.Centre,
-                                        Origin = Anchor.Centre,
-                                        Size = new Vector2(22),
-                                        Icon = FontAwesome.Solid.Sync,
-                                        Colour = accent,
-                                    },
-                                },
-                            },
-                            textFlow,
-                        },
-                    },
-                };
+                hoverBox.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
+                tile.ScaleTo(1.06f, BriefingTheme.HoverDuration, Easing.OutQuint);
+                return base.OnHover(e);
             }
 
-            private static FillFlowContainer buildHighlightRow(string label, string title, string value, Color4 color)
+            protected override void OnHoverLost(osu.Framework.Input.Events.HoverLostEvent e)
             {
-                return new FillFlowContainer
-                {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(6, 0),
-                    Children = new Drawable[]
-                    {
-                        new OsuSpriteText
-                        {
-                            Text = label,
-                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
-                            Colour = color,
-                            Width = 94,
-                        },
-                        new OsuSpriteText
-                        {
-                            Text = trim(title, 32),
-                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                            Colour = Color4.White.Opacity(0.82f),
-                        },
-                        new OsuSpriteText
-                        {
-                            Text = $"  {value}",
-                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
-                            Colour = color,
-                        },
-                    },
-                };
+                hoverBox.FadeOut(BriefingTheme.HoverDuration, Easing.OutQuint);
+                tile.ScaleTo(1f, BriefingTheme.HoverDuration, Easing.OutQuint);
+                base.OnHoverLost(e);
             }
-        }
 
-        private partial class BriefingPill : CompositeDrawable
-        {
-            public BriefingPill(string text, Color4 accent)
+            protected override bool OnMouseDown(osu.Framework.Input.Events.MouseDownEvent e)
             {
-                AutoSizeAxes = Axes.Both;
-                Masking = true;
-                CornerRadius = 12;
-                Padding = new MarginPadding { Horizontal = 12, Vertical = 5 };
+                tile.ScaleTo(0.94f, 80, Easing.OutQuint);
+                return base.OnMouseDown(e);
+            }
 
-                InternalChildren = new Drawable[]
-                {
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = accent.Opacity(0.12f),
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        Text = text.ToUpperInvariant(),
-                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
-                        Colour = accent,
-                    },
-                };
+            protected override void OnMouseUp(osu.Framework.Input.Events.MouseUpEvent e)
+            {
+                tile.ScaleTo(1.06f, 200, Easing.OutQuint);
+                base.OnMouseUp(e);
             }
         }
     }
