@@ -9,6 +9,7 @@ using osu.Game.Online.Metadata;
 using osu.Game.Overlays.Dashboard;
 using osu.Game.Overlays.Dashboard.CurrentlyOnline;
 using osu.Game.Overlays.Dashboard.Friends;
+using osu.Game.Overlays.Dashboard.UserSearch;
 
 namespace osu.Game.Overlays
 {
@@ -39,6 +40,18 @@ namespace osu.Game.Overlays
 
                 case DashboardOverlayTabs.CurrentlyPlaying:
                     LoadDisplay(new CurrentlyOnlineDisplay());
+                    break;
+
+                case DashboardOverlayTabs.UserSearch:
+                    // Upstream binds UserSearchDisplay.Loading to a central
+                    // BindableBool that drives the OnlineOverlay loading
+                    // layer. Our DashboardOverlay doesn't have that field
+                    // (older fork lineage), and adding it would touch the
+                    // existing Friends / CurrentlyPlaying paths too. Skip
+                    // the bind — UserSearchDisplay still tracks its own
+                    // loading state internally for UI feedback, we just
+                    // don't surface the spinner overlay.
+                    LoadDisplay(new UserSearchDisplay());
                     break;
 
                 default:

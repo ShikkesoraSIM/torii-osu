@@ -22,7 +22,7 @@ namespace osu.Game.Overlays.Dashboard.Friends
         private readonly UserSortTabControl sortControl;
         private readonly OverlayPanelDisplayStyleControl styleControl;
 
-        public UserListToolbar(bool supportsBrickMode)
+        public UserListToolbar(bool supportsBrickMode = true, bool supportsSort = true)
         {
             this.supportsBrickMode = supportsBrickMode;
 
@@ -37,6 +37,12 @@ namespace osu.Game.Overlays.Dashboard.Friends
                 {
                     sortControl = new UserSortTabControl
                     {
+                        // User Search reuses this toolbar but doesn't want a sort
+                        // tab control — search results are already ordered by
+                        // relevance to the query, sort criteria don't apply.
+                        // Hide rather than skip-construct so SortCriteria still
+                        // exposes a usable Bindable for any caller that asks.
+                        Alpha = supportsSort ? 1 : 0,
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
                     },
