@@ -9,6 +9,15 @@ opened on top.
 
 ## Latest — May 8, 2026
 
+### Fixes
+
+- **Pitch Adjust mod: extended-range values now survive replays.** A
+  score submitted with *Extended limits* on and a pitch-shift outside
+  the safe 0.5×–2.0× band (e.g. 3× chipmunk, 0.2× sub-bass) no longer
+  silently clamps to 2× when reloaded as a replay or shown in the
+  leaderboard. The fix mirrors the deserialisation guard the
+  Difficulty Adjust mod already had upstream.
+
 ### Android — one-time reinstall required
 
 The Android APK pipeline now signs every build with a permanent
