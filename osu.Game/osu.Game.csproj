@@ -16,7 +16,7 @@ Modified by GooGuTeam</PackageReleaseNotes>
   <PropertyGroup Label="Nuget">
     <Title>osu!</Title>
     <PackageId>g0v0.osu.Game</PackageId>
-    <Version>2025.1130.0</Version>
+    <Version>2026.509.0-ppdev</Version>
     <PackageIcon>icon.png</PackageIcon>
     <IsPackable>true</IsPackable>
   </PropertyGroup>

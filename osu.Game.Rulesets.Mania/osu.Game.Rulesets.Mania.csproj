@@ -4,11 +4,13 @@
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>smash the keys. to the beat.</Description>
+    <Version>2026.509.0-ppdev</Version>
+    <Authors>ppy Pty Ltd, GooGuTeam</Authors>
   </PropertyGroup>
 
   <PropertyGroup Label="Nuget">
     <Title>osu!mania (ruleset)</Title>
-    <PackageId>ppy.osu.Game.Rulesets.Mania</PackageId>
+    <PackageId>g0v0.osu.Game.Rulesets.Mania</PackageId>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 

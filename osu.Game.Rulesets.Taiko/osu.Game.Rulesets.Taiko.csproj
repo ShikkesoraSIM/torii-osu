@@ -4,11 +4,13 @@
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>bash the drum. to the beat.</Description>
+    <Version>2026.509.0-ppdev</Version>
+    <Authors>ppy Pty Ltd, GooGuTeam</Authors>
   </PropertyGroup>
 
   <PropertyGroup Label="Nuget">
     <Title>osu!taiko (ruleset)</Title>
-    <PackageId>ppy.osu.Game.Rulesets.Taiko</PackageId>
+    <PackageId>g0v0.osu.Game.Rulesets.Taiko</PackageId>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
