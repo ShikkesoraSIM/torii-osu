@@ -1431,14 +1431,21 @@ namespace osu.Game
                         return;
 
                     hiccupLogger = new osu.Game.Performance.ToriiHiccupLogger();
-                    AddInternal(hiccupLogger);
+                    // osu.Framework.Game.AddInternal throws "Use Add or Content
+                    // instead." — Game enforces that game-level adds go through
+                    // its public Content slot, not InternalChildren. The first
+                    // shipped version of this method (b7a1e13574) used
+                    // AddInternal and crashed every game launch with the
+                    // logger toggle ON, plus a secondary NRE in
+                    // UpdateAfterChildren on the half-loaded host. Use Add().
+                    Add(hiccupLogger);
                 }
                 else
                 {
                     if (hiccupLogger == null)
                         return;
 
-                    RemoveInternal(hiccupLogger, true);
+                    Remove(hiccupLogger, true);
                     hiccupLogger = null;
                 }
             }, true);
