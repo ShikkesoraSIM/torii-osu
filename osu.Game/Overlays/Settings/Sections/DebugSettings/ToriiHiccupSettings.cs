@@ -79,11 +79,26 @@ namespace osu.Game.Overlays.Settings.Sections.DebugSettings
             // OFF, the sub-toggle's value also flips OFF (both because users
             // would expect it and because the logger component is gone, so
             // there's nothing to gate anyway).
+            //
+            // ORDER MATTERS — `Bindable.Value = X` throws if `Disabled == true`.
+            // The previous (broken) version flipped Disabled BEFORE setting
+            // Value, which crashed `ToriiHiccupSettings` on construction every
+            // time the parent toggle was OFF (the immediate-fire callback ran
+            // with NewValue=false, set Disabled=true, then tried to write
+            // Value=false → InvalidOperationException). That crash bubbled up
+            // through the whole Settings overlay and prevented users from
+            // opening Settings at all.
             loggerEnabled.BindValueChanged(e =>
             {
-                shareToggle.Current.Disabled = !e.NewValue;
-                if (!e.NewValue)
+                // Re-enable first so the value mutation below is legal even
+                // if a previous toggle left the bindable disabled.
+                shareToggle.Current.Disabled = false;
+
+                if (!e.NewValue && shareToggle.Current.Value)
                     shareToggle.Current.Value = false;
+
+                // Disable last — once disabled, the bindable rejects writes.
+                shareToggle.Current.Disabled = !e.NewValue;
             }, true);
 
             Add(new SettingsItemV2(shareToggle));
