@@ -72,14 +72,26 @@ namespace osu.Game.Screens.SelectV2
         private void updateSubscription()
         {
             scoreSubscription?.Dispose();
+            setRankFromScore(null);
 
             if (beatmap == null)
                 return;
 
+            // Upstream perf fix (ppy/osu#37666). The original implementation filtered on
+            // linked Realm objects (`ScoreInfo.BeatmapInfo.ID` + `ScoreInfo.Ruleset.ShortName`),
+            // which Realm resolves by walking each candidate row's linked objects — extremely
+            // expensive when scrolling a song select with thousands of scores in the DB. The
+            // new pattern hits Realm with a flat field comparison (BeatmapHash) only, then
+            // narrows by user/ruleset in .NET on the much smaller candidate set. Net savings
+            // on the scheduler thread: 2-10ms per scroll tick on large libraries.
+            //
+            // Note: upstream also adds [Indexed] on ScoreInfo.BeatmapHash for an extra speed
+            // bump. We deliberately don't (would require Realm schema bump 51→52, which would
+            // break vanilla osu! lazer's ability to open shared realm folders — see
+            // ScoreInfo.cs comment + RealmAccess.cs schema_version notes). The filter rewrite
+            // alone — which is the main win per the PR — applies here as-is.
             scoreSubscription = realm.RegisterForNotifications(r =>
-                    r.GetAllLocalScoresForUser(api.LocalUser.Value.Id)
-                     .Filter($@"{nameof(ScoreInfo.BeatmapInfo)}.{nameof(BeatmapInfo.ID)} == $0"
-                             + $" && {nameof(ScoreInfo.Ruleset)}.{nameof(RulesetInfo.ShortName)} == $1", beatmap.ID, ruleset.Value.ShortName),
+                    r.All<ScoreInfo>().Where(s => s.BeatmapHash == beatmap.Hash && !s.DeletePending),
                 localScoresChanged);
         }
 
@@ -90,7 +102,17 @@ namespace osu.Game.Screens.SelectV2
             if (changes?.HasCollectionChanges() == false)
                 return;
 
-            ScoreInfo? topScore = sender.MaxBy(info => (info.TotalScore, -info.Date.UtcDateTime.Ticks));
+            ScoreInfo? topScore = sender
+                                  // doing these post realm filter is most efficient.
+                                  .Where(s => s.UserID == api.LocalUser.Value.Id || s.UserID <= 1)
+                                  .Where(s => s.Ruleset.ShortName == ruleset.Value.ShortName)
+                                  .MaxBy(info => (info.TotalScore, -info.Date.UtcDateTime.Ticks));
+
+            setRankFromScore(topScore);
+        }
+
+        private void setRankFromScore(ScoreInfo? topScore)
+        {
             updateable.Rank = topScore?.Rank;
             updateable.Alpha = topScore != null ? 1 : 0;
         }

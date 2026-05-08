@@ -55,6 +55,14 @@ namespace osu.Game.Scoring
         /// <summary>
         /// The <see cref="osu.Game.Beatmaps.BeatmapInfo.Hash"/> at the point in time when the score was set.
         /// </summary>
+        // Upstream PR ppy/osu#37666 adds [Indexed] here for an extra perf win in
+        // PanelLocalRankDisplay scrolling. We deliberately omit it — the [Indexed]
+        // attribute requires a Realm schema bump, and Torii explicitly stays at
+        // schema 51 to keep vanilla osu! lazer able to open shared Realm folders
+        // (see RealmAccess.cs schema_version comment + RealmDowngrader). The main
+        // perf win from #37666 — moving the score filter out of Realm and into
+        // .NET-side LINQ on a smaller pre-filtered set — is preserved in
+        // PanelLocalRankDisplay.cs.
         public string BeatmapHash { get; set; } = string.Empty;
 
         public RulesetInfo Ruleset { get; set; } = null!;

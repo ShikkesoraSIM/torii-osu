@@ -76,6 +76,16 @@ namespace osu.Game.Tests.Visual.SongSelectV2
         [Test]
         public void TestLocalRank()
         {
+            // Upstream PR ppy/osu#37666: explicit null-rank step so the panel's
+            // pre-rank state is part of the regression matrix. Catches bugs where
+            // the rank display gets stuck on the previous beatmap's rank during
+            // a transition (the second issue the PR fixes alongside the perf one).
+            AddStep("set null rank", () => this.ChildrenOfType<UpdateableRank>().ForEach(p =>
+            {
+                p.Hide();
+                p.Rank = null;
+            }));
+
             foreach (var rank in Enum.GetValues<ScoreRank>())
             {
                 AddStep($"set {rank.GetDescription()} rank", () => this.ChildrenOfType<UpdateableRank>().ForEach(p =>
