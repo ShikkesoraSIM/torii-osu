@@ -3,6 +3,7 @@
 
 using System.IO;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Localisation;
 using osu.Framework.Platform;
@@ -14,24 +15,39 @@ namespace osu.Game.Overlays.Settings.Sections.DebugSettings
     /// <summary>
     /// Settings subsection for the Torii hiccup logger — sits at the very
     /// bottom of <see cref="DebugSection"/> so it doesn't compete for
-    /// attention with the everyday debug toggles. Off by default; turning it
-    /// on adds a single component to the game host that records frames
-    /// slower than 33 ms (sub-30 fps) into JSONL with surrounding context.
+    /// attention with the everyday debug toggles.
     /// </summary>
     /// <remarks>
-    /// The toggle is wired in <c>OsuGame.wireToriiHiccupLogger</c>. When OFF,
-    /// no component is constructed or added to the draw tree, so runtime is
-    /// byte-identical to a Torii build without the logger feature. See
-    /// <see cref="osu.Game.Performance.ToriiHiccupLogger"/> for the logger
-    /// itself + the captured-record schema.
+    /// <para>
+    /// The two checkboxes here form a two-stage opt-in:
+    /// </para>
+    /// <list type="number">
+    ///     <item><description>
+    ///     <b>Record frame hiccups to disk</b> — turns on the local-only
+    ///     capture. Off by default; the logger component is not even
+    ///     constructed unless this is on, so the feature has zero runtime
+    ///     cost when off.
+    ///     </description></item>
+    ///     <item><description>
+    ///     <b>Share with Torii devs</b> — sub-toggle, gated by the first
+    ///     toggle. When on, captured records are additionally batched and
+    ///     POSTed to the Torii admin dashboard. Off by default even when
+    ///     the local capture is on, so users can record privately for
+    ///     their own debugging without sharing anything externally.
+    ///     </description></item>
+    /// </list>
     /// </remarks>
     public partial class ToriiHiccupSettings : SettingsSubsection
     {
         protected override LocalisableString Header => "Torii hiccup logger";
 
+        private Bindable<bool> loggerEnabled;
+
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config, Storage storage)
         {
+            loggerEnabled = config.GetBindable<bool>(OsuSetting.ToriiHiccupLoggerEnabled);
+
             Add(new SettingsItemV2(new FormCheckBox
             {
                 Caption = "Record frame hiccups to disk",
@@ -40,8 +56,37 @@ namespace osu.Game.Overlays.Settings.Sections.DebugSettings
                            + "visible overlays, GC stats, recent events) so devs can diagnose lag spikes from a "
                            + "captured session. Toggling OFF disposes the logger and stops all measurement; the "
                            + "feature has zero runtime cost when off.",
-                Current = config.GetBindable<bool>(OsuSetting.ToriiHiccupLoggerEnabled),
+                Current = loggerEnabled,
             }));
+
+            // Sub-toggle — only meaningful when the logger above is on, but
+            // we always render it (greyed out) so users can see the feature
+            // exists. The disabled state mirrors the parent toggle.
+            var shareToggle = new FormCheckBox
+            {
+                Caption = "Share captures with Torii devs",
+                HintText = "When enabled, captured hiccup records are also batch-uploaded to "
+                           + "lazer-api.shikkesora.com every ~30 seconds so Torii devs can view "
+                           + "them on the admin dashboard alongside reports from other users. "
+                           + "Each upload identifies you by your osu! user ID (when logged in) plus "
+                           + "a stable per-install device hash (a SHA-256 of a randomly-generated "
+                           + "GUID — never your machine MAC, disk serial, or similar). No personally "
+                           + "identifying information beyond that. Disable to keep captures local-only.",
+                Current = config.GetBindable<bool>(OsuSetting.ToriiHiccupShareEnabled),
+            };
+
+            // Gate the sub-toggle on the parent toggle. When the parent flips
+            // OFF, the sub-toggle's value also flips OFF (both because users
+            // would expect it and because the logger component is gone, so
+            // there's nothing to gate anyway).
+            loggerEnabled.BindValueChanged(e =>
+            {
+                shareToggle.Current.Disabled = !e.NewValue;
+                if (!e.NewValue)
+                    shareToggle.Current.Value = false;
+            }, true);
+
+            Add(new SettingsItemV2(shareToggle));
 
             Add(new SettingsButtonV2
             {
@@ -50,18 +95,13 @@ namespace osu.Game.Overlays.Settings.Sections.DebugSettings
                 {
                     try
                     {
-                        // Make sure the directory exists before asking the OS
-                        // to open it (otherwise the file manager just no-ops).
                         var hiccupStorage = storage.GetStorageForDirectory("torii/hiccups");
                         string path = hiccupStorage.GetFullPath(string.Empty);
                         if (!Directory.Exists(path))
                             Directory.CreateDirectory(path);
                         hiccupStorage.PresentExternally();
                     }
-                    catch
-                    {
-                        // Best-effort; the toggle still works if this button can't open the folder.
-                    }
+                    catch { /* best-effort */ }
                 },
             });
         }

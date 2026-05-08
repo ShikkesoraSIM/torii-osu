@@ -4,20 +4,28 @@
 #nullable disable
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using osu.Framework;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
+using osu.Framework.Threading;
+using osu.Game.Configuration;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 
 namespace osu.Game.Performance
 {
@@ -95,6 +103,28 @@ namespace osu.Game.Performance
         private CancellationTokenSource drainCts;
         private StreamWriter writer;
         private string outputPath;
+
+        // ---- Upload pipeline (only active when ShareEnabled toggle is ON) ---
+        //
+        // Captures land here as they happen; the periodic flush-timer drains
+        // up to MAX_UPLOAD_BATCH at a time and fires an APIRequest. The queue
+        // is bounded so a long server outage doesn't grow memory unboundedly
+        // — once full, the oldest pending records are dropped (the local
+        // JSONL file still has every record so nothing is truly lost).
+        //
+        // The flush timer runs on the update thread (Scheduler.AddDelayed
+        // with repeat=true) but the actual HTTP request is queued via
+        // api.Queue so it goes off-thread.
+        private readonly ConcurrentQueue<HiccupRecord> uploadQueue = new ConcurrentQueue<HiccupRecord>();
+        private const int max_upload_batch = 50;        // server hard-caps at this too
+        private const int max_upload_queue_depth = 500; // bound memory under outage
+        private const double upload_interval_ms = 30_000;
+
+        private string sessionIdString;
+        private string deviceHash;
+        private ScheduledDelegate uploadTimerDelegate;
+        private Bindable<bool> shareEnabled;
+        private Bindable<string> deviceHashBindable;
         private static readonly JsonSerializerSettings json_settings = new JsonSerializerSettings
         {
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
@@ -107,6 +137,9 @@ namespace osu.Game.Performance
 
         [Resolved(canBeNull: true)]
         private OsuGame osuGame { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private OsuConfigManager osuConfig { get; set; }
 
         [Resolved]
         private Storage storage { get; set; }
@@ -128,10 +161,10 @@ namespace osu.Game.Performance
                 // One file per session — easy to discard old captures, easy to
                 // tell which file goes with which run when the user shares logs.
                 var hiccupStorage = storage.GetStorageForDirectory("torii/hiccups");
-                string sessionId = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-                outputPath = hiccupStorage.GetFullPath($"{sessionId}.jsonl");
+                sessionIdString = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+                outputPath = hiccupStorage.GetFullPath($"{sessionIdString}.jsonl");
 
-                var stream = hiccupStorage.GetStream($"{sessionId}.jsonl", FileAccess.Write, FileMode.Create);
+                var stream = hiccupStorage.GetStream($"{sessionIdString}.jsonl", FileAccess.Write, FileMode.Create);
                 writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = false };
 
                 // Header line — easier to spot orphaned captures and verify
@@ -164,6 +197,29 @@ namespace osu.Game.Performance
                         lastApiStateChangedAt = DateTimeOffset.UtcNow;
                         recordEvent("api_state", $"{s.OldValue} → {s.NewValue}");
                     });
+                }
+
+                // Wire the upload pipeline. Pure no-op if osuConfig wasn't
+                // resolved (test scenes etc.) — local capture still works.
+                if (osuConfig != null && api != null)
+                {
+                    shareEnabled = osuConfig.GetBindable<bool>(OsuSetting.ToriiHiccupShareEnabled);
+                    deviceHashBindable = osuConfig.GetBindable<string>(OsuSetting.ToriiHiccupDeviceHash);
+
+                    // Generate a stable device hash on first need. The
+                    // content is a SHA-256 of a fresh GUID — deliberately
+                    // not derived from machine identity (no MAC / disk
+                    // serial / etc.), so it's privacy-friendly while still
+                    // letting the dashboard correlate reports across
+                    // sessions from this install.
+                    if (string.IsNullOrEmpty(deviceHashBindable.Value))
+                        deviceHashBindable.Value = ComputeFreshDeviceHash();
+                    deviceHash = deviceHashBindable.Value;
+
+                    // Upload timer fires on the update thread. The actual
+                    // HTTP request goes off-thread via api.Queue so this
+                    // tick is cheap.
+                    uploadTimerDelegate = Scheduler.AddDelayed(flushUploadQueue, upload_interval_ms, true);
                 }
             }
             catch (Exception ex)
@@ -236,6 +292,108 @@ namespace osu.Game.Performance
             };
 
             writeChannel.Writer.TryWrite(record);
+
+            // Also enqueue for upload if the share toggle is on. The actual
+            // HTTP send happens on the periodic flush — never on the same
+            // frame as the hiccup itself, so this stays a constant-time
+            // enqueue.
+            enqueueForUpload(record);
+        }
+
+        // ---------------------------------------------------------------
+        //  Upload pipeline (only active when ShareEnabled toggle is ON)
+        // ---------------------------------------------------------------
+
+        private void enqueueForUpload(HiccupRecord record)
+        {
+            if (shareEnabled == null || !shareEnabled.Value) return;
+
+            // Bound the queue depth — under a server outage we don't want
+            // unbounded memory growth. The local JSONL still has every
+            // record, so this just means very-old pending records may not
+            // make it to the dashboard.
+            if (uploadQueue.Count >= max_upload_queue_depth)
+            {
+                if (uploadQueue.TryDequeue(out _))
+                {
+                    // log only occasionally to avoid spam
+                }
+            }
+
+            uploadQueue.Enqueue(record);
+        }
+
+        private void flushUploadQueue()
+        {
+            if (api == null || shareEnabled == null || !shareEnabled.Value)
+                return;
+
+            if (uploadQueue.IsEmpty)
+                return;
+
+            // Drain up to MAX_UPLOAD_BATCH from the queue. The server caps
+            // batches at 50, so chunking here matches that ceiling.
+            var batch = new List<HiccupRecord>(max_upload_batch);
+            while (batch.Count < max_upload_batch && uploadQueue.TryDequeue(out var rec))
+                batch.Add(rec);
+
+            if (batch.Count == 0) return;
+
+            try
+            {
+                var payload = new HiccupBatchPayload
+                {
+                    SessionId = sessionIdString,
+                    DeviceHash = deviceHash,
+                    OsuVersion = typeof(OsuGame).Assembly.GetName().Version?.ToString() ?? "unknown",
+                    Platform = RuntimeInfo.OS.ToString(),
+                    CpuArch = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant(),
+                    Records = batch.ToArray(),
+                };
+
+                var request = new SubmitToriiHiccupReportsRequest(payload);
+
+                request.Success += response =>
+                {
+                    if (response.Dropped > 0)
+                    {
+                        Logger.Log(
+                            $"[ToriiHiccup] uploaded batch ({response.Accepted} accepted, {response.Dropped} dropped server-side)",
+                            LoggingTarget.Runtime, LogLevel.Verbose);
+                    }
+                };
+
+                request.Failure += ex =>
+                {
+                    // Drop the batch on persistent failure rather than re-queueing.
+                    // The local JSONL has every record, so re-uploading the
+                    // same data on next session would just spam duplicates.
+                    Logger.Log(
+                        $"[ToriiHiccup] upload failed (batch of {batch.Count}): {ex.Message}",
+                        LoggingTarget.Runtime, LogLevel.Verbose);
+                };
+
+                api.Queue(request);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[ToriiHiccup] flush threw: {ex.Message}", LoggingTarget.Runtime, LogLevel.Error);
+            }
+        }
+
+        /// <summary>
+        /// Generates a stable per-install device identifier as a SHA-256 of
+        /// a freshly-generated GUID. Privacy-friendly: derived from random
+        /// bytes, not from any machine attribute. Stored in osu.cfg so it
+        /// persists across game runs but is per-install.
+        /// </summary>
+        private static string ComputeFreshDeviceHash()
+        {
+            byte[] bytes = Guid.NewGuid().ToByteArray();
+            byte[] hash = SHA256.HashData(bytes);
+            var sb = new StringBuilder(64);
+            foreach (byte b in hash) sb.Append(b.ToString("x2"));
+            return sb.ToString();
         }
 
         /// <summary>
@@ -370,6 +528,12 @@ namespace osu.Game.Performance
         {
             try
             {
+                uploadTimerDelegate?.Cancel();
+                // Drop the upload queue on dispose — local JSONL still
+                // has every record so nothing is truly lost; a fresh
+                // upload session starts on next launch.
+                while (uploadQueue.TryDequeue(out _)) { }
+
                 drainCts?.Cancel();
                 writeChannel.Writer.TryComplete();
                 writer?.Flush();

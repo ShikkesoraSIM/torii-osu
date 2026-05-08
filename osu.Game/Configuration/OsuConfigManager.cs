@@ -282,6 +282,22 @@ namespace osu.Game.Configuration
             // reports flip it ON, play, send the JSONL.
             SetDefault(OsuSetting.ToriiHiccupLoggerEnabled, false);
 
+            // Sub-toggle, gated by ToriiHiccupLoggerEnabled. When ON, the
+            // logger additionally batches captures and POSTs them to
+            // POST /api/v2/torii/hiccup-reports every 30 s so devs can see
+            // them on the admin dashboard. Default OFF — opt-in even if the
+            // local logger is on, so users can capture privately without
+            // sharing. Logger.cs reads this bindable on each batch flush.
+            SetDefault(OsuSetting.ToriiHiccupShareEnabled, false);
+
+            // Stable per-install identifier for hiccup uploads. Empty by
+            // default; generated lazily on first upload as a SHA-256 of a
+            // randomly-generated GUID. Once generated, it persists in osu.cfg
+            // so the dashboard can correlate reports across game sessions
+            // from the same install (without leaking machine identity — the
+            // GUID is fresh, not derived from MAC / disk serial / etc.).
+            SetDefault(OsuSetting.ToriiHiccupDeviceHash, string.Empty);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -708,6 +724,22 @@ namespace osu.Game.Configuration
         /// See <see cref="osu.Game.Performance.ToriiHiccupLogger"/>.
         /// </summary>
         ToriiHiccupLoggerEnabled,
+
+        /// <summary>
+        /// Torii: opt-in to upload captured hiccup records to the Torii
+        /// admin dashboard at <c>/api/v2/torii/hiccup-reports</c>. Sub-toggle
+        /// gated by <see cref="ToriiHiccupLoggerEnabled"/>. When OFF (default)
+        /// captures stay local-only.
+        /// </summary>
+        ToriiHiccupShareEnabled,
+
+        /// <summary>
+        /// Torii: stable per-install device identifier for hiccup uploads
+        /// (SHA-256 of a randomly-generated GUID, lazy-populated on first
+        /// upload). Lets the admin dashboard group reports from the same
+        /// install across user logouts without leaking machine identity.
+        /// </summary>
+        ToriiHiccupDeviceHash,
 
         CycleSkinsThroughFavoritesOnly,
     }
