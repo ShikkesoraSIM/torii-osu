@@ -110,6 +110,73 @@ namespace osu.Game.Tests.Online
             Assert.That(converted?.OverallDifficulty.Value, Is.EqualTo(11));
         }
 
+        /// <summary>
+        /// Regression test for the silent-clamp bug: a replay submitted with
+        /// <c>{pitch_shift: 3.0, extended_limits: true}</c> would round-trip
+        /// back through <see cref="APIMod.ToMod"/> with PitchShift clamped to
+        /// 2.0 because the bindable was set BEFORE ExtendedLimits had a chance
+        /// to widen its bounds. The fix in <see cref="ModPitchAdjust.CopyAdjustedSetting"/>
+        /// pre-flips ExtendedLimits when an out-of-safe-range value is incoming.
+        /// </summary>
+        [Test]
+        public void TestDeserialisePitchAdjustModWithExtendedLimits()
+        {
+            var original = new ModPitchAdjust
+            {
+                ExtendedLimits = { Value = true },
+                PitchShift = { Value = 3.0 },
+            };
+
+            var apiMod = new APIMod(original);
+            var deserialised = JsonConvert.DeserializeObject<APIMod>(JsonConvert.SerializeObject(apiMod));
+            var converted = (ModPitchAdjust)deserialised?.ToMod(new OsuRuleset());
+
+            Assert.That(converted?.ExtendedLimits.Value, Is.True);
+            Assert.That(converted?.PitchShift.Value, Is.EqualTo(3.0));
+        }
+
+        /// <summary>
+        /// Same as above but for the pitch-down extreme. Belt and suspenders.
+        /// </summary>
+        [Test]
+        public void TestDeserialisePitchAdjustModWithExtendedLowerLimit()
+        {
+            var original = new ModPitchAdjust
+            {
+                ExtendedLimits = { Value = true },
+                PitchShift = { Value = 0.2 },
+            };
+
+            var apiMod = new APIMod(original);
+            var deserialised = JsonConvert.DeserializeObject<APIMod>(JsonConvert.SerializeObject(apiMod));
+            var converted = (ModPitchAdjust)deserialised?.ToMod(new OsuRuleset());
+
+            Assert.That(converted?.ExtendedLimits.Value, Is.True);
+            Assert.That(converted?.PitchShift.Value, Is.EqualTo(0.2));
+        }
+
+        /// <summary>
+        /// Negative case: a safe-range value should NOT trip the
+        /// CopyAdjustedSetting override into flipping ExtendedLimits, so a
+        /// player submitting <c>{pitch_shift: 1.5}</c> deserialises with
+        /// ExtendedLimits still false (its declared default).
+        /// </summary>
+        [Test]
+        public void TestDeserialisePitchAdjustModSafeRangeKeepsExtendedLimitsDefault()
+        {
+            var original = new ModPitchAdjust
+            {
+                PitchShift = { Value = 1.5 },
+            };
+
+            var apiMod = new APIMod(original);
+            var deserialised = JsonConvert.DeserializeObject<APIMod>(JsonConvert.SerializeObject(apiMod));
+            var converted = (ModPitchAdjust)deserialised?.ToMod(new OsuRuleset());
+
+            Assert.That(converted?.ExtendedLimits.Value, Is.False);
+            Assert.That(converted?.PitchShift.Value, Is.EqualTo(1.5));
+        }
+
         [Test]
         public void TestDeserialiseSoloScoreWithEmptyMods()
         {

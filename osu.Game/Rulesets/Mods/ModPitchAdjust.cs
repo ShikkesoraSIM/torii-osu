@@ -2,13 +2,16 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Globalization;
 using osu.Framework.Audio;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
+using osu.Game.Online.API;
 using osu.Game.Overlays.Settings;
+using osu.Game.Utils;
 
 namespace osu.Game.Rulesets.Mods
 {
@@ -151,6 +154,69 @@ namespace osu.Game.Rulesets.Mods
         {
             track.AddAdjustment(AdjustableProperty.Frequency, freqAdjust);
             track.AddAdjustment(AdjustableProperty.Tempo, tempoAdjust);
+        }
+
+        /// <summary>
+        /// Override the per-setting copy hook so the deserialisation order doesn't
+        /// silently clamp extended-range pitch values back into the safe band.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <see cref="APIMod.ToMod"/> iterates settings in property-declaration
+        /// order. <see cref="PitchShift"/> is declared above <see cref="ExtendedLimits"/>,
+        /// so when a replay carries <c>{pitch_shift: 3.0, extended_limits: true}</c>
+        /// the framework sets PitchShift first — and because the bindable still
+        /// has its default <c>MaxValue</c> of 2.0 at that point, BindableDouble
+        /// auto-clamps the incoming 3.0 down to 2.0. Then ExtendedLimits widens
+        /// the range, but the value's already been corrupted: the leaderboard
+        /// shows 2× and the replay plays at 2× even though the player heard 3×
+        /// at submission time.
+        /// </para>
+        /// <para>
+        /// Fix: when an out-of-safe-range value is being copied into PitchShift,
+        /// pre-flip ExtendedLimits BEFORE delegating to the base. That widens
+        /// the bindable's bounds first so the subsequent assignment doesn't clamp.
+        /// Mirrors the explicit guard <see cref="DifficultyBindable.Value"/>
+        /// applies for the Difficulty Adjust mod, which solved the same class
+        /// of bug in upstream lazer.
+        /// </para>
+        /// </remarks>
+        internal override void CopyAdjustedSetting(IBindable target, object source)
+        {
+            if (ReferenceEquals(target, PitchShift))
+            {
+                double? incoming = tryExtractDoubleValue(source);
+                if (incoming.HasValue && (incoming.Value > safe_max || incoming.Value < safe_min))
+                    ExtendedLimits.Value = true;
+            }
+
+            base.CopyAdjustedSetting(target, source);
+        }
+
+        /// <summary>
+        /// Best-effort coercion of a CopyAdjustedSetting source (which can be a
+        /// raw boxed numeric, a string from JSON parsing, or another IBindable
+        /// when the framework is binding two settings together) into a double we
+        /// can compare against the safe / extended thresholds.
+        /// </summary>
+        private static double? tryExtractDoubleValue(object source)
+        {
+            if (source is IBindable b)
+            {
+                object? underlying = BindableValueAccessor.GetValue(b);
+                source = underlying ?? source;
+            }
+
+            return source switch
+            {
+                double d => d,
+                float f => f,
+                int i => i,
+                long l => l,
+                decimal m => (double)m,
+                string s when double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsed) => parsed,
+                _ => null,
+            };
         }
     }
 }
