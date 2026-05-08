@@ -9,6 +9,27 @@ opened on top.
 
 ## Latest — May 8, 2026
 
+### Android — one-time reinstall required
+
+The Android APK pipeline now signs every build with a permanent
+keystore stored in GitHub Secrets, replacing the throw-away keystore
+that was regenerated on each CI run. Concretely: this fixes the
+"App not installed" / "package conflicts with existing one" errors
+that forced you to uninstall the previous Torii build before
+installing every update.
+
+To make the switch, **this update requires uninstalling your
+existing Torii build first, then installing the new APK**. From this
+release onward, every Android update installs in place automatically
+— no more uninstall dance.
+
+iOS / desktop builds are unaffected; this is purely an Android
+signing-identity change.
+
+---
+
+## v2026.507.9-lazer — May 7, 2026
+
 ### New
 
 - **Pitch Adjust mod (PA).** New Fun mod that shifts the song's pitch
