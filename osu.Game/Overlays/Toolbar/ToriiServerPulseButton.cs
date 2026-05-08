@@ -341,11 +341,18 @@ namespace osu.Game.Overlays.Toolbar
             {
                 Logger.Log("[ToriiServerPulse] togglePopover start", LoggingTarget.Runtime, LogLevel.Verbose);
 
-                // Popover is pre-loaded async in LoadComplete. If the user
-                // clicks within the brief window before that finishes,
-                // we silently no-op — the next click (typically <100ms
-                // later) will succeed once async-load settles.
-                if (popover == null || popover.LoadState != LoadState.Ready)
+                // Popover is pre-loaded async in LoadComplete. The state
+                // progression is:
+                //   NotLoaded → Loading → Ready (BDL done)
+                //                       → Loaded (after AddInternal + LoadComplete)
+                // The async callback in LoadComplete calls AddInternal, so
+                // by the time this click fires the popover is in `Loaded`,
+                // not `Ready`. Use the IsLoaded helper (== LoadState.Loaded)
+                // — the previous "!= Ready" check returned true for both
+                // "still loading" AND "fully loaded", which silently
+                // dropped every click. That was the regression that broke
+                // the toolbar pill in v2026.508.10.
+                if (popover == null || !popover.IsLoaded)
                 {
                     Logger.Log("[ToriiServerPulse] popover not ready yet, ignoring click", LoggingTarget.Runtime, LogLevel.Verbose);
                     return;
