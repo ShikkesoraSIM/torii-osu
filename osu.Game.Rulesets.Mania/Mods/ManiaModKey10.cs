@@ -14,5 +14,6 @@ namespace osu.Game.Rulesets.Mania.Mods
         public override string Acronym => "10K";
         public override IconUsage? Icon => OsuIcon.ModTenKeys;
         public override LocalisableString Description => @"Play with ten keys.";
+        public override bool Ranked => false;
     }
 }

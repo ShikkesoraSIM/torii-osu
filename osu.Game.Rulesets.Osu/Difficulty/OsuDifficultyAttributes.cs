@@ -94,11 +94,6 @@ namespace osu.Game.Rulesets.Osu.Difficulty
         public double MaximumLegacyComboScore { get; set; }
 
         /// <summary>
-        /// The beatmap's drain rate. This doesn't scale with rate-adjusting mods.
-        /// </summary>
-        public double DrainRate { get; set; }
-
-        /// <summary>
         /// The number of hitcircles in the beatmap.
         /// </summary>
         public int HitCircleCount { get; set; }
@@ -120,6 +115,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
             yield return (ATTRIB_ID_AIM, AimDifficulty);
             yield return (ATTRIB_ID_SPEED, SpeedDifficulty);
+            yield return (ATTRIB_ID_READING, ReadingDifficulty);
             yield return (ATTRIB_ID_DIFFICULTY, StarRating);
 
             if (ShouldSerializeFlashlightDifficulty())
@@ -136,6 +132,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             yield return (ATTRIB_ID_NESTED_SCORE_PER_OBJECT, NestedScorePerObject);
             yield return (ATTRIB_ID_LEGACY_SCORE_BASE_MULTIPLIER, LegacyScoreBaseMultiplier);
             yield return (ATTRIB_ID_MAXIMUM_LEGACY_COMBO_SCORE, MaximumLegacyComboScore);
+            yield return (ATTRIB_ID_READING_DIFFICULT_NOTE_COUNT, ReadingDifficultNoteCount);
         }
 
         public override void FromDatabaseAttributes(IReadOnlyDictionary<int, double> values, IBeatmapOnlineInfo onlineInfo)
@@ -144,6 +141,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
             AimDifficulty = values[ATTRIB_ID_AIM];
             SpeedDifficulty = values[ATTRIB_ID_SPEED];
+            ReadingDifficulty = values[ATTRIB_ID_READING];
             StarRating = values[ATTRIB_ID_DIFFICULTY];
             FlashlightDifficulty = values.GetValueOrDefault(ATTRIB_ID_FLASHLIGHT);
             SliderFactor = values[ATTRIB_ID_SLIDER_FACTOR];
@@ -156,7 +154,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             NestedScorePerObject = values[ATTRIB_ID_NESTED_SCORE_PER_OBJECT];
             LegacyScoreBaseMultiplier = values[ATTRIB_ID_LEGACY_SCORE_BASE_MULTIPLIER];
             MaximumLegacyComboScore = values[ATTRIB_ID_MAXIMUM_LEGACY_COMBO_SCORE];
-            DrainRate = onlineInfo.DrainRate;
+            ReadingDifficultNoteCount = values[ATTRIB_ID_READING_DIFFICULT_NOTE_COUNT];
             HitCircleCount = onlineInfo.CircleCount;
             SliderCount = onlineInfo.SliderCount;
             SpinnerCount = onlineInfo.SpinnerCount;

@@ -1,16 +1,13 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using osu.Framework.Extensions;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
-using osu.Game.Rulesets.Difficulty.Skills;
 using osu.Game.Rulesets.Difficulty.Utils;
 using osu.Game.Rulesets.Mods;
 
-namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
+namespace osu.Game.Rulesets.Difficulty.Skills
 {
     public abstract class HarmonicSkill : Skill
     {
@@ -19,11 +16,6 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         /// Required for any calculations which need to normalise difficulty value.
         /// </summary>
         protected double NoteWeightSum;
-
-        /// <summary>
-        /// List of calculated per-object difficulties.
-        /// </summary>
-        protected readonly List<double> ObjectDifficulties = new List<double>();
 
         /// <summary>
         /// Scaling factor applied as HarmonicScale / (1 + index) during weight calculations.
@@ -43,14 +35,12 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         }
 
         /// <summary>
-        /// Returns the difficulty value of the current <see cref="DifficultyHitObject"/>.
+        /// Returns the difficulty value of the current <see cref="DifficultyHitObject"/>. This value is calculated with or without respect to previous objects.
         /// </summary>
         protected abstract double ObjectDifficultyOf(DifficultyHitObject current);
 
-        public sealed override void Process(DifficultyHitObject current)
-        {
-            ObjectDifficulties.Add(ObjectDifficultyOf(current));
-        }
+        protected sealed override double ProcessInternal(DifficultyHitObject current)
+            => ObjectDifficultyOf(current);
 
         /// <summary>
         /// Transforms the object difficulties specifically for final difficulty summation.
@@ -62,12 +52,11 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
 
         public override double DifficultyValue()
         {
-            NoteWeightSum = 0;
-
             if (ObjectDifficulties.Count == 0)
                 return 0;
 
-            // Notes with 0 difficulty are excluded to avoid worst-case time complexity of the following sort.
+            // Notes with 0 difficulty are excluded to avoid worst-case time complexity of the following sort (e.g. /b/2351871).
+            // These notes will not contribute to the difficulty.
             double[] difficulties = ObjectDifficulties.Where(p => p > 0).ToArray();
 
             if (difficulties.Length == 0)
@@ -114,4 +103,3 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         public static double DifficultyToPerformance(double difficulty) => 4.0 * Math.Pow(difficulty, 3.0);
     }
 }
-

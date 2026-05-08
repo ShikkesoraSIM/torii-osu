@@ -5,7 +5,6 @@ using System;
 using System.Linq;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
-using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Objects;
@@ -16,14 +15,10 @@ using osu.Game.Rulesets.Osu.Scoring;
 using osu.Game.Rulesets.Osu.UI;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
-using osu.Game.Screens.Play;
-using osu.Game.Screens.Play.HUD.HitErrorMeters;
-using osu.Framework.Graphics.Containers;
-using System.Collections.Generic;
 
 namespace osu.Game.Rulesets.Osu.Mods
 {
-    public class OsuModClassic : ModClassic, IApplicableToHitObject, IApplicableToDrawableHitObject, IApplicableToDrawableRuleset<OsuHitObject>, IApplicableHealthProcessor, IApplicableToHUD
+    public class OsuModClassic : ModClassic, IApplicableToHitObject, IApplicableToDrawableHitObject, IApplicableToDrawableRuleset<OsuHitObject>, IApplicableHealthProcessor
     {
         public override Type[] IncompatibleMods => base.IncompatibleMods.Append(typeof(OsuModStrictTracking)).ToArray();
 
@@ -46,29 +41,6 @@ namespace osu.Game.Rulesets.Osu.Mods
 
         public void ApplyToHitObject(HitObject hitObject)
         {
-            // Replace hit windows with legacy stable hit windows for osu! hit objects
-            if (hitObject is OsuHitObject)
-            {
-                // If hit windows are already set (from ApplyDefaults), extract the OD and apply it
-                // Otherwise, SetDifficulty will be called later in ApplyDefaults
-                var legacyHitWindows = new LegacyOsuHitWindows();
-
-                if (hitObject.HitWindows != null && hitObject.HitWindows is OsuHitWindows existing)
-                {
-                    // Extract OD from existing hit windows by reverse-engineering the difficulty range
-                    // We can estimate OD from the meh window: meh = 200 - (OD * 10) in stable
-                    // But in Lazer: meh = DifficultyRange(OD, 200, 150, 100)
-                    // For a rough estimate, we'll use the meh window to calculate what OD would produce it in stable
-                    double meh = existing.WindowFor(HitResult.Meh);
-                    // Reverse Lazer formula to get approximate OD, then use that for stable
-                    // This is approximate but should be close enough
-                    double estimatedOD = IBeatmapDifficultyInfo.InverseDifficultyRange(meh, 200, 150, 100);
-                    legacyHitWindows.SetDifficulty(estimatedOD);
-                }
-
-                hitObject.HitWindows = legacyHitWindows;
-            }
-
             switch (hitObject)
             {
                 case Slider slider:
@@ -88,32 +60,6 @@ namespace osu.Game.Rulesets.Osu.Mods
             }
 
             usingHiddenFading = drawableRuleset.Mods.OfType<OsuModHidden>().SingleOrDefault()?.OnlyFadeApproachCircles.Value == false;
-        }
-
-        public void ApplyToHUD(HUDOverlay overlay)
-        {
-            foreach (var meter in findDescendants<BarHitErrorMeter>(overlay))
-            {
-                meter.CentreMarkerStyle.Value = BarHitErrorMeter.CentreMarkerStyles.Line;
-                meter.ColourBarVisibility.Value = true;
-            }
-        }
-
-        private static IEnumerable<T> findDescendants<T>(Container root)
-        {
-            var stack = new Stack<Drawable>(root.Children);
-            while (stack.Count > 0)
-            {
-                var d = stack.Pop();
-                if (d is T t)
-                    yield return t;
-
-                if (d is Container c)
-                {
-                    foreach (var child in c.Children)
-                        stack.Push(child);
-                }
-            }
         }
 
         public void ApplyToDrawableHitObject(DrawableHitObject obj)

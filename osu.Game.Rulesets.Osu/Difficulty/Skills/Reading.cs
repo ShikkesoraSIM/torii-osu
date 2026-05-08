@@ -1,4 +1,4 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -6,13 +6,13 @@ using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Utils;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
-using osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills;
+using osu.Game.Rulesets.Difficulty.Skills;
 using osu.Game.Rulesets.Difficulty.Utils;
 using osu.Game.Rulesets.Mods;
-using osu.Game.Rulesets.Osu.Difficulty.PpDev.Evaluators;
+using osu.Game.Rulesets.Osu.Difficulty.Evaluators;
 using osu.Game.Rulesets.Osu.Mods;
 
-namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
+namespace osu.Game.Rulesets.Osu.Difficulty.Skills
 {
     public class Reading : HarmonicSkill
     {
@@ -26,7 +26,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
             hasHiddenMod = mods.OfType<OsuModHidden>().Any(m => !m.OnlyFadeApproachCircles.Value);
         }
 
-        private double currentDifficulty;
+        private double currentStrain;
 
         private double skillMultiplier => 2.5;
         private double strainDecayBase => 0.8;
@@ -37,11 +37,34 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         {
             objectList.Add(current);
 
-            currentDifficulty *= strainDecay(current.DeltaTime);
+            double decay = strainDecay(current.DeltaTime);
 
-            currentDifficulty += ReadingEvaluator.EvaluateDifficultyOf(current, hasHiddenMod) * skillMultiplier;
+            currentStrain *= decay;
+            currentStrain += calculateModAdjustedDifficulty(current) * (1 - decay) * skillMultiplier;
 
-            return currentDifficulty;
+            return currentStrain;
+        }
+
+        private double calculateModAdjustedDifficulty(DifficultyHitObject current)
+        {
+            double difficulty = ReadingEvaluator.EvaluateDifficultyOf(current, hasHiddenMod);
+
+            if (Mods.Any(m => m is OsuModTouchDevice))
+                difficulty = Math.Pow(difficulty, 0.89);
+
+            if (Mods.Any(m => m is OsuModMagnetised))
+            {
+                float magnetisedStrength = Mods.OfType<OsuModMagnetised>().First().AttractionStrength.Value;
+                difficulty *= 1.0 - magnetisedStrength;
+            }
+
+            if (Mods.Any(m => m is OsuModRelax))
+                difficulty *= 0.4;
+
+            if (Mods.Any(m => m is OsuModAutopilot))
+                difficulty *= 0.1;
+
+            return difficulty;
         }
 
         protected override void ApplyDifficultyTransformation(double[] difficulties)
@@ -96,5 +119,3 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         }
     }
 }
-
-

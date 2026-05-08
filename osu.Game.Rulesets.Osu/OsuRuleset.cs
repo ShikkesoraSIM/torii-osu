@@ -25,7 +25,6 @@ using osu.Game.Rulesets.Objects.Legacy;
 using osu.Game.Rulesets.Osu.Beatmaps;
 using osu.Game.Rulesets.Osu.Configuration;
 using osu.Game.Rulesets.Osu.Difficulty;
-using osu.Game.Rulesets.Osu.Difficulty.PpDev;
 using osu.Game.Rulesets.Osu.Edit;
 using osu.Game.Rulesets.Osu.Edit.Setup;
 using osu.Game.Rulesets.Osu.Mods;
@@ -220,8 +219,7 @@ namespace osu.Game.Rulesets.Osu
                         new OsuModBubbles(),
                         new OsuModSynesthesia(),
                         new OsuModDepth(),
-                        new OsuModBloom(),
-                        new ModPitchAdjust()
+                        new OsuModBloom()
                     };
 
                 case ModType.System:
@@ -238,12 +236,9 @@ namespace osu.Game.Rulesets.Osu
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.RulesetOsu };
 
-        // pp-dev is now the primary PP system — these always use the pp-dev calculators.
-        public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap)
-            => new PpDevOsuDifficultyCalculator(RulesetInfo, beatmap);
+        public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap) => new OsuDifficultyCalculator(RulesetInfo, beatmap);
 
-        public override PerformanceCalculator CreatePerformanceCalculator()
-            => new PpDevOsuPerformanceCalculator();
+        public override PerformanceCalculator CreatePerformanceCalculator() => new OsuPerformanceCalculator();
 
         public override HitObjectComposer CreateHitObjectComposer() => new OsuHitObjectComposer(this);
 

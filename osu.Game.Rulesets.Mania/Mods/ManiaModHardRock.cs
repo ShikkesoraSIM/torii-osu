@@ -11,6 +11,7 @@ namespace osu.Game.Rulesets.Mania.Mods
     public class ManiaModHardRock : ModHardRock, IApplicableToHitObject
     {
         public override double ScoreMultiplier => 1;
+        public override bool Ranked => false;
 
         public const double HIT_WINDOW_DIFFICULTY_MULTIPLIER = 1.4;
 

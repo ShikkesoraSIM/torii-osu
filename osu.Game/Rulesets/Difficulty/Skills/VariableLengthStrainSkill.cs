@@ -6,10 +6,9 @@ using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Extensions;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
-using osu.Game.Rulesets.Difficulty.Skills;
 using osu.Game.Rulesets.Mods;
 
-namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
+namespace osu.Game.Rulesets.Difficulty.Skills
 {
     /// <summary>
     /// Similar to <see cref="StrainSkill"/>, but instead of strains having a fixed length, strains can be any length.
@@ -27,14 +26,15 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         /// </summary>
         protected virtual int MaxSectionLength => 400;
 
-        protected readonly List<double> ObjectDifficulties = new List<double>();
-
         private double currentSectionPeak; // We also keep track of the peak strain in the current section.
         private double currentSectionBegin;
         private double currentSectionEnd;
 
         /// <summary>
         /// The number of `MaxSectionLength` sections calculated such that enough of the difficulty value is preserved.
+        /// WARNING: This should be overridden if strains are ever used outside of <see cref="DifficultyValue"/>,
+        /// or if <see cref="DifficultyValue"/> is overridden to not use the default geometric sum. This should be removed
+        /// in the future when a better memory-saving technique is implemented.
         /// </summary>
         private double maxStoredSections => 11 / (1 - DecayWeight);
 
@@ -54,11 +54,14 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         }
 
         /// <summary>
-        /// Returns the strain value at <see cref="DifficultyHitObject"/>.
+        /// Returns the strain value at <see cref="DifficultyHitObject"/>. This value is calculated with or without respect to previous objects.
         /// </summary>
         protected abstract double StrainValueAt(DifficultyHitObject current);
 
-        public sealed override void Process(DifficultyHitObject current)
+        /// <summary>
+        /// Process a <see cref="DifficultyHitObject"/> and update current strain values accordingly.
+        /// </summary>
+        protected sealed override double ProcessInternal(DifficultyHitObject current)
         {
             // If we're on the first object, set up the first section to end `MaxSectionLength` after it.
             if (current.Index == 0)
@@ -68,8 +71,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
 
                 // No work is required for first object after calculating difficulty
                 currentSectionPeak = StrainValueAt(current);
-                ObjectDifficulties.Add(currentSectionPeak);
-                return;
+                return currentSectionPeak;
             }
 
             backfillPeaks(current);
@@ -100,7 +102,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
                 queuedStrains.Add((currentStrain, current.StartTime));
             }
 
-            ObjectDifficulties.Add(currentStrain);
+            return currentStrain;
         }
 
         /// <summary>
@@ -126,13 +128,18 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
                     queuedStrains.RemoveAt(0);
 
                     // We want the section to end `MaxSectionLength` after the strain we're using as an influence.
+                    // This effectively means the queued strain will exist in its own section if the gap between the queued strain and current object is large enough.
+                    // This is required to make sure there's no harsh difficulty difference between 2 sections if there was a large gap.
                     currentSectionEnd = startTime + MaxSectionLength;
                     startNewSectionFrom(currentSectionBegin, current);
 
                     // If the current object's peak was higher, we don't want to override it with a lower strain.
+                    // Only use the queued strain if it contributes more difficulty.
                     currentSectionPeak = Math.Max(currentSectionPeak, strain);
                 }
                 // If the queue is empty then we should start the section from the current object instead.
+                // The queue can be empty if we're starting off of the back of a new peak, or if we drained through all the queue
+                // and the current object is still later than the section end.
                 else
                 {
                     // We don't have any prior strains to take as a reference, so end the new section `MaxSectionLength` after it starts.
@@ -151,6 +158,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
             totalLength += sectionLength;
 
             // Remove from the back of our strain peaks if there's any which are too deep to contribute to difficulty.
+            // `maxStoredSections` dictates for us how many sections will preserve at least 99.999% of the difficulty value.
             while (totalLength > maxStoredSections * MaxSectionLength)
             {
                 totalLength -= strainPeaks[0].SectionLength;
@@ -165,7 +173,8 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         /// <param name="current">The current hit object.</param>
         private void startNewSectionFrom(double time, DifficultyHitObject current)
         {
-            // The maximum strain of the new section is not zero by default.
+            // The maximum strain of the new section is not zero by default
+            // This means we need to capture the strain level at the beginning of the new section, and use that as the initial peak level.
             currentSectionPeak = CalculateInitialStrain(time, current);
         }
 
@@ -190,7 +199,8 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         {
             double difficulty = 0;
 
-            // Sections with 0 strain are excluded to avoid worst-case time complexity.
+            // Sections with 0 strain are excluded to avoid worst-case time complexity of the following sort (e.g. /b/2351871).
+            // These sections will not contribute to the difficulty.
             var peaks = GetCurrentStrainPeaks().Where(p => p.Value > 0);
 
             List<StrainPeak> strains = peaks.OrderByDescending(p => (p.Value, p.SectionLength)).ToList();
@@ -201,6 +211,22 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
             // Difficulty is a continuous weighted sum of the sorted strains
             for (int i = 0; i < strains.Count; i++)
             {
+                /* Weighting function can be thought of as:
+                        b
+                        ∫ DecayWeight^x dx
+                        a
+                    where a = startTime and b = endTime
+
+                    Technically, the function below has been slightly modified from the equation above.
+                    The real function would be
+                        double weight = Math.Pow(DecayWeight, startTime) - Math.Pow(DecayWeight, endTime))
+                        ...
+                        return difficulty / Math.Log(1 / DecayWeight)
+                    E.g. for a DecayWeight of 0.9, we're multiplying by 10 instead of 9.49122...
+
+                    This change makes it so that a map composed solely of MaxSectionLength chunks will have the exact same value when summed in this class and StrainSkill.
+                    Doing this ensures the relationship between strain values and difficulty values remains the same between the two classes.
+                */
                 double startTime = time;
                 double endTime = time + strains[i].SectionLength;
 
@@ -215,6 +241,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
 
         /// <summary>
         /// Calculates the number of strains weighted against the top strain.
+        /// The result is scaled by clock rate as it affects the total number of strains.
         /// </summary>
         public virtual double CountTopWeightedStrains(double difficultyValue)
         {
@@ -248,4 +275,3 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Skills
         }
     }
 }
-

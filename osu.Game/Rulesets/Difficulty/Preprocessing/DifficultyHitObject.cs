@@ -88,8 +88,8 @@ namespace osu.Game.Rulesets.Difficulty.Preprocessing
         /// </summary>
         public virtual double HitWindow(HitResult hitResult)
         {
-            // Try to get hit windows from nested hit objects.
-            // This matters for objects like sliders where the parent can expose empty windows.
+            // Try to get HitWindows from nested hit objects
+            // This is important for objects such as Slider in osu! where the object itself has HitWindows set to Empty, but the nested SliderHead has proper hit windows
             if (BaseObject.HitWindows == HitWindows.Empty)
             {
                 foreach (var nestedHitObject in BaseObject.NestedHitObjects)

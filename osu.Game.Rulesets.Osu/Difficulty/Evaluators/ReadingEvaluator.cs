@@ -1,4 +1,4 @@
-﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -6,10 +6,10 @@ using System.Collections.Generic;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Difficulty.Utils;
-using osu.Game.Rulesets.Osu.Difficulty.PpDev.Preprocessing;
+using osu.Game.Rulesets.Osu.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Osu.Objects;
 
-namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Evaluators
+namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
 {
     public static class ReadingEvaluator
     {
@@ -46,9 +46,12 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Evaluators
 
             double preemptDifficulty = calculatePreemptDifficulty(velocity, constantAngleNerfFactor, currObj.Preempt);
 
-            double difficulty = DifficultyCalculationUtils.Norm(1.5, preemptDifficulty, hiddenDifficulty, noteDensityDifficulty);
+            double readingDifficulty = DifficultyCalculationUtils.Norm(1.5, preemptDifficulty, hiddenDifficulty, noteDensityDifficulty);
 
-            return difficulty;
+            // Having less time to process information is harder
+            readingDifficulty *= highBpmBonus(currObj.AdjustedDeltaTime);
+
+            return readingDifficulty;
         }
 
         /// <summary>
@@ -263,7 +266,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.PpDev.Evaluators
         {
             return Math.Clamp(2 - deltaTime / (reading_window_size / 2), 0, 1);
         }
+
+        private static double highBpmBonus(double ms) => 1 / (1 - Math.Pow(0.8, ms / 1000));
     }
 }
-
-
