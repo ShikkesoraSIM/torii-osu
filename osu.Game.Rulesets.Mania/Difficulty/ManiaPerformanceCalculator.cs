@@ -43,23 +43,31 @@ namespace osu.Game.Rulesets.Mania.Difficulty
             if (score.Mods.Any(m => m is ModNoFail))
                 multiplier *= 0.75;
             if (score.Mods.Any(m => m is ModEasy))
-                multiplier *= 0.5;
+                multiplier *= 0.90;
 
             double difficultyValue = computeDifficultyValue(maniaAttributes);
-            double totalValue = difficultyValue * multiplier;
+            double varietyMultiplier = this.varietyMultiplier(maniaAttributes.Variety);
+            double accMultiplier = this.accMultiplier(scoreAccuracy, maniaAttributes.AccScalar);
+            double lengthMultiplier = this.lengthMultiplier(maniaAttributes.TotalNotes, attributes.StarRating);
+            double totalValue = difficultyValue * multiplier * varietyMultiplier * accMultiplier * lengthMultiplier;
 
             return new ManiaPerformanceAttributes
             {
                 Difficulty = difficultyValue,
+                VarietyMultiplier = varietyMultiplier,
+                AccMultiplier = accMultiplier,
+                LengthMultiplier = lengthMultiplier,
                 Total = totalValue
             };
         }
 
         private double computeDifficultyValue(ManiaDifficultyAttributes attributes)
         {
-            double difficultyValue = 8.0 * Math.Pow(Math.Max(attributes.StarRating - 0.15, 0.05), 2.2) // Star rating to pp curve
-                                         * Math.Max(0, 5 * scoreAccuracy - 4) // From 80% accuracy, 1/20th of total pp is awarded per additional 1% accuracy
-                                         * (1 + 0.1 * Math.Min(1, totalHits / 1500)); // Length bonus, capped at 1500 notes
+            // The "proportion" of pp based on accuracy
+            double proportion = calculatePerformanceProportion(scoreAccuracy);
+
+            double difficultyValue = 9.8 * Math.Pow(Math.Max(attributes.StarRating - 0.15, 0.05), 2.2) // Star rating to pp curve
+                                     * proportion; // scaled by the proportion
 
             return difficultyValue;
         }
@@ -74,7 +82,39 @@ namespace osu.Game.Rulesets.Mania.Difficulty
             if (totalHits == 0)
                 return 0;
 
-            return (countPerfect * 320 + countGreat * 300 + countGood * 200 + countOk * 100 + countMeh * 50) / (totalHits * 320);
+            return (countPerfect * 305 + countGreat * 300 + countGood * 200 + countOk * 100 + countMeh * 50) / (totalHits * 305);
+        }
+
+        private double calculatePerformanceProportion(double acc)
+        {
+
+            if (acc > 0.80)
+                return 4.5 * (acc-0.8) / Math.Pow(100*(1-acc)+Math.Pow(0.9, 20), 0.05);
+
+            return 0;
+        }
+
+        private double varietyMultiplier(double variety)
+        {
+            double floor = 0.945;
+            double cap = 1.055;
+            double L = cap - floor;
+            double v0 = 3.25;
+            double k = 3;
+
+            double sigmoidVariety = floor + L / (1 + Math.Exp(-k * (variety - v0)));
+            return sigmoidVariety;
+        }
+
+        private double accMultiplier(double acc, double acc_scalar)
+        {
+            double sigmoid_scaler = 0.87 + 0.26 / (1.0 + Math.Exp(-20 * (acc_scalar - 1)));
+            return sigmoid_scaler * (2 * Math.Pow(acc, 20) - 1) + 2 - 2 * Math.Pow(acc, 20);
+        }
+
+        private double lengthMultiplier(double totalNotes, double starRating)
+        {
+            return 1.1 / (1.0 + Math.Sqrt(starRating / (2 * totalNotes)));
         }
     }
 }
