@@ -830,34 +830,68 @@ namespace osu.Game.Overlays.ToriiBriefing
             };
         }
 
-        public void ShowPpDevPromotionBriefing()
+        /// <summary>
+        /// Show the most recent briefing that has non-empty score changes — the
+        /// "Replay last recalc" button surface in Torii Settings.
+        ///
+        /// History
+        /// -------
+        /// Originally this was <c>ShowPpDevPromotionBriefing</c>: a one-shot
+        /// stable → pp-dev migration view. Once pp-dev became the only PP
+        /// system, the <c>:stable</c> snapshots stopped being captured and the
+        /// view went stale (no rows to compare against). Repurposed to surface
+        /// "the last time my top plays got mass-rebalanced" — the typical
+        /// trigger now is a server-side recalc (e.g. after a pp-dev bump).
+        ///
+        /// Resolution order
+        /// ----------------
+        /// 1. Last stored briefing payload, IF it has score changes.
+        /// 2. A briefing reconstructed from local snapshot history, IF it
+        ///    produces score changes — this is what the user sees right after
+        ///    a server recalc on first open, because the local <c>:pp_dev</c>
+        ///    snapshot is still pre-recalc.
+        /// 3. Last stored briefing payload regardless — better to show the
+        ///    most recent briefing than nothing.
+        /// 4. Snapshot reconstruction with empty changes — last resort.
+        ///
+        /// (1) wins when the user already opened a fresh briefing post-recalc;
+        /// (2) wins on first open after a recalc before any explicit Generate
+        /// click. Either path lands on the same <see cref="BriefingRecalcCard"/>
+        /// rendering with TOP GAINS / TOP LOSSES sections.
+        /// </summary>
+        public void ShowLastRecalcBriefing()
         {
-            if (localUser.Value?.Id <= 1)
-                return;
+            // Prefer a stored briefing that actually has score changes — that's
+            // the one most likely to represent a real recalc event.
+            var stored = loadLastBriefing();
+            BriefingPayload payload = null;
 
-            var user = localUser.Value;
-            var ruleset = getCurrentRuleset(user);
-            var state = loadSnapshotState();
-
-            string stableSnapshotKey = $"{user.Id}:{ruleset.ShortName}:stable";
-            string ppDevSnapshotKey = $"{user.Id}:{ruleset.ShortName}:pp_dev";
-
-            if (!state.Users.TryGetValue(stableSnapshotKey, out var stableSnapshot) || !state.Users.TryGetValue(ppDevSnapshotKey, out var ppDevSnapshot))
-                return;
-
-            var payload = new BriefingPayload
+            if (stored != null)
             {
-                User = user,
-                Ruleset = ruleset,
-                Variant = "pp_dev",
-                Current = ppDevSnapshot,
-                Previous = stableSnapshot,
-                ScoreChanges = getScoreChanges(stableSnapshot, ppDevSnapshot),
-                UnreadMessages = new List<BriefingMessage>(),
-                RadarEvents = new List<BriefingRadarEvent>(),
-                RadarFirstSnapshot = false,
-                RadarTrackedCount = 0,
-            };
+                var restored = restoreStoredBriefing(stored);
+                if (restored?.ScoreChanges != null && restored.ScoreChanges.Count > 0)
+                    payload = restored;
+            }
+
+            // Fall back to reconstructing from snapshots if the stored one has
+            // no changes (e.g. a quiet daily briefing overwrote the recalc one).
+            if (payload == null)
+            {
+                var fromSnapshots = restoreBriefingFromSnapshots();
+                if (fromSnapshots?.ScoreChanges != null && fromSnapshots.ScoreChanges.Count > 0)
+                    payload = fromSnapshots;
+            }
+
+            // Last resort: show *something* even if no diff is available, so
+            // the click isn't a silent no-op.
+            if (payload == null && stored != null)
+                payload = restoreStoredBriefing(stored);
+
+            if (payload == null)
+                payload = restoreBriefingFromSnapshots();
+
+            if (payload == null)
+                return;
 
             displayPayload(payload);
             Show();

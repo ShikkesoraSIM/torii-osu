@@ -37,10 +37,10 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 },
                 new SettingsButtonV2
                 {
-                    Text = "Replay pp-dev migration briefing",
-                    TooltipText = "Show the archived stable-vs-pp-dev migration diff again for screenshots or comparison.",
-                    Keywords = new[] { "torii", "briefing", "pp-dev", "migration", "replay", "recalc" },
-                    Action = () => briefingOverlay?.ShowPpDevPromotionBriefing(),
+                    Text = "Replay last recalc",
+                    TooltipText = "Re-show the gains and losses produced by the most recent server-side mass pp recalculation.",
+                    Keywords = new[] { "torii", "briefing", "recalc", "replay", "mass", "pp-dev", "gains", "losses" },
+                    Action = () => briefingOverlay?.ShowLastRecalcBriefing(),
                 },
             });
         }
