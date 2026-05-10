@@ -23,13 +23,9 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
     {
         protected override LocalisableString Header => "Android";
 
-        private readonly Bindable<SettingsNote.Data?> oboeRestartNote = new Bindable<SettingsNote.Data?>();
-
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
-            var oboeBindable = config.GetBindable<bool>(OsuSetting.EnableOboeAudio);
-
             Children = new Drawable[]
             {
                 new SettingsItemV2(new FormCheckBox
@@ -41,25 +37,13 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                                + "Disable if your device misbehaves (Samsung security policies blocking the "
                                + "native lib, very old Android versions, etc.) — the bridge silently no-ops "
                                + "on load failure so toggling it OFF is a hard escape hatch. "
-                               + "Restart the app for changes to take effect.",
-                    Current = oboeBindable,
+                               + "Toggling applies immediately — no restart required.",
+                    Current = config.GetBindable<bool>(OsuSetting.EnableOboeAudio),
                 })
                 {
                     Keywords = new[] { "oboe", "android", "latency", "aaudio", "mmap", "low latency", "audio" },
-                    Note = { BindTarget = oboeRestartNote },
                 },
             };
-
-            // Surface the "restart required" hint as soon as the user flips
-            // the toggle — the bridge can't be hot-swapped while audio is
-            // playing, so the note is the only signal that the change isn't
-            // immediately live.
-            oboeBindable.BindValueChanged(_ =>
-            {
-                oboeRestartNote.Value = new SettingsNote.Data(
-                    "Restart the app for the change to take effect.",
-                    SettingsNote.Type.Warning);
-            });
         }
     }
 }

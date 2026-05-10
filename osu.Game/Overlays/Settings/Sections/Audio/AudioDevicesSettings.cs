@@ -32,8 +32,6 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
 
         private readonly Bindable<SettingsNote.Data?> wasapiExperimentalNote = new Bindable<SettingsNote.Data?>();
 
-        private readonly Bindable<SettingsNote.Data?> oboeRestartNote = new Bindable<SettingsNote.Data?>();
-
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -66,31 +64,22 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
 
             // Android-only: low-latency audio via Google's Oboe library.
             // Gated on platform so Desktop / iOS users never see this row.
-            // The bridge can't be hot-swapped while audio is playing, so we
-            // surface a "restart required" note when the user toggles this.
+            // Hot-swap supported — toggling starts/stops the bridge live; no
+            // restart required (OsuGameBase binds the setting and dispatches
+            // start/stop accordingly).
             if (RuntimeInfo.OS == RuntimeInfo.Platform.Android)
             {
-                var oboeBindable = config.GetBindable<bool>(OsuSetting.EnableOboeAudio);
-
                 Add(new SettingsItemV2(new FormCheckBox
                 {
                     Caption = "Low-latency audio (Oboe)",
                     HintText = "Routes audio through Google's Oboe library for AAudio MMAP-exclusive output. "
                                + "Cuts latency from ~60–200 ms to ~15–30 ms on supported devices, with OpenSL ES fallback. "
                                + "Disable if your device misbehaves (Samsung security policies blocking dlopen, very old hardware). "
-                               + "Restart the app for changes to take effect.",
-                    Current = oboeBindable,
+                               + "Toggling applies immediately.",
+                    Current = config.GetBindable<bool>(OsuSetting.EnableOboeAudio),
                 })
                 {
                     Keywords = new[] { "oboe", "android", "latency", "aaudio", "mmap", "low latency" },
-                    Note = { BindTarget = oboeRestartNote },
-                });
-
-                oboeBindable.BindValueChanged(_ =>
-                {
-                    oboeRestartNote.Value = new SettingsNote.Data(
-                        "Restart the app for the change to take effect.",
-                        SettingsNote.Type.Warning);
                 });
             }
 
