@@ -31,6 +31,12 @@ namespace osu.Game.Rulesets.Taiko
                 {
                     Caption = RulesetSettingsStrings.TouchControlScheme,
                     Current = config.GetBindable<TaikoTouchControlScheme>(TaikoRulesetSetting.TouchControlScheme)
+                }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = RulesetSettingsStrings.HitAnimation,
+                    HintText = RulesetSettingsStrings.HitAnimationDescription,
+                    Current = config.GetBindable<bool>(TaikoRulesetSetting.HitAnimation)
                 })
             };
         }

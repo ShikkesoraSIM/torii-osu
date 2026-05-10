@@ -38,7 +38,11 @@ namespace osu.Game.Updater
                 ReleaseStream stream = externalReleaseStream ?? ReleaseStream.Value;
                 bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
 
-                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ppy/osu/releases?per_page=10&page=1");
+                // Same Torii-self-feed reasoning as MobileUpdateNotifier — this is
+                // the desktop fallback path that fires when Velopack isn't available
+                // (e.g. portable / unsupported package format). Pointing at upstream
+                // ppy/osu would prompt Torii users to "update" to vanilla lazer.
+                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=10&page=1");
                 await releasesRequest.PerformAsync(cancellationToken).ConfigureAwait(false);
 
                 GitHubRelease[] releases = releasesRequest.ResponseObject;
@@ -47,7 +51,12 @@ namespace osu.Game.Updater
                 if (latest == null)
                     return false;
 
-                string latestTagName = latest.TagName.Split('-').First();
+                // Strip the leading "v" from the GitHub tag (e.g. "v2026.511.0-lazer"
+                // -> "2026.511.0") to match the Version-property format that
+                // OsuGameAndroid / OsuGameDesktop hand back from the running app.
+                // Without this, the comparison below always thinks the app is out of
+                // date because "v2026.511.0" never equals "2026.511.0".
+                string latestTagName = latest.TagName.TrimStart('v').Split('-').First();
 
                 if (latestTagName != version)
                 {

@@ -114,6 +114,17 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString TouchOverlay => new TranslatableString(getKey(@"touch_overlay"), @"Touch overlay");
 
+        /// <summary>
+        /// "Hit animation"
+        /// </summary>
+        public static LocalisableString HitAnimation => new TranslatableString(getKey(@"hit_animation"), @"Hit animation");
+
+        /// <summary>
+        /// "Plays the celebrate-and-fly-into-HP-bar animation when an object is hit. Disable for stable-style 'objects vanish on hit' feel."
+        /// </summary>
+        public static LocalisableString HitAnimationDescription => new TranslatableString(getKey(@"hit_animation_description"),
+            @"Plays the celebrate-and-fly-into-HP-bar animation when an object is hit. Disable for stable-style 'objects vanish on hit' feel.");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

@@ -18,11 +18,18 @@ namespace osu.Game.Rulesets.Taiko.Configuration
             base.InitialiseDefaults();
 
             SetDefault(TaikoRulesetSetting.TouchControlScheme, TaikoTouchControlScheme.KDDK);
+
+            // ON by default = lazer's existing behaviour. Players who prefer the
+            // stable-style "objects vanish on hit" feel (or train for it) flip
+            // it OFF; see the toggle in TaikoSettingsSubsection + the Torii
+            // mirror in ToriiTaikoSettings, both bind to this single source.
+            SetDefault(TaikoRulesetSetting.HitAnimation, true);
         }
     }
 
     public enum TaikoRulesetSetting
     {
-        TouchControlScheme
+        TouchControlScheme,
+        HitAnimation
     }
 }

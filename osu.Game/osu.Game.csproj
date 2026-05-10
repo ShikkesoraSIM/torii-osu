@@ -8,8 +8,8 @@
 Orginal code from: https://github.com/ppy/osu
 Modified by GooGuTeam</Description>
     <Copyright>Copyright (c) 2025 ppy Pty Ltd, GooGuTeam</Copyright>
-    <PackageProjectUrl>https://github.com/shigetiro/osu</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/shigetiro/osu</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ShikkesoraSIM/torii-osu</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ShikkesoraSIM/torii-osu</RepositoryUrl>
     <PackageReleaseNotes>Orginal Copyright: Copyright (c) 2025 ppy Pty Ltd
 Modified by GooGuTeam</PackageReleaseNotes>
   </PropertyGroup>

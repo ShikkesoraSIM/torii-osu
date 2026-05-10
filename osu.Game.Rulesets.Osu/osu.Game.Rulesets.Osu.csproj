@@ -7,8 +7,8 @@
     <Version>2026.509.0-ppdev</Version>
     <Authors>ppy Pty Ltd, GooGuTeam</Authors>
     <Copyright>Copyright (c) 2025 ppy Pty Ltd, GooGuTeam</Copyright>
-    <PackageProjectUrl>https://github.com/shigetiro/osu</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/shigetiro/osu</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ShikkesoraSIM/torii-osu</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ShikkesoraSIM/torii-osu</RepositoryUrl>
     <PackageReleaseNotes>osu! (ruleset) modified by GooGuTeam.
 Original copyright: Copyright (c) ppy Pty Ltd
 Full license text: see LICENSE file</PackageReleaseNotes>

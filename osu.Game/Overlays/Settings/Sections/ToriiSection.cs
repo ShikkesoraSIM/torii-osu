@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Textures;
 using osu.Game.Graphics;
 using osu.Framework.Localisation;
 using osu.Game.Overlays.Settings.Sections.Torii;
+using osu.Game.Rulesets;
 using FontAwesome = osu.Framework.Graphics.Sprites.FontAwesome;
 
 namespace osu.Game.Overlays.Settings.Sections
@@ -22,12 +23,14 @@ namespace osu.Game.Overlays.Settings.Sections
 
         public override Drawable CreateIcon() => new ToriiSectionIcon();
 
-        public ToriiSection()
+        [BackgroundDependencyLoader]
+        private void load(RulesetStore rulesets)
         {
-            // Build subsections in a list so the Android-only Torii subsection
-            // can be conditionally appended without leaking an empty section
-            // header onto Desktop / iOS users. Identical to upstream's pattern
-            // for OS-specific settings (see UpdateSettings, GeneralSection).
+            // Build subsections in a list so the Android-only and per-ruleset
+            // subsections can be conditionally appended without leaking empty
+            // section headers onto users that don't have those rulesets / OS.
+            // Identical to upstream's pattern for OS-specific settings (see
+            // UpdateSettings, GeneralSection).
             var subsections = new List<Drawable>
             {
                 new ToriiBriefingSettings(),
@@ -41,10 +44,27 @@ namespace osu.Game.Overlays.Settings.Sections
                 // Placed between Interface and Server so users find it next to
                 // the visual prefs rather than buried after networking stuff.
                 new ToriiAuraSettings(),
+            };
+
+            // Per-ruleset Torii subsections, asked-for-by-each-ruleset. Same
+            // toggles also live in their native Settings → Rulesets → X
+            // subsection, but each ruleset can opt-in to mirroring relevant
+            // prefs here via Ruleset.CreateToriiSettingsSubsection().
+            // Bindings are shared with the native UI surface so flipping in
+            // one place updates the other live.
+            foreach (var rulesetInfo in rulesets.AvailableRulesets)
+            {
+                var sub = rulesetInfo.CreateInstance().CreateToriiSettingsSubsection();
+                if (sub != null)
+                    subsections.Add(sub);
+            }
+
+            subsections.AddRange(new Drawable[]
+            {
                 new ToriiServerSettings(),
                 new ToriiStorageSettings(),
                 new ToriiExperimentalSettings(),
-            };
+            });
 
             // Android-only subsection. Skipped entirely on Desktop / iOS so
             // the section header doesn't render at all — the user told us

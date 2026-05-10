@@ -7,11 +7,13 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using JetBrains.Annotations;
+using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Taiko.Configuration;
 using osu.Game.Rulesets.Taiko.Skinning.Default;
 using osu.Game.Skinning;
 using osuTK;
@@ -40,6 +42,13 @@ namespace osu.Game.Rulesets.Taiko.Objects.Drawables
 
         private readonly Bindable<HitType> type = new Bindable<HitType>();
 
+        // Source-of-truth bindable for the "play the celebrate-and-fly-away
+        // animation when an object is hit" preference. Wired via BDL below.
+        // ON = original lazer feel; OFF = stable-style "vanish on hit", which
+        // some Taiko players train for and prefer. See UpdateHitStateTransforms
+        // for where the value is actually consumed.
+        private readonly Bindable<bool> hitAnimationEnabled = new BindableBool(true);
+
         public DrawableHit()
             : this(null)
         {
@@ -49,6 +58,12 @@ namespace osu.Game.Rulesets.Taiko.Objects.Drawables
             : base(hit)
         {
             FillMode = FillMode.Fit;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(TaikoRulesetConfigManager rulesetConfig)
+        {
+            rulesetConfig.BindWith(TaikoRulesetSetting.HitAnimation, hitAnimationEnabled);
         }
 
         protected override void OnApply()
@@ -159,6 +174,32 @@ namespace osu.Game.Rulesets.Taiko.Objects.Drawables
                     break;
 
                 case ArmedState.Hit:
+                    // Stable-style "object vanishes the moment it's hit" mode
+                    // (a.k.a. opt-out of the celebrate-and-fly-into-HP-bar animation).
+                    //
+                    // We can't just FadeOut(0) and Expire() immediately: this
+                    // drawable still has to live long enough for a strong-hit
+                    // second-press in the strong-hit window to register against
+                    // it. Yanking it out of the playfield earlier breaks strong
+                    // judgements on the boundary.
+                    //
+                    // So: zero alpha now, expire AFTER the strong-hit second
+                    // window. Mirrors the timing of the original animation's
+                    // own implicit lifetime (which was ~800 ms of FadeOut +
+                    // movement) but without any visible motion.
+                    //
+                    // Workaround equivalent to ppy/osu#36800; we keep the hard
+                    // assignment + delayed Expire because passing very small
+                    // durations to FadeOut here causes lifetime-related stale
+                    // drawables that can soft-lock the results screen.
+                    if (!hitAnimationEnabled.Value)
+                    {
+                        Alpha = 0;
+                        this.Delay(StrongNestedHit.SECOND_HIT_WINDOW).Expire();
+                        break;
+                    }
+
+                    // Default: original celebrate animation.
                     // If we're far enough away from the left stage, we should bring ourselves in front of it
                     ProxyContent();
 

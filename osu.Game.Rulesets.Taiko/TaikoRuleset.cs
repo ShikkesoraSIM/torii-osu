@@ -223,6 +223,8 @@ namespace osu.Game.Rulesets.Taiko
 
         public override RulesetSettingsSubsection CreateSettings() => new TaikoSettingsSubsection(this);
 
+        public override SettingsSubsection CreateToriiSettingsSubsection() => new ToriiTaikoSettings();
+
         public override IEnumerable<HitResult> GetValidHitResults()
         {
             return new[]

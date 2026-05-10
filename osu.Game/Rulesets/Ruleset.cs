@@ -285,6 +285,25 @@ namespace osu.Game.Rulesets
         public virtual RulesetSettingsSubsection? CreateSettings() => null;
 
         /// <summary>
+        /// Optional Torii-section mirror of <see cref="CreateSettings"/>: a
+        /// secondary subsection that appears under <c>Settings → Torii</c> in
+        /// addition to the native <c>Settings → Rulesets → X</c> location.
+        /// </summary>
+        /// <remarks>
+        /// Returns <c>null</c> by default; rulesets with Torii-mirrored prefs
+        /// override to return a subsection that binds to the SAME bindables
+        /// as their <see cref="CreateSettings"/> output, so flipping a toggle
+        /// in either UI surface keeps both in sync.
+        ///
+        /// Lives here rather than in a separate registry so the per-ruleset
+        /// project (which already has access to its own
+        /// <see cref="IRulesetConfigManager"/>) can construct the subsection
+        /// without forcing the osu.Game core to depend on individual ruleset
+        /// assemblies.
+        /// </remarks>
+        public virtual Overlays.Settings.SettingsSubsection? CreateToriiSettingsSubsection() => null;
+
+        /// <summary>
         /// Creates the <see cref="IRulesetConfigManager"/> for this <see cref="Ruleset"/>.
         /// </summary>
         /// <param name="settings">The <see cref="SettingsStore"/> to store the settings.</param>

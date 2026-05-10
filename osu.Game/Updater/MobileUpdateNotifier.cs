@@ -45,8 +45,13 @@ namespace osu.Game.Updater
             {
                 bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
 
-                // Use GooGuTeam repository instead of official osu repository
-                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/shigetiro/osu/releases?per_page=10&page=1");
+                // Hit Torii's own release feed, not upstream lazer / shigetiro / GooGuTeam.
+                // The mobile notifier compares the running app's Version against the latest
+                // tag in this list, so a wrong repo means Android users either get no
+                // update prompt when one exists, or are prompted to "update" to a
+                // non-Torii build. shigetiro/osu in particular has been frozen since
+                // April 2026, which would silently downgrade everyone to a stale snapshot.
+                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=10&page=1");
                 await releasesRequest.PerformAsync(cancellationToken).ConfigureAwait(false);
 
                 GitHubRelease[] releases = releasesRequest.ResponseObject;
