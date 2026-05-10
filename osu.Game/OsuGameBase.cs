@@ -597,7 +597,14 @@ namespace osu.Game
         // Both null on non-Android or when EnableOboeAudio is OFF.
         private OboeBridgeManager? oboeBridgeManager;
         private OboeAudioRedirector? oboeAudioRedirector;
-        private IBindable<bool>? oboeEnabledBindable;
+        // Held in a strong field per ConfigManager.GetBindable's contract
+        // ("ensure to hold a local reference" — the returned bindable is
+        // weakly bound to the config backing). The previous implementation
+        // chained .GetBoundCopy() off this directly, dropped the intermediate
+        // on the floor, and once the GC collected it the binding chain to
+        // our subscribed copy went silent — the visible symptom was
+        // "the Oboe toggle stops applying in real time after a while".
+        private Bindable<bool>? oboeEnabledBindable;
 
         /// <summary>
         /// Subclass hook for fetching the device's native output sample rate
@@ -641,7 +648,11 @@ namespace osu.Game
                 return;
 
             // Bind once; the lambda dispatches start/stop based on the new value.
-            oboeEnabledBindable = LocalConfig.GetBindable<bool>(OsuSetting.EnableOboeAudio).GetBoundCopy();
+            // Assigning GetBindable directly to the field (rather than chaining
+            // a further .GetBoundCopy() and discarding the intermediate) is what
+            // keeps the binding chain GC-rooted — see the field declaration above
+            // for why this matters.
+            oboeEnabledBindable = LocalConfig.GetBindable<bool>(OsuSetting.EnableOboeAudio);
             oboeEnabledBindable.BindValueChanged(e =>
             {
                 if (e.NewValue)
