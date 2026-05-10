@@ -675,8 +675,33 @@ jobs:
           > "hash-output/hash-${{ matrix.runtime }}.json"
         echo "Hash for ${{ matrix.runtime }} (osu.Game.dll): $HASH ($OS_LABEL)"
 
+    - name: Compute Android string-based version hash
+      # Android takes a different code path because osu.Game.dll inside the
+      # APK is unreadable (packed). OsuGameBase.cs catches the IOException and
+      # falls back to MD5("{Version}-{RuntimeInfo.OS}") — see osu.Game/OsuGameBase.cs
+      # ~line 403. So the registered hash for Android is the MD5 of the literal
+      # string "{version}-Android", not a binary hash.
+      #
+      # Without this step, Android clients ALWAYS fail the spectator's
+      # client-name lookup → no "Torii client" badge for any Android user.
+      # Bug discovered 2026-05-11 when Shikkesora's Pixel showed unbadged in
+      # her own friend list. Running it as a separate step (instead of
+      # branching the desktop step) keeps the desktop hash logic untouched.
+      if: matrix.runtime == 'android'
+      shell: bash
+      run: |
+        VERSION="${{ needs.version.outputs.version }}"
+        # Mirror OsuGameBase: $"{Version}-{RuntimeInfo.OS}".ComputeMD5Hash() where
+        # RuntimeInfo.OS.ToString() yields "Android" for the android runtime.
+        STRING_TO_HASH="${VERSION}-Android"
+        HASH=$(printf '%s' "$STRING_TO_HASH" | md5sum | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
+
+        mkdir -p hash-output
+        printf '{"hash":"%s","os":"%s","runtime":"%s"}' "$HASH" "Android" "android" \
+          > "hash-output/hash-android.json"
+        echo "Hash for android (string '${STRING_TO_HASH}'): $HASH"
+
     - name: Upload hash artifact
-      if: matrix.runtime != 'android'
       uses: actions/upload-artifact@v4
       with:
         name: hash-${{ matrix.runtime }}-${{ needs.version.outputs.version }}
