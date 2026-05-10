@@ -1,6 +1,8 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Generic;
+using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
@@ -22,7 +24,11 @@ namespace osu.Game.Overlays.Settings.Sections
 
         public ToriiSection()
         {
-            Children = new Drawable[]
+            // Build subsections in a list so the Android-only Torii subsection
+            // can be conditionally appended without leaking an empty section
+            // header onto Desktop / iOS users. Identical to upstream's pattern
+            // for OS-specific settings (see UpdateSettings, GeneralSection).
+            var subsections = new List<Drawable>
             {
                 new ToriiBriefingSettings(),
                 new ToriiInterfaceSettings(),
@@ -39,6 +45,15 @@ namespace osu.Game.Overlays.Settings.Sections
                 new ToriiStorageSettings(),
                 new ToriiExperimentalSettings(),
             };
+
+            // Android-only subsection. Skipped entirely on Desktop / iOS so
+            // the section header doesn't render at all — the user told us
+            // they don't want to see the row on Desktop ("solo si es la build
+            // de android"), so we don't even construct it there.
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.Android)
+                subsections.Add(new ToriiAndroidSettings());
+
+            Children = subsections.ToArray();
         }
 
         private partial class ToriiSectionIcon : CompositeDrawable

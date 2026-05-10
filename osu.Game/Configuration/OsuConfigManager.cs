@@ -298,6 +298,23 @@ namespace osu.Game.Configuration
             // GUID is fresh, not derived from MAC / disk serial / etc.).
             SetDefault(OsuSetting.ToriiHiccupDeviceHash, string.Empty);
 
+            // Android-only: route audio through Google's Oboe library instead
+            // of letting BASS drive the AAudio/AudioTrack output directly.
+            // When ON, OsuGameBase boots OboeBridgeManager + OboeAudioRedirector
+            // so all BASS mixers run in decode-only mode and Oboe pulls PCM
+            // from a single global mixer at the AAudio MMAP-exclusive output.
+            // Cuts Android audio latency from ~60–200 ms to ~15–30 ms on most
+            // devices that support MMAP, with OpenSL ES fallback otherwise.
+            // Default ON because the patch ships the native lib in-tree and
+            // the bridge silently falls back to vanilla BASS if anything in
+            // the load path fails (Samsung security policies, missing AAudio
+            // on very old devices, etc.) — the toggle is the user-facing
+            // escape hatch when an individual device misbehaves.
+            // Read once at OsuGameBase load on Android only; toggle changes
+            // require an app restart to take effect (the bridge can't be
+            // hot-swapped while audio is playing).
+            SetDefault(OsuSetting.EnableOboeAudio, true);
+
             SetDefault(OsuSetting.UIHoldActivationDelay, 200.0, 0.0, 500.0, 50.0);
 
             SetDefault(OsuSetting.IntroSequence, IntroSequence.Triangles);
@@ -742,5 +759,23 @@ namespace osu.Game.Configuration
         ToriiHiccupDeviceHash,
 
         CycleSkinsThroughFavoritesOnly,
+
+        /// <summary>
+        /// Torii: Android-only low-latency audio path via Google's Oboe library.
+        /// When ON (default), <c>OsuGameBase</c> boots <c>OboeBridgeManager</c> +
+        /// <c>OboeAudioRedirector</c> so BASS runs decode-only and Oboe pulls PCM
+        /// straight to the AAudio MMAP-exclusive output. Cuts Android audio
+        /// latency from ~60–200 ms down to ~15–30 ms on devices with MMAP
+        /// support; transparent OpenSL ES fallback otherwise.
+        ///
+        /// The bridge silently no-ops on Desktop / iOS — the setting itself
+        /// only fires meaningful work when <c>RuntimeInfo.OS ==
+        /// RuntimeInfo.Platform.Android</c>. The toggle exists primarily as
+        /// a user-facing escape hatch when an individual Android device
+        /// misbehaves (Samsung security policies blocking <c>dlopen</c> of
+        /// the bundled <c>libosu_native.so</c>, very old devices without
+        /// AAudio, etc.). Toggle changes require an app restart.
+        /// </summary>
+        EnableOboeAudio,
     }
 }

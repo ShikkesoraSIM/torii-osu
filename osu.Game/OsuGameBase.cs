@@ -589,6 +589,63 @@ namespace osu.Game
             // if this becomes a more common thing, tracked settings should be reconsidered to allow local DI.
             LocalConfig.LookupSkinName = id => SkinManager.Query(s => s.ID == id)?.ToString() ?? "Unknown";
             LocalConfig.LookupKeyBindings = l => KeyBindingStore.GetBindingsStringFor(l);
+
+            initOboeAudio();
+        }
+
+        // Holds the Android low-latency audio bridge across the game lifetime.
+        // Both null on non-Android or when EnableOboeAudio is OFF.
+        private OboeBridgeManager? oboeBridgeManager;
+        private OboeAudioRedirector? oboeAudioRedirector;
+
+        /// <summary>
+        /// Boot the Android Oboe low-latency audio path if enabled.
+        ///
+        /// On Android, vanilla BASS plays audio through Java AudioTrack with
+        /// 60–200 ms of layered buffering; this swap routes BASS into a
+        /// decode-only global mixer that Oboe pulls from at the AAudio
+        /// MMAP-exclusive output, dropping latency to ~15–30 ms on supported
+        /// devices. The bridge auto-falls-back to OpenSL ES if AAudio is
+        /// unavailable, and silently no-ops if the bundled
+        /// <c>libosu_native.so</c> can't be loaded (e.g. Samsung security
+        /// policies blocking <c>dlopen</c>) — in those cases the user stays
+        /// on vanilla BASS audio with no error surface, just no improvement.
+        ///
+        /// No-op on Desktop / iOS — there's no Oboe build for those platforms
+        /// and the bridge wouldn't have a native lib to load anyway.
+        ///
+        /// Called once at end of load(); torn down in Dispose().
+        /// </summary>
+        private void initOboeAudio()
+        {
+            if (RuntimeInfo.OS != RuntimeInfo.Platform.Android)
+                return;
+
+            if (LocalConfig?.Get<bool>(OsuSetting.EnableOboeAudio) != true)
+            {
+                Logger.Log("[Torii] Oboe low-latency audio: disabled by setting.", level: LogLevel.Verbose);
+                return;
+            }
+
+            try
+            {
+                oboeAudioRedirector = new OboeAudioRedirector(Audio);
+                oboeBridgeManager = new OboeBridgeManager();
+                oboeBridgeManager.StartOboeBridge(
+                    oboeAudioRedirector.Provider,
+                    sampleRate: 0,
+                    onStarted: actualSampleRate => oboeAudioRedirector.RefreshMixers(actualSampleRate));
+
+                Logger.Log("[Torii] Oboe low-latency audio bridge requested at startup.");
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e, "[Torii] Oboe audio init failed; staying on vanilla BASS output.");
+                oboeBridgeManager?.Dispose();
+                oboeAudioRedirector?.Dispose();
+                oboeBridgeManager = null;
+                oboeAudioRedirector = null;
+            }
         }
 
         private void updateLanguage() => CurrentLanguage.Value = LanguageExtensions.GetLanguageFor(frameworkLocale.Value, localisationParameters.Value);
@@ -886,6 +943,12 @@ namespace osu.Game
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
+
+            // Tear down the Oboe bridge before LocalConfig so any final lifecycle
+            // logging it writes is preserved across shutdown. No-op if init failed
+            // or never ran (non-Android / setting OFF).
+            try { oboeBridgeManager?.Dispose(); } catch { }
+            try { oboeAudioRedirector?.Dispose(); } catch { }
 
             RulesetStore?.Dispose();
             LocalConfig?.Dispose();
