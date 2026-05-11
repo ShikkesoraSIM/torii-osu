@@ -2,7 +2,12 @@ name: Auto tag from master
 
 on:
   push:
-    branches: [ master, main ]
+    # `nova` produces experimental builds tagged `vYYYY.MDD.N-nova`. They
+    # ship as GitHub prereleases (see build-gu.yml) so Torii (stable) users
+    # don't auto-update into them via Velopack — only Torii Nova users
+    # (ReleaseStream.Nova in settings, which flips Velopack's
+    # includePrereleases) ever see them.
+    branches: [ master, main, nova ]
   workflow_dispatch:
 
 permissions:
@@ -11,13 +16,15 @@ permissions:
 
 jobs:
   create-tag:
-    name: Create dated tag (yyyy.mdd.N-torii)
+    name: Create dated tag (yyyy.mdd.N-{torii,nova})
     runs-on: ubuntu-latest
     # When we push a tag, Build workflow (which listens to tags 'v*') will run and publish.
-    # Tag suffix is `-torii` post-rename (was `-lazer` until May 2026). The
-    # next-N counter scans BOTH suffixes for the same day so a same-day
-    # deploy after a legacy `-lazer` tag bumps the N correctly instead of
-    # colliding (e.g. existing v2026.511.0-lazer → next is v2026.511.1-torii).
+    # Suffix is branch-derived: master → -torii (stable), nova → -nova
+    # (experimental, ships as GitHub prerelease). The next-N counter
+    # scans ALL three known suffixes (legacy -lazer, current -torii,
+    # experimental -nova) for the same day so version numbers never
+    # collide across streams — a -nova release after a -torii on the
+    # same day still gets a unique N.
     steps:
       - name: Checkout
       
@@ -44,16 +51,25 @@ jobs:
           MDD="${MONTH}${DAY}"
           BASE="${YEAR}.${MDD}"
 
-          # Find the highest N for the day across BOTH legacy (-lazer) and
-          # current (-torii) suffixes. We share the counter so the day's
-          # second release after a legacy tag bumps correctly: e.g. with
-          # an existing v2026.511.0-lazer, the next release becomes
-          # v2026.511.1-torii (not v2026.511.0-torii which would semver-
-          # collide-and-confuse-Velopack).
+          # Branch decides the suffix:
+          #   master / main → -torii (stable)
+          #   nova          → -nova  (experimental, ships as prerelease)
+          # Anything else falls back to -torii defensively — a workflow_dispatch
+          # off a non-standard branch will still produce something sensible.
+          case "${GITHUB_REF_NAME}" in
+            nova) STREAM_SUFFIX="nova" ;;
+            master|main) STREAM_SUFFIX="torii" ;;
+            *) STREAM_SUFFIX="torii" ;;
+          esac
+
+          # Counter is SHARED across all known suffixes for the day. We
+          # scan legacy -lazer (pre-rename), current -torii (stable), and
+          # -nova (experimental) so a same-day release in any stream gets
+          # a unique N. Example: with v2026.511.0-lazer + v2026.511.1-torii
+          # existing, the next nova push computes v2026.511.2-nova.
           MAXN=-1
-          for SUFFIX in lazer torii; do
+          for SUFFIX in lazer torii nova; do
             while IFS= read -r t; do
-              # t like "v2026.511.3-torii" -> grab the N between the last '.' and '-suffix'
               N=$(echo "$t" | sed -E "s/^v${BASE}\.([0-9]+)-${SUFFIX}$/\1/" || true)
               if [[ "$N" =~ ^[0-9]+$ ]]; then
                 if (( N > MAXN )); then MAXN=$N; fi
@@ -62,9 +78,9 @@ jobs:
           done
 
           NEXT=$((MAXN+1))
-          VERSION="${BASE}.${NEXT}-torii"
+          VERSION="${BASE}.${NEXT}-${STREAM_SUFFIX}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Computed tag: v$VERSION"
+          echo "Computed tag: v$VERSION  (stream=${STREAM_SUFFIX}, from branch=${GITHUB_REF_NAME})"
 
       - name: Create and push tag
         id: create_tag

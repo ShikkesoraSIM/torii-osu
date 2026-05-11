@@ -1134,7 +1134,11 @@ jobs:
         name: osu! Torii ${{ needs.version.outputs.version }}
         files: release-files/**
         draft: false
-        prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') }}
+        # `-nova` tags ship as prereleases so Torii (stable) users with
+        # Velopack's default `includePrereleases=false` never auto-update
+        # into them. Torii Nova users flip that flag via the
+        # ReleaseStream.Nova setting and see them.
+        prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') || contains(needs.version.outputs.version, '-nova') }}
         generate_release_notes: true
         body_path: release_body.md
       env:
