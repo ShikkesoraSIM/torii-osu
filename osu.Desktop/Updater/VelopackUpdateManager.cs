@@ -69,10 +69,24 @@ namespace osu.Desktop.Updater
             try
             {
                 // Pull desktop updates from the Torii repository releases.
-                // Nova == "include GitHub prereleases" (-nova tags are published
-                // as prereleases by build-gu.yml); Torii (stable) only sees
-                // non-prerelease tags (the -torii channel).
-                IUpdateSource updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova);
+                //
+                // Stream selection mapping:
+                // - Torii (stable) → plain `GithubSource` with
+                //   `includePrereleases = false`. The `-torii` releases are
+                //   non-prereleases, and `-nova` releases are tagged
+                //   prereleases (see build-gu.yml), so the upstream
+                //   exclusion naturally pins stable users to stable tags.
+                //   Legacy `-lazer` releases also count as stable because
+                //   they were published non-prerelease too.
+                // - Torii Nova → `ToriiUpdateSource` with `requiredTagSuffix
+                //   = "nova"` so only `-nova` tagged releases are
+                //   considered. This prevents the silent reverse-downgrade
+                //   path where a later semver-higher stable release would
+                //   otherwise "update" a Nova user back to stable.
+                bool isNovaStream = ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova;
+                IUpdateSource updateSource = isNovaStream
+                    ? (IUpdateSource)new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "nova")
+                    : new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     AllowVersionDowngrade = true
