@@ -306,6 +306,33 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 if (item == RendererType.Automatic && automaticRendererInUse)
                     return LocalisableString.Interpolate($"{base.GenerateItemText(item)} ({hostResolvedRenderer.GetDescription()})");
 
+#if TORII_NOVA
+                // Torii Nova rebrand: the upstream-osu! convention tags the
+                // Deferred renderer variants with " (Experimental)" in the
+                // dropdown. On Nova we're explicitly committing to the
+                // Deferred pipeline as our preferred default, so "Experimental"
+                // undersells what we're shipping — relabel as " (Nova)" so
+                // power users see the connection between the stream and the
+                // renderer. Pattern-matching on the enum (rather than string
+                // replacement on the localised description) keeps this robust
+                // against future framework-side localisation of the
+                // "(Experimental)" suffix.
+                //
+                // Stable (Torii) keeps the upstream wording verbatim — this
+                // whole block compiles to nothing without the TORII_NOVA
+                // define.
+                LocalisableString? novaLabel = item switch
+                {
+                    RendererType.Deferred_Direct3D11 => "Direct3D 11 (Nova)",
+                    RendererType.Deferred_Metal => "Metal (Nova)",
+                    RendererType.Deferred_OpenGL => "OpenGL (Nova)",
+                    RendererType.Deferred_Vulkan => "Vulkan (Nova)",
+                    _ => null
+                };
+                if (novaLabel.HasValue)
+                    return novaLabel.Value;
+#endif
+
                 return base.GenerateItemText(item);
             }
         }
