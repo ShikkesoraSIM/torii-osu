@@ -1,6 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Project">
-    <TargetFramework>net8.0</TargetFramework>
+    <!--
+      Torii Nova: net10.0 (was net8.0 on master / Torii stable). See
+      osu.Desktop.csproj for the reasoning — JIT + GC improvements that
+      directly target the in-gameplay hiccup data we measured in prod.
+      Android target was already net10.0-android, so this just unifies
+      Desktop + Game with the rest of the surface.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Authors>ppy Pty Ltd, GooGuTeam</Authors>

@@ -1,6 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Project">
-    <TargetFramework>net8.0</TargetFramework>
+    <!--
+      Torii Nova: net10.0 (was net8.0 on master / Torii stable). Bumped here
+      so JIT improvements (DynamicPGO, tiered compilation tweaks, SIMD path
+      improvements) and lower-allocation GC behaviour land for Nova users.
+      Direct relevance: in-gameplay Gen2 GC pauses (the dominant cause of
+      mid-song hiccups in the prod data) get cheaper on net10.0.
+      Android is already on net10.0-android; this brings Desktop in line.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</Description>
