@@ -10,6 +10,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      TORII_NOVA: same compile-time marker as in osu.Desktop.csproj. We need
+      it propagated to osu.Game so that #if TORII_NOVA blocks inside
+      osu.Game (e.g. the RendererSettings (Nova) dropdown relabel, see
+      Overlays/Settings/Sections/Graphics/RendererSettings.cs) actually
+      compile in — C# preprocessor defines do NOT flow through
+      ProjectReference, so defining it in the entry-point project only is
+      not enough. Torii stable's osu.Game.csproj does not set this.
+    -->
+    <DefineConstants>$(DefineConstants);TORII_NOVA</DefineConstants>
     <Authors>ppy Pty Ltd, GooGuTeam</Authors>
     <Description>Orginal Copyright: Copyright (c) 2025 ppy Pty Ltd
 Orginal code from: https://github.com/ppy/osu

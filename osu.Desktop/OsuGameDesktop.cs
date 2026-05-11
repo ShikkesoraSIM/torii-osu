@@ -14,6 +14,7 @@ using osu.Game;
 using osu.Desktop.Updater;
 using osu.Framework;
 using osu.Framework.Configuration;
+using osu.Framework.Development;
 using osu.Framework.Logging;
 using osu.Game.Updater;
 using osu.Desktop.Windows;
@@ -129,6 +130,28 @@ namespace osu.Desktop
 
         public override bool RestartAppWhenExited()
         {
+            // Velopack.UpdateExe.Start delegates to the sibling Update.exe
+            // that Velopack places next to the install dir. On Debug
+            // builds (running from bin/Debug/) and on side-loaded
+            // bin-copies (e.g. the local Nova test bootstrap) there is no
+            // Update.exe — UpdateExe.StartUpdateExe blows up inside
+            // Process.Start with "Cannot start process because a file
+            // name has not been provided", which surfaces as a top-right
+            // dialog in the GUI every time the user changes a setting
+            // that wants a restart (renderer swap, etc).
+            //
+            // Guard on DebugUtils.IsDebugBuild so we only attempt the
+            // Velopack hand-off on release-stream binaries that were
+            // actually installed by Velopack. Debug returns false → the
+            // framework just shows a "please restart manually" prompt
+            // instead of throwing.
+            if (DebugUtils.IsDebugBuild)
+            {
+                Logger.Log("RestartAppWhenExited: skipped Velopack restart on debug build — please close and reopen the client manually for the change to take effect.",
+                    LoggingTarget.Runtime, LogLevel.Important);
+                return false;
+            }
+
             Task.Run(() => Velopack.UpdateExe.Start(waitPid: (uint)Environment.ProcessId)).FireAndForget();
             return true;
         }

@@ -324,6 +324,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 LocalisableString? novaLabel = item switch
                 {
                     RendererType.Deferred_Direct3D11 => "Direct3D 11 (Nova)",
+                    RendererType.Deferred_Direct3D12 => "Direct3D 12 (Nova)",
                     RendererType.Deferred_Metal => "Metal (Nova)",
                     RendererType.Deferred_OpenGL => "OpenGL (Nova)",
                     RendererType.Deferred_Vulkan => "Vulkan (Nova)",
