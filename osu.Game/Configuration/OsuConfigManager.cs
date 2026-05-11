@@ -360,7 +360,11 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.GameplayDisableWinKey, true);
 
             // Update
-            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+            // Default = Torii (stable). Users who had the legacy "Lazer" value
+            // in torii.ini fall back here automatically — the enum was renamed
+            // in May 2026 and `Enum.TryParse("Lazer", ...)` no longer matches,
+            // so the bindable loader uses this default. Migration is silent.
+            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Torii);
 
             SetDefault(OsuSetting.Version, string.Empty);
 

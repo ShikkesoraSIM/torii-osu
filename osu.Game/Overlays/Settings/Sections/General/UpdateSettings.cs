@@ -88,12 +88,16 @@ namespace osu.Game.Overlays.Settings.Sections.General
 
         private void releaseStreamChanged(ValueChangedEvent<ReleaseStream> stream)
         {
-            if (stream.NewValue == ReleaseStream.Tachyon)
+            // Confirm before switching to the experimental Nova channel — moving
+            // off stable means downloading a different binary (different target
+            // framework, different default renderer) which is harder to roll
+            // back than just toggling a setting.
+            if (stream.NewValue == ReleaseStream.Nova)
             {
                 dialogOverlay?.Push(
                     new ConfirmDialog(GeneralSettingsStrings.ChangeReleaseStreamConfirmation,
-                        () => configReleaseStream.Value = ReleaseStream.Tachyon,
-                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Lazer)
+                        () => configReleaseStream.Value = ReleaseStream.Nova,
+                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
                     {
                         BodyText = GeneralSettingsStrings.ChangeReleaseStreamConfirmationInfo
                     });

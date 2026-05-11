@@ -32,7 +32,7 @@ namespace osu.Game.Tests.NonVisual
             AddStep("add manager", () =>
             {
                 config = new OsuConfigManager(LocalStorage);
-                config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+                config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Torii);
 
                 Child = new DependencyProvidingContainer
                 {
@@ -61,14 +61,14 @@ namespace osu.Game.Tests.NonVisual
         [Test]
         public void TestReleaseStreamChanged()
         {
-            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Tachyon));
+            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Nova));
 
             AddUntilStep("check pending", () => manager.IsPending);
             AddStep("complete check", () => manager.Complete());
             AddUntilStep("2 checks completed", () => manager.Completions, () => Is.EqualTo(2));
             AddUntilStep("no check pending", () => !manager.IsPending);
 
-            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Lazer));
+            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Torii));
 
             AddUntilStep("check pending", () => manager.IsPending);
             AddStep("complete check", () => manager.Complete());
@@ -82,9 +82,9 @@ namespace osu.Game.Tests.NonVisual
         [Test]
         public void TestNewInvocationOnReleaseStreamChanged()
         {
-            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Tachyon));
+            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Nova));
             AddUntilStep("check pending", () => manager.IsPending);
-            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Lazer));
+            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Torii));
             AddUntilStep("3 invocations", () => manager.Invocations, () => Is.EqualTo(3));
 
             AddStep("complete check", () => manager.Complete());
@@ -133,7 +133,7 @@ namespace osu.Game.Tests.NonVisual
 
             // This next part tests for the user requesting an update during a background check, and is possible to occur in practice.
 
-            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Tachyon));
+            AddStep("change release stream", () => config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Nova));
             AddUntilStep("check pending", () => manager.IsPending);
             AddStep("request check", () => manager.CheckForUpdate());
             AddUntilStep("5 invocations", () => manager.Invocations, () => Is.EqualTo(5));
@@ -149,16 +149,16 @@ namespace osu.Game.Tests.NonVisual
             AddStep("add manager", () =>
             {
                 config = new OsuConfigManager(LocalStorage);
-                config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+                config.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Torii);
 
                 Child = new DependencyProvidingContainer
                 {
                     CachedDependencies = [(typeof(OsuConfigManager), config)],
-                    Child = manager = new TestUpdateManager(ReleaseStream.Tachyon)
+                    Child = manager = new TestUpdateManager(ReleaseStream.Nova)
                 };
             });
 
-            AddAssert("release stream set to tachyon", () => config.Get<ReleaseStream>(OsuSetting.ReleaseStream), () => Is.EqualTo(ReleaseStream.Tachyon));
+            AddAssert("release stream set to nova", () => config.Get<ReleaseStream>(OsuSetting.ReleaseStream), () => Is.EqualTo(ReleaseStream.Nova));
         }
 
         private partial class TestUpdateManager : UpdateManager

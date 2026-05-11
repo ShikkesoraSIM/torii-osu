@@ -36,7 +36,7 @@ namespace osu.Game.Updater
             try
             {
                 ReleaseStream stream = externalReleaseStream ?? ReleaseStream.Value;
-                bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
+                bool includePrerelease = stream == Configuration.ReleaseStream.Nova;
 
                 // Same Torii-self-feed reasoning as MobileUpdateNotifier — this is
                 // the desktop fallback path that fires when Velopack isn't available

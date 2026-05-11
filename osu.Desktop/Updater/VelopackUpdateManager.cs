@@ -69,7 +69,10 @@ namespace osu.Desktop.Updater
             try
             {
                 // Pull desktop updates from the Torii repository releases.
-                IUpdateSource updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, ReleaseStream.Value == Game.Configuration.ReleaseStream.Tachyon);
+                // Nova == "include GitHub prereleases" (-nova tags are published
+                // as prereleases by build-gu.yml); Torii (stable) only sees
+                // non-prerelease tags (the -torii channel).
+                IUpdateSource updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova);
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     AllowVersionDowngrade = true

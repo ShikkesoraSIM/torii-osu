@@ -11,9 +11,13 @@ permissions:
 
 jobs:
   create-tag:
-    name: Create dated tag (yyyy.mdd.N-lazer)
+    name: Create dated tag (yyyy.mdd.N-torii)
     runs-on: ubuntu-latest
-    # When we push a tag, Build workflow (which listens to tags 'v*') will run and publish
+    # When we push a tag, Build workflow (which listens to tags 'v*') will run and publish.
+    # Tag suffix is `-torii` post-rename (was `-lazer` until May 2026). The
+    # next-N counter scans BOTH suffixes for the same day so a same-day
+    # deploy after a legacy `-lazer` tag bumps the N correctly instead of
+    # colliding (e.g. existing v2026.511.0-lazer → next is v2026.511.1-torii).
     steps:
       - name: Checkout
       
@@ -40,18 +44,25 @@ jobs:
           MDD="${MONTH}${DAY}"
           BASE="${YEAR}.${MDD}"
 
-          # find highest N for existing tags vYYYY.MDD.N-lazer
+          # Find the highest N for the day across BOTH legacy (-lazer) and
+          # current (-torii) suffixes. We share the counter so the day's
+          # second release after a legacy tag bumps correctly: e.g. with
+          # an existing v2026.511.0-lazer, the next release becomes
+          # v2026.511.1-torii (not v2026.511.0-torii which would semver-
+          # collide-and-confuse-Velopack).
           MAXN=-1
-          while IFS= read -r t; do
-            # t like "v2025.710.3-lazer" -> grab N between last '.' and '-lazer'
-            N=$(echo "$t" | sed -E "s/^v${BASE}\.([0-9]+)-lazer$/\1/" || true)
-            if [[ "$N" =~ ^[0-9]+$ ]]; then
-              if (( N > MAXN )); then MAXN=$N; fi
-            fi
-          done < <(git tag -l "v${BASE}.*-lazer")
+          for SUFFIX in lazer torii; do
+            while IFS= read -r t; do
+              # t like "v2026.511.3-torii" -> grab the N between the last '.' and '-suffix'
+              N=$(echo "$t" | sed -E "s/^v${BASE}\.([0-9]+)-${SUFFIX}$/\1/" || true)
+              if [[ "$N" =~ ^[0-9]+$ ]]; then
+                if (( N > MAXN )); then MAXN=$N; fi
+              fi
+            done < <(git tag -l "v${BASE}.*-${SUFFIX}")
+          done
 
           NEXT=$((MAXN+1))
-          VERSION="${BASE}.${NEXT}-lazer"
+          VERSION="${BASE}.${NEXT}-torii"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Computed tag: v$VERSION"
 

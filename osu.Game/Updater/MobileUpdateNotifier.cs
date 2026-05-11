@@ -36,14 +36,38 @@ namespace osu.Game.Updater
         {
             // Remove 'v' prefix from version for Android compatibility
             version = game.Version.TrimStart('v').Split('-').First();
-            stream = Enum.TryParse(game.Version.Split('-').Last(), true, out ReleaseStream s) ? s : Configuration.ReleaseStream.Lazer;
+
+            // Parse the version-string suffix to determine the release stream.
+            // The enum was renamed (Lazer→Torii, Tachyon→Nova) in May 2026;
+            // older tags shipping `-lazer` parse as Torii via the fallback
+            // because `Enum.TryParse("lazer", ...)` no longer matches anything.
+            // We accept the legacy `-tachyon` suffix as Nova too, for symmetry
+            // (no Torii build ever published with that suffix, but it's cheap
+            // to support).
+            string suffix = game.Version.Split('-').Last();
+            stream = parseStreamSuffix(suffix);
+        }
+
+        private static ReleaseStream parseStreamSuffix(string suffix)
+        {
+            if (Enum.TryParse(suffix, true, out ReleaseStream parsed))
+                return parsed;
+
+            // Legacy alias — pre-rename tags. "lazer" -> Torii is also the
+            // natural fallback path; spelled out here so the intent is clear.
+            if (suffix.Equals("lazer", StringComparison.OrdinalIgnoreCase))
+                return Configuration.ReleaseStream.Torii;
+            if (suffix.Equals("tachyon", StringComparison.OrdinalIgnoreCase))
+                return Configuration.ReleaseStream.Nova;
+
+            return Configuration.ReleaseStream.Torii;
         }
 
         protected override async Task<bool> PerformUpdateCheck(CancellationToken cancellationToken)
         {
             try
             {
-                bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
+                bool includePrerelease = stream == Configuration.ReleaseStream.Nova;
 
                 // Hit Torii's own release feed, not upstream lazer / shigetiro / GooGuTeam.
                 // The mobile notifier compares the running app's Version against the latest
