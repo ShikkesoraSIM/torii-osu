@@ -132,6 +132,13 @@ namespace osu.Game.Performance
         private ScheduledDelegate uploadTimerDelegate;
         private Bindable<bool> shareEnabled;
         private Bindable<string> deviceHashBindable;
+
+        // Bound copy of the play-state so we can wake the upload pipeline
+        // the instant the player drops out of Playing — without this we'd
+        // wait up to a full 30 s tick for the periodic timer to retry,
+        // which would feel like the dashboard is stuck 30 s behind every
+        // session.
+        private IBindable<LocalUserPlayingState> playingStateBound;
         private static readonly JsonSerializerSettings json_settings = new JsonSerializerSettings
         {
             DateFormatHandling = DateFormatHandling.IsoDateFormat,
@@ -238,6 +245,26 @@ namespace osu.Game.Performance
                     // HTTP request goes off-thread via api.Queue so this
                     // tick is cheap.
                     uploadTimerDelegate = Scheduler.AddDelayed(flushUploadQueue, upload_interval_ms, true);
+
+                    // Wake the upload pipeline immediately on exit from
+                    // gameplay — bridges the timer gap so anything captured
+                    // mid-song uploads within a frame of the player landing
+                    // on song-select / results / a fail screen, instead of
+                    // waiting up to 30 s for the next periodic tick. Only
+                    // the Playing→anything transition counts; Break→Playing
+                    // and the initial NotPlaying→NotPlaying on bind don't
+                    // do anything (and the queue is empty at startup anyway
+                    // so a stray call would early-return).
+                    if (playInfo != null)
+                    {
+                        playingStateBound = playInfo.PlayingState.GetBoundCopy();
+                        playingStateBound.BindValueChanged(e =>
+                        {
+                            if (e.OldValue == LocalUserPlayingState.Playing
+                                && e.NewValue != LocalUserPlayingState.Playing)
+                                flushUploadQueue();
+                        });
+                    }
                 }
             }
             catch (Exception ex)
