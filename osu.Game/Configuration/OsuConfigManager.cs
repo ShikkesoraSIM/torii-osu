@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.IO;
 using osu.Framework;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
@@ -9,6 +10,7 @@ using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Beatmaps.Drawables.Cards;
 using osu.Game.Input;
@@ -30,19 +32,156 @@ namespace osu.Game.Configuration
 {
     public class OsuConfigManager : IniConfigManager<OsuSetting>, IGameplaySettings
     {
+        /// <summary>
+        /// Torii writes its config + OAuth token to <c>torii.ini</c>
+        /// instead of the upstream-default <c>game.ini</c>. When a user
+        /// runs the official ppy lazer client against the same data
+        /// folder, that client owns <c>game.ini</c> exclusively and the
+        /// two no longer race to overwrite each other's keys. Shared
+        /// content — beatmaps, skins, replays, the realm DB — stays
+        /// shared because that's all in sibling files/directories that
+        /// neither config file touches.
+        /// </summary>
+        public const string TORII_CONFIG_FILENAME = "torii.ini";
+
+        /// <summary>
+        /// The upstream-default config filename. We migrate from this
+        /// once on first run after the cut-over (see
+        /// <see cref="prepareMigratedStorage"/>) so users keep their
+        /// session and settings without manual intervention.
+        /// </summary>
+        private const string upstream_config_filename = "game.ini";
+
+        /// <inheritdoc/>
+        protected override string Filename => TORII_CONFIG_FILENAME;
+
         public OsuConfigManager(Storage storage)
-            : base(storage)
+            : base(prepareMigratedStorage(storage))
         {
             Migrate();
 
-            // Hydrate Torii-only settings from the sidecar torii.ini if
-            // present, then start mirroring future changes back to it.
-            // Lets these settings survive being parsed away by the
-            // official ppy lazer client when the data folder is shared
-            // (lazer rewrites osu.cfg without the keys it doesn't know).
-            // See ToriiSettingsPersistence.cs for the full rationale and
-            // the curated list of mirrored keys.
-            ToriiSettingsPersistence.ApplyAndWatch(this, storage);
+            // NOTE: the legacy ToriiSettingsPersistence sidecar mechanism
+            // is no longer wired up here. With torii.ini as the primary
+            // config (Filename above), every Torii-only key already
+            // round-trips through it via the standard IniConfigManager
+            // path — running the sidecar in parallel would create a
+            // dual-writer race on the same file. ToriiSettingsPersistence
+            // is left in the tree as dead code marked [Obsolete] for one
+            // release cycle so any out-of-tree call sites can migrate;
+            // it'll be removed in a follow-up cleanup commit.
+        }
+
+        /// <summary>
+        /// One-shot migration that ensures <see cref="TORII_CONFIG_FILENAME"/>
+        /// exists with the user's pre-existing config + OAuth token
+        /// before the base constructor reads from it. Idempotent; safe
+        /// to call on every launch.
+        /// </summary>
+        /// <remarks>
+        /// States this handles, in priority order:
+        ///
+        /// <list type="number">
+        ///   <item><description>
+        ///   <b>torii.ini already has a Token line</b>: this build (or a
+        ///   previous Torii build with the cut-over applied) has
+        ///   already written a full config to torii.ini. Nothing to do.
+        ///   </description></item>
+        ///   <item><description>
+        ///   <b>torii.ini exists but has no Token</b>: a previous Torii
+        ///   build wrote the curated sidecar subset (see
+        ///   <see cref="ToriiSettingsPersistence"/>) here. Treat as
+        ///   incomplete and seed from game.ini below; the full set of
+        ///   keys including the OAuth token will overwrite the small
+        ///   sidecar payload.
+        ///   </description></item>
+        ///   <item><description>
+        ///   <b>game.ini exists</b>: the user has an osu! lazer install
+        ///   (this Torii fork, or the upstream ppy client, doesn't
+        ///   matter — same INI format). Bytes-for-bytes copy. The
+        ///   user keeps their session and every setting.
+        ///   </description></item>
+        ///   <item><description>
+        ///   <b>Fresh install, no files</b>: nothing to do — the base
+        ///   IniConfigManager constructor will create torii.ini from
+        ///   defaults on its first save.
+        ///   </description></item>
+        /// </list>
+        ///
+        /// Errors are swallowed (logged at Important level). A failed
+        /// migration falls back to a fresh-defaults torii.ini which is
+        /// the least-bad outcome — the user has to log in once but
+        /// nothing else is lost; their game.ini is left untouched for
+        /// the official client to keep using.
+        /// </remarks>
+        private static Storage prepareMigratedStorage(Storage storage)
+        {
+            try
+            {
+                bool toriiExists = storage.Exists(TORII_CONFIG_FILENAME);
+
+                // State (1): already migrated.
+                if (toriiExists && toriiIniContainsToken(storage))
+                    return storage;
+
+                // States (2)/(3): copy from game.ini if it exists.
+                // CreateFileSafely overwrites — fine for state (2) because
+                // the sidecar payload was a strict subset of what we're
+                // about to write, and fine for state (3) because we want
+                // exactly the same content.
+                if (storage.Exists(upstream_config_filename))
+                {
+                    using (Stream src = storage.GetStream(upstream_config_filename, FileAccess.Read, FileMode.Open))
+                    using (Stream dst = storage.CreateFileSafely(TORII_CONFIG_FILENAME))
+                        src.CopyTo(dst);
+                }
+                // State (4): no files. Nothing to do — IniConfigManager
+                // will create torii.ini from defaults on first save.
+            }
+            catch (Exception ex)
+            {
+                Logger.Log(
+                    $"[torii.ini] migration from {upstream_config_filename} failed: {ex.Message}",
+                    LoggingTarget.Runtime,
+                    LogLevel.Important);
+            }
+            return storage;
+        }
+
+        /// <summary>
+        /// Cheap signal that torii.ini holds a full primary-config
+        /// payload rather than the curated sidecar payload an earlier
+        /// Torii build may have written. The sidecar never wrote the
+        /// OAuth Token (it's a sensitive value with no need to be
+        /// mirrored across files), so the presence of any "Token"
+        /// key proves this is a primary config and migration has
+        /// already happened. False on read errors so the migration
+        /// path runs again — at worst a redundant copy.
+        /// </summary>
+        private static bool toriiIniContainsToken(Storage storage)
+        {
+            try
+            {
+                using (Stream stream = storage.GetStream(TORII_CONFIG_FILENAME, FileAccess.Read, FileMode.Open))
+                using (var reader = new StreamReader(stream))
+                {
+                    string? line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        // The IniConfigManager format writes "Key = value"
+                        // (with spaces around `=`); StartsWith on the
+                        // trimmed line catches both that and the no-space
+                        // sidecar format.
+                        string trimmed = line.TrimStart();
+                        if (trimmed.StartsWith("Token", StringComparison.Ordinal))
+                            return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+            return false;
         }
 
         protected override void InitialiseDefaults()
@@ -165,9 +304,11 @@ namespace osu.Game.Configuration
             // Torii-only: three-way selector for what cursor visual
             // MenuCursorContainer renders in menus / song-select /
             // overlays. Default is LazerDefault (preserves upstream
-            // behaviour). Mirrored via ToriiSettingsPersistence so
-            // the choice survives a roundtrip through the official
-            // lazer client.
+            // behaviour). Persists in torii.ini (the Torii primary
+            // config; see TORII_CONFIG_FILENAME at the top of this
+            // file) so the choice survives a roundtrip through the
+            // official lazer client running against the same data
+            // folder.
             SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
 
             SetDefault(OsuSetting.MouseDisableButtons, false);

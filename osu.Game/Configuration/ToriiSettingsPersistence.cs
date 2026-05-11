@@ -12,9 +12,18 @@ using osu.Framework.Platform;
 namespace osu.Game.Configuration
 {
     /// <summary>
-    /// Sidecar persistence for the small set of settings that ONLY exist
-    /// in Torii (custom UI hue, supporter accent hue, "confirm dangerous
-    /// buttons" toggle, alpha-feature unlocks, etc.).
+    /// DEPRECATED. Sidecar persistence for the small set of settings that
+    /// ONLY exist in Torii.
+    ///
+    /// As of the torii.ini-as-primary-config cut-over (see
+    /// <see cref="OsuConfigManager.TORII_CONFIG_FILENAME"/>) this sidecar
+    /// is redundant — every key the sidecar used to mirror is now
+    /// written directly to torii.ini by the standard IniConfigManager
+    /// path, and the previous "game.ini gets clobbered by official
+    /// lazer" failure mode can't happen because Torii no longer writes
+    /// game.ini at all. The class is kept in the tree for one release
+    /// cycle in case any out-of-tree call sites still reference it;
+    /// will be removed in a follow-up cleanup commit.
     ///
     /// Why we need this
     /// ----------------
@@ -55,6 +64,8 @@ namespace osu.Game.Configuration
     /// switch in <c>applyValue</c> / <c>watchKey</c> / <c>formatValue</c>
     /// at the bottom of this file.
     /// </summary>
+    [Obsolete("torii.ini is now the primary config (see OsuConfigManager.TORII_CONFIG_FILENAME). " +
+              "The sidecar mechanism is redundant; this class is scheduled for removal in a follow-up commit.")]
     internal static class ToriiSettingsPersistence
     {
         /// <summary>
