@@ -26,6 +26,7 @@ using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
+using osu.Game.Screens.Play;
 
 namespace osu.Game.Performance
 {
@@ -146,6 +147,12 @@ namespace osu.Game.Performance
 
         [Resolved(canBeNull: true)]
         private OsuConfigManager osuConfig { get; set; }
+
+        // Optional — null in test scenes that don't spin up a play scope.
+        // Used by flushUploadQueue to skip uploads during active gameplay
+        // so the periodic tick doesn't bother the update thread.
+        [Resolved(canBeNull: true)]
+        private ILocalUserPlayInfo playInfo { get; set; }
 
         [Resolved]
         private Storage storage { get; set; }
@@ -340,6 +347,19 @@ namespace osu.Game.Performance
                 return;
 
             if (uploadQueue.IsEmpty)
+                return;
+
+            // Don't upload mid-song. The HTTP itself goes off-thread via
+            // api.Queue, but request construction + the success/failure
+            // callbacks all schedule onto the update thread, and the 30 s
+            // tick landing during gameplay was visible in prod hiccup data
+            // (one upload took 7 s under a backed-up queue, then the next
+            // frame's response cascade stuttered). Captures still land in
+            // the local JSONL and the in-memory queue (bounded to 500),
+            // so nothing is lost — the queue drains on the next 30 s tick
+            // after the player drops out of gameplay. Break / NotPlaying
+            // both allow upload; only the hot-loop Playing state is gated.
+            if (playInfo != null && playInfo.PlayingState.Value == LocalUserPlayingState.Playing)
                 return;
 
             // Drain up to MAX_UPLOAD_BATCH from the queue. The server caps

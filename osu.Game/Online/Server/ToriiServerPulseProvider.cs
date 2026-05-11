@@ -12,6 +12,7 @@ using osu.Game.Configuration;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Screens.Play;
 
 namespace osu.Game.Online.Server
 {
@@ -43,9 +44,17 @@ namespace osu.Game.Online.Server
     ///     ToriiSpecific endpoint, so polling without auth would just
     ///     cookie-check-fail in a loop. We watch <see cref="IAPIProvider.State"/>
     ///     and wake up automatically when auth flips back on.
-    /// We do NOT pause during gameplay — the polling rate is gentle (one
-    /// HTTP request per minute) and the player benefits from seeing pulse
-    /// on the toolbar between maps.
+    ///   - The user is in active gameplay (<see cref="ILocalUserPlayInfo.PlayingState"/>
+    ///     == <see cref="LocalUserPlayingState.Playing"/>). The response
+    ///     handler cascades through 9 bindables on the update thread,
+    ///     and prod hiccup-report data showed individual pulse-response
+    ///     frames stalling 200–500 ms mid-song. The cost was worse than
+    ///     the value of fresh numbers between hits, so we trade pulse
+    ///     freshness for zero in-game stutter. Polling rearms automatically
+    ///     when the player drops back to <see cref="LocalUserPlayingState.Break"/>
+    ///     or <see cref="LocalUserPlayingState.NotPlaying"/> (the latter
+    ///     is the post-song results-screen transition, so the toolbar
+    ///     pip catches up within a frame of leaving gameplay).
     ///
     /// Bindables exposed
     /// -----------------
@@ -174,7 +183,17 @@ namespace osu.Game.Online.Server
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
+        // canBeNull so test scenes / headless contexts that don't have a
+        // local-user-play scope still spin up the provider cleanly. In a
+        // real client this is always resolved off OsuGame.
+        [Resolved(canBeNull: true)]
+        private ILocalUserPlayInfo? playInfo { get; set; }
+
         private readonly Bindable<bool> enabledBindable = new BindableBool(true);
+
+        // Local bound copy so we can subscribe + unbind on dispose without
+        // touching the source bindable that other gameplay systems share.
+        private IBindable<LocalUserPlayingState>? localPlayingState;
 
         private ScheduledDelegate? scheduledPoll;
         private GetToriiServerPulseRequest? activeRequest;
@@ -195,6 +214,16 @@ namespace osu.Game.Online.Server
 
             enabledBindable.BindValueChanged(_ => onPollabilityChanged(), true);
             api.State.BindValueChanged(_ => onPollabilityChanged(), true);
+
+            // Subscribe to PlayingState so the polling loop pauses the
+            // moment we transition into Playing and rearms when we drop
+            // back to Break (paused/failed/break) or NotPlaying (post-song
+            // transition or menus). canBeNull guard for test contexts.
+            if (playInfo != null)
+            {
+                localPlayingState = playInfo.PlayingState.GetBoundCopy();
+                localPlayingState.BindValueChanged(_ => onPollabilityChanged(), true);
+            }
         }
 
         /// <summary>
@@ -228,7 +257,15 @@ namespace osu.Game.Online.Server
             triggerImmediatePoll();
         }
 
-        private bool IsPollable => enabledBindable.Value && api.State.Value == APIState.Online;
+        // Polling is on whenever the widget is enabled AND the API is
+        // authenticated AND the local user is not in active gameplay.
+        // Break + NotPlaying both count as "free to poll" — pauses /
+        // fails / post-song transitions don't need to be silent. Only
+        // hot-loop input matters.
+        private bool IsPollable =>
+            enabledBindable.Value
+            && api.State.Value == APIState.Online
+            && localPlayingState?.Value != LocalUserPlayingState.Playing;
 
         private void onPollabilityChanged()
         {
