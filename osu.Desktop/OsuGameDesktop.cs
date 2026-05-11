@@ -13,6 +13,7 @@ using osu.Framework.Platform;
 using osu.Game;
 using osu.Desktop.Updater;
 using osu.Framework;
+using osu.Framework.Configuration;
 using osu.Framework.Logging;
 using osu.Game.Updater;
 using osu.Desktop.Windows;
@@ -35,6 +36,11 @@ namespace osu.Desktop
         private readonly HighPerformanceSessionManager highPerformanceSessionManager = new HighPerformanceSessionManager();
 
         public bool IsFirstRun { get; init; }
+
+#if TORII_NOVA
+        [Resolved]
+        private FrameworkConfigManager frameworkConfig { get; set; } = null!;
+#endif
 
         public OsuGameDesktop(string[]? args = null)
             : base(args)
@@ -131,6 +137,10 @@ namespace osu.Desktop
         {
             base.LoadComplete();
 
+#if TORII_NOVA
+            applyNovaRendererDefault();
+#endif
+
             LoadComponentAsync(new DiscordRichPresence(), Add);
 
             if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
@@ -141,6 +151,71 @@ namespace osu.Desktop
             osuSchemeLinkIPCChannel = new OsuSchemeLinkIPCChannel(Host, this);
             archiveImportIPCChannel = new ArchiveImportIPCChannel(Host, this);
         }
+
+#if TORII_NOVA
+        /// <summary>
+        /// On Torii Nova builds, prefer the platform's Deferred renderer
+        /// variant when the user hasn't explicitly picked one yet. Detection
+        /// is: <see cref="FrameworkSetting.Renderer"/> still at the framework
+        /// default (<see cref="RendererType.Automatic"/>) → safe to override;
+        /// any other value → respect the user's choice.
+        /// </summary>
+        /// <remarks>
+        /// Renderer is already initialised by the time <see cref="LoadComplete"/>
+        /// runs, so the write to <c>framework.ini</c> takes effect on the next
+        /// start. First Nova session uses whatever the framework auto-picked;
+        /// every session after uses the Deferred variant. We deliberately don't
+        /// hot-swap renderers mid-flight — that path isn't supported cleanly
+        /// in osu-framework and the failure modes (lost GL context, mis-cached
+        /// textures) are worse than just letting the next launch handle it.
+        ///
+        /// Platform mapping is conservative:
+        /// <list type="bullet">
+        /// <item>Windows  → <see cref="RendererType.Deferred_Direct3D11"/></item>
+        /// <item>macOS    → <see cref="RendererType.Deferred_Metal"/></item>
+        /// <item>Linux    → left at Automatic (Deferred_Vulkan / Deferred_OpenGL
+        /// stability varies a lot by driver; the framework's auto-pick is the
+        /// safer floor until we have concrete reports from Linux Nova users).</item>
+        /// </list>
+        /// </remarks>
+        private void applyNovaRendererDefault()
+        {
+            try
+            {
+                var rendererBindable = frameworkConfig.GetBindable<RendererType>(FrameworkSetting.Renderer);
+
+                // Only override if the user is still on the framework default.
+                // Any explicit pick (including someone who picked Deferred
+                // themselves before) is left alone.
+                if (rendererBindable.Value != RendererType.Automatic)
+                    return;
+
+                RendererType? target = null;
+                if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+                    target = RendererType.Deferred_Direct3D11;
+                else if (RuntimeInfo.OS == RuntimeInfo.Platform.macOS)
+                    target = RendererType.Deferred_Metal;
+                // Linux deliberately omitted — see XML doc above.
+
+                if (target != null)
+                {
+                    rendererBindable.Value = target.Value;
+                    Logger.Log(
+                        $"[Torii Nova] Renderer default switched from Automatic to {target.Value}. "
+                        + "Restart the game for the change to take effect.",
+                        LoggingTarget.Runtime, LogLevel.Important);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                // Defensive: don't crash startup if the framework config
+                // surface changes shape under us. The dropdown in Settings
+                // → Graphics still lets the user switch manually.
+                Logger.Log($"[Torii Nova] applyNovaRendererDefault failed: {ex.Message}",
+                    LoggingTarget.Runtime, LogLevel.Important);
+            }
+        }
+#endif
 
         public override void SetHost(GameHost host)
         {

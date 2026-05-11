@@ -32,6 +32,15 @@
     -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <!--
+      TORII_NOVA: compile-time marker for the experimental stream. Source
+      that should only run on Nova builds gates itself with `#if TORII_NOVA`.
+      Master / Torii-stable does NOT define this constant, so the same
+      source file produces a no-op gate there. Currently used to flip the
+      renderer default to Deferred for first-Nova-run users — see
+      OsuGameDesktop.applyNovaRendererDefault().
+    -->
+    <DefineConstants>$(DefineConstants);TORII_NOVA</DefineConstants>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
