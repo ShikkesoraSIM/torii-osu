@@ -147,8 +147,12 @@ namespace osu.Desktop
             // instead of throwing.
             if (DebugUtils.IsDebugBuild)
             {
-                Logger.Log("RestartAppWhenExited: skipped Velopack restart on debug build — please close and reopen the client manually for the change to take effect.",
-                    LoggingTarget.Runtime, LogLevel.Important);
+                // Verbose — no user-visible toast. The framework already
+                // surfaces a standard "Restart the game for the change to
+                // take effect" notification when settings request a restart;
+                // adding another toast here would be duplicate noise.
+                Logger.Log("RestartAppWhenExited: skipped Velopack on debug build (no Update.exe sibling). User must close + reopen.",
+                    LoggingTarget.Runtime, LogLevel.Verbose);
                 return false;
             }
 

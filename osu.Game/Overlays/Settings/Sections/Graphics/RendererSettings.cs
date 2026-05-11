@@ -303,38 +303,49 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
             protected override LocalisableString GenerateItemText(RendererType item)
             {
+#if TORII_NOVA
+                // Torii Nova: full-coverage label switch so the dropdown
+                // never falls through to `base.GenerateItemText` for any
+                // shipping RendererType value. Previously the (Nova)
+                // relabel switch only handled Deferred_* entries and the
+                // non-Deferred immediate entries (Direct3D 11 / Direct3D 12 /
+                // OpenGL / Vulkan / Metal) fell through to the framework
+                // base implementation — which in some configurations of
+                // FormEnumDropdown<T> ends up returning an empty string
+                // for plain [Description]-annotated enums, leaving those
+                // dropdown items literally blank on Nova builds. Spelling
+                // out every value here keeps the dropdown legible in any
+                // framework version.
+                //
+                // Stable (Torii) keeps the upstream rendering — this whole
+                // block compiles to nothing without the TORII_NOVA define.
+                LocalisableString novaText = item switch
+                {
+                    RendererType.Automatic              => "Automatic",
+                    RendererType.Direct3D11             => "Direct3D 11",
+                    RendererType.Direct3D12             => "Direct3D 12",
+                    RendererType.Metal                  => "Metal",
+                    RendererType.OpenGL                 => "OpenGL",
+                    RendererType.Vulkan                 => "Vulkan",
+                    RendererType.OpenGLLegacy           => "OpenGL (Legacy)",
+                    RendererType.Deferred_Direct3D11    => "Direct3D 11 (Nova)",
+                    RendererType.Deferred_Direct3D12    => "Direct3D 12 (Nova)",
+                    RendererType.Deferred_Metal         => "Metal (Nova)",
+                    RendererType.Deferred_OpenGL        => "OpenGL (Nova)",
+                    RendererType.Deferred_Vulkan        => "Vulkan (Nova)",
+                    _                                   => item.ToString()
+                };
+
+                if (item == RendererType.Automatic && automaticRendererInUse)
+                    return LocalisableString.Interpolate($"{novaText} ({hostResolvedRenderer.GetDescription()})");
+
+                return novaText;
+#else
                 if (item == RendererType.Automatic && automaticRendererInUse)
                     return LocalisableString.Interpolate($"{base.GenerateItemText(item)} ({hostResolvedRenderer.GetDescription()})");
 
-#if TORII_NOVA
-                // Torii Nova rebrand: the upstream-osu! convention tags the
-                // Deferred renderer variants with " (Experimental)" in the
-                // dropdown. On Nova we're explicitly committing to the
-                // Deferred pipeline as our preferred default, so "Experimental"
-                // undersells what we're shipping — relabel as " (Nova)" so
-                // power users see the connection between the stream and the
-                // renderer. Pattern-matching on the enum (rather than string
-                // replacement on the localised description) keeps this robust
-                // against future framework-side localisation of the
-                // "(Experimental)" suffix.
-                //
-                // Stable (Torii) keeps the upstream wording verbatim — this
-                // whole block compiles to nothing without the TORII_NOVA
-                // define.
-                LocalisableString? novaLabel = item switch
-                {
-                    RendererType.Deferred_Direct3D11 => "Direct3D 11 (Nova)",
-                    RendererType.Deferred_Direct3D12 => "Direct3D 12 (Nova)",
-                    RendererType.Deferred_Metal => "Metal (Nova)",
-                    RendererType.Deferred_OpenGL => "OpenGL (Nova)",
-                    RendererType.Deferred_Vulkan => "Vulkan (Nova)",
-                    _ => null
-                };
-                if (novaLabel.HasValue)
-                    return novaLabel.Value;
-#endif
-
                 return base.GenerateItemText(item);
+#endif
             }
         }
 
