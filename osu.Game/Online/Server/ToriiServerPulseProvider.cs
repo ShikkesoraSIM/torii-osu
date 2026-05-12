@@ -91,7 +91,16 @@ namespace osu.Game.Online.Server
         // Polling intervals. Tuned in tandem with the server's 10s cache
         // TTL (see torii_server_pulse.py): the active cadence matches the
         // cache window so concurrent active clients all hit warm cache.
-        public const int PollIntervalSecondsIdle = 60;
+        //
+        // Idle cadence ("popover closed" — toolbar pip only) bumped from
+        // 60s → 120s after live hiccup-report data showed the once-a-minute
+        // response cascade was visible in idle-session timelines (a small
+        // bindable cascade + log entry every 60 s). Doubling halves the
+        // per-session pulse traffic while leaving the pip in sync with
+        // whatever the server publishes (server itself has a 10 s cache
+        // TTL + per-user activity smearing — sub-minute freshness was
+        // always theatrical).
+        public const int PollIntervalSecondsIdle = 120;
         public const int PollIntervalSecondsActive = 10;
 
         // Grace period after exiting LocalUserPlayingState.Playing during

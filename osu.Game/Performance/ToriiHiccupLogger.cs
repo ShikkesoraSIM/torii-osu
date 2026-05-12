@@ -75,6 +75,19 @@ namespace osu.Game.Performance
         /// </summary>
         public const double DefaultThresholdMs = 80.0;
 
+        /// <summary>
+        /// Drop hiccup records whose frame_ms exceeds this. Frames in the multi-second range are
+        /// almost certainly OS-level process pauses (laptop sleep / resume, Windows suspending a
+        /// background-priority process under load, antivirus stalling Update, the user dragging
+        /// the title bar which freezes the message pump) rather than a real on-thread stall.
+        /// Recording them is misleading — the recent_events ring buffer at the moment of capture
+        /// shows whatever was in there before the pause, which makes the cause attribution wildly
+        /// wrong, and they dominate the dashboard's "worst hiccups" lists. 5 s is well above any
+        /// believable on-thread stall (the worst real GC pause we've seen in prod was ~700 ms)
+        /// while still catching genuine deadlock-recovery cases on slower hardware.
+        /// </summary>
+        private const double maximum_recordable_ms = 5_000.0;
+
         /// <summary>Suppress consecutive hiccup records this close together to avoid logging the same stall twice.</summary>
         private const double cooldown_ms = 100.0;
 
@@ -125,7 +138,15 @@ namespace osu.Game.Performance
         private readonly ConcurrentQueue<HiccupRecord> uploadQueue = new ConcurrentQueue<HiccupRecord>();
         private const int max_upload_batch = 50;        // server hard-caps at this too
         private const int max_upload_queue_depth = 500; // bound memory under outage
-        private const double upload_interval_ms = 30_000;
+        // Upload cadence. Bumped from 30s → 60s after live data showed that the
+        // upload response delivery (Schedule'd onto update thread) was firing
+        // visibly in users' session timelines even on healthy networks: every
+        // 30 s the user-thread paid for a small bindable + log update. Doubling
+        // to 60 s halves the per-session cost without meaningfully delaying
+        // when reports land in the dashboard (a hiccup that happens at minute
+        // 12 of a session lands at minute 13 instead of 12.5 — still within
+        // the "same session" granularity the dashboard treats as live).
+        private const double upload_interval_ms = 60_000;
 
         private string sessionIdString;
         private string deviceHash;
@@ -284,6 +305,17 @@ namespace osu.Game.Performance
 
             if (elapsed < thresholdMs)
                 return;
+
+            // Upper bound: frames longer than maximum_recordable_ms are almost
+            // certainly OS-level process pauses, not on-thread stalls. Skip them.
+            // See maximum_recordable_ms doc for the rationale.
+            if (elapsed > maximum_recordable_ms)
+            {
+                // Still bump the cooldown so a real stall immediately after a
+                // suspend doesn't get suppressed by it.
+                lastHiccupTime = Time.Current;
+                return;
+            }
 
             // Cooldown so a single 200 ms stall doesn't generate three log
             // entries (one per detection-eligible frame within the stall).

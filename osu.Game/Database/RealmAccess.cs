@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
@@ -448,7 +449,18 @@ namespace osu.Game.Database
         /// </summary>
         /// <param name="action">The work to run.</param>
         /// <typeparam name="T">The return type.</typeparam>
-        public T Run<T>(Func<Realm, T> action)
+        /// <remarks>
+        /// <see cref="CallerMemberNameAttribute"/> + <see cref="CallerFilePathAttribute"/> are populated
+        /// by the compiler at every call site; runtime cost is zero (constant strings baked in). They
+        /// flow into the update-thread breadcrumb so hiccup-report data can pinpoint WHICH realm.Run
+        /// is flooding the thread without an inspection — the dashboard's existing carousel-flood
+        /// pattern (16 breadcrumbs of "realm.run / update-thread (4 ms)" in a 14 ms span) becomes
+        /// "16× realm.run / PanelLocalRankDisplay.localScoresChanged @ ScoreManager.cs (4 ms)" once
+        /// data lands on this build.
+        /// </remarks>
+        public T Run<T>(Func<Realm, T> action,
+            [CallerMemberName] string callerMember = "",
+            [CallerFilePath] string callerFile = "")
         {
             if (ThreadSafety.IsUpdateThread)
             {
@@ -470,7 +482,7 @@ namespace osu.Game.Database
                                 * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
                     if (ms >= 1.0)
                     {
-                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"update-thread ({ms:F0} ms)");
+                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"{callerSiteSummary(callerMember, callerFile)} ({ms:F0} ms)");
                     }
                 }
             }
@@ -484,7 +496,9 @@ namespace osu.Game.Database
         /// Run work on realm.
         /// </summary>
         /// <param name="action">The work to run.</param>
-        public void Run(Action<Realm> action)
+        public void Run(Action<Realm> action,
+            [CallerMemberName] string callerMember = "",
+            [CallerFilePath] string callerFile = "")
         {
             if (ThreadSafety.IsUpdateThread)
             {
@@ -500,7 +514,7 @@ namespace osu.Game.Database
                                 * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
                     if (ms >= 1.0)
                     {
-                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"update-thread ({ms:F0} ms)");
+                        osu.Game.Performance.HiccupBreadcrumbs.Add("realm.run", $"{callerSiteSummary(callerMember, callerFile)} ({ms:F0} ms)");
                     }
                 }
             }
@@ -510,6 +524,22 @@ namespace osu.Game.Database
                 using (var realm = getRealmInstance())
                     action(realm);
             }
+        }
+
+        /// <summary>
+        /// Compose a "ClassName.MemberName" summary from <see cref="CallerFilePathAttribute"/> +
+        /// <see cref="CallerMemberNameAttribute"/> for the realm.Run breadcrumb. We deliberately
+        /// avoid a full stack walk (StackTrace is ~10 µs per call and gets called on every
+        /// update-thread realm read).
+        /// </summary>
+        private static string callerSiteSummary(string callerMember, string callerFile)
+        {
+            // Strip directory + extension from the file path. Path.GetFileNameWithoutExtension
+            // handles both Unix and Windows separators, which matters because the file paths
+            // are baked at compile time and the build agent's separator may differ from the
+            // running OS.
+            string fileName = string.IsNullOrEmpty(callerFile) ? "?" : Path.GetFileNameWithoutExtension(callerFile);
+            return $"{fileName}.{callerMember}";
         }
 
         /// <summary>
