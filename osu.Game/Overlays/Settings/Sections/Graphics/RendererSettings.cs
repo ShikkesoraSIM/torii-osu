@@ -28,6 +28,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
         private FormEnumDropdown<LatencyMode>? latencySetting;
         private SettingsItemV2? latencySettingItem;
+        private FormCheckBox? dangerousUnlimitedCheckbox;
         private readonly Bindable<SettingsNote.Data?> latencySettingNote = new Bindable<SettingsNote.Data?>();
         private readonly Bindable<SettingsNote.Data?> dangerousUnlimitedNote = new Bindable<SettingsNote.Data?>();
 
@@ -83,7 +84,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps" },
                 },
-                new SettingsItemV2(new FormCheckBox
+                new SettingsItemV2(dangerousUnlimitedCheckbox = new FormCheckBox
                 {
                     Caption = "I am stupid, I ignore warnings and want no limits",
                     HintText = "Allows the experimental Unlimited mode to uncap update, input, and audio scheduling too. This can cause audio pops, stutters, heat, and general gremlin behaviour.",
@@ -202,6 +203,56 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                     ? new SettingsNote.Data("Unsafe mode enabled: Unlimited can now uncap update/input/audio too. Disable this first if audio starts doubling, popping, or stuttering.", SettingsNote.Type.Warning)
                     : new SettingsNote.Data("Recommended: leave this off. Unlimited will still uncap rendering, but keeps audio/input/update protected.", SettingsNote.Type.Informational);
             }, true);
+
+            // CRITICAL safety: the "I am stupid, ignore limits" toggle is
+            // unsafe on Deferred renderers. Deferred queues per-frame draw
+            // events from the update thread to the draw thread; if the
+            // update thread runs uncapped (which this toggle enables),
+            // events queue up faster than the GPU can consume them →
+            // unbounded memory growth → OOM crash within ~30 seconds.
+            // Immediate (non-deferred) renderers don't have this queue
+            // and the toggle behaves as the warning text describes
+            // (audio pops + heat, not RAM-exhaustion crash).
+            //
+            // Torii Nova ships Deferred as the DEFAULT, so most users
+            // would hit this if they enabled the toggle. Force-disable
+            // + force-off when Deferred is resolved; re-enable for
+            // power users who explicitly picked a non-deferred renderer.
+            bool isDeferredRenderer(RendererType t) =>
+                t == RendererType.Deferred_Direct3D11
+                || t == RendererType.Deferred_Direct3D12
+                || t == RendererType.Deferred_Metal
+                || t == RendererType.Deferred_OpenGL
+                || t == RendererType.Deferred_Vulkan;
+
+            void applyDangerousUnlimitedGate(RendererType resolvedRenderer)
+            {
+                bool deferred = isDeferredRenderer(resolvedRenderer);
+                if (deferred)
+                {
+                    // Force the value off so a previously-saved `true`
+                    // doesn't auto-trigger the OOM crash on first launch
+                    // after the user switched into a deferred renderer.
+                    if (dangerousUnlimitedNoCap.Value)
+                        dangerousUnlimitedNoCap.Value = false;
+
+                    dangerousUnlimitedNoCap.Disabled = true;
+                    if (dangerousUnlimitedCheckbox != null)
+                        dangerousUnlimitedCheckbox.Current.Disabled = true;
+
+                    dangerousUnlimitedNote.Value = new SettingsNote.Data(
+                        "Disabled on the Deferred renderer — uncapped update + Deferred = unbounded memory growth + crash. Switch to a non-deferred renderer (or edit framework.ini to opt out of Deferred) if you really want this.",
+                        SettingsNote.Type.Warning);
+                }
+                else
+                {
+                    dangerousUnlimitedNoCap.Disabled = false;
+                    if (dangerousUnlimitedCheckbox != null)
+                        dangerousUnlimitedCheckbox.Current.Disabled = false;
+                }
+            }
+
+            applyDangerousUnlimitedGate(host.ResolvedRenderer);
 
             renderer.BindValueChanged(r =>
             {
