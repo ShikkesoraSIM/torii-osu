@@ -63,7 +63,7 @@ The two streams share the same install — switching is a one-click in settings 
 
 ### Client identity & UI
 
-- **Torii brand**: gradient torii-gate logo across the window, taskbar, file associations, badges, and shortcuts. (Stable builds currently still show "osu! Torii" in some window-chrome surfaces; the May 2026 binary rebrand drops the "osu!" prefix entirely, rolling out through Nova first.)
+- **Torii brand**: gradient torii-gate logo across the window, taskbar, file associations, badges, and shortcuts. The May 2026 binary rebrand renamed the executable `osu-torii.exe` → `torii.exe` and switched the displayed product name to "Torii Nova" across window chrome, file associations, the Android launcher, and the macOS bundle. A small `osu-torii.exe` shim ships alongside on Windows so pre-rebrand taskbar pins keep working without re-pinning.
 - **Torii toolbar** — a Torii-themed alpha indicator and quick-access strip alongside the upstream toolbar.
 - **Settings → Torii section** where every Torii-specific knob lives instead of being scattered across upstream panels:
   - Server selection (Torii vs. official) + auth flow
@@ -113,14 +113,13 @@ Nova is where we test things that aren't safe to push to every Torii user yet. I
 
 Switch via **Settings → General → Updates → Release stream → Torii Nova (Experimental)**. The client confirms before switching and downloads a fresh Nova build over your current install (data is preserved).
 
-What Nova currently adds on top of stable:
+What Nova currently adds on top of stable (everything else — the brand, icon, binary rename, audio fixes, badge, shim, hidden D3D12 dropdown, config-migration — ships on stable too):
 
 - **`.NET 10` runtime chain** across the whole client. JIT improvements, lower-allocation GC, and SIMD path improvements that matter most for gameplay frame pacing. Stable is still on `.NET 8`.
 - **CoreCLR runtime** on Android, replacing Mono. Same JIT/GC improvements story as desktop.
 - **Deferred renderer as default** on first launch. Stable defaults to the framework's immediate renderer for safety; Nova flips this to Deferred so we can shake out edge cases at scale.
-- **Direct3D 12 backend (experimental)** — a fully-wired D3D12 path in our Veldrid fork. **Deliberately hidden** from the in-settings renderer dropdown to keep curious users from picking it on a hunch; the backend can be opted into by editing `framework.ini` (`%APPDATA%\osu-torii\framework.ini`) and setting `Renderer = Deferred_Direct3D12`. Nova is where this gets dogfooded before any consideration of promoting to stable.
+- **Direct3D 12 backend (experimental, opt-in on both streams)** — a fully-wired D3D12 path in our Veldrid fork. **Deliberately hidden** from the in-settings renderer dropdown on both streams to keep curious users from picking it on a hunch; the backend can be opted into by editing `framework.ini` (`%APPDATA%\osu-torii\framework.ini`) and setting `Renderer = Deferred_Direct3D12`. Nova is where it gets dogfooded with the Deferred-default UX, while stable users on Direct3D 11 immediate keep their existing renderer untouched.
 - **Renderer dropdown re-labels** — Deferred entries display as `... (Nova)` (e.g. `Direct3D 11 (Nova)`) so you can tell which path you're on at a glance.
-- **Binary identity rebrand** — `osu-torii.exe` → `torii.exe`, window title "Torii Nova", new gradient torii-gate icon. Ships in Nova first; a Windows-only `osu-torii.exe` shim ships alongside the new binary so taskbar pins / desktop shortcuts created on the pre-rebrand stable builds keep working after the rename.
 
 When Nova features bed in, they get merged down to stable. Nothing in Nova is intended to live there forever — it's a buffer, not a separate product.
 
@@ -153,11 +152,11 @@ Grab the latest release from the [Releases page](https://github.com/ShikkesoraSI
 | Windows (x64) installer | `install-win-x64.exe` |
 | Windows (ARM64) installer | `install-win-arm64.exe` |
 | Windows portable | `portable-win-x64.zip` / `portable-win-arm64.zip` |
-| Linux AppImage | `osu-torii-linux-x64.AppImage` / `osu-torii-linux-arm64.AppImage` *(renamed to `torii-*` in Nova)* |
+| Linux AppImage | `torii-linux-x64.AppImage` / `torii-linux-arm64.AppImage` |
 | Linux portable tarball | `portable-linux-x64.tar.gz` / `portable-linux-arm64.tar.gz` |
 | macOS (Intel) | `osu.app.Intel.zip` |
 | macOS (Apple Silicon) | `osu.app.Apple.Silicon.zip` |
-| Android | `osu-torii.apk` *(renamed to `torii.apk` in Nova)* |
+| Android | `torii.apk` |
 
 Existing installs auto-update via Velopack. Data directory is preserved (`%APPDATA%\osu-torii\` on Windows, equivalent on other platforms), so beatmaps, scores, replays, and settings carry over.
 
