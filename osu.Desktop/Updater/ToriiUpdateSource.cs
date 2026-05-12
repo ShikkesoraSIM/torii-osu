@@ -77,9 +77,12 @@ namespace osu.Desktop.Updater
             // Velopack's GithubRelease doesn't expose `tag_name` publicly
             // (only Name / Prerelease / PublishedAt / Assets), but our
             // release titles follow the contract set in build-gu.yml:
-            //   name: osu! Torii ${{ needs.version.outputs.version }}
+            //   name: Torii Nova ${{ needs.version.outputs.version }}
+            //   (pre-rebrand: name: osu! Torii vYYYY.MDD.N-…)
             // So `release.Name` ends in `vYYYY.MDD.N-{torii|nova|lazer}`
             // and the suffix we want is the part after the last hyphen.
+            // The display-name prefix changed from "osu! Torii" to "Torii
+            // Nova" in May 2026 but the suffix parsing is unaffected.
             //
             // Doing the parse defensively: if a hand-edited release title
             // or a renamed GitHub Release doesn't follow the convention,

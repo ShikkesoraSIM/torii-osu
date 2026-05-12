@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      ===========================================================
+      LEGACY LAUNCHER SHIM (osu-torii.exe)
+      ===========================================================
+      During the May 2026 rebrand we renamed the primary binary
+      from `osu-torii.exe` to `torii.exe` (peppy / ppy explicitly
+      asked forks to drop the "osu!" name from distributed
+      binaries). Any user with `osu-torii.exe` pinned to their
+      taskbar / desktop / Start menu would have a dead shortcut
+      after auto-update.
+
+      This shim is a 5-line .exe that ships ALONGSIDE torii.exe in
+      every Velopack package. Its only job: launch the real
+      torii.exe in the same folder, forward CLI args, and exit.
+      All legacy launchers keep working transparently.
+
+      The shim:
+        - is named `osu-torii.exe` (AssemblyName below)
+        - uses the same `torii.ico` so old shortcuts look right
+        - is single-file, no .deps.json clutter, no GC noise —
+          spawns the real exe and exits before the GC even warms
+        - has zero dependencies on the rest of the codebase
+
+      Plan to deprecate: ship the shim for 2-3 releases, then
+      remove it once telemetry / Discord reports confirm nobody
+      relies on it anymore. The user will get a re-pin prompt
+      in-client at that point.
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>osu-torii</AssemblyName>
+    <AssemblyTitle>Torii Nova (legacy launcher)</AssemblyTitle>
+    <Title>Torii Nova (legacy launcher)</Title>
+    <Product>Torii Nova</Product>
+    <Description>Compatibility shim for legacy osu-torii.exe shortcuts. Launches torii.exe.</Description>
+    <Version>0.0.0</Version>
+    <FileVersion>0.0.0</FileVersion>
+    <!-- Same icon as the real binary so old shortcuts look correct
+         while the real binary handles all rendering. -->
+    <ApplicationIcon>..\osu.Desktop\torii.ico</ApplicationIcon>
+    <!-- WinExe + no Console window. The shim opens torii.exe and exits
+         immediately; we don't want a stray console flashing up. -->
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWPF>false</UseWPF>
+    <!-- Single-file makes the shim a single ~10-15 MB self-contained
+         exe instead of a runtime-dependent stub + .deps.json + a pile
+         of .dll's. We pay 10 MB once for legacy-pin compatibility. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <!-- Trim aggressively — this exe runs Process.Start and exits.
+         Nothing else is needed. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>
