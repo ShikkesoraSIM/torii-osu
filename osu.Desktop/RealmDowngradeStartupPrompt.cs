@@ -176,10 +176,12 @@ namespace osu.Desktop
         {
             // Process names (no extension) that we treat as competing
             // osu! installs. Includes vanilla osu! lazer, current
-            // Torii, and the legacy stable client just in case.
+            // Torii Nova (`torii.exe`), the pre-rebrand Torii binary
+            // (`osu-torii.exe`, still present on existing installs that
+            // haven't updated yet), and the legacy stable client.
             string[] competitors =
             {
-                "osu!", "osu", "osu-torii", "osulazer", "osu-lazer",
+                "osu!", "osu", "torii", "osu-torii", "osulazer", "osu-lazer",
             };
 
             int self;
@@ -249,7 +251,7 @@ namespace osu.Desktop
                 "Torii detected a database that needs migration but couldn't open it for inspection.\n\n"
                 + "Most common causes (in order of likelihood):\n"
                 + "  1. Another osu! / Torii / lazer instance is still running. Open Task Manager and end every osu-related process, then retry.\n"
-                + "  2. Windows Smart App Control or antivirus is blocking this build. If this is the unsigned test build, right-click osu-torii.exe -> Run as administrator.\n"
+                + "  2. Windows Smart App Control or antivirus is blocking this build. If this is the unsigned test build, right-click torii.exe -> Run as administrator.\n"
                 + "  3. The realm file is on a cloud-synced folder (OneDrive, Google Drive, etc.) currently mid-sync. Pause sync and retry.\n"
                 + "  4. The realm file is genuinely corrupt or unreadable. Restore from your most recent backup before retrying.\n\n"
                 + "Realm path: " + realmPath + "\n"
@@ -398,7 +400,7 @@ namespace osu.Desktop
                     "Your local osu! database is on a newer schema than this build of Torii expects.\n\n"u8
                     + "An earlier Torii update added a column that turned out to break vanilla osu! lazer's ability to open your folder. To restore that compatibility we need to rebuild your database now.\n\n"u8
                     + "BEFORE YOU CONTINUE — please read:\n"u8
-                    + "  - There's a chance you'll need to re-open Torii AS ADMINISTRATOR for the migration to run. If this dialog disappears and nothing happens after clicking OK, that's the cause: close Torii, right-click osu-torii.exe -> Run as administrator.\n"u8
+                    + "  - There's a chance you'll need to re-open Torii AS ADMINISTRATOR for the migration to run. If this dialog disappears and nothing happens after clicking OK, that's the cause: close Torii, right-click torii.exe -> Run as administrator.\n"u8
                     + "  - Make sure you have at least 2-3x the size of your client.realm file free on the drive holding your osu! folder. The migration creates a verified backup plus a working copy of the realm. (For most users this is well under 1 GB total.) If there isn't enough space, the migration will abort cleanly before touching anything.\n\n"u8
                     + "What this does:\n"u8
                     + "  - Creates an automatic backup before doing anything\n"u8

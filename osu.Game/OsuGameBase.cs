@@ -76,9 +76,9 @@ namespace osu.Game
     public partial class OsuGameBase : Framework.Game, ICanAcceptFiles, IBeatSyncProvider
     {
 #if DEBUG
-        public const string GAME_NAME = "osu! Torii (development)";
+        public const string GAME_NAME = "Torii Nova (development)";
 #else
-        public const string GAME_NAME = "osu! Torii";
+        public const string GAME_NAME = "Torii Nova";
 #endif
 
         public const string OSU_PROTOCOL = "osu://";

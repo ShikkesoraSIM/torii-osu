@@ -119,7 +119,7 @@ namespace osu.Game.Overlays.Settings
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Text = "osu! Torii",
+                                Text = "Torii Nova",
                                 Font = OsuFont.GetFont(size: 15, weight: FontWeight.Bold),
                             },
                         }

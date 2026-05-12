@@ -17,14 +17,14 @@ using osuTK.Graphics;
 namespace osu.Game.Users.Drawables
 {
     /// <summary>
-    /// Tiny "Playing on osu! Torii client" badge shown next to online users
+    /// Tiny "Playing on Torii Nova client" badge shown next to online users
     /// who connected through a verified Torii build (server tells us via
     /// <see cref="UserPresence.ClientName"/> == "torii").
     /// </summary>
     /// <remarks>
     /// Replaced the previous full-colour logo sprite with a vector torii
     /// gate drawn from primitives + a "torii" label so the indicator
-    /// reads "Playing on osu! Torii client" at a glance instead of
+    /// reads "Playing on Torii Nova client" at a glance instead of
     /// being a generic icon that needed the tooltip to be meaningful.
     /// Done in primitives (no asset) so the badge:
     ///   - scales crisply to any DPI without needing @2x/@4x variants,
@@ -34,7 +34,7 @@ namespace osu.Game.Users.Drawables
     /// </remarks>
     public partial class ToriiClientBadge : CompositeDrawable, IHasTooltip
     {
-        public LocalisableString TooltipText => "Playing on osu! Torii client";
+        public LocalisableString TooltipText => "Playing on Torii Nova client";
 
         // Vermillion — the traditional torii-gate colour. High enough
         // contrast against both light and dark user-panel backgrounds

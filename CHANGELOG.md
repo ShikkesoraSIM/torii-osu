@@ -1,6 +1,7 @@
 # Changelog
 
-All notable changes to osu! Torii. The "Latest" section here is what
+All notable changes to Torii Nova (formerly distributed as "osu! Torii"
+before the May 2026 binary rebrand). The "Latest" section here is what
 ships in the body of the next GitHub Release; once a tag goes out, the
 section is renamed with the version number and a new "Latest" is
 opened on top.

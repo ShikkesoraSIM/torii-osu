@@ -11,12 +11,40 @@
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Version)</Description>
-    <AssemblyName>osu-torii</AssemblyName>
-    <AssemblyTitle>osu!(torii)</AssemblyTitle>
-    <Title>osu! Torii</Title>
-    <Product>osu!(torii)</Product>
-    <ApplicationIcon>lazer.ico</ApplicationIcon>
+    <!--
+      Rebrand (May 2026): assembly + product strings dropped the "osu!" prefix
+      after upstream (peppy) confirmed forks should NOT distribute binaries
+      using the osu! name. The codebase is still a fork of osu-lazer, but the
+      distributable carries the Torii Nova identity exclusively.
+
+      Old → New:
+        AssemblyName   "osu-torii"    → "torii"            (binary becomes torii.exe)
+        AssemblyTitle  "osu!(torii)"  → "Torii Nova"
+        Title          "osu! Torii"   → "Torii Nova"
+        Product        "osu!(torii)"  → "Torii Nova"
+        CFBundle*      "osu! Torii"   → "Torii Nova"
+        CFBundleExe    "osu-torii"    → "torii"
+
+      Warning for users: taskbar pins / desktop shortcuts pointing at the old
+      osu-torii.exe path (under %LocalAppData%\torii-osu\) will break after
+      first launch on the new build. Release notes need to call this out and
+      tell users to re-pin from the Start menu / new shortcut.
+    -->
+    <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Nova Version)</Description>
+    <AssemblyName>torii</AssemblyName>
+    <AssemblyTitle>Torii Nova</AssemblyTitle>
+    <Title>Torii Nova</Title>
+    <Product>Torii Nova</Product>
+    <!--
+      Icon: torii.ico is generated from torii-lazer-web's torii-512.png
+      master (the gradient torii-gate logo used in the frontend). Multi-res
+      embedded (16/24/32/48/64/128/256) so Explorer, taskbar, Alt-Tab,
+      file dialogs, etc. all pick a clean rendering. The old lazer.ico is
+      kept on disk but no longer referenced — beatmap.ico still uses the
+      stock one because it's the file-association icon for .osz beatmap
+      bundles, separate from the app icon.
+    -->
+    <ApplicationIcon>torii.ico</ApplicationIcon>
     <Version>0.0.0</Version>
     <FileVersion>0.0.0</FileVersion>
     <!-- Support multiple runtime identifiers for cross-platform builds -->
@@ -59,6 +87,12 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Label="Resources">
+    <!-- Embed BOTH icons: torii.ico is the active app icon (used at runtime
+         + by the .exe metadata), lazer.ico is kept as an embedded resource
+         for backward compatibility with anything that references it by
+         resource name. Once nothing references lazer.ico anymore (audit
+         again in a release or two), remove this. -->
+    <EmbeddedResource Include="torii.ico" />
     <EmbeddedResource Include="lazer.ico" />
   </ItemGroup>
   <ItemGroup Label="Windows Icons" Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win'))">
@@ -67,19 +101,20 @@
 
   <!-- macOS specific configurations -->
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <CFBundleName>osu! Torii</CFBundleName>
-    <CFBundleDisplayName>osu! Torii</CFBundleDisplayName>
+    <CFBundleName>Torii Nova</CFBundleName>
+    <CFBundleDisplayName>Torii Nova</CFBundleDisplayName>
     <CFBundleIdentifier>com.shikkesora.torii</CFBundleIdentifier>
     <CFBundleVersion>0.0.0</CFBundleVersion>
     <CFBundlePackageType>APPL</CFBundlePackageType>
     <CFBundleSignature>????</CFBundleSignature>
-    <CFBundleExecutable>osu-torii</CFBundleExecutable>
-    <CFBundleIconFile>lazer.icns</CFBundleIconFile>
+    <CFBundleExecutable>torii</CFBundleExecutable>
+    <CFBundleIconFile>torii.icns</CFBundleIconFile>
     <NSPrincipalClass>NSApplication</NSPrincipalClass>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
   </PropertyGroup>
 
   <ItemGroup Label="macOS Icons" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Content Include="torii.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('torii.icns')" />
     <Content Include="lazer.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('lazer.icns')" />
   </ItemGroup>
 

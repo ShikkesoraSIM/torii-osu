@@ -1,9 +1,16 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
+    <!--
+      id stays "osu-torii" intentionally — Velopack uses this as the AppId
+      for the install path / update chain. Changing it would treat all
+      existing installs as a different app and break auto-updates.
+      The display title is rebranded to "Torii Nova" to drop the "osu!"
+      prefix per the binary-distribution rebrand.
+    -->
     <id>osu-torii</id>
     <version>0.0.0</version>
-    <title>osu! Torii</title>
+    <title>Torii Nova</title>
     <authors>ppy Pty Ltd, Shigetiro, Torii Team</authors>
     <owners>Torii Team</owners>
     <projectUrl>https://github.com/ShikkesoraSIM/torii-osu</projectUrl>

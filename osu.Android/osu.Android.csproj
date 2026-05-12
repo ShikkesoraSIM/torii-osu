@@ -30,7 +30,7 @@
 
     <!-- Android application properties -->
     <ApplicationId>sh.shikkesora.torii</ApplicationId>
-    <ApplicationTitle>osu! Torii</ApplicationTitle>
+    <ApplicationTitle>Torii Nova</ApplicationTitle>
     <AndroidManifest>AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
   <ItemGroup>
