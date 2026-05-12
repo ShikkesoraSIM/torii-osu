@@ -143,6 +143,77 @@ namespace osu.Desktop
             return false;
         }
 
+        /// <summary>
+        /// Pre-init migration for the <c>ReleaseStream</c> config key.
+        /// Pre-May-2026 builds persisted the enum values <c>Lazer</c> and
+        /// <c>Tachyon</c>; the May 2026 rename mapped these to
+        /// <c>Torii</c> (stable) and <c>Nova</c> (experimental). The
+        /// framework's bindable load throws ArgumentException when it
+        /// can't parse an unknown enum value, which surfaces as a
+        /// recurring "Unable to parse config key ReleaseStream"
+        /// notification at every launch.
+        /// </summary>
+        /// <remarks>
+        /// We rewrite the config file in place before OsuConfigManager
+        /// gets a chance to read it. The format is the trivial
+        /// <c>key = value</c> per line we already parse for ForceSDL3,
+        /// so this is a small line-scan + string-replace. Idempotent:
+        /// a file already containing the new values is left untouched.
+        ///
+        /// Future enum renames in this file should add their own line
+        /// here; the migration list is intentionally short + explicit
+        /// rather than a generic "all unknown enum values reset to
+        /// default" so that an enum rename in a *different* config key
+        /// can't accidentally silently clobber a user's setting.
+        /// </remarks>
+        private static void migrateLegacyReleaseStream(string storageFolder)
+        {
+            string iniPath = Path.Combine(storageFolder, "osu!.cfg");
+            if (!File.Exists(iniPath))
+                return;
+
+            string[] lines = File.ReadAllLines(iniPath);
+            bool changed = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string trimmed = lines[i].Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith('#') || trimmed.StartsWith(';'))
+                    continue;
+
+                int eq = trimmed.IndexOf('=');
+                if (eq <= 0)
+                    continue;
+
+                string key = trimmed[..eq].Trim();
+                if (!string.Equals(key, "ReleaseStream", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string value = trimmed[(eq + 1)..].Trim();
+                string? mapped = value switch
+                {
+                    "Lazer"   => "Torii",
+                    "Tachyon" => "Nova",
+                    _         => null,
+                };
+
+                if (mapped == null)
+                    continue;
+
+                // Preserve original indentation / spacing around the `=`
+                // by reconstructing from the position of the `=` in the
+                // raw (untrimmed) line, so the file diff is minimal.
+                int rawEq = lines[i].IndexOf('=');
+                string prefix = lines[i][..(rawEq + 1)];
+                lines[i] = $"{prefix} {mapped}";
+                changed = true;
+                Logger.Log($"[Torii] Migrated legacy ReleaseStream={value} → {mapped} in osu!.cfg");
+            }
+
+            if (changed)
+                File.WriteAllLines(iniPath, lines);
+        }
+
         [STAThread]
         public static void Main(string[] args)
         {
@@ -268,6 +339,31 @@ namespace osu.Desktop
             {
                 Logger.Log($"[Torii] Failed to read ForceSDL3 setting: {ex.Message}");
                 // Fall through with framework default.
+            }
+
+            // ReleaseStream legacy-value migration. Before May 2026 the
+            // enum was { Lazer, Tachyon }; we renamed to { Torii, Nova }.
+            // Users updating from a pre-rename build have
+            // `ReleaseStream = Lazer` (or `Tachyon`) persisted in
+            // `osu!.cfg`, which the framework's bindable loader can't
+            // parse — it logs an ArgumentException and toasts an
+            // ugly "Unable to parse config key ReleaseStream"
+            // notification at every launch until the user happens to
+            // change the value through the dropdown.
+            //
+            // Rewrite the file in-place before OsuConfigManager sees it,
+            // mapping Lazer → Torii and Tachyon → Nova. This makes the
+            // migration silent and one-shot: subsequent launches see the
+            // already-correct values and skip the rewrite.
+            try
+            {
+                migrateLegacyReleaseStream(ResolveDefaultRealmFolder());
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Torii] ReleaseStream legacy migration failed: {ex.Message}");
+                // Non-fatal — framework's own fallback will kick in and the
+                // user just sees the existing parse-failed notification.
             }
 
             string gameName = base_game_name;
