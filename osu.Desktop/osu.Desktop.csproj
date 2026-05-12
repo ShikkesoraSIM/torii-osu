@@ -80,6 +80,31 @@
          it goes through RuntimeHostConfigurationOption which flows the
          same way into runtimeconfig.json. -->
     <RuntimeHostConfigurationOption Include="System.GC.DynamicAdaptationMode" Value="0" />
+    <!--
+      NoAffinitize: Server GC by default pins its heap-collector threads to
+      the first N logical CPUs (one per heap). On a gaming machine the OS
+      scheduler tends to put high-priority threads (audio, input, our 2000hz
+      update loop) on those same low-numbered cores, so GC pauses end up
+      fighting the hot threads for the same hardware. Letting the GC
+      threads float means the kernel picks idle cores for collection work
+      and our hot loop keeps its current core. Recommended for realtime
+      desktop workloads on Server GC (containers / fixed-affinity hosts
+      should leave this default).
+    -->
+    <RuntimeHostConfigurationOption Include="System.GC.NoAffinitize" Value="true" />
+    <!--
+      LOHThreshold: bump from default 85000 bytes to 120000. The default
+      cutoff puts audio buffers (BASS ~64KB-100KB chunks) and replay-frame
+      blocks (~80-110KB) into the Large Object Heap, which only compacts
+      during Gen2. Raising the threshold keeps those medium-lifetime
+      allocations in the small-object heap, where they're collected
+      cheaply in Gen0/Gen1 instead of pooling into Gen2 pressure.
+      120000 is conservative — covers the audio + replay sizes we
+      actually see in hiccup-report data without disturbing genuinely
+      large allocations (skin textures, score serialisation buffers etc.
+      are all well above 120KB).
+    -->
+    <RuntimeHostConfigurationOption Include="System.GC.LOHThreshold" Value="120000" />
   </ItemGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
