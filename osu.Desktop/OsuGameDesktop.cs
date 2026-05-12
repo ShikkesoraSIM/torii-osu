@@ -251,7 +251,16 @@ namespace osu.Desktop
             // Apple operating systems use a better icon provided via external assets.
             if (!RuntimeInfo.IsApple)
             {
-                var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(GetType(), "lazer.ico");
+                // Set the window-decoration icon (title bar, Alt-Tab, taskbar
+                // thumbnail) to the gradient torii-gate logo. torii.ico is
+                // embedded in osu.Desktop.csproj specifically for this load
+                // path. lazer.ico is also kept embedded as a defensive
+                // fallback — it ships the legacy osu! icon, so it's the
+                // "wrong brand" but better than the framework's default
+                // grey window-icon if torii.ico ever fails to embed (which
+                // would mean someone messed with the csproj resource list).
+                var iconStream = Assembly.GetExecutingAssembly().GetManifestResourceStream(GetType(), "torii.ico")
+                              ?? Assembly.GetExecutingAssembly().GetManifestResourceStream(GetType(), "lazer.ico");
                 if (iconStream != null)
                     host.Window.SetIconFromStream(iconStream);
             }

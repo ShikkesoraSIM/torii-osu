@@ -1,6 +1,6 @@
 # Torii Release Notes Draft
 
-This draft is intended as the base for the next public `osu! Torii` release after `v2026.418.0-lazer`.
+This draft is intended as the base for the next public Torii Nova release (post the May 2026 rebrand, where the binary was renamed `osu-torii.exe` → `torii.exe` and the public brand became "Torii Nova").
 
 It intentionally excludes the unfinished stable song select prototype and any half-finished experimental navigation work.
 

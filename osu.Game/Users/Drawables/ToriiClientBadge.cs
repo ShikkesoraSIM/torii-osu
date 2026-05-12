@@ -110,7 +110,16 @@ namespace osu.Game.Users.Drawables
         /// </summary>
         public void UpdateClientName(string? clientName)
         {
-            bool isTorii = clientName == "torii";
+            // Match any Torii-branded client_name flowing back from the server.
+            // The CI registers different strings over time as the brand evolves:
+            //   - "torii"        (early lowercased identifier)
+            //   - "osu! Torii"   (pre-May-2026 rebrand)
+            //   - "Torii Nova"   (post-May-2026 rebrand, current)
+            // Substring "torii" (case-insensitive) covers all three plus any
+            // future Torii-branded variant the server hands us, while not
+            // accidentally firing for unrelated "client_name = ..." strings.
+            bool isTorii = !string.IsNullOrEmpty(clientName)
+                           && clientName.Contains("torii", System.StringComparison.OrdinalIgnoreCase);
             this.FadeTo(isTorii ? 1f : 0f, 200, Easing.OutQuint);
         }
 
