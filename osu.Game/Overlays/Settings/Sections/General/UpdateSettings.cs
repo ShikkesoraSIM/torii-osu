@@ -92,11 +92,25 @@ namespace osu.Game.Overlays.Settings.Sections.General
             // off stable means downloading a different binary (different target
             // framework, different default renderer) which is harder to roll
             // back than just toggling a setting.
+            //
+            // After a confirmed switch (either direction) we IMMEDIATELY fire a
+            // CheckForUpdate against the new stream's source so the switch feels
+            // seamless — the user changes the dropdown value, ten seconds later
+            // they see "Update available" for the new stream's binary, instead
+            // of waiting up to 30 minutes for the next background poll.
+            // VelopackUpdateManager.PerformUpdateCheck reads ReleaseStream.Value
+            // at call time, so the bound-and-saved config change above
+            // (configReleaseStream.Value = ...) is visible by the time the
+            // check fires.
             if (stream.NewValue == ReleaseStream.Nova)
             {
                 dialogOverlay?.Push(
                     new ConfirmDialog(GeneralSettingsStrings.ChangeReleaseStreamConfirmation,
-                        () => configReleaseStream.Value = ReleaseStream.Nova,
+                        () =>
+                        {
+                            configReleaseStream.Value = ReleaseStream.Nova;
+                            checkForUpdates().FireAndForget();
+                        },
                         () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
                     {
                         BodyText = GeneralSettingsStrings.ChangeReleaseStreamConfirmationInfo
@@ -106,6 +120,7 @@ namespace osu.Game.Overlays.Settings.Sections.General
             }
 
             configReleaseStream.Value = stream.NewValue;
+            checkForUpdates().FireAndForget();
         }
 
         private async Task checkForUpdates()
