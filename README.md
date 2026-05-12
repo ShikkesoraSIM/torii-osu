@@ -1,147 +1,240 @@
 <p align="center">
-  <img width="500" alt="osu! logo" src="assets/lazer-re.png">
+  <img width="220" alt="Torii Nova" src="assets/torii-512.png">
 </p>
 
-# osu!
+<h1 align="center">Torii Nova</h1>
 
-[![Build status](https://github.com/ppy/osu/actions/workflows/ci.yml/badge.svg?branch=master&event=push)](https://github.com/ppy/osu/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/release/ppy/osu.svg)](https://github.com/ppy/osu/releases/latest)
-[![CodeFactor](https://www.codefactor.io/repository/github/ppy/osu/badge)](https://www.codefactor.io/repository/github/ppy/osu)
-[![dev chat](https://discordapp.com/api/guilds/188630481301012481/widget.png?style=shield)](https://discord.gg/ppy)
-[![Crowdin](https://d322cqt584bo4o.cloudfront.net/osu-web/localized.svg)](https://crowdin.com/project/osu-web)
+<p align="center">
+  <em>A community fork of <a href="https://github.com/ppy/osu">osu! (lazer)</a> with a private server, extra
+  client polish, and experimental rendering work.</em>
+</p>
 
-A free-to-win rhythm game. Rhythm is just a *click* away!
+<p align="center">
+  <a href="https://github.com/ShikkesoraSIM/torii-osu/releases/latest">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/ShikkesoraSIM/torii-osu?include_prereleases&label=latest&color=ff66ab">
+  </a>
+  <a href="https://github.com/ShikkesoraSIM/torii-osu/releases">
+    <img alt="Downloads" src="https://img.shields.io/github/downloads/ShikkesoraSIM/torii-osu/total?color=ff66ab">
+  </a>
+</p>
 
-This is the future – and final – iteration of the [osu!](https://osu.ppy.sh) game client which marks the beginning of an open era! Currently known by and released under the release codename "*lazer*". As in sharper than cutting-edge.
+---
 
-## Status
+> [!IMPORTANT]
+> **Torii Nova is an unofficial fork of [osu!](https://github.com/ppy/osu).**
+>
+> - We are **not affiliated with, endorsed by, or supported by ppy Pty Ltd**, peppy, or the osu! development team.
+> - **osu!**, the **"osu!"** name, the **"lazer"** codename, and all related branding are trademarks of **ppy Pty Ltd**. Torii Nova is distributed under a different name (**Torii Nova**) and uses its own assets and identity.
+> - **Please support the original project.** osu! is free, lovingly maintained, and the only reason this fork can exist. If you enjoy playing rhythm games, the best way to thank the original devs is to:
+>   - Play on the [official osu! servers](https://osu.ppy.sh) (your scores there count for the real leaderboards).
+>   - Become an [osu! supporter](https://osu.ppy.sh/home/support) — it directly funds upstream development.
+>   - File issues / PRs on the [upstream repo](https://github.com/ppy/osu) instead of pinging the upstream team about Torii.
+> - Torii Nova exists to experiment with ideas that may not fit upstream's roadmap, run a small community server, and to learn. **It is not a replacement for osu! and we do not want it to be.** If you're new to the game, please install [official osu!](https://osu.ppy.sh/home/download) first.
 
-This project is under constant development, but we do our best to keep things in a stable state. Players are encouraged to install from a release alongside their stable *osu!* client. This project will continue to evolve until we eventually reach the point where most users prefer it over the previous "osu!stable" release.
+---
 
-A few resources are available as starting points to getting involved and understanding the project:
+## What Torii Nova is
 
-- Detailed release changelogs are available on the [official osu! site](https://osu.ppy.sh/home/changelog/lazer).
-- You can learn more about our approach to [project management](https://github.com/ppy/osu/wiki/Project-management).
-- Track our current efforts [towards improving the game](https://github.com/orgs/ppy/projects/7/views/6).
+A buildable client + a small private server. The client is forked from osu! lazer with extra UI surfaces, a few new gameplay-adjacent systems, performance work, and an experimental Direct3D 12 renderer. The server is a separate project (`g0v0-server`) and hosts scores, leaderboards, multiplayer rooms, chat, and presence for users who choose to play there.
 
-## Running osu!
+**You do not need to use the Torii server to use the Torii client.** You can sign in against the official osu! server at any time — the client lets you switch via Settings → Torii → Server.
 
-If you are just looking to give the game a whirl, you can grab the latest release for your platform:
+## What it is **not**
 
-### Latest release:
+- It is not "modded osu!" or "cheat osu!". No relaxation of anti-cheat, no rank-skipping, no PP injection. Submitting scores to the official osu! server while running this client is unsupported and is explicitly discouraged by both us and upstream — the official server's anti-cheat will detect modified clients and restrict you.
+- It is not a "private osu!" replacement aimed at general players. We do not advertise the server, we do not link the client in upstream issues / Discord, and we expect users to treat Torii as a side-project, not as their main place to play.
 
-| [Windows 10+ (x64)](https://github.com/ppy/osu/releases/latest/download/install.exe) | macOS 12+ ([Intel](https://github.com/ppy/osu/releases/latest/download/osu.app.Intel.zip), [Apple Silicon](https://github.com/ppy/osu/releases/latest/download/osu.app.Apple.Silicon.zip)) | [Linux (x64)](https://github.com/ppy/osu/releases/latest/download/osu.AppImage) | [iOS 13.4+](https://osu.ppy.sh/home/testflight) | [Android 5+](https://github.com/ppy/osu/releases/latest/download/sh.ppy.osulazer.apk) |
-|--------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ------------- | ------------- | ------------- |
+---
 
-You can also generally download a version for your current device from the [osu! site](https://osu.ppy.sh/home/download).
+## Features (top-to-bottom)
 
-If your platform is unsupported or not listed above, there is still a chance you can run the release or manually build it by following the instructions below.
+### Client identity & UI
 
-**For iOS/iPadOS users**: The iOS testflight link fills up very fast (Apple has a hard limit of 10,000 users). We reset it occasionally. Please do not ask about this. Check back regularly for link resets or follow [peppy](https://twitter.com/ppy) on twitter for announcements. Our goal is to get the game on mobile app stores very soon so we don't have to live with this limitation.
+- **Torii Nova brand**: a gradient torii-gate logo across the window, taskbar, file associations, badges, and shortcuts. Distinctly *not* the osu! logo.
+- **Torii toolbar** — a Torii-themed alpha indicator and quick-access strip alongside the upstream toolbar.
+- **Settings → Torii section**, where every Torii-specific knob lives instead of being scattered across upstream panels:
+  - Server selection (Torii vs. official) + auth flow
+  - Briefing overlay defaults (the daily-portal greeting screen)
+  - Aura presets (see below)
+  - Gameplay tweaks specific to Torii
+  - Storage management + Android-specific options
+  - Experimental flags (renderer choice, latency mode, etc.)
 
-## Developing a custom ruleset
+### Auras
 
-osu! is designed to allow user-created gameplay variations, called "rulesets". Building one of these allows a developer to harness the power of the osu! beatmap library, game engine, and general UX for a new style of gameplay. To get started working on a ruleset, we have some templates available [here](https://github.com/ppy/osu/tree/master/Templates).
+Cosmetic effects rendered around your username + avatar in user panels. Currently registered presets:
 
-You can see some examples of custom rulesets by visiting the [custom ruleset directory](https://github.com/ppy/osu/discussions/13096).
+- **Admin / Dev / Mod / QAT** — staff-only auras, server-assigned
+- **Supporter** — for community supporters
+- **Bug Finder** — for users who land merged bug fixes / detailed reports
+- **Goof** — for the goofs
 
-## Developing osu!
+Auras are server-attested. The client renders whatever the server says you're entitled to via `GET /api/v2/me/aura-catalog`; you can pick which one to display from the in-game settings picker.
+
+### Verified-client badge
+
+A small gradient torii-gate icon shown next to online users in the Friends / Online overlays — but **only** when the Torii server has matched their build hash to a CI-registered release. This means you can tell at a glance whether someone is on a verified Torii build vs. just any custom client connected to the server. The badge is not granted by self-attestation — it requires the executable's `osu.Game.dll` md5 to match a hash registered by CI on release.
+
+### Torii Briefing
+
+A daily portal overlay greeting users on first login of the day. Shows server status, what's new since last login, friend activity, and quick-jump entries. Designed so the home screen of a Torii session has more "warmth" than an empty Lazer main menu.
+
+### Performance work
+
+- **`net10.0` chain** across `osu.Desktop`, `osu.Game`, and every ruleset / test / tournament / benchmark project, with **CoreCLR runtime** updates. JIT improvements, lower-allocation GC, and SIMD improvements that matter most for gameplay frame pacing.
+- **Server GC + Concurrent GC** enabled in `osu.Desktop.csproj` — collections run on dedicated background threads so generation 0/1 pauses stay off the audio + update threads. Standard tuning for realtime workloads.
+- **Hiccup queue** — gameplay frame-time outliers are detected, snapshotted, and (with explicit opt-in) uploaded to the Torii server so we can see real-world stutter patterns instead of just our own profiles. Hiccup polling is paused during gameplay so we never *cause* a hiccup measuring one.
+- **Low latency providers** — NVIDIA Reflex (on RTX) and AMD Anti-Lag 2 (on RDNA) are wired into the Direct3D 11 backend, with a settings panel that shows which one applies to the current GPU.
+
+### Audio
+
+Audio packages are pinned to ppy's own `ppy.ManagedBass*` forks, matching official osu! 1-for-1 — meaning all of upstream's BASS audio fixes (WASAPI exclusive-mode handling, audio-device hot-plug, MIDI backend patches) ship in Torii Nova too. We deliberately don't run on vanilla ManagedBass, because vanilla is missing those patches.
+
+### Direct3D 12 backend (experimental)
+
+We maintain a **Direct3D 12** backend for the Veldrid rendering library (in [`torii-veldrid`](https://github.com/ShikkesoraSIM/torii-veldrid)) and wire it into osu-framework's renderer fallback list. The backend works but is still bedding in:
+
+- It is **deliberately hidden from the Settings → Graphics dropdown** to keep curious users from picking it on a hunch.
+- Power users can opt in by editing `framework.ini` (`%APPDATA%\osu-torii\framework.ini`) and setting `Renderer = Deferred_Direct3D12`.
+- Direct3D 11 (Deferred) remains the default and is the renderer we ship as production.
+
+### Renderer dropdown labels (Nova)
+
+In `Torii Nova` builds, the renderer dropdown re-labels `Deferred_*` entries as `... (Nova)` (e.g. `Direct3D 11 (Nova)`) so users can clearly tell when they're on the experimental deferred path vs. the upstream immediate path.
+
+### Velopack updater with channel routing
+
+Torii uses [Velopack](https://github.com/velopack/velopack) for updates. The release pipeline tags releases with `-torii` for stable (master) and `-nova` for experimental (nova branch) streams, and the in-client Updater pins users to their chosen stream — Nova users only see `-nova` prereleases, stable users only see `-torii` releases. Switching streams is one click in Settings.
+
+### Legacy launcher shim
+
+To keep old `osu-torii.exe` taskbar pins / desktop shortcuts working after the May 2026 binary rename (`osu-torii.exe` → `torii.exe`), Windows releases ship a tiny `osu-torii.exe` next to `torii.exe`. Pre-existing pins keep launching the game transparently for at least a few release cycles, then we'll drop the shim once telemetry confirms nobody relies on it anymore.
+
+---
+
+## The Torii server
+
+`g0v0-server` is a Python (FastAPI) server that talks osu!'s v2 API + spectator + chat protocols. It hosts:
+
+- Scores + leaderboards (per-beatmap + global + country, with daily-challenge support)
+- Multiplayer rooms (osu!, taiko, catch, mania)
+- Chat (channels + PMs)
+- User presence + spectator
+- Beatmap proxy + tag/rating systems
+- A small admin dashboard for restriction / moderation
+
+The server is **private** and **invite-only** at the moment. If you have an account, you can sign in by switching the server endpoint in `Settings → Torii → Server`. We do not advertise the server publicly and do not accept open signups via the client.
+
+---
+
+## Download
+
+> [!WARNING]
+> **Do NOT install Torii Nova if you have not already played osu!.** This is a fork, not the real thing. Install [official osu!](https://osu.ppy.sh/home/download) first. If you decide you want Torii anyway, install it *alongside* official osu! — they use separate data directories and don't conflict.
+
+Grab the latest release from the [Releases page](https://github.com/ShikkesoraSIM/torii-osu/releases). Each release ships:
+
+| Platform | File |
+|---|---|
+| Windows (x64) installer | `install-win-x64.exe` |
+| Windows (ARM64) installer | `install-win-arm64.exe` |
+| Windows portable | `portable-win-x64.zip` / `portable-win-arm64.zip` |
+| Linux AppImage | `torii-linux-x64.AppImage` / `torii-linux-arm64.AppImage` |
+| Linux portable tarball | `portable-linux-x64.tar.gz` / `portable-linux-arm64.tar.gz` |
+| macOS (Intel) | `osu.app.Intel.zip` |
+| macOS (Apple Silicon) | `osu.app.Apple.Silicon.zip` |
+| Android | `torii.apk` |
+
+### Update / migration notes
+
+- Existing installs auto-update via Velopack. Data directory is preserved (`%APPDATA%\osu-torii\` on Windows, equivalent on other platforms), so beatmaps, scores, replays, and settings carry over.
+- After the May 2026 rebrand, the Windows binary is `torii.exe`. If you had `osu-torii.exe` pinned to your taskbar, re-pin from the Start menu after first launch (the legacy shim keeps the old pin working short-term, but the canonical pin should target `torii.exe`).
+
+---
+
+## Building from source
+
+This repository is a fork of [`ppy/osu`](https://github.com/ppy/osu). You need three sibling checkouts to build:
+
+```
+parent-dir/
+├── torii-osu          # this repository
+├── torii-framework    # https://github.com/ShikkesoraSIM/torii-framework  (osu-framework fork)
+└── torii-veldrid      # https://github.com/ShikkesoraSIM/torii-veldrid    (Veldrid fork with D3D12)
+```
+
+`torii-resources` (a fork of `osu-resources`) is pulled as a NuGet package — you don't need a local checkout unless you're modifying resources.
 
 ### Prerequisites
 
-Please make sure you have the following prerequisites:
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) (osu.Desktop targets `net10.0` in Torii Nova; CI also installs .NET 8 for any legacy MSBuild tasks)
+- An IDE that supports C# 12+ — [Visual Studio 2022 17.8+](https://visualstudio.microsoft.com/), [JetBrains Rider](https://www.jetbrains.com/rider/), or [VS Code](https://code.visualstudio.com/) with the C# Dev Kit
+- Windows is the primary supported dev platform. Linux + macOS builds work via the same `dotnet` CLI but get less day-to-day testing.
 
-- A desktop platform with the [.NET 8.0 SDK](https://dotnet.microsoft.com/download) installed.
-
-When working with the codebase, we recommend using an IDE with intelligent code completion and syntax highlighting, such as the latest version of [Visual Studio](https://visualstudio.microsoft.com/vs/), [JetBrains Rider](https://www.jetbrains.com/rider/), or [Visual Studio Code](https://code.visualstudio.com/) with the [EditorConfig](https://marketplace.visualstudio.com/items?itemName=EditorConfig.EditorConfig) and [C# Dev Kit](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csdevkit) plugin installed.
-
-### Downloading the source code
-
-Clone the repository:
+### Quick start
 
 ```shell
-git clone https://github.com/ppy/osu
-cd osu
+git clone https://github.com/ShikkesoraSIM/torii-framework.git
+git clone https://github.com/ShikkesoraSIM/torii-veldrid.git
+git clone https://github.com/ShikkesoraSIM/torii-osu.git
+
+cd torii-veldrid
+dotnet pack src/Veldrid/Veldrid.csproj -c Release -o bin/Packages/Release
+dotnet pack src/Veldrid.MetalBindings/Veldrid.MetalBindings.csproj -c Release -o bin/Packages/Release
+dotnet pack src/Veldrid.OpenGLBindings/Veldrid.OpenGLBindings.csproj -c Release -o bin/Packages/Release
+
+cd ../torii-osu
+dotnet run --project osu.Desktop -c Debug -f net10.0
 ```
 
-To update the source code to the latest commit, run the following command inside the `osu` directory:
+The first run takes a few minutes (restore + initial build). Subsequent runs are fast.
+
+### Building the legacy launcher shim (Windows release builds only)
+
+The Windows release pipeline also publishes `osu.Desktop.Shim` → `osu-torii.exe` and ships it alongside `torii.exe`. To replicate locally:
 
 ```shell
-git pull
+dotnet publish osu.Desktop.Shim/osu.Desktop.Shim.csproj --runtime win-x64 --self-contained -c Release
 ```
 
-### Building
+The output ends up at `osu.Desktop.Shim/bin/Release/net10.0/win-x64/publish/osu-torii.exe`.
 
-#### From an IDE
-
-You should load the solution via one of the platform-specific `.slnf` files, rather than the main `.sln`. This will reduce dependencies and hide platforms that you don't care about. Valid `.slnf` files are:
-
-- `osu.Desktop.slnf` (most common)
-- `osu.Android.slnf`
-- `osu.iOS.slnf`
-
-Run configurations for the recommended IDEs (listed above) are included. You should use the provided Build/Run functionality of your IDE to get things going. When testing or building new components, it's highly encouraged you use the `osu! (Tests)` project/configuration. More information on this is provided [below](#contributing).
-
-To build for mobile platforms, you will likely need to run `sudo dotnet workload restore` if you haven't done so previously. This will install Android/iOS tooling required to complete the build.
-
-#### From CLI
-
-You can also build and run *osu!* from the command-line with a single command:
-
-```shell
-dotnet run --project osu.Desktop
-```
-
-When running locally to do any kind of performance testing, make sure to add `-c Release` to the build command, as the overhead of running with the default `Debug` configuration can be large (especially when testing with local framework modifications as below).
-
-If the build fails, try to restore NuGet packages with `dotnet restore`.
-
-### Testing with resource/framework modifications
-
-Sometimes it may be necessary to cross-test changes in [osu-resources](https://github.com/ppy/osu-resources) or [osu-framework](https://github.com/ppy/osu-framework). This can be quickly achieved using included commands:
-
-Windows:
-
-```ps
-UseLocalFramework.ps1
-UseLocalResources.ps1
-```
-
-macOS / Linux:
-
-```ps
-UseLocalFramework.sh
-UseLocalResources.sh
-```
-
-Note that these commands assume you have the relevant project(s) checked out in adjacent directories:
-
-```
-|- osu            // this repository
-|- osu-framework
-|- osu-resources
-```
-
-### Code analysis
-
-Before committing your code, please run a code formatter. This can be achieved by running `dotnet format` in the command line, or using the `Format code` command in your IDE.
-
-We have adopted some cross-platform, compiler integrated analyzers. They can provide warnings when you are editing, building inside IDE or from command line, as-if they are provided by the compiler itself.
-
-JetBrains ReSharper InspectCode is also used for wider rule sets. You can run it from PowerShell with `.\InspectCode.ps1`. Alternatively, you can install ReSharper or use Rider to get inline support in your IDE of choice.
+---
 
 ## Contributing
 
-When it comes to contributing to the project, the two main things you can do to help out are reporting issues and submitting pull requests. Please refer to the [contributing guidelines](CONTRIBUTING.md) to understand how to help in the most effective way possible.
+Contributions are welcome, but **please direct general osu! improvements at [upstream](https://github.com/ppy/osu) instead.** Anything that isn't Torii-specific (rulesets, beatmap features, mod logic, core gameplay) lands upstream first; Torii merges upstream regularly. Submitting it here means it only ever ships to Torii users, which isn't what most contributors want.
 
-If you wish to help with localisation efforts, head over to [crowdin](https://crowdin.com/project/osu-web).
+**Torii-specific work is welcome here**: Torii Nova settings, the briefing overlay, the aura system, performance telemetry, server integration tweaks, D3D12 backend fixes.
 
-We love to reward quality contributions. If you have made a large contribution, or are a regular contributor, you are welcome to [submit an expense via opencollective](https://opencollective.com/ppy/expenses/new). If you have any questions, feel free to [reach out to peppy](mailto:pe@ppy.sh) before doing so.
+Before opening a PR:
 
-## Licence
+- Run `dotnet format` on changed files.
+- Don't bump upstream-shared package versions without a good reason (we try to stay close to upstream so merges don't conflict).
+- If a change touches behaviour visible to a server, it probably needs a coordinated change in [`g0v0-server`](https://github.com/GooGuTeam/g0v0-server) — flag that in the PR.
 
-*osu!*'s code and framework are licensed under the [MIT licence](https://opensource.org/licenses/MIT). Please see [the licence file](LICENCE) for more information. [tl;dr](https://tldrlegal.com/license/mit-license) you can do whatever you want as long as you include the original copyright and license notice in any copy of the software/source.
+---
 
-Please note that this *does not cover* the usage of the "osu!" or "ppy" branding in any software, resources, advertising or promotion, as this is protected by trademark law.
+## License
 
-Please also note that game resources are covered by a separate licence. Please see the [ppy/osu-resources](https://github.com/ppy/osu-resources) repository for clarifications.
+The Torii Nova client source is licensed under the [MIT License](LICENCE), inheriting from upstream osu!. See the [LICENCE](LICENCE) file for details.
+
+> [!NOTE]
+> **MIT does NOT cover the "osu!" / "ppy" / "lazer" branding** — those are trademarks of ppy Pty Ltd. This fork distributes binaries under the "Torii Nova" name and uses its own logo + iconography precisely to stay clear of that trademark. Please do not redistribute Torii Nova under the osu! name.
+>
+> Game resources (sound effects, fonts, default skin assets) inherited from upstream are covered by the separate [ppy/osu-resources](https://github.com/ppy/osu-resources) license. Torii-original assets (the gradient torii-gate logo, Torii-specific UI graphics) are © Torii Team and available under the same MIT license as the source.
+
+---
+
+## Credits
+
+- [ppy](https://github.com/ppy) and the osu! lazer team — without their work, none of this would exist. Please support [osu!](https://osu.ppy.sh) and consider becoming a [supporter](https://osu.ppy.sh/home/support).
+- [shigetiro](https://github.com/shigetiro) — earlier fork work that Torii Nova builds on.
+- [GooGuTeam](https://github.com/GooGuTeam) — `g0v0-server` upstream + ongoing collaboration on the server side.
+- The Torii community — for bug reports, ideas, and putting up with experimental builds.
+
+---
+
+<p align="center">
+  <sub>Made with respect for the original project. Please support <a href="https://osu.ppy.sh">osu!</a>.</sub>
+</p>
