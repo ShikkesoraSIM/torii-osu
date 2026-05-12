@@ -52,13 +52,6 @@ namespace osu.Desktop.Updater
         {
             scheduledBackgroundCheck?.Cancel();
 
-            // Check if automatic updates are disabled in GU settings
-            if (config.Get<bool>(OsuSetting.DisableAutomaticUpdates))
-            {
-                log("Automatic updates are disabled in settings");
-                return false;
-            }
-
             if (isInGameplay)
             {
                 log("Update check cancelled - user is in gameplay");

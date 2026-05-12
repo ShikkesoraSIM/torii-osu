@@ -50,13 +50,13 @@ namespace osu.Game.Overlays.Settings.Sections.General
             // For simplicity, hide the concept of release streams from mobile users.
             if (isDesktop)
             {
-                // Add GU-specific disable auto-update option
-                Add(new SettingsCheckbox
-                {
-                    LabelText = "Disable automatic updates (GU)",
-                    Current = config.GetBindable<bool>(OsuSetting.DisableAutomaticUpdates),
-                    Keywords = new[] { "update", "automatic", "disable", "gu" },
-                });
+                // (Removed) "Disable automatic updates (GU)" checkbox — the
+                // option felt half-finished (the underlying OsuSetting is
+                // still kept for backward-compat with existing configs) and
+                // the actual disable-updates UX should be "switch streams"
+                // not "stop all updates". If a user genuinely needs to pin
+                // their version, they can run the portable archive instead
+                // of the installer.
 
                 Add(new SettingsItemV2(releaseStreamDropdown = new FormEnumDropdown<ReleaseStream>
                 {
