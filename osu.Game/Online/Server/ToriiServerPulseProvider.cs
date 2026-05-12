@@ -50,11 +50,15 @@ namespace osu.Game.Online.Server
     ///     and prod hiccup-report data showed individual pulse-response
     ///     frames stalling 200–500 ms mid-song. The cost was worse than
     ///     the value of fresh numbers between hits, so we trade pulse
-    ///     freshness for zero in-game stutter. Polling rearms automatically
-    ///     when the player drops back to <see cref="LocalUserPlayingState.Break"/>
-    ///     or <see cref="LocalUserPlayingState.NotPlaying"/> (the latter
-    ///     is the post-song results-screen transition, so the toolbar
-    ///     pip catches up within a frame of leaving gameplay).
+    ///     freshness for zero in-game stutter.
+    ///   - We're inside the <see cref="settle_window_ms"/> grace period
+    ///     immediately after exiting Playing. The Player → SoloResultsScreen
+    ///     transition is the single highest-cost frame in a typical session
+    ///     (post-gameplay heap drop → Gen2 GC cascade → 600-700 ms stalls
+    ///     in prod hiccup reports). Resuming the pulse poll in that exact
+    ///     window stacks a 9-bindable cascade on top of the GC pause.
+    ///     Holding off for a few seconds lets the heap settle first, after
+    ///     which polling rearms automatically.
     ///
     /// Bindables exposed
     /// -----------------
@@ -89,6 +93,18 @@ namespace osu.Game.Online.Server
         // cache window so concurrent active clients all hit warm cache.
         public const int PollIntervalSecondsIdle = 60;
         public const int PollIntervalSecondsActive = 10;
+
+        // Grace period after exiting LocalUserPlayingState.Playing during
+        // which polling stays suspended. The post-gameplay heap drop (player
+        // releases pooled HitObjects / audio buffers / replay frames /
+        // hit-result containers in one frame) triggers Gen2 GC cascades on
+        // the SoloResultsScreen entry frame — see hiccup-report data from
+        // May 2026 showing 600-700 ms stalls with +gen2=9 deltas. Stacking
+        // a pulse-response handler on top of that exact frame doubles the
+        // damage. 4 seconds is long enough for the runtime to finish
+        // collecting and short enough that the toolbar pip is fresh again
+        // before the user has finished reading their results.
+        private const int settle_window_ms = 4000;
 
         /// <summary>
         /// Number of in-flight gameplay sessions on the server (currently
@@ -200,6 +216,18 @@ namespace osu.Game.Online.Server
 
         private bool popoverOpen;
 
+        // True between the moment the user transitions OUT of
+        // LocalUserPlayingState.Playing and <see cref="settle_window_ms"/>
+        // ms later. Treated as another "pause condition" by IsPollable.
+        // settleClearDelegate is the scheduled delegate that flips this
+        // back to false; tracked separately so we can cancel it if the
+        // user dives back into gameplay during the grace window (e.g.
+        // restart-from-results — common osu! flow, don't want a stale
+        // settle flag eating polls when the player has already left
+        // results and is loading the next attempt).
+        private bool inSettleWindow;
+        private ScheduledDelegate? settleClearDelegate;
+
         // Used to detect whether plays_last_minute moved up between
         // snapshots so we can fire PlayDetected. Stored separately
         // because the bindable's ValueChanged would also fire on
@@ -219,11 +247,49 @@ namespace osu.Game.Online.Server
             // moment we transition into Playing and rearms when we drop
             // back to Break (paused/failed/break) or NotPlaying (post-song
             // transition or menus). canBeNull guard for test contexts.
+            //
+            // We also drive the post-gameplay settle window from this
+            // binding — see onPlayingStateChanged for the entry/exit
+            // bookkeeping.
             if (playInfo != null)
             {
                 localPlayingState = playInfo.PlayingState.GetBoundCopy();
-                localPlayingState.BindValueChanged(_ => onPollabilityChanged(), true);
+                localPlayingState.BindValueChanged(onPlayingStateChanged, true);
             }
+        }
+
+        private void onPlayingStateChanged(ValueChangedEvent<LocalUserPlayingState> change)
+        {
+            // Entered active gameplay: cancel any in-flight settle window.
+            // The Playing-state guard in IsPollable handles the actual
+            // pause, and we don't want a stale settle flag holding off
+            // polls once the user reaches the results screen of a future
+            // round.
+            if (change.NewValue == LocalUserPlayingState.Playing)
+            {
+                settleClearDelegate?.Cancel();
+                settleClearDelegate = null;
+                inSettleWindow = false;
+            }
+            // Exited active gameplay: start the settle window. We arm it
+            // on every Playing → non-Playing transition (including
+            // Playing → Break for pauses, even though paused gameplay
+            // doesn't have the post-gameplay heap drop — keeps the logic
+            // simple and a 4 s pulse hold during a pause menu is invisible
+            // to the user).
+            else if (change.OldValue == LocalUserPlayingState.Playing)
+            {
+                inSettleWindow = true;
+                settleClearDelegate?.Cancel();
+                settleClearDelegate = Scheduler.AddDelayed(() =>
+                {
+                    inSettleWindow = false;
+                    settleClearDelegate = null;
+                    onPollabilityChanged();
+                }, settle_window_ms);
+            }
+
+            onPollabilityChanged();
         }
 
         /// <summary>
@@ -258,14 +324,16 @@ namespace osu.Game.Online.Server
         }
 
         // Polling is on whenever the widget is enabled AND the API is
-        // authenticated AND the local user is not in active gameplay.
-        // Break + NotPlaying both count as "free to poll" — pauses /
-        // fails / post-song transitions don't need to be silent. Only
-        // hot-loop input matters.
+        // authenticated AND the local user is not in active gameplay
+        // AND we're outside the post-gameplay settle window. Break +
+        // NotPlaying both count as "free to poll" once the settle
+        // window has cleared — pauses / fails / song-select don't
+        // need to be silent indefinitely.
         private bool IsPollable =>
             enabledBindable.Value
             && api.State.Value == APIState.Online
-            && localPlayingState?.Value != LocalUserPlayingState.Playing;
+            && localPlayingState?.Value != LocalUserPlayingState.Playing
+            && !inSettleWindow;
 
         private void onPollabilityChanged()
         {
@@ -357,25 +425,20 @@ namespace osu.Game.Online.Server
         {
             int prevPlaysLastMinute = lastObservedPlaysLastMinute;
 
+            // Group A: toolbar-essentials. These drive the always-visible
+            // toolbar pip, the per-minute play counter, and the heartbeat
+            // dot — the user sees these no matter what screen they're on,
+            // so they have to land synchronously. Three int bindables +
+            // the connection state enum; cheap subscribers (a single text
+            // sprite, a colored dot). Sub-millisecond cost in practice.
             currentlyPlaying.Value = snapshot.CurrentlyPlaying;
             playsLastMinute.Value = snapshot.PlaysLastMinute;
-            playsLast5Min.Value = snapshot.PlaysLast5Min;
             onlineUsers.Value = snapshot.OnlineUsers;
-            TopMap.Value = snapshot.TopMap;
-            TopMaps.Value = snapshot.TopMaps ?? (IReadOnlyList<APIToriiServerPulseTopMap>)Array.Empty<APIToriiServerPulseTopMap>();
-            ModeBreakdown.Value = snapshot.ModeBreakdown ?? (IReadOnlyDictionary<string, int>)new Dictionary<string, int>();
-            RecentPlays.Value = snapshot.RecentPlays ?? (IReadOnlyList<APIToriiServerPulseRecentPlay>)Array.Empty<APIToriiServerPulseRecentPlay>();
-            Sparkline.Value = snapshot.Sparkline?.Buckets ?? (IReadOnlyList<int>)Array.Empty<int>();
-            LastUpdated.Value = snapshot.CapturedAt;
             ConnectionState.Value = ToriiServerPulseConnectionState.Connected;
 
-            // Fire PlayDetected when plays_last_minute strictly increases
-            // since the last snapshot. We avoid firing on:
-            //   - the very first snapshot of a session (prev == -1) —
-            //     no "delta" baseline yet,
-            //   - decreases (the rolling window will tick down naturally
-            //     between polls; that's not a play, that's old plays
-            //     aging out).
+            // PlayDetected goes in the first frame too: the heartbeat
+            // flash should feel reactive, not lag a frame behind the
+            // counter update.
             if (prevPlaysLastMinute >= 0 && snapshot.PlaysLastMinute > prevPlaysLastMinute)
             {
                 int delta = snapshot.PlaysLastMinute - prevPlaysLastMinute;
@@ -392,6 +455,29 @@ namespace osu.Game.Online.Server
             }
 
             lastObservedPlaysLastMinute = snapshot.PlaysLastMinute;
+
+            // Group B: popover-only bindables. These drive the carousel
+            // pages (TopMap card, mode-breakdown bars, recent-plays list,
+            // sparkline, top-maps flow). Subscribers are layout-heavy —
+            // sparkline is 12 bars with width animations, top-maps is a
+            // FillFlowContainer of styled rows. Deferring to the next
+            // Update tick splits the bindable cascade across two frames,
+            // halving the worst-case frame cost when the popover is open
+            // (and costing nothing extra when it's closed — Schedule is
+            // ~free for a no-op closure). Order within the lambda matches
+            // the original sequence so any downstream consumer that
+            // happens to read more than one bindable sees a consistent
+            // pair.
+            Schedule(() =>
+            {
+                playsLast5Min.Value = snapshot.PlaysLast5Min;
+                TopMap.Value = snapshot.TopMap;
+                TopMaps.Value = snapshot.TopMaps ?? (IReadOnlyList<APIToriiServerPulseTopMap>)Array.Empty<APIToriiServerPulseTopMap>();
+                ModeBreakdown.Value = snapshot.ModeBreakdown ?? (IReadOnlyDictionary<string, int>)new Dictionary<string, int>();
+                RecentPlays.Value = snapshot.RecentPlays ?? (IReadOnlyList<APIToriiServerPulseRecentPlay>)Array.Empty<APIToriiServerPulseRecentPlay>();
+                Sparkline.Value = snapshot.Sparkline?.Buckets ?? (IReadOnlyList<int>)Array.Empty<int>();
+                LastUpdated.Value = snapshot.CapturedAt;
+            });
         }
 
         private void schedulePollNextCycle(bool forceIdleCadence = false)
@@ -408,6 +494,8 @@ namespace osu.Game.Online.Server
         protected override void Dispose(bool isDisposing)
         {
             cancelInFlight();
+            settleClearDelegate?.Cancel();
+            settleClearDelegate = null;
             base.Dispose(isDisposing);
         }
     }
