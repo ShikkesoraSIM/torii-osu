@@ -1,4 +1,4 @@
-name: Build osu! Torii
+name: Build Torii Nova
 
 on:
   push:
@@ -16,10 +16,19 @@ on:
     types: [ published ]
 
 env:
+  # Framework, resources, and Veldrid are pinned to specific commit hashes
+  # so a torii-osu release is fully reproducible. Bumping any of these
+  # forces a fresh CI run that picks up changes from the named repo at
+  # the named commit. Torii.Veldrid is NOT published to nuget.org, so CI
+  # clones the repo as a sibling and `dotnet pack`s it into the local
+  # NuGet feed referenced by torii-osu/nuget.config — keeping us free of
+  # any nuget.org account management or publishing infrastructure.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: 'd2ac457916dedd93733433c5550855c48ea77d74'
+  FRAMEWORK_REF: '137f8803466bc53d8be4dfa9299ba11b451125d7'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: '25ad583064fb19ecd604813446226cb5c0c7bd35'
+  VELDRID_REPOSITORY: 'ShikkesoraSIM/torii-veldrid'
+  VELDRID_REF: '99a6ad4a0c52ad08e3f01d5b7731c18d333f0086'
 
 jobs:
   version:
@@ -112,30 +121,35 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `executable:` is the binary name produced by osu.Desktop.csproj
+          # (`AssemblyName = torii`). All platforms publish a `torii` /
+          # `torii.exe` after the May 2026 rebrand. Artifact names keep the
+          # `osu-torii-*` prefix for CI continuity — they're internal
+          # GitHub Actions identifiers, not user-facing.
           - os: windows-latest
             runtime: win-x64
             artifact-name: osu-torii-windows
-            executable: osu-torii.exe
+            executable: torii.exe
           - os: windows-latest
             runtime: win-arm64
             artifact-name: osu-torii-windows-arm64
-            executable: osu-torii.exe
+            executable: torii.exe
           - os: ubuntu-latest
             runtime: linux-x64
             artifact-name: osu-torii-linux
-            executable: osu-torii
+            executable: torii
           - os: ubuntu-latest
             runtime: linux-arm64
             artifact-name: osu-torii-linux-arm64
-            executable: osu-torii
+            executable: torii
           - os: ubuntu-latest
             runtime: osx-x64
             artifact-name: osu-torii-macos-intel
-            executable: osu-torii
+            executable: torii
           - os: ubuntu-latest
             runtime: osx-arm64
             artifact-name: osu-torii-macos-apple-silicon
-            executable: osu-torii
+            executable: torii
           - os: ubuntu-latest
             runtime: android
             artifact-name: osu-torii-android
@@ -166,12 +180,25 @@ jobs:
         ref: ${{ env.RESOURCES_REF }}
         path: osu-resources
 
+    - name: Checkout torii-veldrid dependency
+      # Velvet-veldrid fork with the Direct3D 12 backend. Not published to
+      # nuget.org — CI clones it as a sibling and packs it locally into
+      # the directory torii-osu/nuget.config points at as a NuGet source
+      # (`..\torii-veldrid\bin\Packages\Release`).
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ env.VELDRID_REPOSITORY }}
+        fetch-depth: 1
+        ref: ${{ env.VELDRID_REF }}
+        path: torii-veldrid
+
     - name: Place dependencies in expected sibling paths
       shell: bash
       run: |
-        rm -rf ../osu-framework ../osu-resources
+        rm -rf ../osu-framework ../osu-resources ../torii-veldrid
         mv osu-framework ../osu-framework
         mv osu-resources ../osu-resources
+        mv torii-veldrid ../torii-veldrid
 
     - name: Setup .NET
       # Install both .NET 10 (required by global.json + net10.0-android
@@ -183,6 +210,28 @@ jobs:
         dotnet-version: |
           8.0.x
           10.0.x
+
+    - name: Pack Torii.Veldrid into local NuGet feed
+      # The torii-osu nuget.config registers `..\torii-veldrid\bin\Packages\Release`
+      # as a NuGet source. Producing the .nupkgs there BEFORE the main
+      # restore means `dotnet restore osu.Desktop.csproj` resolves
+      # `Torii.Veldrid` / `Torii.Veldrid.MetalBindings` / `Torii.Veldrid.OpenGLBindings`
+      # transparently — no nuget.org publish step, no API key juggling.
+      # The version baked into the .nupkg is derived by Nerdbank.GitVersioning
+      # from the commit hash, and it must match what osu.Framework.csproj
+      # references; both are kept in lock-step via the VELDRID_REF env var
+      # plus the explicit PackageReference Version.
+      shell: bash
+      run: |
+        cd ../torii-veldrid
+        for proj in src/Veldrid/Veldrid.csproj src/Veldrid.MetalBindings/Veldrid.MetalBindings.csproj src/Veldrid.OpenGLBindings/Veldrid.OpenGLBindings.csproj; do
+          if [[ -f "$proj" ]]; then
+            echo "Packing $proj"
+            dotnet pack "$proj" -c Release -o bin/Packages/Release --nologo
+          fi
+        done
+        echo "Local feed contents:"
+        ls -la bin/Packages/Release | tail -20
 
     - name: Setup Java for Android (Android only)
       if: matrix.runtime == 'android'
@@ -221,51 +270,51 @@ jobs:
       continue-on-error: true
       shell: bash
       run: |
-        # Convert .ico to .icns on macOS
-        if [ -f "osu.Desktop/lazer.ico" ]; then
-          echo "Converting lazer.ico to lazer.icns for macOS..."
-          # First convert ico to png to avoid format issues
-          sips -s format png osu.Desktop/lazer.ico --out temp_icon.png || {
-            echo "Warning: Failed to convert ico to png, trying alternative method..."
-            # Fallback: just copy the ico file and rename it
-            cp osu.Desktop/lazer.ico osu.Desktop/lazer.icns
-            echo "Using .ico file as fallback for macOS icon"
+        # torii.icns is checked in at repo root (osu.Desktop/torii.icns) —
+        # generated from torii-lazer-web/public/image/logos/torii-512.png
+        # using Pillow's ICNS writer. If for some reason it's missing
+        # (e.g. someone runs CI from a branch that pre-dates the icon
+        # commit), fall back to converting torii.ico via sips + iconutil,
+        # mirroring the pre-rebrand lazer.ico → lazer.icns flow.
+        if [ -f "osu.Desktop/torii.icns" ] && [ -s "osu.Desktop/torii.icns" ]; then
+          echo "torii.icns already present in repo — skipping generation."
+          exit 0
+        fi
+
+        if [ -f "osu.Desktop/torii.ico" ]; then
+          echo "Generating torii.icns from torii.ico..."
+          sips -s format png osu.Desktop/torii.ico --out temp_icon.png || {
+            cp osu.Desktop/torii.ico osu.Desktop/torii.icns
+            echo "sips conversion failed, using .ico as macOS fallback"
             exit 0
           }
 
-          # Create iconset directory
-          mkdir -p lazer.iconset
+          mkdir -p torii.iconset
+          sips -z 16 16     temp_icon.png --out torii.iconset/icon_16x16.png
+          sips -z 32 32     temp_icon.png --out torii.iconset/icon_16x16@2x.png
+          sips -z 32 32     temp_icon.png --out torii.iconset/icon_32x32.png
+          sips -z 64 64     temp_icon.png --out torii.iconset/icon_32x32@2x.png
+          sips -z 128 128   temp_icon.png --out torii.iconset/icon_128x128.png
+          sips -z 256 256   temp_icon.png --out torii.iconset/icon_128x128@2x.png
+          sips -z 256 256   temp_icon.png --out torii.iconset/icon_256x256.png
+          sips -z 512 512   temp_icon.png --out torii.iconset/icon_256x256@2x.png
+          sips -z 512 512   temp_icon.png --out torii.iconset/icon_512x512.png
+          cp torii.iconset/icon_512x512.png torii.iconset/icon_512x512@2x.png
 
-          # Generate different sizes from the converted PNG
-          sips -z 16 16     temp_icon.png --out lazer.iconset/icon_16x16.png
-          sips -z 32 32     temp_icon.png --out lazer.iconset/icon_16x16@2x.png
-          sips -z 32 32     temp_icon.png --out lazer.iconset/icon_32x32.png
-          sips -z 64 64     temp_icon.png --out lazer.iconset/icon_32x32@2x.png
-          sips -z 128 128   temp_icon.png --out lazer.iconset/icon_128x128.png
-          sips -z 256 256   temp_icon.png --out lazer.iconset/icon_128x128@2x.png
-          sips -z 256 256   temp_icon.png --out lazer.iconset/icon_256x256.png
-          sips -z 512 512   temp_icon.png --out lazer.iconset/icon_256x256@2x.png
-          sips -z 512 512   temp_icon.png --out lazer.iconset/icon_512x512.png
-          cp lazer.iconset/icon_512x512.png lazer.iconset/icon_512x512@2x.png
-
-          # Create the icns file
-          iconutil -c icns lazer.iconset || {
-            echo "Warning: iconutil failed, using fallback method..."
-            cp osu.Desktop/lazer.ico osu.Desktop/lazer.icns
+          iconutil -c icns torii.iconset || {
+            cp osu.Desktop/torii.ico osu.Desktop/torii.icns
             rm -f temp_icon.png
-            rm -rf lazer.iconset
+            rm -rf torii.iconset
             exit 0
           }
 
-          # Copy the result and cleanup
-          cp lazer.icns osu.Desktop/lazer.icns
+          cp torii.icns osu.Desktop/torii.icns
           rm -f temp_icon.png
-          rm -rf lazer.iconset
-          echo "Successfully created lazer.icns"
+          rm -rf torii.iconset
+          echo "Generated torii.icns successfully"
         else
-          echo "Warning: lazer.ico not found, creating placeholder icns"
-          # Create a simple placeholder if the ico file doesn't exist
-          touch osu.Desktop/lazer.icns
+          echo "Warning: torii.ico not found, creating placeholder icns"
+          touch osu.Desktop/torii.icns
         fi
 
     - name: Cache NuGet packages
@@ -315,6 +364,20 @@ jobs:
             --configfile nuget.config \
             --no-cache \
             --force
+
+          # On Windows the legacy-shim project (osu.Desktop.Shim) also
+          # needs a restore against the right RID so the subsequent
+          # `dotnet publish --no-restore` of the shim doesn't fail.
+          # Linux/macOS don't ship the shim (see desktop-build step
+          # below for why) so we skip restoring it there.
+          if [[ "${{ matrix.runtime }}" == win-* ]]; then
+            dotnet restore osu.Desktop.Shim/osu.Desktop.Shim.csproj \
+              --runtime ${{ matrix.runtime }} \
+              --verbosity normal \
+              --configfile nuget.config \
+              --no-cache \
+              --force
+          fi
         fi
 
     - name: Setup Android signing (Android only)
@@ -572,6 +635,37 @@ jobs:
             -p:FileVersion=${{ needs.version.outputs.fileVersion }} \
             -p:AssemblyVersion=${{ needs.version.outputs.assemblyVersion }} \
             -p:InformationalVersion=${{ needs.version.outputs.version }}
+
+          # On Windows ONLY: publish the legacy-shortcut shim
+          # (osu-torii.exe) right next to torii.exe. The shim is a tiny
+          # self-contained launcher that exists purely to keep old
+          # taskbar pins / desktop shortcuts pointing at osu-torii.exe
+          # working after the rename. We only ship it on win-* runtimes
+          # because that's where pinned shortcuts are a thing — Linux
+          # and macOS users don't have the equivalent OS-level pin
+          # state to migrate. Single-file + trimmed so it adds ~12 MB
+          # to the Windows install (one-time cost; gone in a future
+          # release once we drop the shim).
+          if [[ "${{ matrix.runtime }}" == win-* ]]; then
+            dotnet publish osu.Desktop.Shim/osu.Desktop.Shim.csproj \
+              --self-contained \
+              --runtime ${{ matrix.runtime }} \
+              --configuration Release \
+              --no-restore \
+              --verbosity normal \
+              -p:Version=${{ needs.version.outputs.semver }} \
+              -p:FileVersion=${{ needs.version.outputs.fileVersion }} \
+              -p:AssemblyVersion=${{ needs.version.outputs.assemblyVersion }} \
+              -p:InformationalVersion=${{ needs.version.outputs.version }}
+
+            SHIM_OUT="osu.Desktop.Shim/bin/Release/net10.0/${{ matrix.runtime }}/publish/osu-torii.exe"
+            if [[ -f "$SHIM_OUT" ]]; then
+              cp "$SHIM_OUT" "publish/${{ matrix.runtime }}/osu-torii.exe"
+              echo "Shipped legacy shim: publish/${{ matrix.runtime }}/osu-torii.exe ($(stat -c%s "$SHIM_OUT") bytes)"
+            else
+              echo "::warning::Shim publish produced no osu-torii.exe at $SHIM_OUT — legacy pins will break after this release."
+            fi
+          fi
         fi
 
     - name: Resolve desktop executable name
@@ -641,12 +735,13 @@ jobs:
         # The runtime checks `typeof(OsuGameBase).Assembly.Location` and
         # md5s THAT file (osu.Game.dll), then ships it to the spectator
         # as version_hash. The previous CI revision hashed the .NET host
-        # bootstrapper (`osu-torii.exe` on Windows, `osu-torii` on
-        # Linux, the .app exe on macOS), which is a DIFFERENT file with
-        # a DIFFERENT md5 — so every Torii build registered with the
-        # server was unrecognised on connect. The "Playing on Torii
-        # client" badge was permanently invisible for everyone, which
-        # is the bug Shikkesora reported on 2026-05-03.
+        # bootstrapper (`torii.exe` on Windows, `torii` on Linux, the
+        # .app exe on macOS — pre-rebrand these were `osu-torii.exe` and
+        # `osu-torii`), which is a DIFFERENT file with a DIFFERENT md5
+        # — so every Torii build registered with the server was
+        # unrecognised on connect. The "Playing on Torii Nova client"
+        # badge was permanently invisible for everyone, which is the
+        # bug Shikkesora reported on 2026-05-03.
         #
         # osu.Game.dll lives next to the bootstrapper in the publish
         # folder. The host varies per runtime; the assembly does not.
@@ -724,13 +819,14 @@ jobs:
             zip -r "../../Releases/${ZIP_NAME}" .
           )
         elif [[ "${{ matrix.runtime }}" == osx-* ]]; then
-          # Use icns if available, fallback to ico
-          ICON_FILE="osu.Desktop/lazer.ico"
-          if [ -f "osu.Desktop/lazer.icns" ] && [ -s "osu.Desktop/lazer.icns" ]; then
-            ICON_FILE="osu.Desktop/lazer.icns"
-            echo "Using lazer.icns for macOS packaging"
+          # macOS Velopack icon: prefer torii.icns (committed by the rebrand
+          # workflow) and fall back to torii.ico if icns is missing/empty.
+          ICON_FILE="osu.Desktop/torii.ico"
+          if [ -f "osu.Desktop/torii.icns" ] && [ -s "osu.Desktop/torii.icns" ]; then
+            ICON_FILE="osu.Desktop/torii.icns"
+            echo "Using torii.icns for macOS packaging"
           else
-            echo "Using lazer.ico as fallback for macOS packaging"
+            echo "Using torii.ico as fallback for macOS packaging"
           fi
 
           CHANNEL="osx-x64"
@@ -742,7 +838,7 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
             --packAuthors "Torii Team" \
-            --packTitle "osu! Torii" \
+            --packTitle "Torii Nova" \
             -i "$ICON_FILE" \
             -c "$CHANNEL"
         elif [[ "${{ matrix.runtime }}" == win-* ]]; then
@@ -754,8 +850,8 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
             --packAuthors "Torii Team" \
-            --packTitle "osu! Torii" \
-            -i "osu.Desktop/lazer.ico" \
+            --packTitle "Torii Nova" \
+            -i "osu.Desktop/torii.ico" \
             -c "$CHANNEL"
         else
           # Linux
@@ -767,8 +863,8 @@ jobs:
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
             --packAuthors "Torii Team" \
-            --packTitle "osu! Torii" \
-            -i "osu.Desktop/lazer.ico" \
+            --packTitle "Torii Nova" \
+            -i "osu.Desktop/torii.ico" \
             -c "$CHANNEL"
         fi
 
@@ -819,9 +915,10 @@ jobs:
             done
           fi
         fi
-        # Linux AppImage rename if present
+        # Linux AppImage rename if present.
+        # User-facing filename, so it follows the rebrand: torii-${runtime}.AppImage.
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]] && [[ "${{ matrix.runtime }}" == linux-* ]]; then
-          target="Releases/osu-torii-${{ matrix.runtime }}.AppImage"
+          target="Releases/torii-${{ matrix.runtime }}.AppImage"
           for f in Releases/*.AppImage; do
             if [[ "$f" == "$target" ]]; then
               continue
@@ -829,11 +926,11 @@ jobs:
             mv -f "$f" "$target"
           done
         fi
-        # Android APK rename
+        # Android APK rename — user-facing filename, follows rebrand.
         if [[ "${{ matrix.runtime }}" == "android" ]]; then
           mkdir -p Releases
           if [ -f "publish/${{ matrix.runtime }}/${{ matrix.executable }}" ]; then
-            cp "publish/${{ matrix.runtime }}/${{ matrix.executable }}" "Releases/osu-torii.apk"
+            cp "publish/${{ matrix.runtime }}/${{ matrix.executable }}" "Releases/torii.apk"
           fi
         fi
 
@@ -887,7 +984,7 @@ jobs:
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
           linux-x64|linux-arm64)
-            required_files+=("Releases/osu-torii-${{ matrix.runtime }}.AppImage")
+            required_files+=("Releases/torii-${{ matrix.runtime }}.AppImage")
             required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
             ;;
           osx-x64)
@@ -899,7 +996,7 @@ jobs:
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
           android)
-            required_files+=("Releases/osu-torii.apk")
+            required_files+=("Releases/torii.apk")
             ;;
         esac
 
@@ -962,18 +1059,33 @@ jobs:
         fetch-depth: 1
         ref: ${{ env.RESOURCES_REF }}
         path: osu-resources
+    - name: Checkout torii-veldrid dependency
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ env.VELDRID_REPOSITORY }}
+        fetch-depth: 1
+        ref: ${{ env.VELDRID_REF }}
+        path: torii-veldrid
     - name: Place dependencies in expected sibling paths
       shell: bash
       run: |
-        rm -rf ../osu-framework ../osu-resources
+        rm -rf ../osu-framework ../osu-resources ../torii-veldrid
         mv osu-framework ../osu-framework
         mv osu-resources ../osu-resources
+        mv torii-veldrid ../torii-veldrid
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
           8.0.x
           10.0.x
+    - name: Pack Torii.Veldrid into local NuGet feed
+      shell: bash
+      run: |
+        cd ../torii-veldrid
+        for proj in src/Veldrid/Veldrid.csproj src/Veldrid.MetalBindings/Veldrid.MetalBindings.csproj src/Veldrid.OpenGLBindings/Veldrid.OpenGLBindings.csproj; do
+          [[ -f "$proj" ]] && dotnet pack "$proj" -c Release -o bin/Packages/Release --nologo
+        done
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -1033,15 +1145,15 @@ jobs:
           "install-win-arm64.exe"
           "portable-win-x64.zip"
           "portable-win-arm64.zip"
-          "osu-torii-linux-x64.AppImage"
-          "osu-torii-linux-arm64.AppImage"
+          "torii-linux-x64.AppImage"
+          "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
           "osu.app.Intel.zip"
           "osu.app.Apple.Silicon.zip"
           "portable-osx-x64.zip"
           "portable-osx-arm64.zip"
-          "osu-torii.apk"
+          "torii.apk"
         )
 
         missing=0
@@ -1088,7 +1200,7 @@ jobs:
         fi
 
         cat > release_body.md <<EOF
-        ## osu! Torii ${{ needs.version.outputs.version }}
+        ## Torii Nova ${{ needs.version.outputs.version }}
 
         ### What's new
 
@@ -1101,21 +1213,24 @@ jobs:
         - **Windows (ARM64) Installer:** \`install-win-arm64.exe\`
         - **Windows Portable (x64):** \`portable-win-x64.zip\`
         - **Windows Portable (ARM64):** \`portable-win-arm64.zip\`
-        - **Linux (x64) AppImage:** \`osu-torii-linux-x64.AppImage\`
-        - **Linux (ARM64) AppImage:** \`osu-torii-linux-arm64.AppImage\`
+        - **Linux (x64) AppImage:** \`torii-linux-x64.AppImage\`
+        - **Linux (ARM64) AppImage:** \`torii-linux-arm64.AppImage\`
         - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
         - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
         - **macOS (Intel):** \`osu.app.Intel.zip\`
         - **macOS (Apple Silicon):** \`osu.app.Apple.Silicon.zip\`
         - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
         - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
-        - **Android APK:** \`osu-torii.apk\`
+        - **Android APK:** \`torii.apk\`
 
         ### Installation Notes
         1. Download the installer or portable archive for your platform.
-        2. Desktop builds use an isolated data directory (\`osu-torii\`) to avoid conflicts with official osu!(lazer).
+        2. Desktop builds use an isolated data directory (\`%APPDATA%\\osu-torii\` on Windows — internal path kept stable for update continuity even after the binary rebrand).
         3. The \`osu://\` protocol remains unchanged.
         4. First launch may take longer due to initial setup.
+
+        ### Upgrading from a previous Torii build
+        If you had \`osu-torii.exe\` pinned to your taskbar or as a desktop shortcut, that pin will break after this update because the executable is now \`torii.exe\`. Unpin the old shortcut and re-pin from the Start menu / new desktop shortcut after install.
 
         ### Platform Notes
         - **macOS:** If needed, allow the app in System Settings because it is not notarized.
@@ -1131,7 +1246,7 @@ jobs:
       with:
         tag_name: ${{ needs.version.outputs.version }}
         target_commitish: ${{ github.sha }}
-        name: osu! Torii ${{ needs.version.outputs.version }}
+        name: Torii Nova ${{ needs.version.outputs.version }}
         files: release-files/**
         draft: false
         # `-nova` tags ship as prereleases so Torii (stable) users with
@@ -1194,9 +1309,14 @@ jobs:
           echo "  $R -> $H ($O)"
         done
 
-        PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'version': sys.argv[1], 'client_name': 'osu! Torii', 'hashes': json.loads(sys.argv[2])}))" "$VERSION" "$HASHES")
+        # client_name is what the Torii server records per version for the
+        # "Playing on Torii Nova client" badge. Rebrand applies here too;
+        # the server treats it as opaque per-version metadata so changing
+        # the string for new versions won't disturb the registration of
+        # older versions already stored under "osu! Torii".
+        PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'version': sys.argv[1], 'client_name': 'Torii Nova', 'hashes': json.loads(sys.argv[2])}))" "$VERSION" "$HASHES")
 
-        echo "Registering ${#HASHES} hashes for osu! Torii $VERSION …"
+        echo "Registering ${#HASHES} hashes for Torii Nova $VERSION …"
 
         HTTP_STATUS=$(curl -s -o /tmp/register_resp.json -w "%{http_code}" \
           -X POST "${TORII_SERVER_URL}/api/private/client-versions/register" \
