@@ -57,9 +57,30 @@
       Server GC runs collections on dedicated background threads per logical
       core, keeping pauses off the audio/update threads. Standard tuning for
       rhythm-game-class realtime workloads on .NET.
+
+      RetainVM: keep virtual memory mapped after a Gen2 collection instead of
+      decommitting pages back to the OS. Live hiccup-report data showed the
+      worst post-gameplay stutters (Player → SoloResultsScreen transition)
+      were Gen2 cascades with +gen0=46 +gen1=18 +gen2=9 in a single frame —
+      the runtime panic-collected because the working set dropped from ~500MB
+      to ~250MB the moment HitObjects / replay frames / audio buffers were
+      released. Retaining the VM eliminates the decommit trigger; next
+      gameplay round reuses the warm pages instead of re-committing them.
+      Trade-off: idle memory usage stays higher between gameplay rounds.
+      Worth it for the frame-time win at end of every map.
+
+      DynamicAdaptationMode=0: opt out of DATAS (Dynamic Adaptation To
+      Application Sizes), enabled by default on .NET 9+/10 (Nova channel).
+      DATAS aggressively right-sizes the GC heap to minimise idle memory,
+      which is the OPPOSITE of what a realtime game wants — we'd rather
+      pay a stable memory cost than have heap reorganisations show up as
+      stutter at gameplay transition boundaries. No-op on .NET 8 (the
+      stable Torii channel) where DATAS isn't default; pre-emptively set
+      so the property survives any future bump to .NET 10+ on master.
     -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
     <!--
       TORII_NOVA: compile-time marker for the experimental stream. Source
       that should only run on Nova builds gates itself with `#if TORII_NOVA`.
@@ -70,6 +91,13 @@
     -->
     <DefineConstants>$(DefineConstants);TORII_NOVA</DefineConstants>
   </PropertyGroup>
+  <ItemGroup Label="Runtime host configuration">
+    <!-- See <RetainVMGarbageCollection> above for the GC tuning rationale.
+         DynamicAdaptationMode doesn't have a dedicated MSBuild property, so
+         it goes through RuntimeHostConfigurationOption which flows the
+         same way into runtimeconfig.json. -->
+    <RuntimeHostConfigurationOption Include="System.GC.DynamicAdaptationMode" Value="0" />
+  </ItemGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
   </PropertyGroup>
