@@ -188,7 +188,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: ${{ env.VELDRID_REPOSITORY }}
-        fetch-depth: 1
+        # fetch-depth: 0 needed for Nerdbank.GitVersioning to compute the
+        # Torii.Veldrid package version (see ci.yml for full reasoning).
+        fetch-depth: 0
         ref: ${{ env.VELDRID_REF }}
         path: torii-veldrid
 
@@ -1063,7 +1065,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: ${{ env.VELDRID_REPOSITORY }}
-        fetch-depth: 1
+        # fetch-depth: 0 needed for Nerdbank.GitVersioning to compute the
+        # Torii.Veldrid package version (see ci.yml for full reasoning).
+        fetch-depth: 0
         ref: ${{ env.VELDRID_REF }}
         path: torii-veldrid
     - name: Place dependencies in expected sibling paths
