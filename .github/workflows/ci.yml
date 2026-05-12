@@ -15,11 +15,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Pin framework + resources + veldrid by commit hash, mirroring
+      # build-gu.yml's env. Without these pins the Code Quality job
+      # clones each dep at its default branch — which is what release
+      # builds are NOT consuming — so inspections would run against a
+      # different codebase than what ships. Worse, the framework's
+      # feat/d3d12 branch references Torii.Veldrid (not on nuget.org)
+      # so the unpinned restore would also fail outright.
       - name: Checkout osu-framework dependency
         uses: actions/checkout@v4
         with:
           repository: ShikkesoraSIM/torii-framework
           fetch-depth: 1
+          ref: 137f8803466bc53d8be4dfa9299ba11b451125d7
           path: osu-framework
 
       - name: Checkout osu-resources dependency
@@ -27,14 +35,24 @@ jobs:
         with:
           repository: ShikkesoraSIM/torii-resources
           fetch-depth: 1
+          ref: 25ad583064fb19ecd604813446226cb5c0c7bd35
           path: osu-resources
+
+      - name: Checkout torii-veldrid dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ShikkesoraSIM/torii-veldrid
+          fetch-depth: 1
+          ref: 99a6ad4a0c52ad08e3f01d5b7731c18d333f0086
+          path: torii-veldrid
 
       - name: Place dependencies in expected sibling paths
         shell: bash
         run: |
-          rm -rf ../osu-framework ../osu-resources
+          rm -rf ../osu-framework ../osu-resources ../torii-veldrid
           mv osu-framework ../osu-framework
           mv osu-resources ../osu-resources
+          mv torii-veldrid ../torii-veldrid
 
       - name: Install .NET 8.0.x
         uses: actions/setup-dotnet@v4
@@ -42,6 +60,19 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
+
+      - name: Pack Torii.Veldrid into local NuGet feed
+        # Torii.Veldrid is not published to nuget.org — the framework
+        # PackageReference resolves through the `torii-veldrid-local`
+        # source in nuget.config (../torii-veldrid/bin/Packages/Release).
+        # Producing the nupkgs here before restore is the same dance
+        # build-gu.yml does.
+        shell: bash
+        run: |
+          cd ../torii-veldrid
+          for proj in src/Veldrid/Veldrid.csproj src/Veldrid.MetalBindings/Veldrid.MetalBindings.csproj src/Veldrid.OpenGLBindings/Veldrid.OpenGLBindings.csproj; do
+            [[ -f "$proj" ]] && dotnet pack "$proj" -c Release -o bin/Packages/Release --nologo
+          done
 
       - name: Restore Tools
         run: dotnet tool restore
