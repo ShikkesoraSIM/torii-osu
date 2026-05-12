@@ -39,10 +39,16 @@ jobs:
           path: osu-resources
 
       - name: Checkout torii-veldrid dependency
+        # IMPORTANT: fetch-depth: 0 (full history) — torii-veldrid uses
+        # Nerdbank.GitVersioning to derive the package version from the
+        # commit history (height since `4.9.0` was set in version.json
+        # → e.g. `4.9.120-g99a6ad4a0c`). A shallow clone (`fetch-depth: 1`)
+        # makes NB.GV unable to count commits and the `dotnet pack` step
+        # below fails outright. The repo is small; full clone is fast.
         uses: actions/checkout@v4
         with:
           repository: ShikkesoraSIM/torii-veldrid
-          fetch-depth: 1
+          fetch-depth: 0
           ref: 99a6ad4a0c52ad08e3f01d5b7731c18d333f0086
           path: torii-veldrid
 
