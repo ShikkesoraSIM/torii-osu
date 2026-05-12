@@ -56,9 +56,20 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Caption = GraphicsSettingsStrings.Renderer,
                     Current = renderer,
+                    // D3D12 (both immediate and Deferred_Direct3D12) is hidden
+                    // from the UI dropdown because the backend is still
+                    // experimental and we don't want users accidentally
+                    // selecting it from settings. Power users can still opt
+                    // in by editing %APPDATA%\osu-torii\framework.ini and
+                    // setting `Renderer = Deferred_Direct3D12` — the backend
+                    // remains fully functional in osu-framework's renderer
+                    // fallback list, just not advertised.
                     Items = host.GetPreferredRenderersForCurrentPlatform().Order()
 #pragma warning disable CS0612 // Type or member is obsolete
-                                .Where(t => t != RendererType.Vulkan && t != RendererType.OpenGLLegacy),
+                                .Where(t => t != RendererType.Vulkan
+                                            && t != RendererType.OpenGLLegacy
+                                            && t != RendererType.Direct3D12
+                                            && t != RendererType.Deferred_Direct3D12),
 #pragma warning restore CS0612 // Type or member is obsolete
                 })
                 {
