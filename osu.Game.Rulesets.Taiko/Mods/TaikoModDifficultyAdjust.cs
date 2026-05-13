@@ -21,6 +21,15 @@ namespace osu.Game.Rulesets.Taiko.Mods
             ReadCurrentFromDifficulty = _ => 1,
         };
 
+        public override DifficultyBindable OverallDifficulty { get; } = new DifficultyBindable
+        {
+            Precision = 0.1f,
+            MinValue = 0,
+            MaxValue = 10,
+            ExtendedMaxValue = 15.2f, // OD10.8 on 0.5xHT
+            ReadCurrentFromDifficulty = diff => diff.OverallDifficulty,
+        };
+
         public override string ExtendedIconInformation
         {
             get
