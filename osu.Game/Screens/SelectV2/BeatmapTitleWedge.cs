@@ -32,7 +32,10 @@ namespace osu.Game.Screens.SelectV2
 {
     public partial class BeatmapTitleWedge : VisibilityContainer
     {
-        private const float corner_radius = 10;
+        // Torii: theme-aware so fsyori's tighter 4px corner overrides
+        // the upstream 10px softer wedge corner without touching every
+        // call site that uses this in the file.
+        private static readonly float corner_radius = ThemeAware.Pick(10f, 4f);
 
         [Resolved]
         private IBindable<WorkingBeatmap> working { get; set; } = null!;

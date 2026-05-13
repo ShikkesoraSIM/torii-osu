@@ -130,9 +130,17 @@ namespace osu.Game.Beatmaps.Drawables
             Color4 statusTextColour;
 
             if (colourProvider != null)
-                statusTextColour = status == BeatmapOnlineStatus.Graveyard ? colourProvider.Background1 : colourProvider.Background3;
+                // Torii: fsyori swaps the graveyard text-on-pill
+                // colour from the overlay's Background1 to a fixed
+                // light gray (0.8) for the grayscale theme, so it
+                // stays readable against the pill's pale-gray
+                // background instead of vanishing into it.
+                statusTextColour = status == BeatmapOnlineStatus.Graveyard ? ThemeAware.Pick(colourProvider.Background1, OsuColour.Gray(0.8f)) : colourProvider.Background3;
             else
-                statusTextColour = status == BeatmapOnlineStatus.Graveyard ? colours.GreySeaFoamLight : Color4.Black;
+                // Same as above for the no-overlay (test scene /
+                // legacy) path — GreySeaFoamLight is the previous
+                // tinted gray, ThemeAware swaps to a neutral 0.8.
+                statusTextColour = status == BeatmapOnlineStatus.Graveyard ? ThemeAware.Pick(colours.GreySeaFoamLight, OsuColour.Gray(0.8f)) : Color4.Black;
 
             statusText.FadeColour(statusTextColour, duration, Easing.OutQuint);
             background.FadeColour(OsuColour.ForBeatmapSetOnlineStatus(Status) ?? colourProvider?.Light1 ?? colours.GreySeaFoamLighter, duration, Easing.OutQuint);

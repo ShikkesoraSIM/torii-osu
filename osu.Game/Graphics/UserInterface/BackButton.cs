@@ -41,8 +41,17 @@ namespace osu.Game.Graphics.UserInterface
         [BackgroundDependencyLoader]
         private void load(OsuColour colours)
         {
-            button.BackgroundColour = colours.Pink;
-            button.HoverColour = colours.PinkDark;
+            // Torii: in grayscale theme, fsyori swaps the legacy pink
+            // back-button accents for very-dark grays (Gray1/Gray0) to
+            // anchor the corner with high contrast rather than the
+            // candy-pink "go back" affordance the default lazer UI
+            // uses. Keeping the call-site explicit (rather than
+            // remapping Pink itself to Gray1 in OsuColour) lets the
+            // rest of the UI's Pink-typed accents remain medium-gray
+            // in grayscale mode without dragging this button along
+            // with them.
+            button.BackgroundColour = ThemeAware.Pick(colours.Pink, colours.Gray1);
+            button.HoverColour = ThemeAware.Pick(colours.PinkDark, colours.Gray0);
         }
 
         protected override void PopIn()

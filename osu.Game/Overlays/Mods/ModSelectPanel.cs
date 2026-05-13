@@ -43,7 +43,9 @@ namespace osu.Game.Overlays.Mods
             set => descriptionText.Text = value;
         }
 
-        public const float CORNER_RADIUS = 7;
+        // Torii: const → static readonly so fsyori's reskin can pull
+        // this from 7 to 4 without touching every consumer.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(7f, 4f);
         public const float HEIGHT = 42;
 
         public const double SAMPLE_PLAYBACK_DELAY = 30;

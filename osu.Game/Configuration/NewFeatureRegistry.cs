@@ -58,9 +58,22 @@ namespace osu.Game.Configuration
     {
         // ---------------------------------------------------------------
         // v2026.514.x — first release shipping the NEW-badge framework.
-        // No feature IDs registered on this stream yet; entries land
-        // here per-release when something user-visible debuts.
         // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Marks the "UI theme" dropdown surfaced in Settings → Skin
+        /// and Settings → Torii → Interface. The dropdown lets the
+        /// user switch between the default Torii palette and the
+        /// "Grayscale by fsyori" desaturated palette — a significant
+        /// new chrome option in this release and the headline novelty
+        /// the badge wants to draw attention to. Both call sites mount
+        /// the same <see cref="osu.Game.Overlays.Settings.UIThemeDropdownAndRestart"/>
+        /// drawable, which sets <c>NewFeatureId</c> on its internal
+        /// <see cref="osu.Game.Graphics.UserInterfaceV2.FormEnumDropdown{T}"/>,
+        /// so the pill appears uniformly inline-next-to-the-tooltip in
+        /// both settings sections.
+        /// </summary>
+        public const string UITheme = "v2026.514.0:ui-theme";
 
         /// <summary>
         /// Set of every registered ID. Built once at startup from the
@@ -70,7 +83,10 @@ namespace osu.Game.Configuration
         /// register, and so refactoring tools can't accidentally orphan
         /// an entry by renaming the constant without updating the list.
         /// </summary>
-        private static readonly HashSet<string> known_ids = new HashSet<string>();
+        private static readonly HashSet<string> known_ids = new HashSet<string>
+        {
+            UITheme,
+        };
 
         /// <summary>
         /// True if the given feature ID has been registered. Defensive

@@ -58,6 +58,13 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         {
             Children = new Drawable[]
             {
+                // Torii: cosmetic UI-theme dropdown ("Torii" vs
+                // "Grayscale by fsyori"). Mirrored from Settings → Skin
+                // — same bindable, same restart-confirm — placed at
+                // the top of the Torii Interface subsection because
+                // users browsing Torii-specific chrome prefs are the
+                // primary audience for it.
+                new UIThemeDropdownAndRestart(),
                 // Torii cursor controls — DUPLICATED here on purpose. The
                 // canonical home is Settings → User Interface → General
                 // (alongside the other lazer cursor knobs), but the user

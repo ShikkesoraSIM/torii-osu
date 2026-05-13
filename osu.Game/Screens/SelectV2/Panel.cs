@@ -28,7 +28,26 @@ namespace osu.Game.Screens.SelectV2
 {
     public abstract partial class Panel : PoolableDrawable, ICarouselPanel, IHasContextMenu
     {
-        public const float CORNER_RADIUS = 10;
+        // Torii: SelectV2 carousel base panel corner radius. fsyori's
+        // reskin didn't touch this file (V2 didn't exist when they
+        // made the reskin) — but the design intent for the grayscale
+        // theme is "tighter, more square corners everywhere" (see
+        // fsyori's BeatmapCard / RoomPanel / ScreenFooterButton /
+        // ModSelectPanel diffs all going 7-10 → 4). Applying that
+        // same 10 → 4 rule here brings every SelectV2 carousel
+        // item (beatmap-sets, individual beatmap difficulties, and
+        // the spread indicator backgrounds) into the same squared
+        // aesthetic. PanelSetBackground reads this externally so the
+        // const → static readonly conversion propagates the change
+        // without needing a per-call-site ThemeAware.Pick.
+        //
+        // const → static readonly is OK because this value is read
+        // when the carousel mounts (long after OsuColour.
+        // SetThemeFromConfig has run in OsuGameBase.load), so the
+        // theme flag is already set by first access. Same pattern
+        // as BeatmapCard.CORNER_RADIUS, ShearedButton.CORNER_RADIUS,
+        // etc. that we converted earlier.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(10f, 4f);
 
         private const float active_x_offset = 25f;
 

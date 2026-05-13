@@ -90,7 +90,13 @@ namespace osu.Game.Overlays.Toolbar
                     circle = new Circle
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = Color4.Red
+                        // Torii: notification count badge is hardcoded
+                        // red upstream — in the grayscale theme that's
+                        // the ONE garish red on an otherwise monochrome
+                        // toolbar. Swap it for a mid-gray that still
+                        // catches the eye against the dark chrome but
+                        // doesn't fight the palette.
+                        Colour = ThemeAware.Pick(Color4.Red, OsuColour.Gray(0.55f))
                     },
                     countText = new OsuSpriteText
                     {

@@ -96,6 +96,12 @@ namespace osu.Game.Overlays.Settings.Sections
                 {
                     Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin", "hotkey", "keybind" },
                 },
+                // Torii: cosmetic UI-theme dropdown ("Torii" vs
+                // "Grayscale by fsyori"). Lives here AND in Settings →
+                // Torii → Interface, bound to the same OsuSetting key,
+                // because users browsing skins reasonably expect to
+                // find a chrome-palette switch near the skin selector.
+                new UIThemeDropdownAndRestart(),
             };
         }
 

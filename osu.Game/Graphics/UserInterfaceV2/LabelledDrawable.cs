@@ -7,6 +7,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Localisation;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Overlays;
 using osuTK;
@@ -40,7 +41,12 @@ namespace osu.Game.Graphics.UserInterfaceV2
         protected const float CONTENT_PADDING_VERTICAL = 10;
         protected const float CONTENT_PADDING_HORIZONTAL = 15;
 
-        public const float CORNER_RADIUS = 15;
+        // Torii: const → static readonly so the grayscale theme can
+        // tighten this from 15 to 4 (fsyori's reskin) without each
+        // call site re-implementing the pick. Used by the labelled
+        // outer container in this class plus anywhere external code
+        // references LabelledDrawable&lt;T&gt;.CORNER_RADIUS.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(15f, 4f);
 
         /// <summary>
         /// The component that is being displayed.

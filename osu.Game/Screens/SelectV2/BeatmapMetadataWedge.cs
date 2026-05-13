@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Utils;
 using osu.Game.Beatmaps;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Localisation;
 using osu.Game.Online;
@@ -91,7 +92,8 @@ namespace osu.Game.Screens.SelectV2
                 {
                     new ShearAligningWrapper(new Container
                     {
-                        CornerRadius = 10,
+                        // Torii: 10→4 in grayscale theme for fsyori's tighter wedge corners.
+                        CornerRadius = ThemeAware.Pick(10f, 4f),
                         Masking = true,
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
@@ -184,7 +186,8 @@ namespace osu.Game.Screens.SelectV2
                     new ShearAligningWrapper(ratingsWedge = new Container
                     {
                         Alpha = 0f,
-                        CornerRadius = 10,
+                        // Torii: 10→4 in grayscale theme for fsyori's tighter wedge corners.
+                        CornerRadius = ThemeAware.Pick(10f, 4f),
                         Masking = true,
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
@@ -223,7 +226,8 @@ namespace osu.Game.Screens.SelectV2
                     new ShearAligningWrapper(failRetryWedge = new Container
                     {
                         Alpha = 0f,
-                        CornerRadius = 10,
+                        // Torii: 10→4 in grayscale theme for fsyori's tighter wedge corners.
+                        CornerRadius = ThemeAware.Pick(10f, 4f),
                         Masking = true,
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,

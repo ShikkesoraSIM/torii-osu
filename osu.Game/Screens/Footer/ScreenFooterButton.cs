@@ -25,9 +25,15 @@ namespace osu.Game.Screens.Footer
 {
     public partial class ScreenFooterButton : OsuClickableContainer, IKeyBindingHandler<GlobalAction>
     {
-        public const int CORNER_RADIUS = 10;
+        // Torii: const → static readonly so the grayscale theme can
+        // tighten corners to 4 and tallen the button to 110 (fsyori's
+        // reskin makes the footer buttons noticeably chunkier — the
+        // 35→60 / 10→30 internal Y shifts at lines ~119/129 below
+        // are the compensating reposition of the inner label rows
+        // relative to the new height).
+        public static readonly int CORNER_RADIUS = ThemeAware.Pick(10, 4);
 
-        public const int HEIGHT = 75;
+        public static readonly int HEIGHT = ThemeAware.Pick(75, 110);
         protected const int BUTTON_WIDTH = 116;
 
         public Bindable<Visibility> OverlayState = new Bindable<Visibility>();
@@ -116,7 +122,10 @@ namespace osu.Game.Screens.Footer
                                 {
                                     Anchor = Anchor.TopCentre,
                                     Origin = Anchor.TopCentre,
-                                    Y = 35,
+                                    // Torii: fsyori's reskin shifts the
+                                    // text row down (35→60) to centre
+                                    // it inside the new taller button.
+                                    Y = ThemeAware.Pick(35, 60),
                                     AutoSizeAxes = Axes.Both,
                                     Child = text = new OsuSpriteText
                                     {
@@ -126,7 +135,11 @@ namespace osu.Game.Screens.Footer
                                 },
                                 icon = new SpriteIcon
                                 {
-                                    Y = 10,
+                                    // Torii: icon row moves with the
+                                    // text — same compensation for the
+                                    // 75→110 button height in fsyori
+                                    // reskin.
+                                    Y = ThemeAware.Pick(10, 30),
                                     Size = new Vector2(16),
                                     Anchor = Anchor.TopCentre,
                                     Origin = Anchor.TopCentre

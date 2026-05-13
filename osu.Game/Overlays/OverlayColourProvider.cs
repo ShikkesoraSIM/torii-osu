@@ -3,6 +3,7 @@
 
 using System;
 using osu.Framework.Graphics;
+using osu.Game.Graphics;
 using osuTK.Graphics;
 
 namespace osu.Game.Overlays
@@ -48,6 +49,19 @@ namespace osu.Game.Overlays
         // The difference as to which should be used where comes down to context.
         // If the colour in question is supposed to always match the view in which it is displayed theme-wise, use `OverlayColourProvider`.
         // If the colour usage is special and in general differs from the surrounding view in choice of hue, use the `OsuColour` constants.
+        //
+        // Torii: in the "Grayscale by fsyori" UI theme, fsyori
+        // didn't just zero out saturation — they also DRAMATICALLY
+        // darkened the Foreground / Background slots (Background4
+        // from 0.2 to 0.02, Background3/5/6 to pure 0, Background1/2
+        // from 0.3-0.4 to 0.1, Foreground1 from 0.6 to 0.3). The
+        // accent ladder (Colour*/Light*/Dark*/Highlight1) keeps its
+        // lightness — only chroma collapses there. Every slot uses
+        // ThemeAware.Pick on the lightness arg to land exactly on
+        // fsyori's values when the user has opted in. Saturation arg
+        // is moot in grayscale mode (getColour / getAccentColour
+        // already force it to zero) but kept on the call site so the
+        // default-theme call still reads sensibly.
         // ── Accent shades (saturated) — driven by AccentHue. ──
         public Color4 Colour0 => getAccentColour(1, 0.8f);
         public Color4 Colour1 => getAccentColour(1, 0.7f);
@@ -73,13 +87,19 @@ namespace osu.Game.Overlays
         public Color4 Dark4 => getColour(0.2f, 0.2f);
         public Color4 Dark5 => getColour(0.2f, 0.15f);
         public Color4 Dark6 => getColour(0.2f, 0.1f);
-        public Color4 Foreground1 => getColour(0.1f, 0.6f);
-        public Color4 Background1 => getColour(0.1f, 0.4f);
-        public Color4 Background2 => getColour(0.1f, 0.3f);
-        public Color4 Background3 => getColour(0.1f, 0.25f);
-        public Color4 Background4 => getColour(0.1f, 0.2f);
-        public Color4 Background5 => getColour(0.1f, 0.15f);
-        public Color4 Background6 => getColour(0.1f, 0.1f);
+        // Foreground1 / Background* are where fsyori's reskin gets
+        // dramatic — these are the slots that paint the bulk of the
+        // chrome (overlay backgrounds, footer fill, settings panel
+        // body, mod-select tray, song-select stats wedge). Torii's
+        // upstream values land on a "dim navy" feel; fsyori's
+        // grayscale pulls them to almost-or-actually-black.
+        public Color4 Foreground1 => getColour(0.1f, ThemeAware.Pick(0.6f, 0.3f));
+        public Color4 Background1 => getColour(0.1f, ThemeAware.Pick(0.4f, 0.1f));
+        public Color4 Background2 => getColour(0.1f, ThemeAware.Pick(0.3f, 0.1f));
+        public Color4 Background3 => getColour(0.1f, ThemeAware.Pick(0.25f, 0.0f));
+        public Color4 Background4 => getColour(0.1f, ThemeAware.Pick(0.2f, 0.02f));
+        public Color4 Background5 => getColour(0.1f, ThemeAware.Pick(0.15f, 0.0f));
+        public Color4 Background6 => getColour(0.1f, ThemeAware.Pick(0.1f, 0.0f));
 
         /// <summary>
         /// Changes the <see cref="Hue"/> to a different degree.
@@ -157,8 +177,19 @@ namespace osu.Game.Overlays
             return normalised;
         }
 
-        private Color4 getColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
-        private Color4 getAccentColour(float saturation, float lightness) => Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, saturation, lightness);
+        // Torii: chrome + accent generators check the global UI-theme
+        // flag and force saturation to 0 when the user is on the
+        // "Grayscale by fsyori" palette. Same approach
+        // fsyori uses upstream — every FromHSL becomes a luminance-
+        // ladder along the configured Hue without touching consumers.
+        // The hue ARGUMENT stays normal so the lightness ramps still
+        // produce distinct shades (Dark1 ≠ Dark6 etc.); only chroma
+        // collapses to zero.
+        private Color4 getColour(float saturation, float lightness) =>
+            Framework.Graphics.Colour4.FromHSL(Hue / 360f, OsuColour.IsGrayscaleTheme ? 0f : saturation, lightness);
+
+        private Color4 getAccentColour(float saturation, float lightness) =>
+            Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, OsuColour.IsGrayscaleTheme ? 0f : saturation, lightness);
     }
 
     /// <summary>

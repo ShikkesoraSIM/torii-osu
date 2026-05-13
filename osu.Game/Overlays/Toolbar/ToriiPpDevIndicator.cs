@@ -46,18 +46,28 @@ namespace osu.Game.Overlays.Toolbar
                 CornerRadius = 8,
                 CornerExponent = 3f,
                 BorderThickness = 1f,
-                BorderColour = new Color4(125, 196, 255, 200),
+                // Torii: PP-DEV badge is a Torii-only addition (not in
+                // fsyori's reskin diff) — but its hardcoded blue tones
+                // would read jarringly against the grayscale toolbar
+                // chrome. Each Color4 below is wrapped in
+                // ThemeAware.Pick so the badge gets a neutral
+                // monochrome look in the grayscale theme: same
+                // perceptual luminance as the blue original, just no
+                // chroma. Keeps the badge visible (it still says
+                // PP-DEV in legible white text) without poking a blue
+                // hole in the chrome.
+                BorderColour = ThemeAware.Pick(new Color4(125, 196, 255, 200), new Color4(160, 160, 160, 200)),
                 Children = new Drawable[]
                 {
                     new Box
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = new Color4(16, 33, 58, 185),
+                        Colour = ThemeAware.Pick(new Color4(16, 33, 58, 185), new Color4(25, 25, 25, 185)),
                     },
                     new Box
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = new Color4(70, 155, 255, 55),
+                        Colour = ThemeAware.Pick(new Color4(70, 155, 255, 55), new Color4(120, 120, 120, 55)),
                         Blending = BlendingParameters.Additive,
                     },
                     new OsuSpriteText
@@ -66,7 +76,7 @@ namespace osu.Game.Overlays.Toolbar
                         Origin = Anchor.Centre,
                         Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
                         Text = "PP-DEV",
-                        Colour = new Color4(186, 226, 255, 255),
+                        Colour = ThemeAware.Pick(new Color4(186, 226, 255, 255), new Color4(220, 220, 220, 255)),
                     }
                 }
             };

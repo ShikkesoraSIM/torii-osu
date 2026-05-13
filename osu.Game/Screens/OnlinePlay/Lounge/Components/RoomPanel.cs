@@ -79,7 +79,7 @@ namespace osu.Game.Screens.OnlinePlay.Lounge.Components
             Height = height;
 
             Masking = true;
-            CornerRadius = CORNER_RADIUS;
+            CornerRadius = ThemeAware.Pick(CORNER_RADIUS, 4f);
         }
 
         [BackgroundDependencyLoader]
@@ -124,7 +124,7 @@ namespace osu.Game.Screens.OnlinePlay.Lounge.Components
                         {
                             RelativeSizeAxes = Axes.Both,
                             Masking = true,
-                            CornerRadius = CORNER_RADIUS,
+                            CornerRadius = ThemeAware.Pick(CORNER_RADIUS, 4f),
                             Children = new Drawable[]
                             {
                                 new Box

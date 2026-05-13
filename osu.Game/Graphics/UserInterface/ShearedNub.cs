@@ -23,7 +23,10 @@ namespace osu.Game.Graphics.UserInterface
 
         public const int HEIGHT = 30;
         public const float EXPANDED_SIZE = 50;
-        public const float CORNER_RADIUS = 5;
+
+        // Torii: const → static readonly to ride the same theme-aware
+        // pipeline as the rest of fsyori's corner-radius tightening.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(5f, 4f);
 
         private readonly Box fill;
         private readonly Container main;

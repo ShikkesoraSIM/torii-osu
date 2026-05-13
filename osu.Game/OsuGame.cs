@@ -537,8 +537,18 @@ namespace osu.Game
             // property at construction time pick up the new value when
             // they're next built (re-entering song select is enough,
             // no full app restart required).
+            //
+            // Torii: when the user has opted into the "Grayscale
+            // by fsyori" UI theme, force the unslanted state on
+            // regardless of the toggle. fsyori's reskin branch ships
+            // SHEAR = (0, 0) as the new default — the slant clashes
+            // visually with the squared-corner aesthetic — and forcing
+            // it here keeps that behaviour without making the toggle
+            // itself secretly conditional (the existing
+            // UnslantedSongSelectUI setting still works exactly as
+            // documented for the default theme).
             unslantedSongSelectUI = LocalConfig.GetBindable<bool>(OsuSetting.UnslantedSongSelectUI);
-            unslantedSongSelectUI.BindValueChanged(v => SetUnslantedUI(v.NewValue), true);
+            unslantedSongSelectUI.BindValueChanged(v => SetUnslantedUI(v.NewValue || OsuColour.IsGrayscaleTheme), true);
         }
 
         private ExternalLinkOpener externalLinkOpener;

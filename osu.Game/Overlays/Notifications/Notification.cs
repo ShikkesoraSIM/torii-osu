@@ -141,7 +141,12 @@ namespace osu.Game.Overlays.Notifications
                     AutoSizeAxes = Axes.Y,
                 }.WithChild(MainContent = new Container
                 {
-                    CornerRadius = CORNER_RADIUS,
+                    // Torii: fsyori's reskin tightens this from 6 to 4
+                    // to match the sharper card aesthetic everywhere
+                    // else in the grayscale theme. CONST stays at 6
+                    // so external readers (if any) keep seeing the
+                    // Torii default.
+                    CornerRadius = ThemeAware.Pick(CORNER_RADIUS, 4f),
                     Masking = true,
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,

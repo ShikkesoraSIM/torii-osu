@@ -157,7 +157,10 @@ namespace osu.Game.Screens.Ranking
                                     new Box
                                     {
                                         RelativeSizeAxes = Axes.Both,
-                                        Colour = Color4Extensions.FromHex("#333")
+                                        // Torii: fsyori darkens the
+                                        // results-screen button strip
+                                        // from #333 to pure black.
+                                        Colour = Color4Extensions.FromHex(ThemeAware.Pick("#333", "#000"))
                                     },
                                     buttons = new FillFlowContainer
                                     {
@@ -399,7 +402,12 @@ namespace osu.Game.Screens.Ranking
             ApplyToBackground(b =>
             {
                 b.BlurAmount.Value = BACKGROUND_BLUR;
-                b.FadeColour(OsuColour.Gray(0.5f), 250);
+                // Torii: fsyori darkens the results-screen background
+                // dim (0.5 → 0.3 / 0.4 → 0.2) so the score panels read
+                // higher-contrast against an emphatically dark
+                // backdrop. Matches the overall darker chrome stance
+                // of the reskin.
+                b.FadeColour(OsuColour.Gray(ThemeAware.Pick(0.5f, 0.3f)), 250);
             });
 
             bottomPanel.FadeTo(1, 250);
@@ -462,7 +470,9 @@ namespace osu.Game.Screens.Ranking
                 ScorePanelList.HandleInput = false;
 
                 // Dim background.
-                ApplyToBackground(b => b.FadeColour(OsuColour.Gray(0.4f), 400, Easing.OutQuint));
+                // Torii: see comment on OnEntering — fsyori shifts the
+                // dim-while-detail-panel-shown shade darker too.
+                ApplyToBackground(b => b.FadeColour(OsuColour.Gray(ThemeAware.Pick(0.4f, 0.2f)), 400, Easing.OutQuint));
 
                 detachedPanel = expandedPanel;
             }
@@ -486,7 +496,10 @@ namespace osu.Game.Screens.Ranking
                 ScorePanelList.HandleInput = true;
 
                 // Un-dim background.
-                ApplyToBackground(b => b.FadeColour(OsuColour.Gray(0.5f), 250, Easing.OutQuint));
+                // Torii: pair to the OnEntering value — same ramp on
+                // exit so the screen never flashes to a different
+                // shade.
+                ApplyToBackground(b => b.FadeColour(OsuColour.Gray(ThemeAware.Pick(0.5f, 0.3f)), 250, Easing.OutQuint));
 
                 detachedPanel = null;
             }

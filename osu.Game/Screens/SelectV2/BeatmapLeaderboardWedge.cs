@@ -148,7 +148,8 @@ namespace osu.Game.Screens.SelectV2
                             // doesn't sit hard against the parent edge.
                             Left = OsuGame.SHEAR.X != 0 ? -40f : 0f,
                         },
-                        CornerRadius = 10f,
+                        // Torii: 10→4 in grayscale theme for fsyori's tighter wedge corners.
+                        CornerRadius = ThemeAware.Pick(10f, 4f),
                         Masking = true,
                         // push the personal best 1px down to hide masking issues
                         Y = 1f,

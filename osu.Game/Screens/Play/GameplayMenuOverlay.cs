@@ -172,7 +172,13 @@ namespace osu.Game.Screens.Play
                 AddButton(GameplayMenuOverlayStrings.Retry, colours.YellowDark, () => OnRetry.Invoke(), confirmable: true);
 
             if (OnQuit != null)
-                AddButton(GameplayMenuOverlayStrings.Quit, new Color4(170, 27, 39, 255), () => OnQuit.Invoke(), confirmable: true);
+                // Torii: fsyori swaps the hardcoded #AA1B27 quit-button
+                // red for OsuColour.Red4 — which itself is theme-aware
+                // (Torii: vivid red, grayscale: medium gray #707070).
+                // Using colours.Red4 keeps the quit button "stays in
+                // family" with the rest of the menu chrome on either
+                // theme instead of hardcoding red into a grayscale UI.
+                AddButton(GameplayMenuOverlayStrings.Quit, ThemeAware.Pick(new Color4(170, 27, 39, 255), colours.Red4), () => OnQuit.Invoke(), confirmable: true);
 
             State.ValueChanged += _ =>
             {
