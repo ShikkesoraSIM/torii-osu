@@ -74,8 +74,24 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
         private Texture?[]? overlayVariantTextures;
 
         /// <summary>
+        /// Pre-sorted slot indices for which a circle variant actually exists, in ascending order.
+        /// Used to cycle the lookup through available variants for combo slots that don't have
+        /// their own variant — see <see cref="updateCircleVariantTexture"/> for the rules.
+        /// Empty (length 0) when the skin ships no numbered variants at all, in which case the
+        /// base <see cref="baseCircleTexture"/> is the fallback (= today's behaviour).
+        /// </summary>
+        private int[] circleVariantPresentSlots = Array.Empty<int>();
+
+        /// <summary>Sibling array for the overlay layer.</summary>
+        private int[] overlayVariantPresentSlots = Array.Empty<int>();
+
+        /// <summary>
         /// Cached base textures (<c>hitcircle.png</c> / <c>hitcircleoverlay.png</c>).
-        /// Used as the fallback whenever the active slot's variant is null.
+        /// Used as the fallback ONLY when the skin shipped zero numbered variants — if the skin
+        /// shipped at least one, missing slots cycle through the available variants instead of
+        /// dropping back to the base (this lets a skin ship `hitcircle1.png` + `hitcircle2.png`
+        /// and have Combo3..N reuse those two textures instead of mixing in the plain
+        /// `hitcircle.png`, which was the original confusing default).
         /// </summary>
         private Texture? baseCircleTexture;
         private Texture? baseOverlayTexture;
@@ -134,6 +150,8 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             baseOverlayTexture = skin.GetTexture(@$"{circleName}overlay")?.WithMaximumSize(maxSize);
             circleVariantTextures = probeComboVariants(circleName, maxSize);
             overlayVariantTextures = probeComboVariants(@$"{circleName}overlay", maxSize);
+            circleVariantPresentSlots = collectPresentSlots(circleVariantTextures);
+            overlayVariantPresentSlots = collectPresentSlots(overlayVariantTextures);
             comboColourCount = Math.Max(1,
                 skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value?.Count
                 ?? max_combo_variant_slots);
@@ -192,10 +210,12 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
 
         /// <summary>
         /// Torii: probe disk for <c>{prefix}1.png</c> through <c>{prefix}{max_combo_variant_slots}.png</c>
-        /// and return a fixed-size array of resolved textures. Missing files stay null
-        /// and the consumer (see <see cref="updateCircleVariantTexture"/>) falls back to
-        /// the base prefix's texture. Each lookup goes through <see cref="skin"/>.GetTexture
-        /// so @2x / per-beatmap-skin / fallback chains all work normally.
+        /// and return a fixed-size array of resolved textures. Missing files stay null;
+        /// <see cref="collectPresentSlots"/> turns the array into a compact list of
+        /// "which slots actually shipped a variant" for the cycling fallback logic in
+        /// <see cref="updateCircleVariantTexture"/>. Each lookup goes through
+        /// <see cref="skin"/>.GetTexture so @2x / per-beatmap-skin / fallback chains
+        /// all work normally.
         /// </summary>
         private Texture?[] probeComboVariants(string prefix, Vector2 maxSize)
         {
@@ -206,17 +226,66 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
         }
 
         /// <summary>
+        /// Torii: return the slot indices (0-based) for which <paramref name="variants"/>
+        /// has a non-null entry, in ascending order. Used to cycle the variant lookup
+        /// through ONLY the slots a skin actually shipped — see
+        /// <see cref="updateCircleVariantTexture"/> for the rules.
+        /// Returns an empty array (not null) when no variants shipped, which triggers
+        /// the base-texture fallback path. Result length is ≤ <see cref="max_combo_variant_slots"/>.
+        /// </summary>
+        private static int[] collectPresentSlots(Texture?[] variants)
+        {
+            int count = 0;
+            for (int i = 0; i < variants.Length; i++)
+            {
+                if (variants[i] != null)
+                    count++;
+            }
+
+            if (count == 0)
+                return Array.Empty<int>();
+
+            var present = new int[count];
+            int writeIndex = 0;
+            for (int i = 0; i < variants.Length; i++)
+            {
+                if (variants[i] != null)
+                    present[writeIndex++] = i;
+            }
+            return present;
+        }
+
+        /// <summary>
         /// Torii: pick the right hitcircle / hitcircleoverlay texture for the active
         /// combo colour slot and push it into <see cref="CircleSprite"/> +
-        /// <see cref="OverlaySprite"/>. Slot index is
+        /// <see cref="OverlaySprite"/>.
+        /// <para>
+        /// Slot index for the active hit object is
         /// <c>ComboIndexWithOffsets mod ComboColourCount</c> — identical to the modulo
         /// the skin lookup applies when picking the AccentColour itself
         /// (see <c>ArgonSkin.getComboColour</c> / <c>TrianglesSkin.getComboColour</c>),
         /// so the variant always pairs 1:1 with whatever colour the engine resolved
-        /// for this hit object. The texture is still tinted via AccentColour by the
-        /// CircleSprite.Colour assignment in LoadComplete — variant authors paint in
-        /// white/greyscale to let the combo colour show through, or in their own
-        /// pre-tinted colour and accept the additional combo-colour multiply on top.
+        /// for this hit object.
+        /// </para>
+        /// <para>
+        /// Texture resolution order, per layer (circle and overlay handled identically):
+        /// </para>
+        /// <list type="number">
+        /// <item><description>If the variant at the active slot is non-null → use it.</description></item>
+        /// <item><description>Else, if the skin shipped ≥1 variant anywhere → cycle through the present-slots list:
+        /// <c>variants[presentSlots[activeSlot mod presentSlots.Length]]</c>. This makes a skin shipping only
+        /// <c>hitcircle1.png</c> + <c>hitcircle2.png</c> against a 4-colour <c>skin.ini</c> reuse those two textures
+        /// for Combo3 + Combo4 instead of dropping back to plain <c>hitcircle.png</c>.</description></item>
+        /// <item><description>Else (no variants shipped at all) → fall back to <see cref="baseCircleTexture"/> /
+        /// <see cref="baseOverlayTexture"/>. This is the today-behaviour preserved unchanged for skins that
+        /// never opted in to numbered variants.</description></item>
+        /// </list>
+        /// <para>
+        /// The texture is still tinted via AccentColour by the CircleSprite.Colour assignment in
+        /// LoadComplete — variant authors paint in white/greyscale to let the combo colour show
+        /// through, or in their own pre-tinted colour and accept the additional combo-colour
+        /// multiply on top.
+        /// </para>
         /// </summary>
         private void updateCircleVariantTexture()
         {
@@ -227,16 +296,30 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             // ≥0 by construction, but C#'s `%` is sign-preserving so we guard).
             int slot = ((comboIndexWithOffsets.Value % comboColourCount) + comboColourCount) % comboColourCount;
 
-            Texture? circleVariant = slot < circleVariantTextures.Length ? circleVariantTextures[slot] : null;
-            Texture? overlayVariant = slot < overlayVariantTextures.Length ? overlayVariantTextures[slot] : null;
+            CircleSprite.SetTexture(resolveVariant(slot, circleVariantTextures, circleVariantPresentSlots, baseCircleTexture));
+            OverlaySprite.SetTexture(resolveVariant(slot, overlayVariantTextures, overlayVariantPresentSlots, baseOverlayTexture));
+        }
 
-            // Variant present → swap to it. Variant null → fall back to base, which
-            // preserves today's behaviour for any skin that hasn't shipped numbered
-            // variants. CircleSprite/OverlaySprite always reflect the right texture
-            // even after pooling reuse (this is called on every comboIndexWithOffsets
-            // change, including the initial bind in LoadComplete).
-            CircleSprite.SetTexture(circleVariant ?? baseCircleTexture);
-            OverlaySprite.SetTexture(overlayVariant ?? baseOverlayTexture);
+        /// <summary>
+        /// Torii: resolve the texture for a given combo slot via the three-stage chain
+        /// documented on <see cref="updateCircleVariantTexture"/>. Pulled out so circle
+        /// and overlay layers share one implementation.
+        /// </summary>
+        private static Texture? resolveVariant(int slot, Texture?[] variants, int[] presentSlots, Texture? fallbackBase)
+        {
+            // Stage 1: this slot has its own variant.
+            if (slot < variants.Length && variants[slot] != null)
+                return variants[slot];
+
+            // Stage 2: skin shipped ≥1 variant somewhere — cycle through the present
+            // slots so Combo{N} (N > number of shipped variants) loops back to the
+            // first one instead of falling through to the base.
+            if (presentSlots.Length > 0)
+                return variants[presentSlots[slot % presentSlots.Length]];
+
+            // Stage 3: skin shipped zero numbered variants. Original pre-feature
+            // behaviour: just use the base hitcircle.png / hitcircleoverlay.png.
+            return fallbackBase;
         }
 
         protected override void LoadComplete()

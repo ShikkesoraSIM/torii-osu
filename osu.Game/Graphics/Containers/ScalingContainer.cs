@@ -241,6 +241,15 @@ namespace osu.Game.Graphics.Containers
         {
             protected override bool AllowStoryboardBackground => false;
 
+            // Torii: this is the dim layer that paints in behind menus / settings when
+            // the layout is scaled down (the "Background dim" slider in Settings ->
+            // Graphics -> Layout). Pulling from `layout-background` first lets skinners
+            // ship a distinct image for this layer — the SkinBackground constructor
+            // falls back to `menu-background` automatically when the skin doesn't
+            // ship a `layout-background.png`, so skins that haven't opted in still
+            // behave exactly as they always have.
+            protected override string SkinBackgroundLookupName => "layout-background";
+
             public override void OnEntering(ScreenTransitionEvent e)
             {
                 this.FadeInFromZero(4000, Easing.OutQuint);
