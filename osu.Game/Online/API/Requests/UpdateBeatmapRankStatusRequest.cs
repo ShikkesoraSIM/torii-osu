@@ -3,7 +3,6 @@
 
 using System.Net.Http;
 using osu.Framework.IO.Network;
-using osu.Game.Online.API;
 using osu.Game.Beatmaps;
 
 namespace osu.Game.Online.API.Requests

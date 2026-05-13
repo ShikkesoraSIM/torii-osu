@@ -3,7 +3,6 @@
 
 using osu.Framework.IO.Network;
 using osu.Game.Configuration;
-using osu.Game.Online.API;
 
 namespace osu.Game.Online.API.Requests
 {

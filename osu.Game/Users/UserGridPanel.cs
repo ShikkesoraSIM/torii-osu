@@ -7,7 +7,6 @@ using osu.Framework.Graphics.Containers;
 using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.Profile.Header.Components;
-using osu.Game.Users.Drawables;
 using osuTK;
 
 namespace osu.Game.Users

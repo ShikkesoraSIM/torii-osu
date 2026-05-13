@@ -20,7 +20,6 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Skinning;
 using osuTK;
-using osu.Game.Localisation;
 
 namespace osu.Game.Screens.Play
 {

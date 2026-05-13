@@ -10,7 +10,6 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Localisation;
 using osu.Game.Overlays;
 using osuTK;
 

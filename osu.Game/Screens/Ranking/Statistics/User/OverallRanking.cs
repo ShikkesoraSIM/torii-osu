@@ -10,7 +10,6 @@ using osu.Framework.Threading;
 using osu.Game.Extensions;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online;
-using osu.Game.Rulesets;
 using osu.Game.Scoring;
 
 namespace osu.Game.Screens.Ranking.Statistics.User

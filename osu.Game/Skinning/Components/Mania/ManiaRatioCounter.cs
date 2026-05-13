@@ -8,7 +8,6 @@ using osu.Framework.Localisation;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
-using osu.Game.Skinning;
 
 namespace osu.Game.Skinning.Components.Mania
 {

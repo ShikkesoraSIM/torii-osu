@@ -7,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System;
 using Humanizer;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.IEnumerableExtensions;

@@ -12,7 +12,6 @@ using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osuTK;
 using osu.Game.Overlays.Profile.Header.Components;
-using osu.Game.Users.Drawables;
 
 namespace osu.Game.Users
 {

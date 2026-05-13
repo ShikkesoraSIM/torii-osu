@@ -3,17 +3,14 @@
 
 using NUnit.Framework;
 using osu.Framework.Allocation;
-using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
-using osu.Game.Users;
 using osuTK;
 using osuTK.Graphics;
 

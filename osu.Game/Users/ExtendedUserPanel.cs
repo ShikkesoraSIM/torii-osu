@@ -14,7 +14,6 @@ using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Metadata;
-using osu.Framework.Graphics.Containers;
 
 namespace osu.Game.Users
 {

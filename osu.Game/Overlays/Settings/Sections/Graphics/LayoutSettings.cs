@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using osu.Framework.Graphics.Primitives;
 using System.Linq;
 using osu.Framework;
 using osu.Framework.Allocation;

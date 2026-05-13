@@ -9,7 +9,6 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
-using osu.Game.Graphics;
 using osu.Framework.Localisation;
 using osu.Game.Overlays.Settings.Sections.Torii;
 using osu.Game.Rulesets;

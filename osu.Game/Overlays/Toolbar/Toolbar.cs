@@ -19,7 +19,6 @@ using osu.Framework.Input.Bindings;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
 using osu.Game.Configuration;
-using osuTK.Graphics;
 
 // Hue binding lives on the OverlayColourProvider scope; CustomUiHueScope.Menu
 // matches the scope already used by ScreenFooter / SongSelect so the toolbar

@@ -6,7 +6,6 @@
 using System.IO;
 using osu.Framework.Allocation;
 using osu.Framework.Localisation;
-using osu.Framework.Screens;
 using osu.Framework.Platform;
 using osu.Game.IO;
 using osu.Game.Localisation;

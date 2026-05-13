@@ -4,7 +4,6 @@
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Localisation;
-using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Overlays.ToriiBriefing;
 
 namespace osu.Game.Overlays.Settings.Sections.Torii

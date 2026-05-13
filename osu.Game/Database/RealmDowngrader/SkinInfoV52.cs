@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using JetBrains.Annotations;
-using osu.Game.Database;
 using osu.Game.Models;
 using Realms;
 
