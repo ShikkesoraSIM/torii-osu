@@ -15,9 +15,9 @@ namespace osu.Game.Rulesets.Taiko.Mods
         [SettingSource("Scroll Speed", "Adjust a beatmap's set scroll speed", LAST_SETTING_ORDER + 1, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
         public DifficultyBindable ScrollSpeed { get; } = new DifficultyBindable
         {
-            Precision = 0.05f / 2,
-            MinValue = 0.25f / 2, // 0.25x on 2xDT
-            MaxValue = 4 * 2, // 4x on 0.5xHT
+            Precision = 0.025f,
+            MinValue = 0.125f, // 0.25x on 2xDT
+            MaxValue = 8f, // 4x on 0.5xHT
             ReadCurrentFromDifficulty = _ => 1,
         };
 
