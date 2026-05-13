@@ -99,29 +99,22 @@ namespace osu.Game.Skinning
                     switch (containerLookup.Lookup)
                     {
                         case GlobalSkinnableContainers.SongSelect:
-                            return new DefaultSkinComponentsContainer(container =>
-                            {
-                                var maxPP = container.OfType<BeatmapAttributeText>().FirstOrDefault();
-
-                                if (maxPP != null)
-                                {
-                                    maxPP.Anchor = Anchor.TopRight;
-                                    maxPP.Origin = Anchor.TopRight;
-                                    maxPP.Position = new Vector2(-20, 12);
-                                }
-                            })
-                            {
-                                RelativeSizeAxes = Axes.Both,
-                                Children = new Drawable[]
-                                {
-                                    new BeatmapAttributeText
-                                    {
-                                        Anchor = Anchor.TopRight,
-                                        Origin = Anchor.TopRight,
-                                        Attribute = { Value = BeatmapAttribute.MaxPP },
-                                    },
-                                }
-                            };
+                            // Torii: stock Argon shipped a "Max PP" BeatmapAttributeText
+                            // pinned to the top-right of song select as the default
+                            // content for this container. We removed it for two
+                            // reasons: it floats over the V2 carousel / search bar
+                            // in an aesthetically awkward position with no way for
+                            // users to disable it without going into the skin editor,
+                            // and editing Argon (or Argon Pro, which inherits this)
+                            // is what triggers lazer's protected-skin auto-fork —
+                            // every user trying to remove the widget ended up with
+                            // a handful of duplicate "osu! argon pro (2022)" copies
+                            // in their skin list. Returning null here makes the
+                            // SongSelect skinnable container empty by default;
+                            // users who actually want the Max PP readout can add a
+                            // BeatmapAttributeText from the skin editor's component
+                            // picker.
+                            return null;
 
                         case GlobalSkinnableContainers.MainHUDComponents:
                             if (containerLookup.Ruleset != null)

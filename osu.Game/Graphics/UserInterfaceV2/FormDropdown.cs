@@ -37,6 +37,17 @@ namespace osu.Game.Graphics.UserInterfaceV2
         }
 
         /// <summary>
+        /// Torii: registry ID of a "[NEW]" feature pill rendered inline
+        /// next to the caption's tooltip icon. When set, a
+        /// <see cref="NewFeatureBadge"/> appears inside the header card
+        /// and auto-dismisses after the user opens the dropdown twice
+        /// (interaction-based — see <see cref="NewFeatureTracker"/>).
+        /// Value MUST be a constant declared in
+        /// <see cref="NewFeatureRegistry"/>; unknown IDs no-op silently.
+        /// </summary>
+        public string? NewFeatureId { get; init; }
+
+        /// <summary>
         /// The maximum height of the dropdown's menu.
         /// By default, this is set to 200px high. Set to <see cref="float.PositiveInfinity"/> to remove such limit.
         /// </summary>
@@ -53,6 +64,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
 
             header.Caption = Caption;
             header.HintText = HintText;
+            header.NewFeatureId = NewFeatureId;
         }
 
         protected override void LoadComplete()
@@ -126,6 +138,20 @@ namespace osu.Game.Graphics.UserInterfaceV2
                 }
             }
 
+            private string? newFeatureId;
+
+            public string? NewFeatureId
+            {
+                get => newFeatureId;
+                set
+                {
+                    newFeatureId = value;
+
+                    if (caption.IsNotNull())
+                        caption.NewFeatureId = value;
+                }
+            }
+
             protected override LocalisableString Label
             {
                 get => labelText;
@@ -179,6 +205,14 @@ namespace osu.Game.Graphics.UserInterfaceV2
                                     {
                                         Caption = Caption,
                                         TooltipText = HintText,
+                                        // NewFeatureId is fed to FormDropdownHeader by the
+                                        // outer FormDropdown<T>.load() BEFORE this caption is
+                                        // constructed — the setter stores it on newFeatureId
+                                        // and forwards once caption.IsNotNull(). Passing it
+                                        // here in the initializer makes the first-paint
+                                        // value flow without depending on the setter's
+                                        // post-construction forwarding kicking in.
+                                        NewFeatureId = NewFeatureId,
                                     },
                                     label = new TruncatingSpriteText
                                     {
@@ -208,10 +242,19 @@ namespace osu.Game.Graphics.UserInterfaceV2
                 colourProvider.ColoursChanged += updateState;
                 Dropdown.Current.BindDisabledChanged(_ => updateState());
                 SearchBar.SearchTerm.BindValueChanged(_ => updateState(), true);
-                Dropdown.Menu.StateChanged += _ =>
+                Dropdown.Menu.StateChanged += state =>
                 {
                     updateState();
                     updateChevron();
+
+                    // Torii: opening the dropdown menu counts as one
+                    // user interaction toward dismissing the [NEW] badge
+                    // (if any). Only Open transitions register — Closed
+                    // transitions don't, since closing without changing
+                    // anything shouldn't double-count the single click
+                    // that opened it.
+                    if (state == MenuState.Open)
+                        caption.RegisterInteraction();
                 };
                 SearchBar.TextBox.OnCommit += (_, _) =>
                 {

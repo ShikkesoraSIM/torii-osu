@@ -59,9 +59,9 @@ namespace osu.Game.Scoring
         // PanelLocalRankDisplay scrolling. We deliberately omit it — the [Indexed]
         // attribute requires a Realm schema bump, and Torii explicitly stays at
         // schema 51 to keep vanilla osu! lazer able to open shared Realm folders
-        // (see RealmAccess.cs schema_version comment + RealmDowngrader). The main
-        // perf win from #37666 — moving the score filter out of Realm and into
-        // .NET-side LINQ on a smaller pre-filtered set — is preserved in
+        // (see RealmAccess.cs schema_version comment). The main perf win from
+        // #37666 — moving the score filter out of Realm and into .NET-side
+        // LINQ on a smaller pre-filtered set — is preserved in
         // PanelLocalRankDisplay.cs.
         public string BeatmapHash { get; set; } = string.Empty;
 

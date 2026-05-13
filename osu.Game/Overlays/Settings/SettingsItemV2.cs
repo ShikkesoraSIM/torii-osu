@@ -8,6 +8,8 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Localisation;
+using osu.Game.Configuration;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
 
 namespace osu.Game.Overlays.Settings
@@ -31,6 +33,14 @@ namespace osu.Game.Overlays.Settings
         /// </summary>
         public readonly Bindable<SettingsNote.Data?> Note = new Bindable<SettingsNote.Data?>();
 
+        // Torii: outer flow kept as a field so MarkAsNew() can insert a
+        // NewFeatureBadge ABOVE the control row after construction.
+        // Without storing the reference, the only handle on the inner
+        // flow is via InternalChild, and we don't want to drill through
+        // CompositeDrawable's internal-children API every time a
+        // settings call site wants to slap a [NEW] pill on something.
+        private readonly FillFlowContainer outerFlow;
+
         public SettingsItemV2(IFormControl control)
         {
             Control = control;
@@ -38,7 +48,7 @@ namespace osu.Game.Overlays.Settings
             RelativeSizeAxes = Axes.X;
             AutoSizeAxes = Axes.Y;
 
-            InternalChild = new FillFlowContainer
+            InternalChild = outerFlow = new FillFlowContainer
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
@@ -74,6 +84,30 @@ namespace osu.Game.Overlays.Settings
                 },
             };
         }
+
+        // Torii: the previous SettingsItemV2.MarkAsNew(featureId) helper
+        // injected a NewFeatureBadge as its own row above the control
+        // card. That layout looked detached from the control it was
+        // meant to flag, and the view-based dismiss model retired
+        // badges before users had a chance to engage with the feature.
+        // The replacement is per-control opt-in:
+        //
+        //     new FormEnumDropdown<...>
+        //     {
+        //         Caption = "...",
+        //         NewFeatureId = NewFeatureRegistry.Whatever,
+        //         ...
+        //     }
+        //
+        // The badge renders inline inside the control's caption row
+        // (right of the tooltip "?" icon) and dismisses after the user
+        // interacts with the control (clicks the dropdown, toggles the
+        // checkbox, etc.) the threshold number of times — see
+        // NewFeatureBadge.RegisterInteraction. Add a NewFeatureId init
+        // property to each form control as new badge call sites need
+        // it; today FormDropdown<T> (and therefore FormEnumDropdown<T>)
+        // is wired up. Extending to FormCheckBox / FormSliderBar /
+        // FormTextBox is the same plumb-through pattern.
 
         protected override void LoadComplete()
         {

@@ -17,6 +17,7 @@ using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.Containers;
 using osuTK;
 
@@ -185,6 +186,16 @@ namespace osu.Game.Overlays.Settings
         }
 
         public void ApplyDefault() => Current.SetDefault();
+
+        // Torii: V1 settings panel doesn't yet have an inline-in-caption
+        // analogue to FormDropdown.NewFeatureId. The previous V1
+        // MarkAsNew(featureId) helper inserted a row-style badge above
+        // the control, which the V2 effort retired (row-style badges
+        // looked detached from the controls they were flagging). V1
+        // call sites that need a [NEW] badge today should migrate to
+        // the V2 settings control they want and use NewFeatureId there;
+        // if a V1-only badge surfaces as a real need we can re-add an
+        // inline pattern here without bringing back the row layout.
 
         protected SettingsItem()
         {
