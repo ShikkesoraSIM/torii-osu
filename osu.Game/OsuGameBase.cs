@@ -424,6 +424,14 @@ namespace osu.Game
             dependencies.CacheAs<IGameplaySettings>(LocalConfig);
             ToriiPpVariantState.Initialise(LocalConfig);
 
+            // Torii: side-car JSON store backing the "[NEW]" pill on
+            // settings + menus. Cached here (rather than living inside
+            // SkinManager like PinnedSkinsStore) because the badge is
+            // resolved across multiple UI surfaces — settings, soon
+            // the toolbar / main menu — and shouldn't be tied to the
+            // skin subsystem's lifetime.
+            dependencies.Cache(new NewFeatureTracker(Storage));
+
             InitialiseFonts();
 
             addFilesWarning();
@@ -509,6 +517,18 @@ namespace osu.Game
 
             dependencies.Cache(SessionStatics = new SessionStatics());
             dependencies.Cache(hitErrorTracker = new SessionAverageHitErrorTracker());
+
+            // Torii: pin the cosmetic chrome theme BEFORE OsuColour is
+            // constructed — its instance fields (Pink, Purple, Blue,
+            // etc.) read the static `useGrayscale` flag in their
+            // initialisers via OsuColour.fromHex(). If the theme is
+            // applied after this line, OsuColour ships its default
+            // saturated palette and the user only gets grayscale on
+            // OverlayColourProvider (which is dynamic). The dropdown
+            // in Settings → Skins / → Torii prompts for a restart on
+            // change so this single read at startup is sufficient.
+            OsuColour.SetThemeFromConfig(LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme));
+
             dependencies.Cache(Colours = new OsuColour());
 
             RegisterImportHandler(BeatmapManager);

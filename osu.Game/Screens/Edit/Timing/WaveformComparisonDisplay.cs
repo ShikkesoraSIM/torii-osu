@@ -26,7 +26,11 @@ namespace osu.Game.Screens.Edit.Timing
     {
         private const int total_waveforms = 8;
 
-        private const float corner_radius = LabelledDrawable<Drawable>.CORNER_RADIUS;
+        // Torii: was const referencing LabelledDrawable.CORNER_RADIUS,
+        // which became static readonly (theme-aware) — see
+        // LabelledDrawable.cs. C# const expressions can't reference
+        // runtime values, so this becomes a static readonly mirror.
+        private static readonly float corner_radius = LabelledDrawable<Drawable>.CORNER_RADIUS;
 
         private readonly BindableNumber<double> beatLength = new BindableDouble();
 

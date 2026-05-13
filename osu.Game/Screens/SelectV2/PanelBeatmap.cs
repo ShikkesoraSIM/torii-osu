@@ -293,7 +293,18 @@ namespace osu.Game.Screens.SelectV2
             // I can't find a better way to do this.
             mainFill.Margin = new MarginPadding { Left = 1 / starRatingDisplay.Scale.X * (localRank.HasRank ? 0 : -3) };
 
-            var diffColour = starRatingDisplay.DisplayedDifficultyColour;
+            // Torii: in the grayscale UI theme, collapse the per-diff
+            // rainbow accent down to a single muted gray so the V2
+            // carousel reads as fsyori's "every panel is just a dark
+            // card" rather than the Torii default "candy-bar colour
+            // band per difficulty". Only the COLLAPSED accent is
+            // remapped — the underlying star-rating value is still
+            // available via starRatingDisplay.DisplayedDifficultyColour
+            // for any consumer that needs it, we just don't paint the
+            // panel with it. starCounter, backgroundBorder, the gradient
+            // tint, and the triangles all flow from this one var, so a
+            // single override here covers the full set.
+            var diffColour = ThemeAware.Pick(starRatingDisplay.DisplayedDifficultyColour, OsuColour.Gray(0.3f));
 
             if (AccentColour != diffColour)
             {

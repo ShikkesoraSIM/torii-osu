@@ -165,7 +165,16 @@ namespace osu.Game.Screens.SelectV2
                                 Alpha = visible ? 1 : 0.5f,
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Colour = colours.ForStarDifficulty(beatmap.StarRating),
+                                // Torii: spread-display dots are a beatmap-set
+                                // "skim line" showing one circle per difficulty
+                                // tinted by its star colour. Match fsyori's
+                                // "no rainbow on chrome surfaces" rule by
+                                // remapping each dot to a single muted gray
+                                // when the grayscale theme is on. The
+                                // visible/hidden alpha differentiation still
+                                // works (visible=1, hidden=0.5) so you can
+                                // still tell played-vs-unplayed at a glance.
+                                Colour = ThemeAware.Pick(colours.ForStarDifficulty(beatmap.StarRating), OsuColour.Gray(0.6f)),
                                 Margin = new MarginPadding { Left = lastBeatmapVisible != null && lastBeatmapVisible != visible ? 1 : 0 }
                             };
                             flow.Add(circle);

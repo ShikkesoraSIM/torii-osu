@@ -32,6 +32,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Collections;
 using osu.Game.Configuration;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Carousel;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
@@ -193,6 +194,20 @@ namespace osu.Game.Screens.SelectV2
 
             errorSample = audio.Samples.Get(@"UI/generic-error");
 
+            // Torii: legacy stable-style chrome strip across the
+            // bottom of song select — gated to the grayscale UI
+            // theme so default Torii keeps its modern V2 footer.
+            // Added via AddInternal BEFORE AddRangeInternal so it
+            // sits at the bottom of the z-order, drawing behind the
+            // ScreenFooter action buttons and the rest of the song
+            // select UI. The strip itself loads the active skin's
+            // songselect-bottom texture if available (stable .osk
+            // imports) and falls back to an in-code Torii-Nova
+            // gradient otherwise (Argon, Triangles, lazer-era skins
+            // that don't ship the texture).
+            if (OsuColour.IsGrayscaleTheme)
+                AddInternal(new LegacyFooterChromeStrip());
+
             AddRangeInternal(new Drawable[]
             {
                 new GlobalScrollAdjustsVolume(),
@@ -202,6 +217,17 @@ namespace osu.Game.Screens.SelectV2
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
+                    // Torii: fsyori's reskin diff removed this padding
+                    // entirely (so the carousel/wedges flow all the
+                    // way down to the screen edge under their
+                    // transparent footer), but in Torii's V2 song
+                    // select that lets the "Personal Best (#N of M)"
+                    // wedge slide UNDER the footer buttons (Back,
+                    // Mods, Random, Options) and get clipped. We
+                    // keep the padding but let it pick up the
+                    // theme-aware ScreenFooter.HEIGHT (50 default →
+                    // 80 grayscale) so the content always sits above
+                    // the footer regardless of theme.
                     Padding = new MarginPadding { Bottom = ScreenFooter.HEIGHT },
                     Child = new OsuContextMenuContainer
                     {
@@ -311,6 +337,38 @@ namespace osu.Game.Screens.SelectV2
                 },
                 modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
             });
+
+            // Torii: stable-style legacy user-stats panel — gated
+            // to the grayscale UI theme. In default Torii the panel
+            // doesn't appear (avoids stacking a stable-look user
+            // widget over Torii's already-busy V2 chrome). Added via
+            // AddInternal AFTER AddRangeInternal so it sits on TOP
+            // of the LegacyFooterChromeStrip + carousel etc, in the
+            // bottom-left corner. Replicates stable's User.DrawAt
+            // position from
+            // osu-stable-source/osu!/GameModes/Select/SongSelection.cs:453.
+            //
+            // Conditional AddInternal (rather than always-mount +
+            // self-hide via Alpha=0) avoids paying the runtime cost
+            // of the panel's stats-provider subscription + skin-source
+            // ValueChanged binding when the theme doesn't surface it.
+            // The theme is set ONCE at startup and survives the
+            // process lifetime (the dropdown forces a restart on
+            // change) so this check is stable for the screen's
+            // lifetime.
+            if (OsuColour.IsGrayscaleTheme)
+            {
+                AddInternal(new LegacyUserStatsPanel
+                {
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Margin = new MarginPadding
+                    {
+                        Left = 700,
+                        Bottom = 0,
+                    },
+                });
+            }
 
             LoadComponent(modSelectOverlay = CreateModSelectOverlay());
 

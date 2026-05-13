@@ -10,6 +10,7 @@ using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Game.Configuration;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online;
@@ -22,7 +23,18 @@ namespace osu.Game.Beatmaps.Drawables.Cards
     public abstract partial class BeatmapCard : OsuClickableContainer, IHasContextMenu
     {
         public const float TRANSITION_DURATION = 340;
-        public const float CORNER_RADIUS = 8;
+
+        // Torii: corner radius downgrades from const to static readonly
+        // so external consumers (BeatmapCardContent, CollapsibleButtonContainer,
+        // PlayButton, BeatmapCardIconButton, BeatmapCardThumbnail,
+        // BeatmapSubmissionScreen — see grep for BeatmapCard.CORNER_RADIUS)
+        // pick up fsyori's tighter 4px corner when the grayscale theme
+        // is active without each call site needing its own
+        // ThemeAware.Pick. Static-readonly evaluates once at class
+        // first-use, which by design happens AFTER OsuGameBase.load()
+        // has called OsuColour.SetThemeFromConfig() — the beatmap
+        // listing UI never loads earlier than that.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(8f, 4f);
 
         public const float WIDTH = 345;
 

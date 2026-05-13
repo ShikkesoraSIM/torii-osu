@@ -17,7 +17,11 @@ namespace osu.Game.Screens.Footer
 {
     public partial class ScreenBackButton : ShearedButton
     {
-        public const float BUTTON_WIDTH = 240;
+        // Torii: const → static readonly so ScreenFooter's two layout
+        // padding calculations that reference this value (left margin
+        // of the buttons flow + the hidden buttons container) shrink
+        // alongside the button itself when the grayscale theme is on.
+        public static readonly float BUTTON_WIDTH = ThemeAware.Pick(240f, 180f);
 
         public sealed override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
@@ -66,8 +70,13 @@ namespace osu.Game.Screens.Footer
                 }
             };
 
-            DarkerColour = Color4Extensions.FromHex("#DE31AE");
-            LighterColour = Color4Extensions.FromHex("#FF86DD");
+            // Torii: fsyori's reskin swaps the magenta/pink accent
+            // for near-black so the back button reads as a dark
+            // chrome anchor rather than a candy-pink call-to-action.
+            // Default Torii keeps the magenta colours (the upstream
+            // lazer look).
+            DarkerColour = Color4Extensions.FromHex(ThemeAware.Pick("#DE31AE", "#000000"));
+            LighterColour = Color4Extensions.FromHex(ThemeAware.Pick("#FF86DD", "#101010"));
             TextColour = Color4.White;
         }
     }

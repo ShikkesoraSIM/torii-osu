@@ -90,7 +90,9 @@ namespace osu.Game.Screens.SelectV2
         private const float statistics_compact_min_width = 90;
         private const float rank_label_width = 40;
 
-        private const int corner_radius = 10;
+        // Torii: theme-aware so the leaderboard score rows pick up
+        // fsyori's tighter 4px corner in the grayscale theme.
+        private static readonly int corner_radius = ThemeAware.Pick(10, 4);
         private const int transition_duration = 200;
 
         private static readonly Color4 personal_best_gradient_left = Color4Extensions.FromHex("#66FFCC");

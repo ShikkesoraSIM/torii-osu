@@ -14,6 +14,7 @@ using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Threading;
 using osu.Game.Configuration;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
 using osu.Game.Online.API;
@@ -38,7 +39,13 @@ namespace osu.Game.Screens.Footer
         /// </summary>
         public Action? BackButtonPressed { private get; init; }
 
-        public const int HEIGHT = 50;
+        // Torii: const → static readonly so external consumers
+        // (SongSelectV2, ShearedOverlayContainer, PlayerLoader)
+        // automatically pick up fsyori's 80px footer when the
+        // grayscale theme is active. Static-readonly evaluates at
+        // class first-use which happens long after OsuColour.
+        // SetThemeFromConfig has run.
+        public static readonly int HEIGHT = ThemeAware.Pick(50, 80);
 
         private const int padding = 60;
         private const float delay_per_button = 30;
@@ -87,10 +94,17 @@ namespace osu.Game.Screens.Footer
 
             InternalChildren = new Drawable[]
             {
+                // Torii: footer background is opaque on the default
+                // theme so chrome doesn't bleed through; transparent
+                // in the grayscale theme to match fsyori's reskin
+                // (their diff removes the Box entirely — we keep it
+                // alive with Alpha=0 so existing FadeColour calls in
+                // updateColourScheme stay valid without a null check).
                 background = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background5
+                    Colour = colourProvider.Background5,
+                    Alpha = ThemeAware.Pick(1f, 0f),
                 },
                 new GridContainer
                 {
@@ -147,7 +161,12 @@ namespace osu.Game.Screens.Footer
                 {
                     f.Anchor = Anchor.BottomRight;
                     f.Origin = Anchor.Centre;
-                    f.Position = new Vector2(-76, -36);
+                    // Torii: fsyori repositions the logo facade
+                    // dramatically (off-screen-ish at +100,+100) when
+                    // the grayscale theme is on — fits their reskin
+                    // intent of stripping the spinning-pink-osu-logo
+                    // visual weight from the footer.
+                    f.Position = ThemeAware.Pick(new Vector2(-76, -36), new Vector2(100, 100));
                 })),
             };
 

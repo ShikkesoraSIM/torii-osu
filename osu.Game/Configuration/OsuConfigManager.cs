@@ -246,6 +246,15 @@ namespace osu.Game.Configuration
             // a process restart. The settings UI prompts for that.
             SetDefault(OsuSetting.ForceSDL3, false);
 
+            // Torii: cosmetic chrome palette selection. Read once at
+            // startup by OsuColour + OverlayColourProvider via
+            // OsuColour.SetThemeFromConfig() before the DI container
+            // resolves either type — changing this value requires a
+            // process restart because the resolved palette is baked
+            // into every drawable at construction. The settings UI
+            // prompts for restart on change.
+            SetDefault(OsuSetting.UITheme, UIThemeOption.Torii);
+
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
             SetDefault(OsuSetting.Token, string.Empty);
@@ -737,6 +746,16 @@ namespace osu.Game.Configuration
         /// same Velopack-mediated restart path the renderer setting uses.
         /// </summary>
         ForceSDL3,
+
+        /// <summary>
+        /// Torii: which cosmetic UI palette the chrome should use.
+        /// See <see cref="UIThemeOption"/> for the catalogue + intent.
+        /// Read once at startup by <see cref="OsuColour"/> +
+        /// <see cref="OverlayColourProvider"/> — changing the value
+        /// requires a process restart, prompted by the dropdown UI.
+        /// </summary>
+        UITheme,
+
         Version,
         ShowFirstRunSetup,
         ShowConvertedBeatmaps,

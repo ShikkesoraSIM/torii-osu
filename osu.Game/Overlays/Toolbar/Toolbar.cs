@@ -197,7 +197,10 @@ namespace osu.Game.Overlays.Toolbar
                             {
                                 new Box
                                 {
-                                    Colour = OsuColour.Gray(0.1f),
+                                    // Torii: fsyori darkens the toolbar
+                                    // chrome from 0.1 to pure black in
+                                    // the grayscale theme.
+                                    Colour = OsuColour.Gray(ThemeAware.Pick(0.1f, 0.0f)),
                                     RelativeSizeAxes = Axes.Both,
                                 },
                                 new FillFlowContainer
@@ -245,7 +248,10 @@ namespace osu.Game.Overlays.Toolbar
                                 },
                                 new Box
                                 {
-                                    Colour = ColourInfo.GradientHorizontal(OsuColour.Gray(0.1f).Opacity(0), OsuColour.Gray(0.1f)),
+                                    // Torii: fade gradient lands on the
+                                    // same darker tone as the box below
+                                    // in grayscale theme.
+                                    Colour = ColourInfo.GradientHorizontal(OsuColour.Gray(ThemeAware.Pick(0.1f, 0.0f)).Opacity(0), OsuColour.Gray(ThemeAware.Pick(0.1f, 0.0f))),
                                     Width = 50,
                                     RelativeSizeAxes = Axes.Y,
                                     Anchor = Anchor.TopRight,
@@ -264,7 +270,10 @@ namespace osu.Game.Overlays.Toolbar
                             {
                                 new Box
                                 {
-                                    Colour = OsuColour.Gray(0.1f),
+                                    // Torii: fsyori darkens the toolbar
+                                    // chrome from 0.1 to pure black in
+                                    // the grayscale theme.
+                                    Colour = OsuColour.Gray(ThemeAware.Pick(0.1f, 0.0f)),
                                     RelativeSizeAxes = Axes.Both,
                                 },
                                 new FillFlowContainer
@@ -357,7 +366,11 @@ namespace osu.Game.Overlays.Toolbar
                         Alpha = 0,
                         Height = 80,
                         Colour = ColourInfo.GradientVertical(
-                            OsuColour.Gray(0f).Opacity(0.7f), OsuColour.Gray(0).Opacity(0)),
+                            // Torii: fsyori drops the lower-opacity
+                            // end of the vertical gradient to zero so
+                            // the toolbar fade-out is harsher when the
+                            // grayscale theme is on.
+                            OsuColour.Gray(0f).Opacity(ThemeAware.Pick(0.7f, 0.0f)), OsuColour.Gray(0).Opacity(0)),
                     },
                 };
 

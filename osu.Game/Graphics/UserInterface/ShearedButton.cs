@@ -17,7 +17,14 @@ namespace osu.Game.Graphics.UserInterface
     public partial class ShearedButton : OsuClickableContainer
     {
         public const float DEFAULT_HEIGHT = 50;
-        public const float CORNER_RADIUS = 7;
+
+        // Torii: const → static readonly so external consumers
+        // (Content.CornerRadius and the inner-box wraps inside this
+        // class, plus any future external reader) pick up fsyori's
+        // 4px corner when the grayscale theme is active without a
+        // per-call-site ThemeAware.Pick.
+        public static readonly float CORNER_RADIUS = ThemeAware.Pick(7f, 4f);
+
         public const float BORDER_THICKNESS = 2;
 
         public LocalisableString Text

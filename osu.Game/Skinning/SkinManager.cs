@@ -23,6 +23,7 @@ using osu.Framework.Threading;
 using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.IO;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Utils;
@@ -133,6 +134,19 @@ namespace osu.Game.Skinning
                 CurrentSkin.Value = skin.NewValue.PerformRead(GetSkin);
             };
 
+            // Torii: the grayscale UI theme handles palette +
+            // structural changes (corner radii, footer height,
+            // Background lightness, mod colour mapping, etc.) at the
+            // code level, applying to every skin the user picks. Any
+            // stable-era legacy chrome textures (user-bg, levelbar,
+            // songselect-bottom, etc.) come from whatever skin the
+            // user has selected — Torii does not bundle a chrome
+            // skin of its own, so the user can drop a stable .osk
+            // into their skins folder to get the literal stable
+            // look, or use Argon / Triangles / etc. to get the
+            // in-code Torii-Nova fallback chrome (see
+            // LegacyFooterChromeStrip.cs and LegacyUserStatsPanel.cs
+            // for what renders without skin-provided textures).
             CurrentSkin.Value = argonSkin;
             CurrentSkin.ValueChanged += skin =>
             {

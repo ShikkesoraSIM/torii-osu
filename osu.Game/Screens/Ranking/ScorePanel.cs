@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
+using osu.Game.Graphics;
 using osu.Game.Scoring;
 using osu.Game.Screens.Ranking.Contracted;
 using osu.Game.Screens.Ranking.Expanded;
@@ -28,17 +29,26 @@ namespace osu.Game.Screens.Ranking
         /// <summary>
         /// Width of the panel when contracted.
         /// </summary>
-        public const float CONTRACTED_WIDTH = 130;
+        // Torii: fsyori bumps the contracted panels MUCH bigger
+        // (130→300, 385→500) because in the grayscale theme the
+        // results screen shows contracted panels as the same
+        // expanded content scaled down rather than a separate
+        // visual style — there's no narrow "ranked spine"
+        // anymore, just a smaller version of the full panel. The
+        // adjusted geometry below + the contracted-state animation
+        // changes in updateState (Color4.FromHex("#777") tint +
+        // ScaleTo 0.85f) implement that fade-down look.
+        public static readonly float CONTRACTED_WIDTH = ThemeAware.Pick(130f, 300f);
 
         /// <summary>
         /// Height of the panel when contracted.
         /// </summary>
-        public const float CONTRACTED_HEIGHT = 385;
+        public static readonly float CONTRACTED_HEIGHT = ThemeAware.Pick(385f, 500f);
 
         /// <summary>
         /// Width of the panel when expanded.
         /// </summary>
-        public const float EXPANDED_WIDTH = 360;
+        public static readonly float EXPANDED_WIDTH = ThemeAware.Pick(360f, 350f);
 
         /// <summary>
         /// Height of the panel when expanded.
@@ -75,10 +85,20 @@ namespace osu.Game.Screens.Ranking
         /// </summary>
         private const double content_fade_duration = 50;
 
-        private static readonly ColourInfo expanded_top_layer_colour = ColourInfo.GradientVertical(Color4Extensions.FromHex("#444"), Color4Extensions.FromHex("#333"));
-        private static readonly ColourInfo expanded_middle_layer_colour = ColourInfo.GradientVertical(Color4Extensions.FromHex("#555"), Color4Extensions.FromHex("#333"));
-        private static readonly Color4 contracted_top_layer_colour = Color4Extensions.FromHex("#353535");
-        private static readonly Color4 contracted_middle_layer_colour = Color4Extensions.FromHex("#353535");
+        // Torii: fsyori replaces all four panel-layer colours with
+        // pure black (#000) in the grayscale theme — gradients
+        // collapse to flat black, so the panel reads as a solid
+        // dark card rather than the subtle 0.2-luminance ramp the
+        // default Torii panels use. The Torii defaults remain
+        // exactly as upstream.
+        private static readonly ColourInfo expanded_top_layer_colour = ColourInfo.GradientVertical(
+            Color4Extensions.FromHex(ThemeAware.Pick("#444", "#000")),
+            Color4Extensions.FromHex(ThemeAware.Pick("#333", "#000")));
+        private static readonly ColourInfo expanded_middle_layer_colour = ColourInfo.GradientVertical(
+            Color4Extensions.FromHex(ThemeAware.Pick("#555", "#000")),
+            Color4Extensions.FromHex(ThemeAware.Pick("#333", "#000")));
+        private static readonly Color4 contracted_top_layer_colour = Color4Extensions.FromHex(ThemeAware.Pick("#353535", "#000"));
+        private static readonly Color4 contracted_middle_layer_colour = Color4Extensions.FromHex(ThemeAware.Pick("#353535", "#000"));
 
         public event Action<PanelState>? StateChanged;
 
@@ -149,8 +169,14 @@ namespace osu.Game.Screens.Ranking
                             new Container
                             {
                                 RelativeSizeAxes = Axes.Both,
-                                CornerRadius = 20,
-                                CornerExponent = 2.5f,
+                                // Torii: fsyori switches from the
+                                // smoothed superellipse (20px + 2.5
+                                // exponent) to a plain 8px corner —
+                                // sharper, harder-edged card that
+                                // matches the squared aesthetic of
+                                // the rest of the grayscale reskin.
+                                CornerRadius = ThemeAware.Pick(20f, 8f),
+                                CornerExponent = ThemeAware.Pick(2.5f, 2f),
                                 Masking = true,
                                 Child = topLayerBackground = new Box { RelativeSizeAxes = Axes.Both }
                             },
@@ -166,21 +192,44 @@ namespace osu.Game.Screens.Ranking
                             new Container
                             {
                                 RelativeSizeAxes = Axes.Both,
-                                CornerRadius = 20,
-                                CornerExponent = 2.5f,
+                                CornerRadius = ThemeAware.Pick(20f, 8f),
+                                CornerExponent = ThemeAware.Pick(2.5f, 2f),
                                 Masking = true,
-                                Children = new[]
-                                {
-                                    middleLayerBackground = new Box { RelativeSizeAxes = Axes.Both },
-                                    new UserCoverBackground
+                                // Torii: fsyori drops the
+                                // UserCoverBackground entirely in
+                                // the grayscale theme — the avatar
+                                // cover tint would clash with the
+                                // pure-black panel, so the panel is
+                                // just a flat dark card. Conditional
+                                // construction keeps Torii's
+                                // existing avatar-tint look intact.
+                                Children = OsuColour.IsGrayscaleTheme
+                                    ? new Drawable[]
                                     {
-                                        RelativeSizeAxes = Axes.Both,
-                                        User = Score.User,
-                                        Colour = ColourInfo.GradientVertical(Color4.White.Opacity(0.5f), Color4Extensions.FromHex("#444").Opacity(0))
+                                        middleLayerBackground = new Box { RelativeSizeAxes = Axes.Both },
                                     }
-                                }
+                                    : new Drawable[]
+                                    {
+                                        middleLayerBackground = new Box { RelativeSizeAxes = Axes.Both },
+                                        new UserCoverBackground
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            User = Score.User,
+                                            Colour = ColourInfo.GradientVertical(Color4.White.Opacity(0.5f), Color4Extensions.FromHex("#444").Opacity(0))
+                                        }
+                                    }
                             },
-                            middleLayerContentContainer = new Container { RelativeSizeAxes = Axes.Both }
+                            middleLayerContentContainer = new Container
+                            {
+                                RelativeSizeAxes = Axes.Both,
+                                // Torii: in grayscale theme fsyori
+                                // anchors the middle content centre
+                                // so the contracted-state scale-down
+                                // animates around the panel's centre
+                                // rather than the top-left corner.
+                                Anchor = OsuColour.IsGrayscaleTheme ? Anchor.Centre : Anchor.TopLeft,
+                                Origin = OsuColour.IsGrayscaleTheme ? Anchor.Centre : Anchor.TopLeft,
+                            }
                         }
                     },
                     samplePanelFocus = new DrawableSample(audio.Samples.Get(@"Results/score-panel-focus"))
@@ -242,6 +291,13 @@ namespace osu.Game.Screens.Ranking
             topLayerContent?.FadeOut(content_fade_duration).Expire();
             middleLayerContent?.FadeOut(content_fade_duration).Expire();
 
+            // Torii: fsyori's reskin treats Contracted as a scaled-down
+            // Expanded — same panel content but FadeColour'd to #777
+            // and ScaleTo 0.85f. Captures the firstLoad flag in scope
+            // so both cases skip the resize animation on first set.
+            bool firstLoad = topLayerContent == null;
+            double duration = firstLoad ? 0 : RESIZE_DURATION;
+
             switch (state)
             {
                 case PanelState.Expanded:
@@ -250,9 +306,20 @@ namespace osu.Game.Screens.Ranking
                     topLayerBackground.FadeColour(expanded_top_layer_colour, RESIZE_DURATION, Easing.OutQuint);
                     middleLayerBackground.FadeColour(expanded_middle_layer_colour, RESIZE_DURATION, Easing.OutQuint);
 
-                    bool firstLoad = topLayerContent == null;
                     topLayerContentContainer.Add(topLayerContent = new ExpandedPanelTopContent(Score.User, firstLoad) { Alpha = 0 });
                     middleLayerContentContainer.Add(middleLayerContent = new ExpandedPanelMiddleContent(Score, displayWithFlair) { Alpha = 0 });
+
+                    if (OsuColour.IsGrayscaleTheme)
+                    {
+                        // Torii: in grayscale theme, "expanded" is the
+                        // baseline visual — full colour, full scale.
+                        // We have to explicitly re-set both because
+                        // the Contracted case below modifies the
+                        // container's Colour + Scale, and toggling
+                        // back to Expanded should reset them.
+                        middleLayerContentContainer.FadeColour(Color4.White, duration, Easing.OutQuint);
+                        middleLayerContentContainer.ScaleTo(1.0f, duration, Easing.OutQuint);
+                    }
 
                     // only the first expanded display should happen with flair.
                     displayWithFlair = false;
@@ -261,16 +328,39 @@ namespace osu.Game.Screens.Ranking
                 case PanelState.Contracted:
                     Size = new Vector2(CONTRACTED_WIDTH, CONTRACTED_HEIGHT);
 
-                    topLayerBackground.FadeColour(contracted_top_layer_colour, RESIZE_DURATION, Easing.OutQuint);
-                    middleLayerBackground.FadeColour(contracted_middle_layer_colour, RESIZE_DURATION, Easing.OutQuint);
+                    topLayerBackground.FadeColour(contracted_top_layer_colour, duration, Easing.OutQuint);
+                    middleLayerBackground.FadeColour(contracted_middle_layer_colour, duration, Easing.OutQuint);
 
-                    topLayerContentContainer.Add(topLayerContent = new ContractedPanelTopContent
+                    if (OsuColour.IsGrayscaleTheme)
                     {
-                        ScorePosition = { BindTarget = ScorePosition },
-                        Alpha = 0
-                    });
+                        // Torii: fsyori reuses the Expanded content
+                        // for Contracted in the grayscale theme,
+                        // tinted gray + scaled to 0.85 to read as
+                        // "dimmer cousin of the highlighted panel".
+                        // The classic Contracted layout (separate
+                        // top-content "score position spine" + cover
+                        // ribbon) doesn't fit the wider 300px
+                        // grayscale panel geometry — so we drop it.
+                        topLayerContentContainer.Add(topLayerContent = new ExpandedPanelTopContent(Score.User, firstLoad) { Alpha = 0 });
+                        middleLayerContentContainer.Add(middleLayerContent = new ExpandedPanelMiddleContent(Score, displayWithFlair) { Alpha = 0 });
+                        middleLayerContentContainer.FadeColour(Color4Extensions.FromHex("#777"), duration, Easing.OutQuint);
+                        middleLayerContentContainer.ScaleTo(0.85f, duration, Easing.OutQuint);
 
-                    middleLayerContentContainer.Add(middleLayerContent = new ContractedPanelMiddleContent(Score) { Alpha = 0 });
+                        displayWithFlair = false;
+                    }
+                    else
+                    {
+                        // Default Torii: the original Contracted
+                        // layout with the narrow ranked-spine top
+                        // content and the cover ribbon underneath.
+                        topLayerContentContainer.Add(topLayerContent = new ContractedPanelTopContent
+                        {
+                            ScorePosition = { BindTarget = ScorePosition },
+                            Alpha = 0
+                        });
+
+                        middleLayerContentContainer.Add(middleLayerContent = new ContractedPanelMiddleContent(Score) { Alpha = 0 });
+                    }
                     break;
             }
 
