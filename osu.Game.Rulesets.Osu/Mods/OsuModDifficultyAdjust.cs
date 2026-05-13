@@ -34,8 +34,8 @@ namespace osu.Game.Rulesets.Osu.Mods
             Precision = 0.1f,
             MinValue = 0,
             MaxValue = 10,
-            ExtendedMinValue = -185, // AR-35 on 2xDT
-            ExtendedMaxValue = 12.5f, // AR11 on 0.5xHT
+            ExtendedMinValue = -85, // AR-35 on 2xDT
+            ExtendedMaxValue = 12f, // AR11 on 0.5xHT
             ReadCurrentFromDifficulty = diff => diff.ApproachRate,
         };
 
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Osu.Mods
             Precision = 0.1f,
             MinValue = 0,
             MaxValue = 10,
-            ExtendedMaxValue = 12.7f, // OD10.8 on 0.5xHT
+            ExtendedMaxValue = 12.2f, // OD11.07 on 0.5xHT
             ReadCurrentFromDifficulty = diff => diff.OverallDifficulty,
         };
 
