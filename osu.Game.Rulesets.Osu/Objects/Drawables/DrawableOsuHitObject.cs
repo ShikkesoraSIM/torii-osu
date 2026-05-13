@@ -29,6 +29,16 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
         public readonly IBindable<float> ScaleBindable = new BindableFloat();
         public readonly IBindable<int> IndexInCurrentComboBindable = new Bindable<int>();
 
+        /// <summary>
+        /// Torii: locally-bound mirror of <see cref="OsuHitObject.ComboIndexWithOffsetsBindable"/>.
+        /// Exposed publicly so skinnable pieces (notably <see cref="osu.Game.Rulesets.Osu.Skinning.Legacy.LegacyMainCirclePiece"/>)
+        /// can react to combo-index changes without reaching into <see cref="DrawableHitObject{T}.HitObject"/>,
+        /// which isn't safe to access during background-dependency-loader-time
+        /// initialisation (HitObject is set via OnApply, not at construction). Same
+        /// pattern as <see cref="IndexInCurrentComboBindable"/> immediately above.
+        /// </summary>
+        public readonly IBindable<int> ComboIndexWithOffsetsBindable = new Bindable<int>();
+
         // Must be set to update IsHovered as it's used in relax mod to detect osu hit objects.
         public override bool HandlePositionalInput => true;
 
@@ -59,6 +69,7 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
             base.OnApply();
 
             IndexInCurrentComboBindable.BindTo(HitObject.IndexInCurrentComboBindable);
+            ((Bindable<int>)ComboIndexWithOffsetsBindable).BindTo(HitObject.ComboIndexWithOffsetsBindable);
             PositionBindable.BindTo(HitObject.PositionBindable);
             StackHeightBindable.BindTo(HitObject.StackHeightBindable);
             ScaleBindable.BindTo(HitObject.ScaleBindable);
@@ -69,6 +80,7 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
             base.OnFree();
 
             IndexInCurrentComboBindable.UnbindFrom(HitObject.IndexInCurrentComboBindable);
+            ((Bindable<int>)ComboIndexWithOffsetsBindable).UnbindFrom(HitObject.ComboIndexWithOffsetsBindable);
             PositionBindable.UnbindFrom(HitObject.PositionBindable);
             StackHeightBindable.UnbindFrom(HitObject.StackHeightBindable);
             ScaleBindable.UnbindFrom(HitObject.ScaleBindable);
