@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Osu.Mods
             Precision = 0.1f,
             MinValue = 0,
             MaxValue = 10,
-            ExtendedMaxValue = 11, // OD10.8 on 0.5xHT
+            ExtendedMaxValue = 12.7f, // OD10.8 on 0.5xHT
             ReadCurrentFromDifficulty = diff => diff.OverallDifficulty,
         };
 
