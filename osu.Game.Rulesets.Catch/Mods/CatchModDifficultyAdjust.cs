@@ -30,7 +30,8 @@ namespace osu.Game.Rulesets.Catch.Mods
             Precision = 0.1f,
             MinValue = 0,
             MaxValue = 10,
-            ExtendedMaxValue = 11,
+            ExtendedMinValue = -185, // AR-35 on 2xDT
+            ExtendedMaxValue = 12.5f, // AR11 on 0.5xHT
             ReadCurrentFromDifficulty = diff => diff.ApproachRate,
         };
 
