@@ -101,6 +101,20 @@ A daily portal overlay greeting users on first login of the day. Shows server st
 
 Audio packages are pinned to ppy's own `ppy.ManagedBass*` forks, matching official osu! 1-for-1 — meaning all of upstream's BASS audio fixes (WASAPI exclusive-mode handling, audio-device hot-plug, MIDI backend patches) ship in Torii too. We deliberately don't run on vanilla ManagedBass, because vanilla is missing those patches.
 
+### Skinning extras
+
+#### Per-combo-color hitcircle textures (legacy skins)
+
+Drop `hitcircle1.png` through `hitcircle8.png` next to your `hitcircle.png`. Torii will use the variant whose number matches the currently-active combo color slot from `skin.ini`'s `[Colours]` section (`hitcircle1.png` ↔ `Combo1`, `hitcircle2.png` ↔ `Combo2`, …).
+
+- The combo color is still applied as a tint over the variant — paint your variants in white/grayscale to let `skin.ini`'s combo colors show through, or in pre-tinted mid-tones for a colored-on-colored effect. Hidden / Flashlight / dim / fade animations all keep working because the tint pipeline is unchanged.
+- `@2x` HD textures work the same way they do everywhere else in legacy skins (`hitcircle1@2x.png`, etc.). No extra config.
+- **Missing slots fall back to `hitcircle.png`.** Ship only the variants you care about. If you ship `hitcircle1.png` and `hitcircle3.png`, then Combo1 + Combo3 use their variants and Combo2/4/5/6/7/8 use the regular `hitcircle.png` (tinted by their respective combo colors).
+- `hitcircleoverlay1.png` etc. work the same way for the overlay layer (the ring drawn over the circle body), as do `sliderstartcircle1..8.png` and `sliderendcircle1..8.png` for slider start/end circles — anywhere `LegacyMainCirclePiece` would have rendered the single base texture, it now also looks for a per-slot variant first.
+- This is purely additive — skins that don't ship any numbered variants render exactly as they always have.
+
+The slot index resolves the same way the combo color itself does: `comboIndexWithOffsets mod (number of Combo entries in skin.ini)`. So a `skin.ini` with `Combo1..Combo4` cycles `hitcircle1..hitcircle4` (the variants past index 4 are inert files); a `skin.ini` with `Combo1..Combo8` exposes all eight slots.
+
 ### Velopack updater with channel routing
 
 Torii uses [Velopack](https://github.com/velopack/velopack) for updates. The release pipeline tags releases with `-torii` for stable (master) and `-nova` for experimental (nova branch), and the in-client Updater pins users to their chosen stream — Nova users only see `-nova` prereleases, stable users only see `-torii` releases. Switching streams is one click in Settings.
