@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using osu.Framework.Audio;
 using osu.Framework.Bindables;
 using osu.Framework.Localisation;
+using osu.Game.Configuration;
 
 namespace osu.Game.Rulesets.Mods
 {
@@ -15,6 +16,12 @@ namespace osu.Game.Rulesets.Mods
         public sealed override bool ValidForMultiplayerAsFreeMod => false;
 
         public abstract BindableNumber<double> SpeedChange { get; }
+
+        [SettingSource("Adjust hit windows")]
+        public virtual BindableBool AdjustWindows { get; } = new BindableBool();
+
+        [SettingSource("Adjust approach rate")]
+        public virtual BindableBool AdjustApproachRate { get; } = new BindableBool();
 
         public abstract void ApplyToTrack(IAdjustableAudioComponent track);
 
