@@ -39,6 +39,15 @@ namespace osu.Game.Rulesets.Osu.Mods
             ReadCurrentFromDifficulty = diff => diff.ApproachRate,
         };
 
+        public override DifficultyBindable OverallDifficulty { get; } = new DifficultyBindable
+        {
+            Precision = 0.1f,
+            MinValue = 0,
+            MaxValue = 10,
+            ExtendedMaxValue = 11, // OD10.8 on 0.5xHT
+            ReadCurrentFromDifficulty = diff => diff.OverallDifficulty,
+        };
+
         public override string ExtendedIconInformation
         {
             get
