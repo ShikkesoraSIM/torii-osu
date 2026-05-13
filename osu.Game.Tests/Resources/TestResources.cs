@@ -228,6 +228,7 @@ namespace osu.Game.Tests.Resources
         private class TestModDoubleTime : ModDoubleTime
         {
             public override double ScoreMultiplier => 1;
+            public override void ApplyToDifficulty(BeatmapDifficulty difficulty) { }
         }
     }
 }
