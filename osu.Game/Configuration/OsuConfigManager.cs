@@ -376,7 +376,15 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.Scaling, ScalingMode.Off);
             SetDefault(OsuSetting.SafeAreaConsiderations, true);
-            SetDefault(OsuSetting.ScalingBackgroundDim, 0.9f, 0.5f, 1f, 0.01f);
+            // Torii: lower bound dropped from 0.5f → 0f at a skinner request (Mash).
+            // The original 50%-100% range stopped the layout background from going
+            // fully opaque (= a flat single-color rectangle where the dimmed image
+            // would be), but skins that want to ship a distinct `layout-background.png`
+            // (see the SkinBackground / ScalingBackgroundScreen wiring) genuinely
+            // want the option to push the original-menu-background image all the
+            // way to invisible behind their custom layout image. Existing user
+            // values are unchanged because 0.5..1.0 ⊆ 0.0..1.0.
+            SetDefault(OsuSetting.ScalingBackgroundDim, 0.9f, 0f, 1f, 0.01f);
 
             SetDefault(OsuSetting.ScalingSizeX, 0.8f, 0.2f, 1f, 0.01f);
             SetDefault(OsuSetting.ScalingSizeY, 0.8f, 0.2f, 1f, 0.01f);

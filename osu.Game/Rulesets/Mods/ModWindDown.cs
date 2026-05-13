@@ -17,6 +17,20 @@ namespace osu.Game.Rulesets.Mods
         public override LocalisableString Description => "Sloooow doooown...";
         public override IconUsage? Icon => OsuIcon.ModWindDown;
 
+        // Torii: same reasoning as ModAdaptiveSpeed.Ranked => false. WindDown ramps the
+        // track speed DOWN from the initial rate to the final rate over the course of
+        // a map. Star-rating / pp computation runs the diffcalc against the BASE
+        // beatmap (single fixed rate) and has no "realtime, per-window rate" hook —
+        // a player can wind a map down 2.0 → 0.5 and the result is scored as if they
+        // played the full base-rate version, gaining pp from an effective 0.5x-ish
+        // average without paying the difficulty cost. Until upstream gains rate-aware
+        // diffcalc this just needs to be unranked. WindUp is fine because it makes
+        // the map *harder* than baseline — it would only ever lose pp relative to its
+        // notional rating, not gain it. WindDown also implicitly drops out of
+        // leaderboards / pp via the standard Ranked-mod filtering everywhere else
+        // in the codebase that reads this property.
+        public override bool Ranked => false;
+
         public override BindableNumber<double> InitialRate { get; } = new BindableDouble(1)
         {
             MinValue = 0.51,

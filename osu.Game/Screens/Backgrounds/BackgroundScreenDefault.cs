@@ -42,6 +42,20 @@ namespace osu.Game.Screens.Backgrounds
 
         protected virtual bool AllowStoryboardBackground => true;
 
+        /// <summary>
+        /// Torii: the skin-resource name that <see cref="SkinBackground"/> queries first when
+        /// resolving the background texture for this screen. Defaults to <c>menu-background</c>
+        /// so the main-menu / intro / generic background path keeps the today-behaviour exactly.
+        /// Subclasses representing the "layout dim" / scaling-container background
+        /// (notably <c>ScalingContainer.ScalingBackgroundScreen</c>) override this to
+        /// <c>layout-background</c> so skinners can ship a distinct texture for the
+        /// dim layer behind menus without affecting the main-menu image. If the skin
+        /// doesn't ship a file under the override name, <see cref="SkinBackground"/>
+        /// transparently falls back to <c>menu-background</c> — the override is purely
+        /// opt-in by file presence, no skin.ini config required.
+        /// </summary>
+        protected virtual string SkinBackgroundLookupName => "menu-background";
+
         [BackgroundDependencyLoader]
         private void load(IAPIProvider api, SkinManager skinManager, OsuConfigManager config)
         {
@@ -168,7 +182,7 @@ namespace osu.Game.Screens.Backgrounds
                                 break;
 
                             default:
-                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName());
+                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName(), SkinBackgroundLookupName);
                                 break;
                         }
 
