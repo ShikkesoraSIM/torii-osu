@@ -239,24 +239,45 @@ namespace osu.Game.Screens.SelectV2
                     Colour = new Color4(0, 0, 0, 255),
                 },
 
-                // Avatar — square with slightly rounded corners to
-                // ride the chrome-theme aesthetic. Pure square felt
-                // too hard against the rounded panel chrome; a small
-                // 4-px corner radius softens the avatar block to
-                // match the panel's own CornerRadius (set above).
-                // Wrapped in a Container so the CornerRadius +
-                // Masking apply to the avatar texture even if
-                // UpdateableAvatar's internal layout changes.
-                new Container
+                // Avatar — visually unified with the panel chrome.
+                //
+                // Three changes vs. the previous Container-wrapped
+                // version that left the avatar invisible after the
+                // panel moved into the ScreenFooter trailing-content
+                // slot:
+                //
+                // 1. `isInteractive: false`. The default UpdateableAvatar
+                //    constructor sets isInteractive = true, which wraps
+                //    the inner DrawableAvatar in a ClickableAvatar
+                //    (OsuClickableContainer). That clickable layer
+                //    competes with this panel's own OnClick (which
+                //    opens UserProfileOverlay for the whole card) for
+                //    positional input, and the nested click-handler
+                //    arbitration was eating into the avatar's render
+                //    layer once the panel started living as a child
+                //    of an OverlayContainer (the footer). Disabling
+                //    interactivity collapses UpdateableAvatar to a
+                //    plain DrawableAvatar Sprite — simpler tree, no
+                //    input competition, the avatar renders again.
+                //
+                // 2. Masking + CornerRadius live on the UpdateableAvatar
+                //    itself. The previous Container wrapper only
+                //    existed to provide masking, but UpdateableAvatar
+                //    exposes Masking / CornerRadius as public
+                //    properties (User/Drawables/UpdateableAvatar.cs:22-32)
+                //    so the wrapper was redundant. One fewer
+                //    composition layer for the pipeline to traverse.
+                //
+                // 3. CornerRadius bumped 4 -> 6 to match the panel's
+                //    own CornerRadius (constructor sets it to 6),
+                //    giving avatar + chrome a consistent rounding for
+                //    the "todo unificado" look the user asked for.
+                avatar = new UpdateableAvatar(user: null, isInteractive: false, showGuestOnNull: true)
                 {
                     Size = new Vector2(avatar_size),
                     Position = new Vector2(avatar_inset, avatar_y),
                     Masking = true,
-                    CornerRadius = 4,
-                    Child = avatar = new UpdateableAvatar
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                    },
+                    CornerRadius = 6,
                 },
 
                 // Username — top of the text column at username_font_size.
