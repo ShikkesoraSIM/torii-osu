@@ -205,20 +205,50 @@ namespace osu.Game.Screens.SelectV2
                                             Padding = new MarginPadding { Left = SongSelect.WEDGE_CONTENT_MARGIN, Right = 20f, Vertical = 7.5f },
                                             Shear = -OsuGame.SHEAR,
                                             RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
-                                            ColumnDimensions = new[]
-                                            {
-                                                new Dimension(),
-                                                new Dimension(GridSizeMode.Absolute, 30),
-                                                new Dimension(GridSizeMode.AutoSize),
-                                            },
+                                            // Torii: theme-aware column layout for the stats row.
+                                            //
+                                            // Default (slanted) theme: keeps the upstream
+                                            //   [flex] [30px separator] [auto]
+                                            // pattern so the difficulty stats (CS / AR / Acc / HP) anchor
+                                            // to the right edge of the wedge while the counts
+                                            // (Circles / Sliders / Spinners) sit on the left, with the
+                                            // empty middle "absorbing" the slant cutoff.
+                                            //
+                                            // Grayscale theme: collapses to
+                                            //   [auto] [8px separator] [auto]
+                                            // so the two stat groups sit immediately next to each other
+                                            // with a gap that matches the in-group 8 px spacing — the
+                                            // visual reading is a single uniform row of 7 stats, which
+                                            // is what reads correctly now that the wedge no longer has
+                                            // a slant cutoff to "fill" with flex space. Pairs with the
+                                            // countStatisticsDisplay constructor flag below: the count
+                                            // display switches to autoSize=true in grayscale so its
+                                            // outer width tracks its inner content (otherwise an X-
+                                            // relative-size display inside an auto-size column would
+                                            // collapse to zero width).
+                                            ColumnDimensions = OsuColour.IsGrayscaleTheme
+                                                ? new[]
+                                                {
+                                                    new Dimension(GridSizeMode.AutoSize),
+                                                    new Dimension(GridSizeMode.Absolute, 8),
+                                                    new Dimension(GridSizeMode.AutoSize),
+                                                }
+                                                : new[]
+                                                {
+                                                    new Dimension(),
+                                                    new Dimension(GridSizeMode.Absolute, 30),
+                                                    new Dimension(GridSizeMode.AutoSize),
+                                                },
                                             Content = new[]
                                             {
                                                 new[]
                                                 {
-                                                    countStatisticsDisplay = new DifficultyStatisticsDisplay
-                                                    {
-                                                        RelativeSizeAxes = Axes.X,
-                                                    },
+                                                    countStatisticsDisplay = OsuColour.IsGrayscaleTheme
+                                                        ? new DifficultyStatisticsDisplay(autoSize: true)
+                                                        : new DifficultyStatisticsDisplay
+                                                        {
+                                                            RelativeSizeAxes = Axes.X,
+                                                        },
                                                     Empty(),
                                                     difficultyStatisticsDisplay = new DifficultyStatisticsDisplay(autoSize: true),
                                                 }
