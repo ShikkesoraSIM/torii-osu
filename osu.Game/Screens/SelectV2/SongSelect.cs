@@ -217,18 +217,26 @@ namespace osu.Game.Screens.SelectV2
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
-                    // Torii: fsyori's reskin diff removed this padding
-                    // entirely (so the carousel/wedges flow all the
-                    // way down to the screen edge under their
-                    // transparent footer), but in Torii's V2 song
-                    // select that lets the "Personal Best (#N of M)"
-                    // wedge slide UNDER the footer buttons (Back,
-                    // Mods, Random, Options) and get clipped. We
-                    // keep the padding but let it pick up the
-                    // theme-aware ScreenFooter.HEIGHT (50 default →
-                    // 80 grayscale) so the content always sits above
-                    // the footer regardless of theme.
-                    Padding = new MarginPadding { Bottom = ScreenFooter.HEIGHT },
+                    // Torii: bottom padding INTENTIONALLY DROPPED here.
+                    // Upstream applied ScreenFooter.HEIGHT to the whole
+                    // mainContent so everything (carousel + wedges +
+                    // details) stayed above the footer. fsyori's reskin
+                    // removed it entirely, which let the carousel flow
+                    // all the way to the screen edge (visually behind
+                    // the transparent footer + legacy chrome strip +
+                    // user-stats panel — exactly what we want for the
+                    // Nova aesthetic) but also let the "Personal Best
+                    // (#N of M)" wedge slide UNDER the footer buttons
+                    // and get clipped.
+                    //
+                    // Fix: drop the outer padding so the carousel CAN
+                    // flow full-bleed, but apply ScreenFooter.HEIGHT
+                    // padding to the LEFT grid cell only (the wedges
+                    // column — see Padding on the wedge container below).
+                    // Right cell (carousel) keeps its own `Bottom = 5`
+                    // gutter; left cell (wedges) gets `Bottom =
+                    // ScreenFooter.HEIGHT` to keep details above the
+                    // footer.
                     Child = new OsuContextMenuContainer
                     {
                         RelativeSizeAxes = Axes.Both,
@@ -262,6 +270,14 @@ namespace osu.Game.Screens.SelectV2
                                                 {
                                                     Top = -CORNER_RADIUS_HIDE_OFFSET,
                                                     Left = -CORNER_RADIUS_HIDE_OFFSET,
+                                                    // Torii: bottom padding moved here from the outer
+                                                    // `mainContent` so it only applies to the wedges
+                                                    // column. Keeps the "Personal Best (#N of M)"
+                                                    // wedge clear of the footer buttons while leaving
+                                                    // the carousel column (right cell) free to flow
+                                                    // full-bleed behind the footer + legacy chrome
+                                                    // strip + user-stats panel for the Nova look.
+                                                    Bottom = ScreenFooter.HEIGHT,
                                                 },
                                                 Children = new Drawable[]
                                                 {
