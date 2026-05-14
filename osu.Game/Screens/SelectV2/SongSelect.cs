@@ -532,9 +532,19 @@ namespace osu.Game.Screens.SelectV2
 
             float widescreenBonusWidth = Math.Max(0, DrawWidth / DrawHeight - 2f);
 
+            // Torii: in the grayscale theme the wedge / details column
+            // has no slant cutoff, so the stable design's 700 px max
+            // width leaves visible empty space on the right of every
+            // wedge AND stretches the leaderboard / personal-best
+            // cards wider than they need to be. Tightening the cap to
+            // 580 px in grayscale only reins all three in at once
+            // (title wedge, leaderboard cards, personal-best card all
+            // live inside this same grid cell). 700 + bonus stays as
+            // the default-theme value so the slanted look keeps its
+            // existing breathing room.
             mainGridContainer.ColumnDimensions = new[]
             {
-                new Dimension(GridSizeMode.Relative, 0.5f, maxSize: 700 + widescreenBonusWidth * 100),
+                new Dimension(GridSizeMode.Relative, 0.5f, maxSize: ThemeAware.Pick(700f, 580f) + widescreenBonusWidth * 100),
                 new Dimension(),
                 new Dimension(GridSizeMode.Relative, 0.5f, minSize: 500, maxSize: 700 + widescreenBonusWidth * 300),
             };
