@@ -63,6 +63,30 @@ namespace osu.Game.Screens.Footer
         private Container<ScreenFooterButton> hiddenButtonsContainer = null!;
         private IDisposable? customUiHueBinding;
 
+        /// <summary>
+        /// Torii: full-width slot for screen-specific drawables that
+        /// need to sit visually inside the footer's bottom strip
+        /// while still receiving positional input. Children added here
+        /// live in the footer's drawable tree (so they aren't blocked
+        /// by the footer's own input wall) and benefit from the
+        /// existing <see cref="UpdateSubTreeMasking"/> override that
+        /// lets content extend above the footer's declared height.
+        ///
+        /// Currently consumed by <c>SelectV2.SongSelect</c> to host
+        /// the grayscale-theme legacy user-stats panel without the
+        /// "only the top strip hovers" problem that AddInternal-from-
+        /// the-screen suffered from (the screen sits below the footer
+        /// in OsuGame's drawable tree, so screen-mounted overlays
+        /// always lost input arbitration to the OverlayContainer
+        /// footer).
+        ///
+        /// Public Container reference rather than an Add/Remove method
+        /// pair so consumers can manage their own panel lifecycle
+        /// (create-on-entering / dispose-on-leaving) without the
+        /// footer caring about ownership semantics.
+        /// </summary>
+        public Container TrailingContent { get; private set; } = null!;
+
         private LogoTrackingContainer logoTrackingContainer = null!;
         private IDisposable? logoTracking;
 
@@ -168,6 +192,15 @@ namespace osu.Game.Screens.Footer
                     // visual weight from the footer.
                     f.Position = ThemeAware.Pick(new Vector2(-76, -36), new Vector2(100, 100));
                 })),
+                // Torii: trailing content slot — must be the LAST
+                // child so its drawables render on top of the
+                // background / buttons / logo facade within the
+                // footer's z-order, matching the visual layering
+                // stable used for the user-stats panel.
+                TrailingContent = new Container
+                {
+                    RelativeSizeAxes = Axes.Both,
+                },
             };
 
             // Base hue: only applied when no overlay is "owning" the footer

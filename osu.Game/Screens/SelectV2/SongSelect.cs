@@ -170,6 +170,23 @@ namespace osu.Game.Screens.SelectV2
         [Resolved]
         private IOverlayManager? overlayManager { get; set; }
 
+        // Torii: resolved so we can mount/unmount LegacyUserStatsPanel
+        // into the footer's TrailingContent slot from the screen
+        // lifecycle hooks below (onArrivingAtScreen / onLeavingScreen).
+        // Cached by OsuGame via dependencies.Cache(ScreenFooter) so it
+        // always resolves to the global footer instance.
+        [Resolved]
+        private ScreenFooter screenFooter { get; set; } = null!;
+
+        // Holds the panel instance across screen-transitions so we can
+        // remove it cleanly on suspend / exit. Recreated on each
+        // arrival rather than kept alive across full screen-exits to
+        // keep dispose semantics simple and to avoid resurrecting a
+        // panel whose [Resolved] dependencies (UserProfileOverlay,
+        // LocalUserStatisticsProvider, etc.) may have rebound to a
+        // different DI scope.
+        private LegacyUserStatsPanel? userStatsPanel;
+
         private InputManager inputManager = null!;
 
         private readonly RealmPopulatingOnlineLookupSource onlineLookupSource = new RealmPopulatingOnlineLookupSource();
@@ -355,85 +372,31 @@ namespace osu.Game.Screens.SelectV2
             if (OsuColour.IsGrayscaleTheme)
                 AddInternal(new LegacyFooterChromeStrip());
 
-            // Torii: stable-style legacy user-stats panel — gated
-            // to the grayscale UI theme. In default Torii the panel
-            // doesn't appear (avoids stacking a stable-look user
-            // widget over Torii's already-busy V2 chrome). Added via
-            // AddInternal AFTER AddRangeInternal so it sits on TOP
-            // of the LegacyFooterChromeStrip + carousel etc, in the
-            // bottom-left corner. Replicates stable's User.DrawAt
-            // position from
-            // osu-stable-source/osu!/GameModes/Select/SongSelection.cs:453.
+            // Torii: the stable-style legacy user-stats panel
+            // (LegacyUserStatsPanel) is NOT added here anymore. It
+            // used to be AddInternal'd into SongSelect directly, but
+            // that put it in a parent (the song-select screen) that
+            // sits below the ScreenFooter in OsuGame's drawable tree
+            // — and ScreenFooter is an OverlayContainer that grabs
+            // positional input across its entire 80 px-tall band at
+            // the bottom of the viewport, even where its background
+            // is alpha 0. The result was that only the top ~10 px of
+            // the 90 px card responded to hover, and OnClick never
+            // fired at all.
             //
-            // Conditional AddInternal (rather than always-mount +
-            // self-hide via Alpha=0) avoids paying the runtime cost
-            // of the panel's stats-provider subscription + skin-source
-            // ValueChanged binding when the theme doesn't surface it.
-            // The theme is set ONCE at startup and survives the
-            // process lifetime (the dropdown forces a restart on
-            // change) so this check is stable for the screen's
-            // lifetime.
-            if (OsuColour.IsGrayscaleTheme)
-            {
-                // Anchor / Origin choice: BottomCentre + BottomLeft.
-                //
-                // The previous Anchor=BottomLeft + Margin.Left=700 used an
-                // ABSOLUTE pixel offset from the screen's left edge, so the
-                // panel drifted relative to the ScreenFooter buttons every
-                // time the viewport / UI-scale changed: the footer buttons
-                // are centred horizontally (ScreenFooter renders them in a
-                // BottomCentre-anchored FillFlow), but the panel was glued
-                // to a left-edge reference — so on wide screens the panel
-                // looked detached, on narrow screens it overlapped the
-                // buttons.
-                //
-                // Anchoring the panel to BottomCentre puts it in the same
-                // reference frame as the footer buttons; both elements
-                // scale + translate together when the viewport resizes or
-                // the user changes UI scale in settings. Origin=BottomLeft
-                // means the panel extends RIGHTWARD from the anchor point,
-                // so the panel's left edge sits at `screen_centre + Left`.
-                //
-                // Margin.Left = -10 places the panel's left edge a
-                // touch left of screen-centre, matching the visual
-                // position the user nudged toward after seeing the
-                // earlier Left=30 placement next to a stable reference
-                // screenshot.
-                //
-                // Margin.Bottom = ScreenFooter.HEIGHT raises the panel
-                // ABOVE the lazer ScreenFooter strip. Mandatory because
-                // ScreenFooter is an OverlayContainer whose 80 px-tall
-                // bottom band intercepts positional input across the
-                // ENTIRE viewport width — even where its background is
-                // alpha 0 in the grayscale theme. With the panel left
-                // at Bottom=0 the bottom 80 px of the card sat inside
-                // that input wall, so only the top 10 px responded to
-                // hover and click never reached OnClick at all
-                // (reported as "se highlightea sólo en una franja muy
-                // estrecha arriba del todo" + "cuando clickeo en esa
-                // tarjetita tiene que abrir el panel de mi usuario").
-                // Lifting the panel by the footer's height puts the
-                // whole 90 px card outside the footer's hit region —
-                // every pixel of it is now hoverable and clickable.
-                //
-                // The cost is that the panel no longer touches the
-                // screen's bottom edge (stable's user widget did, but
-                // stable had no separate ScreenFooter chrome bar; in
-                // lazer the chrome bar's input behaviour leaves no
-                // way to keep both the bottom-edge alignment AND a
-                // clickable card without restructuring the screen's
-                // drawable tree at the OsuGame level).
-                AddInternal(new LegacyUserStatsPanel
-                {
-                    Anchor = Anchor.BottomCentre,
-                    Origin = Anchor.BottomLeft,
-                    Margin = new MarginPadding
-                    {
-                        Left = -10,
-                        Bottom = ScreenFooter.HEIGHT,
-                    },
-                });
-            }
+            // Resolution: the panel is now mounted into the footer's
+            // dedicated `TrailingContent` slot (a public Container
+            // exposed by ScreenFooter), driven by this screen's
+            // onArrivingAtScreen / onLeavingScreen lifecycle hooks.
+            // Children of the footer aren't blocked by the footer's
+            // own input wall (they ARE the footer, in input-routing
+            // terms), and ScreenFooter's existing
+            // `UpdateSubTreeMasking() => false` lets the panel
+            // extend ~10 px above the footer's declared height
+            // without clipping. The card can finally sit at
+            // `Bottom = 0` (touching the screen's bottom edge,
+            // matching stable's visual layout) AND be fully
+            // hoverable / clickable.
 
             LoadComponent(modSelectOverlay = CreateModSelectOverlay());
 
@@ -869,6 +832,8 @@ namespace osu.Game.Screens.SelectV2
 
         private void onArrivingAtScreen()
         {
+            mountUserStatsPanel();
+
             modSelectOverlay.Beatmap.BindTo(Beatmap);
             // required due to https://github.com/ppy/osu-framework/issues/3218
             modSelectOverlay.SelectedMods.Disabled = false;
@@ -905,6 +870,8 @@ namespace osu.Game.Screens.SelectV2
 
         private void onLeavingScreen()
         {
+            unmountUserStatsPanel();
+
             restoreBackground();
 
             modSelectOverlay.SelectedMods.UnbindFrom(Mods);
@@ -913,6 +880,57 @@ namespace osu.Game.Screens.SelectV2
             updateWedgeVisibility();
 
             endLooping();
+        }
+
+        // Torii: mount/unmount of the stable-look user-stats card
+        // into the footer's trailing-content slot. See the long
+        // comment in load() for why the panel can't live as a child
+        // of SongSelect directly (footer input wall) and instead
+        // travels with the screen via these arrive/leave hooks.
+        private void mountUserStatsPanel()
+        {
+            if (!OsuColour.IsGrayscaleTheme || screenFooter == null)
+                return;
+
+            // Defensive null-check + parent guard: in normal flow
+            // unmount runs on every leave so userStatsPanel is reset
+            // to null before the next mount, but if a future bug
+            // skips unmount we don't want to double-add a panel
+            // that's still parented to the footer.
+            if (userStatsPanel != null && userStatsPanel.Parent != null)
+                return;
+
+            userStatsPanel = new LegacyUserStatsPanel
+            {
+                Anchor = Anchor.BottomCentre,
+                Origin = Anchor.BottomLeft,
+                // Left = -10 nudges the card a touch left of
+                // screen-centre per the user's eyeball-compare
+                // against stable. Bottom = 0 sits the card on the
+                // bottom edge of the footer (= screen bottom edge),
+                // matching stable's User.DrawAt y = 429 placement.
+                Margin = new MarginPadding
+                {
+                    Left = -10,
+                    Bottom = 0,
+                },
+            };
+
+            screenFooter.TrailingContent.Add(userStatsPanel);
+        }
+
+        private void unmountUserStatsPanel()
+        {
+            if (userStatsPanel == null)
+                return;
+
+            // disposeImmediately: true — we recreate on next arrival,
+            // so the current instance has no value to retain. Lets
+            // the panel release its [Resolved] subscriptions
+            // (UserStatisticsProvider, skin source) promptly instead
+            // of waiting for GC.
+            screenFooter?.TrailingContent.Remove(userStatsPanel, true);
+            userStatsPanel = null;
         }
 
         protected override void LogoArriving(OsuLogo logo, bool resuming)
