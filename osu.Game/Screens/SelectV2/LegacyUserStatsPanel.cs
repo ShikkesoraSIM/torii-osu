@@ -157,7 +157,26 @@ namespace osu.Game.Screens.SelectV2
         private Sprite levelBarBgSprite = null!;
         private Sprite levelBarFillSprite = null!;
         private Container levelBarFillClip = null!;
-        private UpdateableAvatar avatar = null!;
+
+        // Avatar setup — we manage a Container ourselves and swap
+        // a DrawableAvatar child whenever the local user changes,
+        // instead of relying on UpdateableAvatar / ModelBackedDrawable.
+        //
+        // Why the manual approach: UpdateableAvatar wraps an inner
+        // ClickableAvatar (or DrawableAvatar) inside a
+        // ModelBackedDrawable transition pipeline. That pipeline +
+        // Masking + the panel's own OnClick handler (which also opens
+        // the profile overlay) interact in a way that left the avatar
+        // visually absent in the footer-mounted context — both with
+        // the default isInteractive=true wrapping and with
+        // isInteractive=false. Bypassing the abstraction and creating
+        // a DrawableAvatar directly avoids the conflict; the Box
+        // placeholder behind it keeps the area visible even before
+        // the texture finishes loading (DrawableAvatar carries
+        // [LongRunningLoad] so it loads on a worker thread).
+        private Container avatarContainer = null!;
+        private Container avatarSpriteContainer = null!;
+
         private OsuSpriteText nameText = null!;
         // Stable's pText spriteInfo at User.cs:635 used a single text
         // box (size 150 × 33) with `\n`-delimited content
@@ -239,45 +258,52 @@ namespace osu.Game.Screens.SelectV2
                     Colour = new Color4(0, 0, 0, 255),
                 },
 
-                // Avatar — visually unified with the panel chrome.
+                // Avatar block — manually-managed Container with a
+                // dark placeholder Box behind a DrawableAvatar
+                // sub-container. The placeholder ensures the avatar
+                // slot is always visible (matching the rest of the
+                // panel chrome) even if the real avatar texture is
+                // still loading or fails to fetch entirely. The
+                // DrawableAvatar gets swapped into avatarSpriteContainer
+                // by updateUserDisplay whenever the local user
+                // changes.
                 //
-                // Three changes vs. the previous Container-wrapped
-                // version that left the avatar invisible after the
-                // panel moved into the ScreenFooter trailing-content
-                // slot:
-                //
-                // 1. `isInteractive: false`. The default UpdateableAvatar
-                //    constructor sets isInteractive = true, which wraps
-                //    the inner DrawableAvatar in a ClickableAvatar
-                //    (OsuClickableContainer). That clickable layer
-                //    competes with this panel's own OnClick (which
-                //    opens UserProfileOverlay for the whole card) for
-                //    positional input, and the nested click-handler
-                //    arbitration was eating into the avatar's render
-                //    layer once the panel started living as a child
-                //    of an OverlayContainer (the footer). Disabling
-                //    interactivity collapses UpdateableAvatar to a
-                //    plain DrawableAvatar Sprite — simpler tree, no
-                //    input competition, the avatar renders again.
-                //
-                // 2. Masking + CornerRadius live on the UpdateableAvatar
-                //    itself. The previous Container wrapper only
-                //    existed to provide masking, but UpdateableAvatar
-                //    exposes Masking / CornerRadius as public
-                //    properties (User/Drawables/UpdateableAvatar.cs:22-32)
-                //    so the wrapper was redundant. One fewer
-                //    composition layer for the pipeline to traverse.
-                //
-                // 3. CornerRadius bumped 4 -> 6 to match the panel's
-                //    own CornerRadius (constructor sets it to 6),
-                //    giving avatar + chrome a consistent rounding for
-                //    the "todo unificado" look the user asked for.
-                avatar = new UpdateableAvatar(user: null, isInteractive: false, showGuestOnNull: true)
+                // CornerRadius = 6 matches the panel's own
+                // CornerRadius (constructor sets it to 6 too), so
+                // the avatar block reads as part of the unified
+                // chrome rather than a separate floating square.
+                avatarContainer = new Container
                 {
                     Size = new Vector2(avatar_size),
                     Position = new Vector2(avatar_inset, avatar_y),
                     Masking = true,
                     CornerRadius = 6,
+                    Children = new Drawable[]
+                    {
+                        // Dark placeholder fill — visible block even
+                        // when the avatar texture hasn't loaded yet
+                        // (DrawableAvatar carries [LongRunningLoad]
+                        // and FadeInFromZero, so there's always at
+                        // least a few hundred ms where the avatar
+                        // sprite is invisible). 28/28/28 is a touch
+                        // lighter than the panel's near-black backdrop
+                        // so the avatar slot stays distinguishable
+                        // until the texture lands on top of it.
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = new Color4(28, 28, 28, 255),
+                        },
+                        // Empty container that updateUserDisplay
+                        // populates with a fresh DrawableAvatar
+                        // whenever the local user changes. Children
+                        // are RelativeSizeAxes.Both so they fill
+                        // this full 60×60 slot.
+                        avatarSpriteContainer = new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                        },
+                    },
                 },
 
                 // Username — top of the text column at username_font_size.
@@ -471,8 +497,34 @@ namespace osu.Game.Screens.SelectV2
 
         private void updateUserDisplay()
         {
-            avatar.User = localUser.Value;
             nameText.Text = localUser.Value?.Username ?? @"Guest";
+
+            // Swap a fresh DrawableAvatar into the avatar slot for the
+            // current local user. Clearing with disposeImmediately=true
+            // releases the old texture / sprite right away rather than
+            // waiting for GC, which matters because the panel itself
+            // gets re-created on every song-select arrival and we
+            // don't want stacked DrawableAvatars accumulating.
+            //
+            // LoadComponentAsync is used because DrawableAvatar
+            // declares [LongRunningLoad] (its texture is fetched from
+            // either a remote URL or the resource store on a worker
+            // thread). Loading it synchronously on the update thread
+            // would stall the song-select arrival transition. Once
+            // the worker finishes, the callback runs on the update
+            // thread and appends the loaded sprite to the slot — at
+            // which point DrawableAvatar's own FadeInFromZero(300)
+            // animates it in on top of the placeholder Box.
+            avatarSpriteContainer.Clear(disposeChildren: true);
+
+            if (localUser.Value != null)
+            {
+                LoadComponentAsync(
+                    new DrawableAvatar(localUser.Value) { RelativeSizeAxes = Axes.Both },
+                    avatarSpriteContainer.Add
+                );
+            }
+
             updateStatsDisplay();
         }
 
