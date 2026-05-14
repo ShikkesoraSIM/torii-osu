@@ -194,20 +194,6 @@ namespace osu.Game.Screens.SelectV2
 
             errorSample = audio.Samples.Get(@"UI/generic-error");
 
-            // Torii: legacy stable-style chrome strip across the
-            // bottom of song select — gated to the grayscale UI
-            // theme so default Torii keeps its modern V2 footer.
-            // Added via AddInternal BEFORE AddRangeInternal so it
-            // sits at the bottom of the z-order, drawing behind the
-            // ScreenFooter action buttons and the rest of the song
-            // select UI. The strip itself loads the active skin's
-            // songselect-bottom texture if available (stable .osk
-            // imports) and falls back to an in-code Torii-Nova
-            // gradient otherwise (Argon, Triangles, lazer-era skins
-            // that don't ship the texture).
-            if (OsuColour.IsGrayscaleTheme)
-                AddInternal(new LegacyFooterChromeStrip());
-
             AddRangeInternal(new Drawable[]
             {
                 new GlobalScrollAdjustsVolume(),
@@ -353,6 +339,21 @@ namespace osu.Game.Screens.SelectV2
                 },
                 modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
             });
+
+            // Torii: legacy stable-style chrome strip across the
+            // bottom of song select — gated to the grayscale UI
+            // theme so default Torii keeps its modern V2 footer.
+            // Added via AddInternal AFTER AddRangeInternal so it
+            // sits ON TOP of the carousel (mainContent) — masking
+            // the carousel items that would otherwise show through
+            // at the bottom edge of the screen. The carousel itself
+            // flows full-bleed under it for the "scrolling beneath
+            // the chrome strip" effect; this overlay anchors the
+            // bottom of the visual hierarchy. The user-stats panel
+            // (added next, still after) renders on top of THIS so
+            // it stays readable over the strip's gradient.
+            if (OsuColour.IsGrayscaleTheme)
+                AddInternal(new LegacyFooterChromeStrip());
 
             // Torii: stable-style legacy user-stats panel — gated
             // to the grayscale UI theme. In default Torii the panel
