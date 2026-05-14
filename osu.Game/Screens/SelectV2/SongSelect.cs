@@ -394,38 +394,43 @@ namespace osu.Game.Screens.SelectV2
                 // means the panel extends RIGHTWARD from the anchor point,
                 // so the panel's left edge sits at `screen_centre + Left`.
                 //
-                // Margin.Left = 30 nudges the panel's left edge a hair
-                // past screen-centre — matching where stable parked
-                // the user info card. Stable's
-                // GameBase.User.DrawAt(new Vector2(bottomHorizontalPos, 429), …)
-                // call at SongSelection.cs:453 fires with
-                // bottomHorizontalPos = 140 + 57.6 + 48 + 48 + 48 + 48 = 389.6
-                // in widescreen, which lands the panel's left edge just
-                // past the horizontal mid-point of stable's 854-wide
-                // widescreen grid (854 / 2 = 427, so 389.6 is barely
-                // left-of-centre in design coords — but in actual
-                // rendered pixels with the way stable handled the
-                // letterbox padding, the panel reads as sitting
-                // immediately right of the screen's visual centre,
-                // tucked against the right-hand side of the footer
-                // button cluster).
+                // Margin.Left = -10 places the panel's left edge a
+                // touch left of screen-centre, matching the visual
+                // position the user nudged toward after seeing the
+                // earlier Left=30 placement next to a stable reference
+                // screenshot.
                 //
-                // An earlier attempt set Left = 250 from a misread of
-                // the button-row width — that parked the panel way too
-                // far right at default UI scale ("muy para la derecha"
-                // per the screenshot the user sent against a stable
-                // reference). Left = 30 keeps the panel anchored to
-                // BottomCentre (so it scales with the rest of the
-                // footer chrome) while sitting visually close to where
-                // stable rendered it.
+                // Margin.Bottom = ScreenFooter.HEIGHT raises the panel
+                // ABOVE the lazer ScreenFooter strip. Mandatory because
+                // ScreenFooter is an OverlayContainer whose 80 px-tall
+                // bottom band intercepts positional input across the
+                // ENTIRE viewport width — even where its background is
+                // alpha 0 in the grayscale theme. With the panel left
+                // at Bottom=0 the bottom 80 px of the card sat inside
+                // that input wall, so only the top 10 px responded to
+                // hover and click never reached OnClick at all
+                // (reported as "se highlightea sólo en una franja muy
+                // estrecha arriba del todo" + "cuando clickeo en esa
+                // tarjetita tiene que abrir el panel de mi usuario").
+                // Lifting the panel by the footer's height puts the
+                // whole 90 px card outside the footer's hit region —
+                // every pixel of it is now hoverable and clickable.
+                //
+                // The cost is that the panel no longer touches the
+                // screen's bottom edge (stable's user widget did, but
+                // stable had no separate ScreenFooter chrome bar; in
+                // lazer the chrome bar's input behaviour leaves no
+                // way to keep both the bottom-edge alignment AND a
+                // clickable card without restructuring the screen's
+                // drawable tree at the OsuGame level).
                 AddInternal(new LegacyUserStatsPanel
                 {
                     Anchor = Anchor.BottomCentre,
                     Origin = Anchor.BottomLeft,
                     Margin = new MarginPadding
                     {
-                        Left = 30,
-                        Bottom = 0,
+                        Left = -10,
+                        Bottom = ScreenFooter.HEIGHT,
                     },
                 });
             }

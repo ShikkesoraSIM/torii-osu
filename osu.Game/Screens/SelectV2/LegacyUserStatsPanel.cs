@@ -15,6 +15,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Online;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Overlays;
 using osu.Game.Rulesets;
 using osu.Game.Skinning;
 using osu.Game.Users;
@@ -142,6 +143,14 @@ namespace osu.Game.Screens.SelectV2
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
+
+        // Optional because some test/headless contexts (and any
+        // future caller that mounts the panel outside the main
+        // OsuGame hierarchy) may not have the profile overlay in
+        // their dependency graph. Click silently no-ops in that
+        // case rather than throwing.
+        [Resolved(CanBeNull = true)]
+        private UserProfileOverlay? userProfileOverlay { get; set; }
 
         private Sprite backgroundSprite = null!;
         private Sprite borderSprite = null!;
@@ -390,6 +399,35 @@ namespace osu.Game.Screens.SelectV2
         {
             hoverHighlight.FadeOut(200, Easing.OutQuint);
             base.OnHoverLost(e);
+        }
+
+        protected override bool OnClick(ClickEvent e)
+        {
+            // Open the full profile overlay for the local user —
+            // matches the click behaviour the user requested
+            // ("cuando clickeo en esa tarjetita tiene que abrir el
+            // panel de mi usuario de 'Player info'"). Guarded on
+            // a valid user id so we don't fire ShowUser for the
+            // guest placeholder during logged-out sessions, which
+            // would either no-op or animate to an empty profile
+            // page depending on the overlay's API contract.
+            var user = localUser.Value;
+            if (userProfileOverlay != null && user != null && user.Id > 0)
+            {
+                userProfileOverlay.ShowUser(user, ruleset.Value);
+
+                // Brief click-feedback flash on the hover overlay:
+                // bump alpha up, then settle back down to the
+                // hover-state (0.08) if the cursor is still over
+                // the panel, or down to 0 if not. Reads as a
+                // press response without needing a separate
+                // pressed-state Box.
+                hoverHighlight.FadeTo(0.2f, 50, Easing.OutQuint)
+                              .Then()
+                              .FadeTo(IsHovered ? 0.08f : 0f, 200, Easing.OutQuint);
+            }
+
+            return true;
         }
 
         protected override void LoadComplete()
