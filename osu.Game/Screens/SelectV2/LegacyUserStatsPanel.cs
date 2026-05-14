@@ -8,6 +8,7 @@ using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
@@ -160,6 +161,15 @@ namespace osu.Game.Screens.SelectV2
         private OsuSpriteText accuracyText = null!;
         private OsuSpriteText levelText = null!;
         private OsuSpriteText rankText = null!;
+
+        // Subtle white additive overlay that fades in when the user
+        // hovers the panel — replicates stable's panel-hover gray
+        // brightening (User.cs handled it with a separate hover
+        // sprite swap; we get the same effect by additively
+        // overlaying white at low alpha on top of the existing
+        // chrome). Pinned as the LAST child of InternalChildren
+        // so it covers the avatar / text / chrome uniformly.
+        private Box hoverHighlight = null!;
 
         private readonly IBindable<APIUser> localUser = new Bindable<APIUser>();
 
@@ -355,7 +365,31 @@ namespace osu.Game.Screens.SelectV2
                         },
                     },
                 },
+
+                // Hover-state brightening overlay. Additive blending
+                // means alpha 0.08 reads as a gentle gray lift on top
+                // of the existing black chrome without washing out
+                // the text. Faded in/out from OnHover/OnHoverLost.
+                hoverHighlight = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4.White,
+                    Alpha = 0,
+                    Blending = BlendingParameters.Additive,
+                },
             };
+        }
+
+        protected override bool OnHover(HoverEvent e)
+        {
+            hoverHighlight.FadeTo(0.08f, 200, Easing.OutQuint);
+            return base.OnHover(e);
+        }
+
+        protected override void OnHoverLost(HoverLostEvent e)
+        {
+            hoverHighlight.FadeOut(200, Easing.OutQuint);
+            base.OnHoverLost(e);
         }
 
         protected override void LoadComplete()

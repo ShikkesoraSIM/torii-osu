@@ -394,19 +394,37 @@ namespace osu.Game.Screens.SelectV2
                 // means the panel extends RIGHTWARD from the anchor point,
                 // so the panel's left edge sits at `screen_centre + Left`.
                 //
-                // Margin.Left = 250 places the panel's left edge 250 px
-                // right of screen-centre. ScreenFooter's button row is
-                // ~480 px wide centered (so its right edge is at
-                // centre+240). 250 leaves a clean 10 px gutter between the
-                // rightmost button (Options) and the panel's left edge,
-                // and that 10 px gutter stays constant at any resolution.
+                // Margin.Left = 30 nudges the panel's left edge a hair
+                // past screen-centre — matching where stable parked
+                // the user info card. Stable's
+                // GameBase.User.DrawAt(new Vector2(bottomHorizontalPos, 429), …)
+                // call at SongSelection.cs:453 fires with
+                // bottomHorizontalPos = 140 + 57.6 + 48 + 48 + 48 + 48 = 389.6
+                // in widescreen, which lands the panel's left edge just
+                // past the horizontal mid-point of stable's 854-wide
+                // widescreen grid (854 / 2 = 427, so 389.6 is barely
+                // left-of-centre in design coords — but in actual
+                // rendered pixels with the way stable handled the
+                // letterbox padding, the panel reads as sitting
+                // immediately right of the screen's visual centre,
+                // tucked against the right-hand side of the footer
+                // button cluster).
+                //
+                // An earlier attempt set Left = 250 from a misread of
+                // the button-row width — that parked the panel way too
+                // far right at default UI scale ("muy para la derecha"
+                // per the screenshot the user sent against a stable
+                // reference). Left = 30 keeps the panel anchored to
+                // BottomCentre (so it scales with the rest of the
+                // footer chrome) while sitting visually close to where
+                // stable rendered it.
                 AddInternal(new LegacyUserStatsPanel
                 {
                     Anchor = Anchor.BottomCentre,
                     Origin = Anchor.BottomLeft,
                     Margin = new MarginPadding
                     {
-                        Left = 250,
+                        Left = 30,
                         Bottom = 0,
                     },
                 });
