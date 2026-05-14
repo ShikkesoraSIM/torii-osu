@@ -375,13 +375,38 @@ namespace osu.Game.Screens.SelectV2
             // lifetime.
             if (OsuColour.IsGrayscaleTheme)
             {
+                // Anchor / Origin choice: BottomCentre + BottomLeft.
+                //
+                // The previous Anchor=BottomLeft + Margin.Left=700 used an
+                // ABSOLUTE pixel offset from the screen's left edge, so the
+                // panel drifted relative to the ScreenFooter buttons every
+                // time the viewport / UI-scale changed: the footer buttons
+                // are centred horizontally (ScreenFooter renders them in a
+                // BottomCentre-anchored FillFlow), but the panel was glued
+                // to a left-edge reference — so on wide screens the panel
+                // looked detached, on narrow screens it overlapped the
+                // buttons.
+                //
+                // Anchoring the panel to BottomCentre puts it in the same
+                // reference frame as the footer buttons; both elements
+                // scale + translate together when the viewport resizes or
+                // the user changes UI scale in settings. Origin=BottomLeft
+                // means the panel extends RIGHTWARD from the anchor point,
+                // so the panel's left edge sits at `screen_centre + Left`.
+                //
+                // Margin.Left = 250 places the panel's left edge 250 px
+                // right of screen-centre. ScreenFooter's button row is
+                // ~480 px wide centered (so its right edge is at
+                // centre+240). 250 leaves a clean 10 px gutter between the
+                // rightmost button (Options) and the panel's left edge,
+                // and that 10 px gutter stays constant at any resolution.
                 AddInternal(new LegacyUserStatsPanel
                 {
-                    Anchor = Anchor.BottomLeft,
+                    Anchor = Anchor.BottomCentre,
                     Origin = Anchor.BottomLeft,
                     Margin = new MarginPadding
                     {
-                        Left = 700,
+                        Left = 250,
                         Bottom = 0,
                     },
                 });
