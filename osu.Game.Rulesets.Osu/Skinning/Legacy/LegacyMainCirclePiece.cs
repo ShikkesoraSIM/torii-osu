@@ -96,8 +96,20 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
         private Texture? baseCircleTexture;
         private Texture? baseOverlayTexture;
 
-        /// <summary>Cached combo-colour count for slot resolution. Defaults to <see cref="max_combo_variant_slots"/> when the skin hasn't declared any.</summary>
+        /// <summary>Cached combo-colour count for the fallback slot resolution. Defaults to <see cref="max_combo_variant_slots"/> when the skin hasn't declared any.</summary>
         private int comboColourCount = max_combo_variant_slots;
+
+        /// <summary>
+        /// Torii: cached snapshot of the active skin's combo-colour list at load time.
+        /// Used by <see cref="findSlotForColour"/> to map the engine-resolved
+        /// <see cref="accentColour"/> back to its slot index in this skin, so the
+        /// variant texture pairs 1:1 with whatever colour the engine actually picked
+        /// (regardless of whether the engine internally cycled by ComboIndex or
+        /// ComboIndexWithOffsets — those two diverge in maps that use "new combo +
+        /// skip N" hit-object flags, which was the cause of the original desync
+        /// where hitcircle1 ended up paired with combo colour 2/3/…).
+        /// </summary>
+        private IReadOnlyList<Color4>? cachedSkinComboColours;
 
         [Resolved(canBeNull: true)] // Can't really be null but required to handle potential of disposal before DI completes.
         private DrawableHitObject? drawableObject { get; set; }
@@ -152,9 +164,8 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             overlayVariantTextures = probeComboVariants(@$"{circleName}overlay", maxSize);
             circleVariantPresentSlots = collectPresentSlots(circleVariantTextures);
             overlayVariantPresentSlots = collectPresentSlots(overlayVariantTextures);
-            comboColourCount = Math.Max(1,
-                skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value?.Count
-                ?? max_combo_variant_slots);
+            cachedSkinComboColours = skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value;
+            comboColourCount = Math.Max(1, cachedSkinComboColours?.Count ?? max_combo_variant_slots);
 
             // at this point, any further texture fetches should be correctly using the priority source if the base texture was retrieved using it.
             // the conditional above handles the case where a sliderendcircle.png is retrieved from the skin, but sliderendcircleoverlay.png doesn't exist.
@@ -292,13 +303,72 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             if (circleVariantTextures == null || overlayVariantTextures == null)
                 return;
 
-            // Normalise negative results (defensive — ComboIndexWithOffsets should be
-            // ≥0 by construction, but C#'s `%` is sign-preserving so we guard).
-            int slot = ((comboIndexWithOffsets.Value % comboColourCount) + comboColourCount) % comboColourCount;
+            // Torii: pick the variant slot from the engine-resolved AccentColour
+            // rather than from `ComboIndexWithOffsets % comboColourCount`.
+            //
+            // The previous index-based path silently desync'd in two real-world
+            // configurations:
+            //
+            // 1. Default skins (Argon / Triangles / LegacySkin without a beatmap-skin
+            //    override) resolve combo colours via `ComboIndex`, NOT
+            //    `ComboIndexWithOffsets`. The two diverge on any map that uses
+            //    "new combo + skip N" hit-object flags (a common choreography
+            //    trick), so our `% comboColourCount` slot would land on a different
+            //    colour than the engine actually rendered.
+            //
+            // 2. When a beatmap ships its own `[Colours]` block, `LegacyBeatmapSkin`
+            //    intercepts colour resolution and uses the BEATMAP's colour list,
+            //    while our `comboColourCount` is read from `GlobalSkinColours.ComboColours`
+            //    which can resolve to a different list.
+            //
+            // Driving from AccentColour sidesteps both problems: the colour stored
+            // there has already been through the full engine resolution chain,
+            // including beatmap skin overrides + whichever ComboIndex variant the
+            // active skin uses internally. We just have to find that colour in
+            // our cached skin colour list to recover the slot — and fall back to
+            // index-cycling when the engine picked a colour from a source we
+            // don't have cached (e.g. beatmap-overridden colours not present in
+            // the user skin's `[Colours]`).
+            int slot = findSlotForColour(accentColour.Value);
 
             CircleSprite.SetTexture(resolveVariant(slot, circleVariantTextures, circleVariantPresentSlots, baseCircleTexture));
             OverlaySprite.SetTexture(resolveVariant(slot, overlayVariantTextures, overlayVariantPresentSlots, baseOverlayTexture));
         }
+
+        /// <summary>
+        /// Torii: find the slot index for the supplied combo colour by matching it
+        /// against the cached skin combo-colour list. Returns the matching index
+        /// when found, otherwise falls back to the legacy index-cycling path so
+        /// behaviour is preserved for colours sourced from outside the skin
+        /// (e.g. beatmap-overridden colours not in the active skin's
+        /// <c>[Colours]</c> section).
+        /// </summary>
+        private int findSlotForColour(Color4 colour)
+        {
+            if (cachedSkinComboColours != null)
+            {
+                for (int i = 0; i < cachedSkinComboColours.Count; i++)
+                {
+                    if (coloursApproxEqual(cachedSkinComboColours[i], colour))
+                        return i;
+                }
+            }
+
+            // Fallback: defensive normalise of the modulo result (C#'s `%` is
+            // sign-preserving, ComboIndexWithOffsets should be ≥ 0 by
+            // construction but the guard is cheap).
+            return ((comboIndexWithOffsets.Value % comboColourCount) + comboColourCount) % comboColourCount;
+        }
+
+        /// <summary>
+        /// Torii: tolerant Color4 comparison — the engine passes through colour
+        /// values from the skin / beatmap configuration verbatim, but a small
+        /// epsilon guards against float-precision noise from any
+        /// LegacyColourCompatibility / DisallowZeroAlpha rounding that may occur
+        /// further along the pipeline.
+        /// </summary>
+        private static bool coloursApproxEqual(Color4 a, Color4 b)
+            => Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B) < 0.01f;
 
         /// <summary>
         /// Torii: resolve the texture for a given combo slot via the three-stage chain
