@@ -35,10 +35,19 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
         /// <summary>Cached base approachcircle.png — only used as fallback when the skin shipped zero numbered variants (preserves today's behaviour for skins that didn't opt in).</summary>
         private Texture? baseApproachTexture;
 
-        /// <summary>Combo-colour count from skin.ini's [Colours] section. Defaults to <see cref="max_combo_variant_slots"/> when the skin didn't declare any.</summary>
+        /// <summary>Combo-colour count for the fallback slot resolution path. Defaults to <see cref="max_combo_variant_slots"/> when the skin didn't declare any.</summary>
         private int comboColourCount = max_combo_variant_slots;
 
-        /// <summary>Locally-bound combo-index that drives the variant texture swap.</summary>
+        /// <summary>
+        /// Torii: cached snapshot of the active skin's combo-colour list at load time.
+        /// Used by <see cref="findSlotForColour"/> to map the engine-resolved
+        /// <see cref="accentColour"/> back to its slot index in this skin. See the
+        /// long comment on <see cref="LegacyMainCirclePiece.updateCircleVariantTexture"/>
+        /// for why this is necessary — same desync, same fix.
+        /// </summary>
+        private IReadOnlyList<Color4>? cachedSkinComboColours;
+
+        /// <summary>Locally-bound combo-index used by the fallback path in <see cref="findSlotForColour"/>.</summary>
         private readonly IBindable<int> comboIndexWithOffsets = new Bindable<int>();
 
         [BackgroundDependencyLoader]
@@ -63,9 +72,8 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
 
             approachVariantPresentSlots = collectPresentSlots(approachVariantTextures);
 
-            comboColourCount = Math.Max(1,
-                skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value?.Count
-                ?? max_combo_variant_slots);
+            cachedSkinComboColours = skin.GetConfig<GlobalSkinColours, IReadOnlyList<Color4>>(GlobalSkinColours.ComboColours)?.Value;
+            comboColourCount = Math.Max(1, cachedSkinComboColours?.Count ?? max_combo_variant_slots);
 
             // Default texture is the base approachcircle.png; updateVariantTexture()
             // in LoadComplete will swap to the appropriate variant once the bindable
@@ -105,7 +113,13 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             if (approachVariantTextures == null)
                 return;
 
-            int slot = ((comboIndexWithOffsets.Value % comboColourCount) + comboColourCount) % comboColourCount;
+            // Torii: derive the slot from the engine-resolved AccentColour rather
+            // than from ComboIndexWithOffsets. See the equivalent comment block
+            // on LegacyMainCirclePiece.updateCircleVariantTexture for why — same
+            // desync (default skins resolve by ComboIndex while we were keying off
+            // ComboIndexWithOffsets, and beatmap-skin colour overrides aren't
+            // visible in our cached GlobalSkinColours list), same fix.
+            int slot = findSlotForColour(accentColour.Value);
 
             Texture? resolved;
             if (slot < approachVariantTextures.Length && approachVariantTextures[slot] != null)
@@ -118,6 +132,32 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
             if (resolved != null)
                 Texture = resolved;
         }
+
+        /// <summary>
+        /// Torii: find the slot index for the supplied combo colour by matching it
+        /// against the cached skin combo-colour list. Mirrors
+        /// <see cref="LegacyMainCirclePiece"/>'s findSlotForColour so the approach
+        /// circle and the hit circle always agree on which variant index pairs
+        /// with which colour. Falls back to index-cycling for colours sourced
+        /// from outside the active skin (e.g. beatmap-overridden colours).
+        /// </summary>
+        private int findSlotForColour(Color4 colour)
+        {
+            if (cachedSkinComboColours != null)
+            {
+                for (int i = 0; i < cachedSkinComboColours.Count; i++)
+                {
+                    if (coloursApproxEqual(cachedSkinComboColours[i], colour))
+                        return i;
+                }
+            }
+
+            return ((comboIndexWithOffsets.Value % comboColourCount) + comboColourCount) % comboColourCount;
+        }
+
+        /// <summary>Torii: tolerant Color4 equality for the AccentColour → slot lookup. Same epsilon as in LegacyMainCirclePiece.</summary>
+        private static bool coloursApproxEqual(Color4 a, Color4 b)
+            => Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B) < 0.01f;
 
         /// <summary>
         /// Torii: collapse a sparse variant array into ascending-ordered indices of
