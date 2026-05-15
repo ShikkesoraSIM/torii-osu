@@ -134,6 +134,7 @@ namespace osu.Game.Online.API
 
             WebRequest.AddHeader(@"Accept-Language", API.Language.ToCultureCode());
             WebRequest.AddHeader(@"x-api-version", API.APIVersion.ToString(CultureInfo.InvariantCulture));
+            WebRequest.AddHeader(@"X-Torii-HWID", osu.Game.Online.HardwareFingerprint.Compute());
 
             if (!string.IsNullOrEmpty(API.AccessToken))
                 WebRequest.AddHeader(@"Authorization", $@"Bearer {API.AccessToken}");
