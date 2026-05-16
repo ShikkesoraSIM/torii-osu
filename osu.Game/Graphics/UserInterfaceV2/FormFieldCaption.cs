@@ -8,6 +8,7 @@ using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.UserInterface;
 using osuTK;
 
 namespace osu.Game.Graphics.UserInterfaceV2
@@ -44,6 +45,33 @@ namespace osu.Game.Graphics.UserInterfaceV2
             }
         }
 
+        // Torii: when set, a NewFeatureBadge is appended to the caption
+        // textflow right after the tooltip icon — landing the pill INSIDE
+        // the form-control card, immediately to the right of the help
+        // bubble, rather than floating as its own row above the card
+        // (which was the original SettingsItemV2.MarkAsNew layout and
+        // looked detached). Form controls that want to expose a [NEW]
+        // badge forward an init-time property to this field — see
+        // FormDropdown<T>.NewFeatureId for the canonical wiring.
+        private string? newFeatureId;
+
+        public string? NewFeatureId
+        {
+            get => newFeatureId;
+            set
+            {
+                newFeatureId = value;
+
+                if (IsLoaded)
+                    updateDisplay();
+            }
+        }
+
+        // Reference to the badge once it's added to the textflow, so
+        // RegisterInteraction can forward clicks without re-querying
+        // the textflow's internal children every time.
+        private NewFeatureBadge? badge;
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -66,6 +94,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
         private void updateDisplay()
         {
             textFlow.Text = caption;
+            badge = null;
 
             if (TooltipText != default)
             {
@@ -79,6 +108,34 @@ namespace osu.Game.Graphics.UserInterfaceV2
                     Y = 1f,
                 });
             }
+
+            if (!string.IsNullOrEmpty(newFeatureId))
+            {
+                // Compact-mode badge — caption text is ~caption-size, so
+                // the default badge font (10pt + 6/2 padding) reads too
+                // chunky next to it. NewFeatureBadge.Compact dials font /
+                // padding down to match the caption's visual weight.
+                badge = new NewFeatureBadge(newFeatureId)
+                {
+                    Compact = true,
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Margin = new MarginPadding { Left = 6 },
+                };
+                textFlow.AddArbitraryDrawable(badge);
+            }
+        }
+
+        /// <summary>
+        /// Forwarded by parent form controls when the user clicks (taps)
+        /// the control card — counts as one interaction toward dismissing
+        /// the [NEW] badge. No-op when no badge is currently attached
+        /// (caption has no NewFeatureId set, or the badge has already
+        /// been dismissed and expired).
+        /// </summary>
+        public void RegisterInteraction()
+        {
+            badge?.RegisterInteraction();
         }
     }
 }

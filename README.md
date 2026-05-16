@@ -101,6 +101,56 @@ A daily portal overlay greeting users on first login of the day. Shows server st
 
 Audio packages are pinned to ppy's own `ppy.ManagedBass*` forks, matching official osu! 1-for-1 — meaning all of upstream's BASS audio fixes (WASAPI exclusive-mode handling, audio-device hot-plug, MIDI backend patches) ship in Torii too. We deliberately don't run on vanilla ManagedBass, because vanilla is missing those patches.
 
+### Skinning extras
+
+#### Per-combo-color circle textures (legacy skins)
+
+Drop numbered variants next to the standard skin files and Torii picks the one whose number matches the currently-active combo color slot from `skin.ini`'s `[Colours]` section.
+
+| Standard file | Numbered variants | Used by |
+|---|---|---|
+| `hitcircle.png` | `hitcircle1.png` … `hitcircle8.png` | Regular hit circles |
+| `hitcircleoverlay.png` | `hitcircleoverlay1.png` … `hitcircleoverlay8.png` | Overlay ring on hit circles |
+| `approachcircle.png` | `approachcircle1.png` … `approachcircle8.png` | Approach circles |
+| `sliderstartcircle.png` (+ overlay) | `sliderstartcircle1.png` … `sliderstartcircle8.png` (+ overlay variants) | Slider start circle |
+| `sliderendcircle.png` (+ overlay) | `sliderendcircle1.png` … `sliderendcircle8.png` (+ overlay variants) | Slider end circle |
+
+The number matches the Combo slot — `hitcircle1.png` ↔ `Combo1`, `hitcircle2.png` ↔ `Combo2`, etc.
+
+- The combo color is still applied as a tint over the variant — paint your variants in white/grayscale to let `skin.ini`'s combo colors show through, or in pre-tinted mid-tones for a colored-on-colored effect. Hidden / Flashlight / dim / fade animations all keep working because the tint pipeline is unchanged.
+- `@2x` HD textures work the same way they do everywhere else in legacy skins (`hitcircle1@2x.png`, `approachcircle1@2x.png`, etc.). No extra config.
+- **Missing slots cycle through the variants that DO exist** instead of dropping back to plain `hitcircle.png`. If you ship `hitcircle1.png` + `hitcircle2.png` against a `skin.ini` defining four combo colors, Combo3 uses `hitcircle1.png` again and Combo4 uses `hitcircle2.png` — so a skin with custom variants always shows variants, never a plain fallback halfway through the cycle. If the skin ships **zero** numbered variants (the today-default), every combo renders the regular `hitcircle.png` with its combo-color tint exactly like before.
+- The cycling works independently per element family — you can ship only `approachcircle1..4.png` and leave hitcircles alone, or only `hitcircle1.png` + `approachcircle1.png` + `approachcircle2.png` and everything else fallbacks normally. Each layer (`hitcircle`, `hitcircleoverlay`, `approachcircle`, slider start/end + their overlays) is resolved independently.
+- This is purely additive — skins that don't ship any numbered variants render exactly as they always have.
+
+The slot index for the active hit object resolves the same way the combo color itself does: `comboIndexWithOffsets mod (number of Combo entries in skin.ini)`. The variant lookup then either uses the variant for that slot (if shipped) or cycles through the present variants by ordered index. Worked example: `skin.ini` with `Combo1..Combo4` + skin shipping `hitcircle1` + `hitcircle3` → Combo1 = hc1, Combo2 = hc3 (next available variant by cycle), Combo3 = hc3, Combo4 = hc3. Ship contiguous variants (1..N for the N colors you defined) for the most predictable look.
+
+#### Distinct image for the layout-dim layer
+
+Drop `layout-background.png` into your skin folder to use a different image for the dimmed background that appears behind menus / settings (when the layout-scaling kicks in) than the one used as the main-menu background:
+
+| File | Used by |
+|---|---|
+| `menu-background.png` (or .jpg) | Main menu background. Shown full-screen on the welcome / song-select / browse screens. |
+| `layout-background.png` (or .jpg) | The dimmed background behind menus when the Settings → Graphics → Layout scaling is active. Falls back to `menu-background` if not shipped. |
+
+This is paired with a wider `Background dim` slider range — the slider in Settings → Graphics → Layout now goes from 0% to 100% (was 50%-100%) so the layout-background image can be pushed all the way to invisible if you only want the menu-background visible during the scale-down transition.
+
+Both elements still get the regular skin-lookup chain (`@2x` HD textures, per-beatmap skin overrides, fallback through the user skin → default skin) — no extra config required.
+
+### Mod policy (ranked surface)
+
+Two upstream rate-altering mods don't yield PP on Torii because the difficulty calculator can't see their effect — it runs against the base beatmap rate only, with no "realtime / per-window rate" hook:
+
+| Mod | Acronym | Why it's unranked |
+|---|---|---|
+| Adaptive Speed | `AS` | Rate adapts mid-play to user accuracy. A player effectively averaging 0.5x would still be scored against the base rate. |
+| Wind Down | `WD` | Rate ramps from `InitialRate` down to `FinalRate` over the map. A 2.0x → 0.5x wind-down has an average rate well below 1.0 but gets scored as if played at base rate — net PP gain from an easier play. |
+
+Wind Up (`WU`) stays ranked because it only ever makes the play *harder* than baseline. Both client (the mod selector marks `AS` / `WD` as unranked) and server (`g0v0-server`'s `_mods_can_get_pp` rejects them across every ruleset) enforce this — submitting from a modified client that strips the client-side flag still doesn't get PP.
+
+This list will shrink the moment lazer grows realtime rate-aware diffcalc upstream; until then the gate exists to keep the PP economy honest.
+
 ### Velopack updater with channel routing
 
 Torii uses [Velopack](https://github.com/velopack/velopack) for updates. The release pipeline tags releases with `-torii` for stable (master) and `-nova` for experimental (nova branch), and the in-client Updater pins users to their chosen stream — Nova users only see `-nova` prereleases, stable users only see `-torii` releases. Switching streams is one click in Settings.

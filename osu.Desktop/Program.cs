@@ -36,8 +36,9 @@ namespace osu.Desktop
         /// user pointed Torii at the vanilla osu! folder via the
         /// first-run wizard.
         ///
-        /// Used by the realm-downgrade CLI mode to find the user's
-        /// actual realm without spinning up the full game host.
+        /// Used by the pre-host SDL3-backend ini read and the legacy
+        /// ReleaseStream value migration to locate the user's actual
+        /// realm folder without spinning up the full game host.
         /// </summary>
         private static string ResolveDefaultRealmFolder()
         {
@@ -222,44 +223,6 @@ namespace osu.Desktop
             // last time has been fixed, let's not tempt fate.
             setupVelopack(args);
 
-            // Realm downgrade CLI mode. Closes the app immediately after
-            // running, so users invoke this when osu! is fully closed and
-            // they want to make their realm vanilla-osu!-lazer-readable
-            // again.
-            //
-            // Usage:
-            //   osu!.exe --downgrade-realm-to-v51 [<folder>]
-            //
-            // If <folder> is omitted, the runner operates on the standard
-            // osu! storage folder (Roaming/osu/ on Windows by default,
-            // honouring storage.ini's CustomStoragePath if the user has
-            // pointed Torii at vanilla's folder via the first-run wizard).
-            //
-            // The legacy flag --realm-downgrade-test <folder> is kept as
-            // an internal alias for ad-hoc testing against a scratch
-            // copy.
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (args[i] == "--downgrade-realm-to-v51" || args[i] == "--realm-downgrade-test")
-                {
-                    string folder;
-                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
-                    {
-                        folder = args[i + 1];
-                    }
-                    else
-                    {
-                        // Resolve the user's actual realm folder from the
-                        // base game name + storage.ini's CustomStoragePath
-                        // override, exactly the way OsuStorage does.
-                        folder = ResolveDefaultRealmFolder();
-                    }
-
-                    Environment.Exit(RealmDowngradeCli.Run(folder));
-                    return;
-                }
-            }
-
             if (OperatingSystem.IsWindows())
             {
                 var windowsVersion = Environment.OSVersion.Version;
@@ -284,26 +247,6 @@ namespace osu.Desktop
                 }
             }
 
-            // Detect a v52 realm left behind by an earlier Torii build and
-            // walk the user through the in-process downgrade BEFORE any
-            // realm-touching code runs. If the realm is already on v51 or
-            // doesn't exist, this returns silently. If it's on v52 the
-            // user gets an SDL message box, the migration runs, and on
-            // success we continue with the rest of startup. On failure
-            // RealmDowngradeStartupPrompt terminates the process with a
-            // clear error dialog rather than letting RealmAccess crash
-            // later with a confusing "schema too new" exception.
-            try
-            {
-                RealmDowngradeStartupPrompt.RunIfNeeded(ResolveDefaultRealmFolder());
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"Realm downgrade startup prompt failed: {ex}", level: LogLevel.Important);
-                // Fall through — let normal startup surface the issue if
-                // the realm is genuinely on a too-new schema.
-            }
-
             // NVIDIA profiles are based on the executable name of a process.
             // Lazer and stable share the same executable name.
             // Stable sets this setting to "Off", which may not be what we want, so let's force it back to the default "Auto" on startup.
@@ -323,10 +266,9 @@ namespace osu.Desktop
             // env var at all so any external override (e.g. someone manually
             // exported OSU_SDL3=1 in their shell) still wins.
             //
-            // We do this AFTER the realm-downgrade CLI / startup-prompt
-            // branches above (those exit early without ever needing SDL),
-            // but BEFORE Host.GetSuitableDesktopHost() instantiates the
-            // game host.
+            // We do this BEFORE Host.GetSuitableDesktopHost() instantiates
+            // the game host — once the host comes up the SDL3 vs legacy
+            // backend selection is locked in.
             try
             {
                 if (!OperatingSystem.IsWindows() && ReadForceSDL3FromIni(ResolveDefaultRealmFolder()))

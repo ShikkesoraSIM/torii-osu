@@ -108,11 +108,12 @@ namespace osu.Game.Database
         /// SkinInfo.Pinned. It bricked vanilla osu! lazer's ability to open
         /// Torii-shared realm folders, so the field was moved to a
         /// side-car JSON store (see PinnedSkinsStore) and the schema
-        /// dropped back to 51 to restore vanilla compatibility. Existing
-        /// users on 52 are migrated down to 51 by the
-        /// RealmDowngradeRunner (see osu.Game/Database/RealmDowngrader/),
-        /// triggered automatically at startup when a "schema too new"
-        /// condition is detected.
+        /// dropped back to 51 to restore vanilla compatibility. The
+        /// startup downgrade machinery that migrated existing v52 users
+        /// back to 51 was removed once the install base had fully
+        /// migrated; if a future osu! lazer bump lands on 52 with
+        /// different semantics, the migration callback below will need
+        /// dedicated handling at that time.
         /// </summary>
         private const int schema_version = 51;
 
@@ -884,18 +885,16 @@ namespace osu.Game.Database
                 FallbackPipePath = tempPathLocation,
                 // Explicit production schema — pins which classes Realm registers
                 // for THIS instance instead of letting it auto-discover every
-                // RealmObject in the assembly. Critical because the realm
-                // downgrade machinery (osu.Game.Database.RealmDowngrader/) ships
-                // mirror classes (SkinInfoV51, SkinInfoV52) that map to the same
-                // realm-class slot (`[MapTo("Skin")]`) as the production
-                // SkinInfo. With auto-discovery on, Realm sees three classes for
-                // the "Skin" slot and refuses to open the realm at startup —
-                // which is exactly what bricked the v2026.506.10/.11 releases
-                // and forced an emergency revert. By specifying a curated list
-                // here, the production realm only sees SkinInfo. The downgrade
-                // runner uses its own RealmConfiguration with its own schema
-                // list, so the mirrors only enter the picture during an
-                // explicit migration run.
+                // RealmObject in the assembly. Kept as a curated list (rather
+                // than reverting to auto-discovery) because earlier Torii
+                // builds shipped mirror SkinInfo classes mapped to the same
+                // realm-class slot (`[MapTo("Skin")]`) for downgrade purposes,
+                // and Realm refuses to open if it sees multiple classes for
+                // the same slot — which is what bricked the v2026.506.10/.11
+                // releases and forced an emergency revert. The downgrade
+                // machinery has since been removed, but the explicit schema
+                // remains as defence-in-depth against the same class of bug
+                // sneaking back in.
                 Schema = new[]
                 {
                     typeof(BeatmapInfo),
