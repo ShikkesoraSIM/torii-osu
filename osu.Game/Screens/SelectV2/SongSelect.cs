@@ -369,7 +369,7 @@ namespace osu.Game.Screens.SelectV2
             // bottom of the visual hierarchy. The user-stats panel
             // (added next, still after) renders on top of THIS so
             // it stays readable over the strip's gradient.
-            if (OsuColour.IsGrayscaleTheme)
+            if (OsuColour.UsesGrayscaleStructure)
                 AddInternal(new LegacyFooterChromeStrip());
 
             // Torii: the stable-style legacy user-stats panel
@@ -899,7 +899,7 @@ namespace osu.Game.Screens.SelectV2
         // travels with the screen via these arrive/leave hooks.
         private void mountUserStatsPanel()
         {
-            if (!OsuColour.IsGrayscaleTheme || screenFooter == null)
+            if (!OsuColour.UsesGrayscaleStructure || screenFooter == null)
                 return;
 
             // Defensive null-check + parent guard: in normal flow

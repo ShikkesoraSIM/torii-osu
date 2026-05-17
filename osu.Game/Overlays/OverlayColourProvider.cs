@@ -178,18 +178,38 @@ namespace osu.Game.Overlays
         }
 
         // Torii: chrome + accent generators check the global UI-theme
-        // flag and force saturation to 0 when the user is on the
-        // "Grayscale by fsyori" palette. Same approach
-        // fsyori uses upstream — every FromHSL becomes a luminance-
-        // ladder along the configured Hue without touching consumers.
-        // The hue ARGUMENT stays normal so the lightness ramps still
-        // produce distinct shades (Dark1 ≠ Dark6 etc.); only chroma
-        // collapses to zero.
-        private Color4 getColour(float saturation, float lightness) =>
-            Framework.Graphics.Colour4.FromHSL(Hue / 360f, OsuColour.IsGrayscaleTheme ? 0f : saturation, lightness);
+        // flag and adjust the HSL rampe per theme.
+        // - Grayscale: saturation forced to 0, hue ignored (luminance
+        //   ladder only).
+        // - Midnight: hue forced to ~320° (fuchsia/violet) so every
+        //   overlay scheme collapses onto the midnight axis, with full
+        //   saturation preserved so the lightness ramp still produces
+        //   distinct shades.
+        // - Torii (default): pass-through.
+        private const float MIDNIGHT_HUE = 320f;
 
-        private Color4 getAccentColour(float saturation, float lightness) =>
-            Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, OsuColour.IsGrayscaleTheme ? 0f : saturation, lightness);
+        private Color4 getColour(float saturation, float lightness)
+        {
+            if (OsuColour.IsGrayscaleTheme)
+                return Framework.Graphics.Colour4.FromHSL(Hue / 360f, 0f, lightness);
+            if (OsuColour.IsMidnightTheme)
+                return Framework.Graphics.Colour4.FromHSL(MIDNIGHT_HUE / 360f, saturation, lightness);
+            return Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
+        }
+
+        private Color4 getAccentColour(float saturation, float lightness)
+        {
+            if (OsuColour.IsGrayscaleTheme)
+                return Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, 0f, lightness);
+            if (OsuColour.IsMidnightTheme)
+            {
+                // Shift the accent a few degrees off the base so the two
+                // hues are still distinguishable on the midnight axis.
+                float midnightAccent = (MIDNIGHT_HUE + 20f) % 360f;
+                return Framework.Graphics.Colour4.FromHSL(midnightAccent / 360f, saturation, lightness);
+            }
+            return Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, saturation, lightness);
+        }
     }
 
     /// <summary>

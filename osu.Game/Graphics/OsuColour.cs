@@ -22,17 +22,16 @@ namespace osu.Game.Graphics
         public static Color4 Gray(byte amt) => new Color4(amt, amt, amt, 255);
 
         // Torii: cosmetic UI theme toggle. Read by `fromHex()` below to
-        // decide whether to desaturate chrome accent colours (Pink,
-        // Purple, Blue, etc.) into "Grayscale by fsyori" — a bake
-        // of fsyori's UI palette rework. Set ONCE at app startup by
-        // `SetThemeFromConfig`, BEFORE any `new OsuColour(...)` runs
-        // (OsuGameBase.load() does this immediately after constructing
-        // the config manager). Changing the value mid-run is unsafe:
-        // the chrome palette is captured into every drawable at its
-        // construction time, so a flip post-load would leave already-
-        // loaded UI on the old palette and only re-themed surfaces
-        // would pick up the new one. The settings dropdown enforces a
-        // restart-confirm dialog precisely to avoid that split state.
+        // decide which palette layer to apply on top of the chrome
+        // colours. Set ONCE at app startup by `SetThemeFromConfig`,
+        // BEFORE any `new OsuColour(...)` runs (OsuGameBase.load() does
+        // this immediately after constructing the config manager).
+        // Changing the value mid-run is unsafe: the chrome palette is
+        // captured into every drawable at its construction time, so a
+        // flip post-load would leave already-loaded UI on the old
+        // palette and only re-themed surfaces would pick up the new
+        // one. The settings dropdown enforces a restart-confirm dialog
+        // precisely to avoid that split state.
         //
         // Static rather than instance because OsuColour is resolved as
         // a DI singleton — every consumer reads the same fields off
@@ -41,7 +40,7 @@ namespace osu.Game.Graphics
         // simplest way to inject "the theme" into those initialisers
         // without rewriting every property as a method or making
         // OsuColour depend on the config manager.
-        private static bool useGrayscale;
+        private static UIThemeOption activeTheme = UIThemeOption.Torii;
 
         /// <summary>
         /// Configure the cosmetic chrome palette before any
@@ -55,7 +54,7 @@ namespace osu.Game.Graphics
         /// </summary>
         public static void SetThemeFromConfig(UIThemeOption theme)
         {
-            useGrayscale = theme == UIThemeOption.GrayscaleByFsyori;
+            activeTheme = theme;
         }
 
         /// <summary>
@@ -65,7 +64,24 @@ namespace osu.Game.Graphics
         /// to apply the same "zero saturation" rule to their dynamic
         /// HSL outputs without each needing its own config hookup.
         /// </summary>
-        public static bool IsGrayscaleTheme => useGrayscale;
+        public static bool IsGrayscaleTheme => activeTheme == UIThemeOption.GrayscaleByFsyori;
+
+        /// <summary>
+        /// True when the active <see cref="UIThemeOption"/> is the
+        /// midnight palette (deep purple / fuchsia accents on top of
+        /// the grayscale-style structural reskin).
+        /// </summary>
+        public static bool IsMidnightTheme => activeTheme == UIThemeOption.Midnight;
+
+        /// <summary>
+        /// True when the active theme should adopt the structural
+        /// reskin parts of grayscale (sharp corner radii, mounted
+        /// legacy chrome panels). Currently both Grayscale and
+        /// Midnight opt in; the call sites that want palette-specific
+        /// behaviour should check <see cref="IsGrayscaleTheme"/> or
+        /// <see cref="IsMidnightTheme"/> individually.
+        /// </summary>
+        public static bool UsesGrayscaleStructure => IsGrayscaleTheme || IsMidnightTheme;
 
         /// <summary>
         /// Theme-aware replacement for <see cref="Color4Extensions.FromHex"/>
@@ -91,9 +107,9 @@ namespace osu.Game.Graphics
         /// Static + private so it can be used inside field initialiser
         /// expressions on this class.
         /// </summary>
-        private static Color4 fromHex(string toriiHex, string? grayscaleHex = null)
+        private static Color4 fromHex(string toriiHex, string? grayscaleHex = null, string? midnightHex = null)
         {
-            if (useGrayscale)
+            if (activeTheme == UIThemeOption.GrayscaleByFsyori)
             {
                 if (grayscaleHex != null)
                     return Color4Extensions.FromHex(grayscaleHex);
@@ -109,7 +125,76 @@ namespace osu.Game.Graphics
                 return new Color4(luma, luma, luma, src.A);
             }
 
+            if (activeTheme == UIThemeOption.Midnight)
+            {
+                if (midnightHex != null)
+                    return Color4Extensions.FromHex(midnightHex);
+
+                // Auto-tint fallback: for chrome accents that don't have an
+                // explicit midnight value, take the source colour, preserve
+                // its luminance and saturation amount, and shift the hue
+                // toward the magenta family (~320°). Already-greyish
+                // sources stay close to themselves; vivid colours pull
+                // into the midnight palette so unenumerated accents still
+                // feel coherent with the curated ones.
+                return autoTintMidnight(Color4Extensions.FromHex(toriiHex));
+            }
+
             return Color4Extensions.FromHex(toriiHex);
+        }
+
+        private const float MIDNIGHT_TARGET_HUE_DEGREES = 320f;
+        private const float MIDNIGHT_HUE_PULL = 0.75f;
+
+        /// <summary>
+        /// Pull a colour toward the midnight palette by rotating its hue
+        /// toward magenta proportionally to its saturation. Returns the
+        /// source unchanged for near-neutral colours.
+        /// </summary>
+        private static Color4 autoTintMidnight(Color4 src)
+        {
+            float r = src.R, g = src.G, b = src.B;
+            float max = MathF.Max(r, MathF.Max(g, b));
+            float min = MathF.Min(r, MathF.Min(g, b));
+            float l = (max + min) * 0.5f;
+            float d = max - min;
+            float s = d == 0f ? 0f : (l < 0.5f ? d / (max + min) : d / (2f - max - min));
+            float h = 0f;
+            if (d != 0f)
+            {
+                if (max == r) h = ((g - b) / d) % 6f;
+                else if (max == g) h = ((b - r) / d) + 2f;
+                else h = ((r - g) / d) + 4f;
+                h *= 60f;
+                if (h < 0f) h += 360f;
+            }
+            // Skew the pull amount by saturation so neutrals (s ≈ 0)
+            // barely move and vivid hues snap toward magenta.
+            float pull = MIDNIGHT_HUE_PULL * s;
+            float newH = lerpAngle(h, MIDNIGHT_TARGET_HUE_DEGREES, pull);
+            return hslToColor(newH, MathF.Min(1f, s * 1.05f), l, src.A);
+        }
+
+        private static float lerpAngle(float a, float b, float t)
+        {
+            float diff = ((b - a + 540f) % 360f) - 180f;
+            return (a + diff * t + 360f) % 360f;
+        }
+
+        private static Color4 hslToColor(float h, float s, float l, float a)
+        {
+            float c = (1f - MathF.Abs(2f * l - 1f)) * s;
+            float hp = h / 60f;
+            float x = c * (1f - MathF.Abs(hp % 2f - 1f));
+            float r1, g1, b1;
+            if (hp < 1f) { r1 = c; g1 = x; b1 = 0; }
+            else if (hp < 2f) { r1 = x; g1 = c; b1 = 0; }
+            else if (hp < 3f) { r1 = 0; g1 = c; b1 = x; }
+            else if (hp < 4f) { r1 = 0; g1 = x; b1 = c; }
+            else if (hp < 5f) { r1 = x; g1 = 0; b1 = c; }
+            else { r1 = c; g1 = 0; b1 = x; }
+            float m = l - c * 0.5f;
+            return new Color4(r1 + m, g1 + m, b1 + m, a);
         }
 
         /// <summary>
@@ -169,7 +254,7 @@ namespace osu.Game.Graphics
                 // uses STAR_DIFFICULTY_TEXT_SPECTRUM — fsyori left that
                 // untouched, keeping the high-rating colour ladder for
                 // ★9+ maps even on the grayscale theme.
-                return useGrayscale ? Color4Extensions.FromHex(@"e5e5e5") : Orange1;
+                return IsGrayscaleTheme ? Color4Extensions.FromHex(@"e5e5e5") : Orange1;
 
             return ColourUtils.SampleFromLinearGradient(STAR_DIFFICULTY_TEXT_SPECTRUM, (float)Math.Round(starDifficulty, 2, MidpointRounding.AwayFromZero));
         }
@@ -222,30 +307,30 @@ namespace osu.Game.Graphics
             {
                 case HitResult.IgnoreMiss:
                 case HitResult.SmallTickMiss:
-                    return useGrayscale ? Gray(0.4f) : Color4.Gray;
+                    return IsGrayscaleTheme ? Gray(0.4f) : Color4.Gray;
 
                 case HitResult.Miss:
                 case HitResult.LargeTickMiss:
                 case HitResult.ComboBreak:
-                    return useGrayscale ? Gray(0.2f) : Red;
+                    return IsGrayscaleTheme ? Gray(0.2f) : Red;
 
                 case HitResult.Meh:
-                    return useGrayscale ? Gray(0.5f) : Yellow;
+                    return IsGrayscaleTheme ? Gray(0.5f) : Yellow;
 
                 case HitResult.Ok:
-                    return useGrayscale ? Gray(0.7f) : Green;
+                    return IsGrayscaleTheme ? Gray(0.7f) : Green;
 
                 case HitResult.Good:
-                    return useGrayscale ? Gray(0.85f) : GreenLight;
+                    return IsGrayscaleTheme ? Gray(0.85f) : GreenLight;
 
                 case HitResult.SmallTickHit:
                 case HitResult.LargeTickHit:
                 case HitResult.SliderTailHit:
                 case HitResult.Great:
-                    return useGrayscale ? Gray(1.0f) : Blue;
+                    return IsGrayscaleTheme ? Gray(1.0f) : Blue;
 
                 default:
-                    return useGrayscale ? Gray(0.9f) : BlueLight;
+                    return IsGrayscaleTheme ? Gray(0.9f) : BlueLight;
             }
         }
 
@@ -270,26 +355,26 @@ namespace osu.Game.Graphics
             switch (status)
             {
                 case BeatmapOnlineStatus.None:
-                    return useGrayscale ? Gray(0.5f) : Color4.RosyBrown;
+                    return IsGrayscaleTheme ? Gray(0.5f) : Color4.RosyBrown;
 
                 case BeatmapOnlineStatus.LocallyModified:
-                    return useGrayscale ? Gray(0.7f) : Color4.OrangeRed;
+                    return IsGrayscaleTheme ? Gray(0.7f) : Color4.OrangeRed;
 
                 case BeatmapOnlineStatus.Ranked:
                 case BeatmapOnlineStatus.Approved:
-                    return useGrayscale ? Gray(0.9f) : Color4Extensions.FromHex(@"b3ff66");
+                    return IsGrayscaleTheme ? Gray(0.9f) : Color4Extensions.FromHex(@"b3ff66");
 
                 case BeatmapOnlineStatus.Loved:
-                    return useGrayscale ? Gray(0.85f) : Color4Extensions.FromHex(@"ff66ab");
+                    return IsGrayscaleTheme ? Gray(0.85f) : Color4Extensions.FromHex(@"ff66ab");
 
                 case BeatmapOnlineStatus.Qualified:
-                    return useGrayscale ? Gray(0.8f) : Color4Extensions.FromHex(@"66ccff");
+                    return IsGrayscaleTheme ? Gray(0.8f) : Color4Extensions.FromHex(@"66ccff");
 
                 case BeatmapOnlineStatus.Pending:
-                    return useGrayscale ? Gray(0.6f) : Color4Extensions.FromHex(@"ffd966");
+                    return IsGrayscaleTheme ? Gray(0.6f) : Color4Extensions.FromHex(@"ffd966");
 
                 case BeatmapOnlineStatus.WIP:
-                    return useGrayscale ? Gray(0.4f) : Color4Extensions.FromHex(@"ff9966");
+                    return IsGrayscaleTheme ? Gray(0.4f) : Color4Extensions.FromHex(@"ff9966");
 
                 case BeatmapOnlineStatus.Graveyard:
                     return Color4.Black;
@@ -316,22 +401,22 @@ namespace osu.Game.Graphics
             switch (modType)
             {
                 case ModType.Automation:
-                    return useGrayscale ? Gray(0.7f) : Blue1;
+                    return IsGrayscaleTheme ? Gray(0.7f) : Blue1;
 
                 case ModType.DifficultyIncrease:
-                    return useGrayscale ? Gray(0.9f) : Red1;
+                    return IsGrayscaleTheme ? Gray(0.9f) : Red1;
 
                 case ModType.DifficultyReduction:
-                    return useGrayscale ? Gray(0.8f) : Lime1;
+                    return IsGrayscaleTheme ? Gray(0.8f) : Lime1;
 
                 case ModType.Conversion:
-                    return useGrayscale ? Gray(0.6f) : Purple1;
+                    return IsGrayscaleTheme ? Gray(0.6f) : Purple1;
 
                 case ModType.Fun:
-                    return useGrayscale ? Gray(0.8f) : Pink1;
+                    return IsGrayscaleTheme ? Gray(0.8f) : Pink1;
 
                 case ModType.System:
-                    return useGrayscale ? Gray(0.6f) : Yellow;
+                    return IsGrayscaleTheme ? Gray(0.6f) : Yellow;
 
                 default:
                     throw new ArgumentOutOfRangeException(nameof(modType), modType, "Unknown mod type");
@@ -349,10 +434,10 @@ namespace osu.Game.Graphics
             switch (roomCategory)
             {
                 case RoomCategory.Spotlight:
-                    return useGrayscale ? Gray(1.0f) : SpotlightColour;
+                    return IsGrayscaleTheme ? Gray(1.0f) : SpotlightColour;
 
                 case RoomCategory.FeaturedArtist:
-                    return useGrayscale ? Gray(0.85f) : FeaturedArtistColour;
+                    return IsGrayscaleTheme ? Gray(0.85f) : FeaturedArtistColour;
 
                 default:
                     return null;
@@ -371,15 +456,15 @@ namespace osu.Game.Graphics
             // brighter = more "active" (Playing = white, open = light
             // gray, locked = mid gray, ended = dim).
             if (room.HasEnded)
-                return useGrayscale ? Gray(0.2f) : YellowDarker;
+                return IsGrayscaleTheme ? Gray(0.2f) : YellowDarker;
 
             switch (room.Status)
             {
                 case RoomStatus.Playing:
-                    return useGrayscale ? Gray(1.0f) : Purple;
+                    return IsGrayscaleTheme ? Gray(1.0f) : Purple;
 
                 default:
-                    if (useGrayscale)
+                    if (IsGrayscaleTheme)
                         return room.HasPassword ? Gray(0.4f) : Gray(0.7f);
 
                     return room.HasPassword ? GreenDark : GreenLight;
@@ -434,86 +519,90 @@ namespace osu.Game.Graphics
             // Gray(0.2) to Gray(0.1) — the chrome is overall darker
             // in the grayscale theme so dark text on light pills needs
             // to be ALMOST black to keep the same contrast ratio.
-            return Gray(brightness > 0.5f ? (useGrayscale ? 0.1f : 0.2f) : 0.9f);
+            return Gray(brightness > 0.5f ? (IsGrayscaleTheme ? 0.1f : 0.2f) : 0.9f);
         }
 
-        public readonly Color4 TeamColourRed = fromHex("#AA1414", "666666");
-        public readonly Color4 TeamColourBlue = fromHex("#1462AA", "999999");
+        public readonly Color4 TeamColourRed = fromHex("#AA1414", "666666", "B81E59");
+        public readonly Color4 TeamColourBlue = fromHex("#1462AA", "999999", "5B4BB8");
 
         // See https://github.com/ppy/osu-web/blob/master/resources/assets/less/colors.less
-        public readonly Color4 PurpleLighter = fromHex(@"eeeeff", @"f5f5f5");
-        public readonly Color4 PurpleLight = fromHex(@"aa88ff", @"cccccc");
-        public readonly Color4 PurpleLightAlternative = fromHex(@"cba4da", @"bbbbbb");
-        public readonly Color4 Purple = fromHex(@"8866ee", @"999999");
-        public readonly Color4 PurpleDark = fromHex(@"6644cc", @"666666");
-        public readonly Color4 PurpleDarkAlternative = fromHex(@"312436", @"222222");
-        public readonly Color4 PurpleDarker = fromHex(@"441188", @"111111");
+        // Midnight palette: a fuchsia / electric-violet rework where every
+        // chrome family pulls toward the magenta/purple side of the wheel.
+        // Yellow + Green keep enough warmth and saturation to stay legible
+        // for difficulty rings and judgement colours.
+        public readonly Color4 PurpleLighter = fromHex(@"eeeeff", @"f5f5f5", @"f0d8ff");
+        public readonly Color4 PurpleLight = fromHex(@"aa88ff", @"cccccc", @"c094ff");
+        public readonly Color4 PurpleLightAlternative = fromHex(@"cba4da", @"bbbbbb", @"b876e8");
+        public readonly Color4 Purple = fromHex(@"8866ee", @"999999", @"9f4bff");
+        public readonly Color4 PurpleDark = fromHex(@"6644cc", @"666666", @"6f24cc");
+        public readonly Color4 PurpleDarkAlternative = fromHex(@"312436", @"222222", @"2d1438");
+        public readonly Color4 PurpleDarker = fromHex(@"441188", @"111111", @"350a70");
 
-        public readonly Color4 PinkLighter = fromHex(@"ffddee", @"eeeeee");
-        public readonly Color4 PinkLight = fromHex(@"ff99cc", @"dddddd");
-        public readonly Color4 Pink = fromHex(@"ff66aa", @"cccccc");
-        public readonly Color4 PinkDark = fromHex(@"cc5288", @"aaaaaa");
-        public readonly Color4 PinkDarker = fromHex(@"bb1177", @"888888");
+        public readonly Color4 PinkLighter = fromHex(@"ffddee", @"eeeeee", @"ffe0f5");
+        public readonly Color4 PinkLight = fromHex(@"ff99cc", @"dddddd", @"ff80d8");
+        public readonly Color4 Pink = fromHex(@"ff66aa", @"cccccc", @"ec3cc7");
+        public readonly Color4 PinkDark = fromHex(@"cc5288", @"aaaaaa", @"b8259f");
+        public readonly Color4 PinkDarker = fromHex(@"bb1177", @"888888", @"821573");
 
-        public readonly Color4 BlueLighter = fromHex(@"ddffff", @"f0f0f0");
-        public readonly Color4 BlueLight = fromHex(@"99eeff", @"d0d0d0");
-        public readonly Color4 Blue = fromHex(@"66ccff", @"b0b0b0");
-        public readonly Color4 BlueDark = fromHex(@"44aadd", @"808080");
-        public readonly Color4 BlueDarker = fromHex(@"2299bb", @"505050");
+        public readonly Color4 BlueLighter = fromHex(@"ddffff", @"f0f0f0", @"d9ddff");
+        public readonly Color4 BlueLight = fromHex(@"99eeff", @"d0d0d0", @"92a4ff");
+        public readonly Color4 Blue = fromHex(@"66ccff", @"b0b0b0", @"5b6ce8");
+        public readonly Color4 BlueDark = fromHex(@"44aadd", @"808080", @"3d4ab2");
+        public readonly Color4 BlueDarker = fromHex(@"2299bb", @"505050", @"1f2477");
 
-        public readonly Color4 YellowLighter = fromHex(@"ffffdd", @"f5f5f5");
-        public readonly Color4 YellowLight = fromHex(@"ffdd55", @"d5d5d5");
-        public readonly Color4 Yellow = fromHex(@"ffcc22", @"b5b5b5");
-        public readonly Color4 YellowDark = fromHex(@"eeaa00", @"858585");
-        public readonly Color4 YellowDarker = fromHex(@"cc6600", @"555555");
+        public readonly Color4 YellowLighter = fromHex(@"ffffdd", @"f5f5f5", @"fff2c8");
+        public readonly Color4 YellowLight = fromHex(@"ffdd55", @"d5d5d5", @"ffd76e");
+        public readonly Color4 Yellow = fromHex(@"ffcc22", @"b5b5b5", @"ffbf3a");
+        public readonly Color4 YellowDark = fromHex(@"eeaa00", @"858585", @"cf8a18");
+        public readonly Color4 YellowDarker = fromHex(@"cc6600", @"555555", @"8c5b00");
 
-        public readonly Color4 GreenLighter = fromHex(@"eeffcc", @"f2f2f2");
-        public readonly Color4 GreenLight = fromHex(@"b3d944", @"d2d2d2");
-        public readonly Color4 Green = fromHex(@"88b300", @"b2b2b2");
-        public readonly Color4 GreenDark = fromHex(@"668800", @"727272");
-        public readonly Color4 GreenDarker = fromHex(@"445500", @"424242");
+        public readonly Color4 GreenLighter = fromHex(@"eeffcc", @"f2f2f2", @"d6f0dc");
+        public readonly Color4 GreenLight = fromHex(@"b3d944", @"d2d2d2", @"8fc99c");
+        public readonly Color4 Green = fromHex(@"88b300", @"b2b2b2", @"62b378");
+        public readonly Color4 GreenDark = fromHex(@"668800", @"727272", @"3d8050");
+        public readonly Color4 GreenDarker = fromHex(@"445500", @"424242", @"2a5736");
 
-        public readonly Color4 Sky = fromHex(@"6bb5ff", @"999999");
-        public readonly Color4 GreySkyLighter = fromHex(@"c6e3f4", @"dddddd");
-        public readonly Color4 GreySkyLight = fromHex(@"8ab3cc", @"aaaaaa");
-        public readonly Color4 GreySky = fromHex(@"405461", @"444444");
-        public readonly Color4 GreySkyDark = fromHex(@"303d47", @"222222");
-        public readonly Color4 GreySkyDarker = fromHex(@"21272c", @"111111");
+        public readonly Color4 Sky = fromHex(@"6bb5ff", @"999999", @"7a85f0");
+        public readonly Color4 GreySkyLighter = fromHex(@"c6e3f4", @"dddddd", @"c5c9eb");
+        public readonly Color4 GreySkyLight = fromHex(@"8ab3cc", @"aaaaaa", @"6e75a0");
+        public readonly Color4 GreySky = fromHex(@"405461", @"444444", @"3a3b58");
+        public readonly Color4 GreySkyDark = fromHex(@"303d47", @"222222", @"25243a");
+        public readonly Color4 GreySkyDarker = fromHex(@"21272c", @"111111", @"181624");
 
-        public readonly Color4 SeaFoam = fromHex(@"05ffa2", @"ffffff");
-        public readonly Color4 GreySeaFoamLighter = fromHex(@"9ebab1", @"cccccc");
-        public readonly Color4 GreySeaFoamLight = fromHex(@"4d7365", @"999999");
-        public readonly Color4 GreySeaFoam = fromHex(@"33413c", @"333333");
-        public readonly Color4 GreySeaFoamDark = fromHex(@"2c3532", @"222222");
-        public readonly Color4 GreySeaFoamDarker = fromHex(@"1e2422", @"111111");
+        public readonly Color4 SeaFoam = fromHex(@"05ffa2", @"ffffff", @"4af9c0");
+        public readonly Color4 GreySeaFoamLighter = fromHex(@"9ebab1", @"cccccc", @"b0a8c4");
+        public readonly Color4 GreySeaFoamLight = fromHex(@"4d7365", @"999999", @"4f4a72");
+        public readonly Color4 GreySeaFoam = fromHex(@"33413c", @"333333", @"2d2842");
+        public readonly Color4 GreySeaFoamDark = fromHex(@"2c3532", @"222222", @"22202f");
+        public readonly Color4 GreySeaFoamDarker = fromHex(@"1e2422", @"111111", @"15131e");
 
-        public readonly Color4 Cyan = fromHex(@"05f4fd", @"ffffff");
-        public readonly Color4 GreyCyanLighter = fromHex(@"77b1b3", @"cccccc");
-        public readonly Color4 GreyCyanLight = fromHex(@"436d6f", @"999999");
-        public readonly Color4 GreyCyan = fromHex(@"293d3e", @"333333");
-        public readonly Color4 GreyCyanDark = fromHex(@"243536", @"222222");
-        public readonly Color4 GreyCyanDarker = fromHex(@"1e2929", @"111111");
+        public readonly Color4 Cyan = fromHex(@"05f4fd", @"ffffff", @"4cdcff");
+        public readonly Color4 GreyCyanLighter = fromHex(@"77b1b3", @"cccccc", @"9098c4");
+        public readonly Color4 GreyCyanLight = fromHex(@"436d6f", @"999999", @"464a78");
+        public readonly Color4 GreyCyan = fromHex(@"293d3e", @"333333", @"282940");
+        public readonly Color4 GreyCyanDark = fromHex(@"243536", @"222222", @"1f1f30");
+        public readonly Color4 GreyCyanDarker = fromHex(@"1e2929", @"111111", @"161624");
 
-        public readonly Color4 Lime = fromHex(@"82ff05", @"ffffff");
-        public readonly Color4 GreyLimeLighter = fromHex(@"deff87", @"cccccc");
-        public readonly Color4 GreyLimeLight = fromHex(@"657259", @"999999");
-        public readonly Color4 GreyLime = fromHex(@"3f443a", @"333333");
-        public readonly Color4 GreyLimeDark = fromHex(@"32352e", @"222222");
-        public readonly Color4 GreyLimeDarker = fromHex(@"2e302b", @"111111");
+        public readonly Color4 Lime = fromHex(@"82ff05", @"ffffff", @"c0f04a");
+        public readonly Color4 GreyLimeLighter = fromHex(@"deff87", @"cccccc", @"d0c8b0");
+        public readonly Color4 GreyLimeLight = fromHex(@"657259", @"999999", @"706a52");
+        public readonly Color4 GreyLime = fromHex(@"3f443a", @"333333", @"3a3528");
+        public readonly Color4 GreyLimeDark = fromHex(@"32352e", @"222222", @"2a2520");
+        public readonly Color4 GreyLimeDarker = fromHex(@"2e302b", @"111111", @"1f1c18");
 
-        public readonly Color4 Violet = fromHex(@"bf04ff", @"ffffff");
-        public readonly Color4 GreyVioletLighter = fromHex(@"ebb8fe", @"cccccc");
-        public readonly Color4 GreyVioletLight = fromHex(@"685370", @"999999");
-        public readonly Color4 GreyViolet = fromHex(@"46334d", @"333333");
-        public readonly Color4 GreyVioletDark = fromHex(@"2c2230", @"222222");
-        public readonly Color4 GreyVioletDarker = fromHex(@"201823", @"111111");
+        public readonly Color4 Violet = fromHex(@"bf04ff", @"ffffff", @"d04cff");
+        public readonly Color4 GreyVioletLighter = fromHex(@"ebb8fe", @"cccccc", @"e8b8f5");
+        public readonly Color4 GreyVioletLight = fromHex(@"685370", @"999999", @"7a4b80");
+        public readonly Color4 GreyViolet = fromHex(@"46334d", @"333333", @"4a2858");
+        public readonly Color4 GreyVioletDark = fromHex(@"2c2230", @"222222", @"2e1838");
+        public readonly Color4 GreyVioletDarker = fromHex(@"201823", @"111111", @"1f1028");
 
-        public readonly Color4 Carmine = fromHex(@"ff0542", @"ffffff");
-        public readonly Color4 GreyCarmineLighter = fromHex(@"deaab4", @"cccccc");
-        public readonly Color4 GreyCarmineLight = fromHex(@"644f53", @"999999");
-        public readonly Color4 GreyCarmine = fromHex(@"342b2d", @"333333");
-        public readonly Color4 GreyCarmineDark = fromHex(@"302a2b", @"222222");
-        public readonly Color4 GreyCarmineDarker = fromHex(@"241d1e", @"111111");
+        public readonly Color4 Carmine = fromHex(@"ff0542", @"ffffff", @"ff476e");
+        public readonly Color4 GreyCarmineLighter = fromHex(@"deaab4", @"cccccc", @"dca6b9");
+        public readonly Color4 GreyCarmineLight = fromHex(@"644f53", @"999999", @"6d4358");
+        public readonly Color4 GreyCarmine = fromHex(@"342b2d", @"333333", @"3a2030");
+        public readonly Color4 GreyCarmineDark = fromHex(@"302a2b", @"222222", @"2a1822");
+        public readonly Color4 GreyCarmineDarker = fromHex(@"241d1e", @"111111", @"1d101a");
 
         public readonly Color4 Gray0 = fromHex(@"000");
         public readonly Color4 Gray1 = fromHex(@"111");

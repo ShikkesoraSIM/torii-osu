@@ -50,9 +50,25 @@ namespace osu.Game.Graphics
         /// <summary>
         /// Return <paramref name="torii"/> on the default theme,
         /// <paramref name="grayscale"/> when the user has opted into
-        /// the "Grayscale by fsyori" palette.
+        /// the "Grayscale by fsyori" palette. Midnight defaults to the
+        /// grayscale-side value for structural constants (corner radii,
+        /// layout switches) since it inherits the same reskin shape;
+        /// call sites that need a distinct midnight value should use
+        /// <see cref="PickAll{T}"/> instead.
         /// </summary>
         public static T Pick<T>(T torii, T grayscale)
-            => OsuColour.IsGrayscaleTheme ? grayscale : torii;
+            => OsuColour.UsesGrayscaleStructure ? grayscale : torii;
+
+        /// <summary>
+        /// Three-way picker for call sites where the midnight palette
+        /// needs a different value from grayscale (typically inline
+        /// colours, or a switch that depends on slanted-vs-flat).
+        /// </summary>
+        public static T PickAll<T>(T torii, T grayscale, T midnight)
+        {
+            if (OsuColour.IsMidnightTheme) return midnight;
+            if (OsuColour.IsGrayscaleTheme) return grayscale;
+            return torii;
+        }
     }
 }

@@ -226,7 +226,7 @@ namespace osu.Game.Screens.SelectV2
                                             // outer width tracks its inner content (otherwise an X-
                                             // relative-size display inside an auto-size column would
                                             // collapse to zero width).
-                                            ColumnDimensions = OsuColour.IsGrayscaleTheme
+                                            ColumnDimensions = OsuColour.UsesGrayscaleStructure
                                                 ? new[]
                                                 {
                                                     new Dimension(GridSizeMode.AutoSize),
@@ -243,7 +243,7 @@ namespace osu.Game.Screens.SelectV2
                                             {
                                                 new[]
                                                 {
-                                                    countStatisticsDisplay = OsuColour.IsGrayscaleTheme
+                                                    countStatisticsDisplay = OsuColour.UsesGrayscaleStructure
                                                         ? new DifficultyStatisticsDisplay(autoSize: true)
                                                         : new DifficultyStatisticsDisplay
                                                         {
