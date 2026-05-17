@@ -46,5 +46,15 @@ namespace osu.Game.Configuration
         /// </summary>
         [Description("Grayscale by fsyori")]
         GrayscaleByFsyori,
+
+        /// <summary>
+        /// Midnight: same structural reskin as grayscale (sharp corners,
+        /// legacy stats panel mounted) but with a deep-purple / fuchsia
+        /// palette in place of the desaturated grays. Keeps the slanted
+        /// song-select chrome (does NOT force the unslanted layout that
+        /// grayscale uses).
+        /// </summary>
+        [Description("Midnight")]
+        Midnight,
     }
 }

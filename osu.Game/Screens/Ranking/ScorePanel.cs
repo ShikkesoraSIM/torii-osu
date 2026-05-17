@@ -203,7 +203,7 @@ namespace osu.Game.Screens.Ranking
                                 // just a flat dark card. Conditional
                                 // construction keeps Torii's
                                 // existing avatar-tint look intact.
-                                Children = OsuColour.IsGrayscaleTheme
+                                Children = OsuColour.UsesGrayscaleStructure
                                     ? new Drawable[]
                                     {
                                         middleLayerBackground = new Box { RelativeSizeAxes = Axes.Both },
@@ -227,8 +227,8 @@ namespace osu.Game.Screens.Ranking
                                 // so the contracted-state scale-down
                                 // animates around the panel's centre
                                 // rather than the top-left corner.
-                                Anchor = OsuColour.IsGrayscaleTheme ? Anchor.Centre : Anchor.TopLeft,
-                                Origin = OsuColour.IsGrayscaleTheme ? Anchor.Centre : Anchor.TopLeft,
+                                Anchor = OsuColour.UsesGrayscaleStructure ? Anchor.Centre : Anchor.TopLeft,
+                                Origin = OsuColour.UsesGrayscaleStructure ? Anchor.Centre : Anchor.TopLeft,
                             }
                         }
                     },
@@ -309,7 +309,7 @@ namespace osu.Game.Screens.Ranking
                     topLayerContentContainer.Add(topLayerContent = new ExpandedPanelTopContent(Score.User, firstLoad) { Alpha = 0 });
                     middleLayerContentContainer.Add(middleLayerContent = new ExpandedPanelMiddleContent(Score, displayWithFlair) { Alpha = 0 });
 
-                    if (OsuColour.IsGrayscaleTheme)
+                    if (OsuColour.UsesGrayscaleStructure)
                     {
                         // Torii: in grayscale theme, "expanded" is the
                         // baseline visual — full colour, full scale.
@@ -331,7 +331,7 @@ namespace osu.Game.Screens.Ranking
                     topLayerBackground.FadeColour(contracted_top_layer_colour, duration, Easing.OutQuint);
                     middleLayerBackground.FadeColour(contracted_middle_layer_colour, duration, Easing.OutQuint);
 
-                    if (OsuColour.IsGrayscaleTheme)
+                    if (OsuColour.UsesGrayscaleStructure)
                     {
                         // Torii: fsyori reuses the Expanded content
                         // for Contracted in the grayscale theme,
