@@ -119,8 +119,8 @@ namespace osu.Desktop.LowLatency
             IntPtr interfacePtr = IntPtr.Zero;
 
             // Set up the "magic" request identifier (from AMD SDK)
-            long magicValue = 0xbf380ebc5ab4d0a6;
-            interfacePtr = new IntPtr(magicValue);
+            ulong magicValue = 0xbf380ebc5ab4d0a6;
+            interfacePtr = new IntPtr((long)magicValue);
 
             int hr = _amdDxExtCreate11(_deviceHandle, ref interfacePtr);
 
