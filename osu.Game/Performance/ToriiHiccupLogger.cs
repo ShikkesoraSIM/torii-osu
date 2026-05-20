@@ -76,17 +76,30 @@ namespace osu.Game.Performance
         public const double DefaultThresholdMs = 80.0;
 
         /// <summary>
-        /// Drop hiccup records whose frame_ms exceeds this. Frames in the multi-second range are
-        /// almost certainly OS-level process pauses (laptop sleep / resume, Windows suspending a
-        /// background-priority process under load, antivirus stalling Update, the user dragging
-        /// the title bar which freezes the message pump) rather than a real on-thread stall.
-        /// Recording them is misleading — the recent_events ring buffer at the moment of capture
-        /// shows whatever was in there before the pause, which makes the cause attribution wildly
-        /// wrong, and they dominate the dashboard's "worst hiccups" lists. 5 s is well above any
-        /// believable on-thread stall (the worst real GC pause we've seen in prod was ~700 ms)
-        /// while still catching genuine deadlock-recovery cases on slower hardware.
+        /// Drop hiccup records whose frame_ms exceeds this. Frames in the multi-second range used
+        /// to be capped at 5 s on the assumption that anything longer was an OS-level process
+        /// pause (laptop sleep / resume, Windows suspending a background-priority process under
+        /// load, antivirus stalling Update, the user dragging the title bar which freezes the
+        /// message pump) rather than a real on-thread stall. That assumption broke on a user
+        /// report (Linux + game on HDD, May 2026): screenshots showed the game holding 8 fps for
+        /// stretches the user perceived as ~2 minutes, with no hiccup record landing in the
+        /// captured JSONL — the cap was filtering exactly the pathological stalls we needed to
+        /// diagnose. The cap is now 60 s, which:
+        ///   - still catches OS suspends (laptops sleeping for hours don't come back inside
+        ///     this bound — their stall lands well over a minute and gets dropped),
+        ///   - covers any plausible on-thread stall (a GC cascade, an HDD-bound texture load,
+        ///     a serial deadlock-recovery), so the worst real-user freezes now show up in
+        ///     hiccup-report data with correct breadcrumb attribution,
+        ///   - keeps the recent_events ring buffer's correlation usable: within 60 s the
+        ///     captured api.request / screen.push / overlay.show breadcrumbs are still the
+        ///     things that actually happened around the stall, so likely_cause guesses
+        ///     remain meaningful.
+        /// If the dashboard's "worst hiccups" tab gets dominated by very large outliers in
+        /// practice, the right answer is to bucket the dashboard differently (e.g. show p50 /
+        /// p99 / p99.9 separately) rather than re-tightening this cap and losing the
+        /// pathological-stall visibility.
         /// </summary>
-        private const double maximum_recordable_ms = 5_000.0;
+        private const double maximum_recordable_ms = 60_000.0;
 
         /// <summary>Suppress consecutive hiccup records this close together to avoid logging the same stall twice.</summary>
         private const double cooldown_ms = 100.0;
