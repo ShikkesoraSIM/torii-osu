@@ -67,18 +67,40 @@ namespace osu.Game.Graphics
         public static bool IsGrayscaleTheme => activeTheme == UIThemeOption.GrayscaleByFsyori;
 
         /// <summary>
-        /// True when the active <see cref="UIThemeOption"/> is the
-        /// midnight palette (deep purple / fuchsia accents on top of
-        /// the grayscale-style structural reskin).
+        /// True when the active <see cref="UIThemeOption"/> is any
+        /// of the Midnight family variants (Mauve / Crimson / Cerulean).
+        /// All three share the same structural reskin (sharp corners,
+        /// legacy stats panel mounted, slanted chrome preserved) and
+        /// only differ in palette hue. Call sites that need to branch
+        /// on the specific variant should check
+        /// <see cref="ActiveMidnightVariant"/> instead.
         /// </summary>
-        public static bool IsMidnightTheme => activeTheme == UIThemeOption.Midnight;
+        public static bool IsMidnightTheme =>
+            activeTheme == UIThemeOption.Midnight
+            || activeTheme == UIThemeOption.MidnightCrimson
+            || activeTheme == UIThemeOption.MidnightCerulean;
+
+        /// <summary>
+        /// Which Midnight variant is currently active. Returns
+        /// <see cref="MidnightVariant.Mauve"/> as a defensive default
+        /// when the active theme isn't a Midnight variant, so call
+        /// sites that read this without first checking
+        /// <see cref="IsMidnightTheme"/> still get a well-defined hue
+        /// rather than throwing.
+        /// </summary>
+        public static MidnightVariant ActiveMidnightVariant => activeTheme switch
+        {
+            UIThemeOption.MidnightCrimson => MidnightVariant.Crimson,
+            UIThemeOption.MidnightCerulean => MidnightVariant.Cerulean,
+            _ => MidnightVariant.Mauve,
+        };
 
         /// <summary>
         /// True when the active theme should adopt the structural
         /// reskin parts of grayscale (sharp corner radii, mounted
-        /// legacy chrome panels). Currently both Grayscale and
-        /// Midnight opt in; the call sites that want palette-specific
-        /// behaviour should check <see cref="IsGrayscaleTheme"/> or
+        /// legacy chrome panels). Grayscale and every Midnight variant
+        /// opt in; the call sites that want palette-specific behaviour
+        /// should check <see cref="IsGrayscaleTheme"/> or
         /// <see cref="IsMidnightTheme"/> individually.
         /// </summary>
         public static bool UsesGrayscaleStructure => IsGrayscaleTheme || IsMidnightTheme;
@@ -125,33 +147,76 @@ namespace osu.Game.Graphics
                 return new Color4(luma, luma, luma, src.A);
             }
 
-            if (activeTheme == UIThemeOption.Midnight)
+            if (IsMidnightTheme)
             {
+                // Curated midnight hex (when the call site supplied one) is
+                // taken as the *Mauve* reference value — the original
+                // Midnight curation. For Crimson / Cerulean variants we
+                // tint the curated colour the same way auto-tint shifts
+                // an untouched Torii accent, so the per-variant hue feels
+                // consistent across both the curated and auto-tinted
+                // surfaces. Tinting preserves the curated luminance so a
+                // colour explicitly picked as "dark plum" stays dark
+                // even when shifted toward a different family.
+                var variant = ActiveMidnightVariant;
+
                 if (midnightHex != null)
-                    return Color4Extensions.FromHex(midnightHex);
+                {
+                    var curated = Color4Extensions.FromHex(midnightHex);
+                    return variant == MidnightVariant.Mauve
+                        ? curated
+                        : shiftMidnightHueToVariant(curated, variant);
+                }
 
                 // Auto-tint fallback: for chrome accents that don't have an
                 // explicit midnight value, take the source colour, preserve
                 // its luminance and saturation amount, and shift the hue
-                // toward the magenta family (~320°). Already-greyish
+                // toward the active variant's target. Already-greyish
                 // sources stay close to themselves; vivid colours pull
-                // into the midnight palette so unenumerated accents still
+                // into the variant palette so unenumerated accents still
                 // feel coherent with the curated ones.
-                return autoTintMidnight(Color4Extensions.FromHex(toriiHex));
+                return autoTintMidnight(Color4Extensions.FromHex(toriiHex), variant);
             }
 
             return Color4Extensions.FromHex(toriiHex);
         }
 
-        private const float MIDNIGHT_TARGET_HUE_DEGREES = 320f;
-        private const float MIDNIGHT_HUE_PULL = 0.75f;
+        // Per-variant hue targets. Mauve sits in the magenta-violet band
+        // (the original Midnight identity, retuned slightly toward 305°
+        // so its distinct-from-Crimson reading is unambiguous now that
+        // a true scarlet variant exists). Crimson lands in deep-red
+        // territory (~352°) but stays just shy of pure red so the
+        // background tinting doesn't read as "danger UI". Cerulean
+        // anchors at a deep blue-cyan (~205°) — cold complement to
+        // Crimson, broad enough range to feel like its own palette
+        // rather than "blue Mauve".
+        private const float MIDNIGHT_MAUVE_TARGET_HUE = 305f;
+        private const float MIDNIGHT_CRIMSON_TARGET_HUE = 352f;
+        private const float MIDNIGHT_CERULEAN_TARGET_HUE = 205f;
+
+        // Pull amount kept identical across variants so the structural
+        // "midnight chroma" feels consistent — only the destination
+        // hue changes. 0.8 (bumped from the original 0.75) gives the
+        // retuned Mauve a slightly more saturated read so its identity
+        // doesn't get visually washed out next to the more saturated
+        // pure-hue Crimson / Cerulean targets.
+        private const float MIDNIGHT_HUE_PULL = 0.8f;
+
+        private static float targetHueForVariant(MidnightVariant variant) => variant switch
+        {
+            MidnightVariant.Crimson => MIDNIGHT_CRIMSON_TARGET_HUE,
+            MidnightVariant.Cerulean => MIDNIGHT_CERULEAN_TARGET_HUE,
+            _ => MIDNIGHT_MAUVE_TARGET_HUE,
+        };
 
         /// <summary>
-        /// Pull a colour toward the midnight palette by rotating its hue
-        /// toward magenta proportionally to its saturation. Returns the
-        /// source unchanged for near-neutral colours.
+        /// Pull a colour toward the active Midnight variant's hue by
+        /// rotating its hue proportionally to its saturation. Returns
+        /// the source nearly unchanged for near-neutral colours so a
+        /// background "deep grey-blue" surface doesn't get pushed
+        /// somewhere it shouldn't.
         /// </summary>
-        private static Color4 autoTintMidnight(Color4 src)
+        private static Color4 autoTintMidnight(Color4 src, MidnightVariant variant)
         {
             float r = src.R, g = src.G, b = src.B;
             float max = MathF.Max(r, MathF.Max(g, b));
@@ -169,10 +234,51 @@ namespace osu.Game.Graphics
                 if (h < 0f) h += 360f;
             }
             // Skew the pull amount by saturation so neutrals (s ≈ 0)
-            // barely move and vivid hues snap toward magenta.
+            // barely move and vivid hues snap toward the variant target.
             float pull = MIDNIGHT_HUE_PULL * s;
-            float newH = lerpAngle(h, MIDNIGHT_TARGET_HUE_DEGREES, pull);
+            float newH = lerpAngle(h, targetHueForVariant(variant), pull);
             return hslToColor(newH, MathF.Min(1f, s * 1.05f), l, src.A);
+        }
+
+        /// <summary>
+        /// Shift a curated-Mauve colour toward a different Midnight
+        /// variant's hue family. Uses the same saturation-weighted pull
+        /// as the auto-tint path so curated dark-purple values land on
+        /// the analogous "dark crimson" / "dark cerulean" point rather
+        /// than blowing past the curator's intended luminance.
+        /// </summary>
+        private static Color4 shiftMidnightHueToVariant(Color4 mauveBase, MidnightVariant variant)
+        {
+            // Mauve variant returns the curated value unchanged; the
+            // caller already guards on this path but keep the
+            // defensive early-out so this helper is safe to call
+            // unconditionally.
+            if (variant == MidnightVariant.Mauve) return mauveBase;
+
+            float r = mauveBase.R, g = mauveBase.G, b = mauveBase.B;
+            float max = MathF.Max(r, MathF.Max(g, b));
+            float min = MathF.Min(r, MathF.Min(g, b));
+            float l = (max + min) * 0.5f;
+            float d = max - min;
+            float s = d == 0f ? 0f : (l < 0.5f ? d / (max + min) : d / (2f - max - min));
+            float h = 0f;
+            if (d != 0f)
+            {
+                if (max == r) h = ((g - b) / d) % 6f;
+                else if (max == g) h = ((b - r) / d) + 2f;
+                else h = ((r - g) / d) + 4f;
+                h *= 60f;
+                if (h < 0f) h += 360f;
+            }
+            // Curated colours already sit "in the midnight band", so
+            // we use a stronger pull (0.9) to snap them firmly to the
+            // variant's hue rather than landing somewhere between
+            // Mauve and the target — the curator's intent was the
+            // family-position, not the literal magenta hue.
+            const float curated_shift_pull = 0.9f;
+            float pull = curated_shift_pull * s;
+            float newH = lerpAngle(h, targetHueForVariant(variant), pull);
+            return hslToColor(newH, s, l, mauveBase.A);
         }
 
         private static float lerpAngle(float a, float b, float t)

@@ -542,9 +542,18 @@ namespace osu.Game.Screens.SelectV2
             // live inside this same grid cell). 700 + bonus stays as
             // the default-theme value so the slanted look keeps its
             // existing breathing room.
+            //
+            // Midnight keeps the slanted chrome (see OsuGame.SetUnslantedUI
+            // binding — only IsGrayscaleTheme forces SHEAR=0), so it
+            // needs the same 700 px headroom as the default theme. Using
+            // the 580 px grayscale cap with slant active produced a
+            // visibly narrow leaderboard + title wedge in Midnight ("se
+            // ve cortita"). PickAll lets each theme pick its own value
+            // independently: grayscale stays compact, midnight tracks
+            // torii.
             mainGridContainer.ColumnDimensions = new[]
             {
-                new Dimension(GridSizeMode.Relative, 0.5f, maxSize: ThemeAware.Pick(700f, 580f) + widescreenBonusWidth * 100),
+                new Dimension(GridSizeMode.Relative, 0.5f, maxSize: ThemeAware.PickAll(700f, 580f, 700f) + widescreenBonusWidth * 100),
                 new Dimension(),
                 new Dimension(GridSizeMode.Relative, 0.5f, minSize: 500, maxSize: 700 + widescreenBonusWidth * 300),
             };

@@ -48,13 +48,62 @@ namespace osu.Game.Configuration
         GrayscaleByFsyori,
 
         /// <summary>
-        /// Midnight: same structural reskin as grayscale (sharp corners,
-        /// legacy stats panel mounted) but with a deep-purple / fuchsia
-        /// palette in place of the desaturated grays. Keeps the slanted
-        /// song-select chrome (does NOT force the unslanted layout that
-        /// grayscale uses).
+        /// Midnight Mauve: structural reskin (sharp corners, mounted
+        /// legacy stats panel) with a deep-violet / fuchsia palette,
+        /// the originally-curated Midnight look. Keeps the slanted
+        /// song-select chrome (only Grayscale forces the unslanted
+        /// layout).
+        ///
+        /// Enum identifier stays as <c>Midnight</c> so existing user
+        /// configs that stored the value as a string don't lose their
+        /// selection when the variant family was expanded. The display
+        /// label is "Midnight (Mauve)" so users see the family name in
+        /// the dropdown without a silent migration.
         /// </summary>
-        [Description("Midnight")]
+        [Description("Midnight (Mauve)")]
         Midnight,
+
+        /// <summary>
+        /// Midnight Crimson: same structural reskin as Mauve but with
+        /// a deep-red / scarlet palette pull. The auto-tint hue lands
+        /// at ~350° so vivid accents read as a burned-red night rather
+        /// than violet, while neutrals stay close to the shared base.
+        /// </summary>
+        [Description("Midnight (Crimson)")]
+        MidnightCrimson,
+
+        /// <summary>
+        /// Midnight Cerulean: same structural reskin as Mauve but with
+        /// a deep cyan-teal palette pull (auto-tint hue ~200°). Reads
+        /// as the "cold night" counterpart to Crimson's warm tones,
+        /// useful for users who want the Midnight chrome without the
+        /// red/violet warmth.
+        /// </summary>
+        [Description("Midnight (Cerulean)")]
+        MidnightCerulean,
+    }
+
+    /// <summary>
+    /// Narrowed identifier for which Midnight palette variant is in
+    /// use. Surfaced by <see cref="osu.Game.Graphics.OsuColour.ActiveMidnightVariant"/>
+    /// so palette helpers can branch on the hue family without
+    /// needing to compare against every UIThemeOption value.
+    ///
+    /// Distinct from <see cref="UIThemeOption"/> because the variant
+    /// is only meaningful when the active theme is one of the
+    /// Midnight family entries — defaults to <see cref="Mauve"/> when
+    /// the user has Torii or Grayscale selected, so reads from
+    /// helpers that don't first check the family stay well-defined.
+    /// </summary>
+    public enum MidnightVariant
+    {
+        /// <summary>Magenta-violet identity (original Midnight curation, hue ~305°).</summary>
+        Mauve,
+
+        /// <summary>Deep red / scarlet identity (hue ~352°).</summary>
+        Crimson,
+
+        /// <summary>Deep blue-cyan identity (hue ~205°).</summary>
+        Cerulean,
     }
 }

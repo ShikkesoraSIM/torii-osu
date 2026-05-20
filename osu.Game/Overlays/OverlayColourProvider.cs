@@ -181,19 +181,25 @@ namespace osu.Game.Overlays
         // flag and adjust the HSL rampe per theme.
         // - Grayscale: saturation forced to 0, hue ignored (luminance
         //   ladder only).
-        // - Midnight: hue forced to ~320° (fuchsia/violet) so every
-        //   overlay scheme collapses onto the midnight axis, with full
-        //   saturation preserved so the lightness ramp still produces
-        //   distinct shades.
+        // - Midnight family: hue forced to the active variant's anchor
+        //   (Mauve ~305° / Crimson ~352° / Cerulean ~205°) so every
+        //   overlay scheme collapses onto the same midnight axis, with
+        //   full saturation preserved so the lightness ramp still
+        //   produces distinct shades within the chosen palette.
         // - Torii (default): pass-through.
-        private const float MIDNIGHT_HUE = 320f;
+        private static float midnightBaseHue() => OsuColour.ActiveMidnightVariant switch
+        {
+            Configuration.MidnightVariant.Crimson => 352f,
+            Configuration.MidnightVariant.Cerulean => 205f,
+            _ => 305f,
+        };
 
         private Color4 getColour(float saturation, float lightness)
         {
             if (OsuColour.IsGrayscaleTheme)
                 return Framework.Graphics.Colour4.FromHSL(Hue / 360f, 0f, lightness);
             if (OsuColour.IsMidnightTheme)
-                return Framework.Graphics.Colour4.FromHSL(MIDNIGHT_HUE / 360f, saturation, lightness);
+                return Framework.Graphics.Colour4.FromHSL(midnightBaseHue() / 360f, saturation, lightness);
             return Framework.Graphics.Colour4.FromHSL(Hue / 360f, saturation, lightness);
         }
 
@@ -205,7 +211,11 @@ namespace osu.Game.Overlays
             {
                 // Shift the accent a few degrees off the base so the two
                 // hues are still distinguishable on the midnight axis.
-                float midnightAccent = (MIDNIGHT_HUE + 20f) % 360f;
+                // 20° works equally well for all three variants — large
+                // enough that the accent reads as a distinct family
+                // member, small enough that it doesn't drift into a
+                // neighbouring colour family (mauve stays mauve, etc.).
+                float midnightAccent = (midnightBaseHue() + 20f) % 360f;
                 return Framework.Graphics.Colour4.FromHSL(midnightAccent / 360f, saturation, lightness);
             }
             return Framework.Graphics.Colour4.FromHSL(AccentHue / 360f, saturation, lightness);
