@@ -73,14 +73,18 @@ namespace osu.Game.Overlays.Settings
                 Caption = "UI theme",
                 HintText = "Cosmetic chrome palette. \"Grayscale by fsyori\" strips saturation from "
                            + "every UI accent for the monochrome look and mounts a stable-style "
-                           + "user-stats panel in song select. For end-to-end grayscale (including "
-                           + "gameplay), drop any stable-era .osk into your Skins folder and pick it "
-                           + "from the skin dropdown above. Changing this option restarts the game.",
+                           + "user-stats panel in song select. The Midnight family keeps that "
+                           + "structural reskin (sharp corners, mounted stats panel) but reuses the "
+                           + "default slanted chrome, with three hue variants — Mauve (violet), "
+                           + "Crimson (deep red), and Cerulean (deep cyan). For end-to-end skin "
+                           + "matching (including gameplay), drop any stable-era .osk into your "
+                           + "Skins folder and pick it from the skin dropdown above. Changing this "
+                           + "option restarts the game.",
                 Current = themeBindable,
                 NewFeatureId = NewFeatureRegistry.UITheme,
             })
             {
-                Keywords = new[] { @"theme", @"palette", @"grayscale", @"greyscale", @"monochrome", @"black", @"white", @"fsyori", @"chrome", @"ui" },
+                Keywords = new[] { @"theme", @"palette", @"grayscale", @"greyscale", @"monochrome", @"black", @"white", @"fsyori", @"chrome", @"ui", @"midnight", @"mauve", @"crimson", @"cerulean", @"purple", @"red", @"cyan", @"blue" },
             };
 
             // Register the restart-on-change handler centrally. Each

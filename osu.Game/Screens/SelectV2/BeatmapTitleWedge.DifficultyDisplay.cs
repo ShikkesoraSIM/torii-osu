@@ -226,7 +226,16 @@ namespace osu.Game.Screens.SelectV2
                                             // outer width tracks its inner content (otherwise an X-
                                             // relative-size display inside an auto-size column would
                                             // collapse to zero width).
-                                            ColumnDimensions = OsuColour.UsesGrayscaleStructure
+                                            //
+                                            // Midnight theme uses the default (slanted) layout: it
+                                            // keeps the slanted wedge chrome (only Grayscale forces
+                                            // SHEAR=0, see OsuGame.SetUnslantedUI binding), so the
+                                            // compact [auto][8][auto] grid would leave the slant
+                                            // cutoff exposed as visible empty space and pinch the
+                                            // stats into a too-narrow band. Explicit IsGrayscaleTheme
+                                            // (rather than UsesGrayscaleStructure) gates this on
+                                            // grayscale-only, not the shared structural reskin.
+                                            ColumnDimensions = OsuColour.IsGrayscaleTheme
                                                 ? new[]
                                                 {
                                                     new Dimension(GridSizeMode.AutoSize),
@@ -243,7 +252,7 @@ namespace osu.Game.Screens.SelectV2
                                             {
                                                 new[]
                                                 {
-                                                    countStatisticsDisplay = OsuColour.UsesGrayscaleStructure
+                                                    countStatisticsDisplay = OsuColour.IsGrayscaleTheme
                                                         ? new DifficultyStatisticsDisplay(autoSize: true)
                                                         : new DifficultyStatisticsDisplay
                                                         {
