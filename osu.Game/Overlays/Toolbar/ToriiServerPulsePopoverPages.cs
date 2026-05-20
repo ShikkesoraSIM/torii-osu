@@ -372,6 +372,16 @@ namespace osu.Game.Overlays.Toolbar
         // Compact preview of the top map. GridContainer-based layout:
         // [64 cover | 12 gap | distributed text column]. Empty state
         // overlays the whole strip when no plays in the last 5 min.
+        //
+        // SetMap diffing
+        // --------------
+        // The provider's sameTopMap helper gates the TopMap bindable on
+        // (BeatmapId, PlayCount5Min) — so by the time SetMap runs we
+        // know at least one of those moved. lastMap is tracked here so
+        // we can distinguish a "different beatmap" event (refresh cover
+        // + title + artist) from a "same map, count moved" event
+        // (refresh only the meta line) without re-issuing the fade /
+        // text / cover-url operations that are already correct.
         // ─────────────────────────────────────────────────────────────
         private partial class OverviewTopMapStrip : CompositeDrawable
         {
@@ -381,6 +391,8 @@ namespace osu.Game.Overlays.Toolbar
             private OsuSpriteText metaText = null!;
             private Container contentContainer = null!;
             private OsuSpriteText emptyText = null!;
+
+            private APIToriiServerPulseTopMap? lastMap;
 
             [BackgroundDependencyLoader]
             private void load()
@@ -499,23 +511,53 @@ namespace osu.Game.Overlays.Toolbar
 
                 if (map == null)
                 {
-                    contentContainer.FadeOut(180, Easing.OutQuint);
-                    emptyText.FadeIn(220, Easing.OutQuint);
+                    // Only run the empty-state transition if we weren't
+                    // already in it — otherwise repeatedly re-issuing
+                    // the same FadeOut / FadeIn on identical targets
+                    // restarts the transform every poll.
+                    if (lastMap != null)
+                    {
+                        contentContainer.FadeOut(180, Easing.OutQuint);
+                        emptyText.FadeIn(220, Easing.OutQuint);
+                    }
+                    lastMap = null;
                     return;
                 }
 
-                contentContainer.FadeIn(220, Easing.OutQuint);
-                emptyText.FadeOut(180, Easing.OutQuint);
+                bool comingFromEmpty = lastMap == null;
+                bool sameBeatmap = lastMap != null && lastMap.BeatmapId == map.BeatmapId;
 
-                // RomanisableString respects the user's
-                // PreferOriginalLanguage / ShowUnicode setting — defaults
-                // to romanised so JP titles render readably; users who've
-                // opted into unicode get the kanji/kana version.
-                titleText.Text = new RomanisableString(map.TitleUnicode, map.Title);
-                artistText.Text = new RomanisableString(map.ArtistUnicode, map.Artist);
+                if (comingFromEmpty)
+                {
+                    contentContainer.FadeIn(220, Easing.OutQuint);
+                    emptyText.FadeOut(180, Easing.OutQuint);
+                }
+
+                // Heavy text + cover updates only fire when the beatmap
+                // identity changed (or we just transitioned out of the
+                // empty state). The "same map, PlayCount5Min moved" path
+                // is the most-frequent reason SetMap is called and now
+                // only touches a single OsuSpriteText.
+                if (!sameBeatmap)
+                {
+                    // RomanisableString respects the user's
+                    // PreferOriginalLanguage / ShowUnicode setting — defaults
+                    // to romanised so JP titles render readably; users who've
+                    // opted into unicode get the kanji/kana version.
+                    titleText.Text = new RomanisableString(map.TitleUnicode, map.Title);
+                    artistText.Text = new RomanisableString(map.ArtistUnicode, map.Artist);
+                    cover.SetUrl(map.BestCoverUrl);
+                }
+
+                // Meta text always refreshes — it's the only line that
+                // can move on a same-beatmap snapshot (PlayCount5Min
+                // ticking up while the map stays on top). The diff in
+                // the provider's sameTopMap means we only land here when
+                // either BeatmapId or PlayCount5Min actually moved, so
+                // an unconditional assign is correct.
                 metaText.Text = $"[{map.Version}]  ·  {map.PlayCount5Min} play{(map.PlayCount5Min == 1 ? "" : "s")} in 5min";
 
-                cover.SetUrl(map.BestCoverUrl);
+                lastMap = map;
             }
         }
     }
@@ -586,7 +628,13 @@ namespace osu.Game.Overlays.Toolbar
 
             if (maps == null || maps.Count == 0)
             {
-                rowsFlow.Clear();
+                // Only Clear when we actually have rows to remove — the
+                // common "still no plays" path between snapshots was
+                // calling Clear on an empty flow + restarting fades
+                // every poll, which lit up as a tiny but recurring
+                // hiccup in long idle sessions.
+                if (rowsFlow.Children.Count > 0)
+                    rowsFlow.Clear();
                 emptyText.FadeIn(220, Easing.OutQuint);
                 headerText.FadeTo(0.4f, 220, Easing.OutQuint);
                 return;
@@ -594,11 +642,56 @@ namespace osu.Game.Overlays.Toolbar
 
             emptyText.FadeOut(180, Easing.OutQuint);
             headerText.FadeIn(220, Easing.OutQuint);
-            headerText.Text = $"HOT MAPS · TOP {maps.Count}";
+            string newHeader = $"HOT MAPS · TOP {maps.Count}";
+            if (!headerText.Text.Equals((LocalisableString)newHeader))
+                headerText.Text = newHeader;
 
-            rowsFlow.Clear();
+            // Row pooling. The previous implementation did
+            // `rowsFlow.Clear() + Add(new HotMapRow(...))` on every
+            // bindable update, tearing down 5 drawables (each carrying a
+            // LazyCoverImage that spawns a CoverSprite + a GridContainer
+            // with ~10 sub-children) and constructing 5 new ones. On an
+            // active server that fires every poll (~every 20 s with the
+            // current cadence), and shows up in hiccup-report data as a
+            // 200-500 ms stall in the response handler.
+            //
+            // New shape: keep the existing rows and call Apply() on
+            // each to refresh the displayed data in place. Only add or
+            // remove rows when the snapshot's map count changes (which
+            // is rare — server emits a stable top-5 most of the time).
+            //
+            // Existing-row reuse is by-position, not by-BeatmapId: row 0
+            // is always rank 1, row 1 is always rank 2, etc. The medal
+            // is set once at construction; the only thing that needs
+            // to change on a position-stable refresh is the cover URL +
+            // title + artist + plays count, all of which Apply() does
+            // without allocating new drawables.
+            // Trim tail. Always re-read Children.Count rather than
+            // caching an `existing` index — the index-from-end pattern
+            // (^1) is robust against any future refactor where someone
+            // adds an off-by-one in the decrement, and the cost of the
+            // property read is negligible compared to the row remove
+            // itself.
+            while (rowsFlow.Children.Count > maps.Count)
+                rowsFlow.Remove(rowsFlow.Children[^1], disposeImmediately: true);
+
+            // Reuse existing rows by position; append new rows beyond
+            // the current count. The post-trim Children.Count is the
+            // cutover index between "Apply in place" and "construct
+            // fresh".
+            int reusable = rowsFlow.Children.Count;
             for (int i = 0; i < maps.Count; i++)
-                rowsFlow.Add(new HotMapRow(i + 1, maps[i]));
+            {
+                if (i < reusable)
+                {
+                    if (rowsFlow.Children[i] is HotMapRow row)
+                        row.Apply(maps[i]);
+                }
+                else
+                {
+                    rowsFlow.Add(new HotMapRow(i + 1, maps[i]));
+                }
+            }
         }
 
         // ─── HotMapRow ───────────────────────────────────────────────
@@ -606,12 +699,28 @@ namespace osu.Game.Overlays.Toolbar
         //   [22 medal | 6 gap | 36 cover | 8 gap | flex text | autosize plays badge]
         // No more X-offset + RelativeSizeAxes overflow that was making
         // the title text overlap the cover at certain widths.
+        //
+        // Apply pattern
+        // -------------
+        // The row is constructed once with an initial (rank, map) pair
+        // and BDL builds the visual tree against that initial data.
+        // <see cref="Apply"/> updates the displayed map in place — the
+        // medal is fixed at construction (per-row-index rank doesn't
+        // change), the cover image swaps via <see cref="LazyCoverImage.SetUrl"/>
+        // (which no-ops if the URL is unchanged), and the title /
+        // artist / plays count update on the existing drawables.
         // ─────────────────────────────────────────────────────────────
         private partial class HotMapRow : CompositeDrawable, IHasContextMenu
         {
             private readonly int rank;
-            private readonly APIToriiServerPulseTopMap map;
+            private APIToriiServerPulseTopMap map;
+
+            // Refs to mutable visual elements — updated by Apply().
             private Box hoverOverlay = null!;
+            private LazyCoverImage cover = null!;
+            private TruncatingSpriteText titleText = null!;
+            private TruncatingSpriteText artistText = null!;
+            private PlaysBadge playsBadge = null!;
 
             [Resolved(canBeNull: true)]
             private OsuGame? game { get; set; }
@@ -631,11 +740,59 @@ namespace osu.Game.Overlays.Toolbar
                 CornerRadius = 8;
             }
 
+            /// <summary>
+            /// Updates the displayed map in place. Cheap — no allocations
+            /// beyond the strings used to format the artist/version line,
+            /// and skips work entirely if the visible data matches the
+            /// previously-applied map (BeatmapId + PlayCount5Min identify
+            /// the visible diff completely; immutable cosmetic fields
+            /// like Creator can't differ for a fixed BeatmapId).
+            /// </summary>
+            public void Apply(APIToriiServerPulseTopMap newMap)
+            {
+                if (map.BeatmapId == newMap.BeatmapId && map.PlayCount5Min == newMap.PlayCount5Min)
+                {
+                    // No visible delta; capture the new ref so the click
+                    // handler still uses the freshest object reference
+                    // (it carries the same beatmap_id either way, but
+                    // matching by-ref keeps debugging easier).
+                    map = newMap;
+                    return;
+                }
+
+                bool sameBeatmap = map.BeatmapId == newMap.BeatmapId;
+                map = newMap;
+
+                // Guard: BDL may not have populated the field refs yet
+                // if Apply() races with load(). Initial values were set
+                // from the constructor's `map` ref, so a null-ref here
+                // just means the row hasn't loaded yet — the load()
+                // path picks up the latest map field directly.
+                if (LoadState != LoadState.Loaded) return;
+
+                if (!sameBeatmap)
+                {
+                    // BeatmapId changed → this row is showing a different
+                    // map now. Swap the cover, refresh title + artist.
+                    cover.SetUrl(newMap.BestCoverUrl);
+                    titleText.Text = new RomanisableString(newMap.TitleUnicode, newMap.Title);
+                    artistText.Text = new RomanisableString(
+                        $"{newMap.ArtistUnicode}  ·  [{newMap.Version}]",
+                        $"{newMap.Artist}  ·  [{newMap.Version}]");
+                }
+
+                // PlayCount5Min always refreshes (the only field that can
+                // change for a fixed BeatmapId).
+                playsBadge.SetPlays(newMap.PlayCount5Min);
+            }
+
             // Click anywhere on the row → open the beatmap in the in-app
             // BeatmapSetOverlay. Mirrors the chat link handler's
             // OpenBeatmap LinkAction route. Returning true consumes the
             // event so it doesn't fall through to the popover's
-            // dismiss-on-outside catcher.
+            // dismiss-on-outside catcher. Uses the latest `map` field —
+            // if the row was just Applied with a different map, the
+            // click opens the new one.
             protected override bool OnClick(ClickEvent e)
             {
                 game?.ShowBeatmap((int)map.BeatmapId);
@@ -740,7 +897,7 @@ namespace osu.Game.Overlays.Toolbar
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
                                     Size = new Vector2(36, 36),
-                                    Child = new LazyCoverImage(placeholderColour: placeholder_dark)
+                                    Child = cover = new LazyCoverImage(placeholderColour: placeholder_dark)
                                     {
                                         RelativeSizeAxes = Axes.Both,
                                         CornerRadius = 6,
@@ -758,14 +915,14 @@ namespace osu.Game.Overlays.Toolbar
                                     Spacing = new Vector2(0, 1),
                                     Children = new Drawable[]
                                     {
-                                        new TruncatingSpriteText
+                                        titleText = new TruncatingSpriteText
                                         {
                                             Text = new RomanisableString(map.TitleUnicode, map.Title),
                                             Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
                                             Colour = Color4.White,
                                             RelativeSizeAxes = Axes.X,
                                         },
-                                        new TruncatingSpriteText
+                                        artistText = new TruncatingSpriteText
                                         {
                                             // Artist + difficulty in one line. RomanisableString
                                             // doesn't compose with regular strings via $"...",
@@ -783,7 +940,7 @@ namespace osu.Game.Overlays.Toolbar
                                     }
                                 },
                                 new Container(),
-                                new PlaysBadge(map.PlayCount5Min)
+                                playsBadge = new PlaysBadge(map.PlayCount5Min)
                                 {
                                     Anchor = Anchor.CentreRight,
                                     Origin = Anchor.CentreRight,
@@ -850,11 +1007,20 @@ namespace osu.Game.Overlays.Toolbar
         // Auto-size pill on the right. Plurals collapsed to "Nx PLAY"
         // / "Nx PLAYS" — no truncation needed because the AutoSize
         // column accommodates whatever width the badge needs.
+        //
+        // Mutable: <see cref="SetPlays"/> updates the count + plural
+        // suffix in place so a row reused across snapshots doesn't have
+        // to be torn down and rebuilt when only the play count moved.
         // ─────────────────────────────────────────────────────────────
         private partial class PlaysBadge : CompositeDrawable
         {
+            private int currentPlays;
+            private OsuSpriteText countText = null!;
+            private OsuSpriteText labelText = null!;
+
             public PlaysBadge(int plays)
             {
+                currentPlays = plays;
                 AutoSizeAxes = Axes.Both;
                 Masking = true;
                 CornerRadius = 10;
@@ -873,7 +1039,7 @@ namespace osu.Game.Overlays.Toolbar
                         Spacing = new Vector2(3, 0),
                         Children = new Drawable[]
                         {
-                            new OsuSpriteText
+                            countText = new OsuSpriteText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
@@ -881,7 +1047,7 @@ namespace osu.Game.Overlays.Toolbar
                                 Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
                                 Colour = torii_red,
                             },
-                            new OsuSpriteText
+                            labelText = new OsuSpriteText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
@@ -894,6 +1060,19 @@ namespace osu.Game.Overlays.Toolbar
                         }
                     },
                 };
+            }
+
+            public void SetPlays(int plays)
+            {
+                if (currentPlays == plays) return;
+                bool pluralFlipped = (currentPlays == 1) != (plays == 1);
+                currentPlays = plays;
+                countText.Text = $"{plays}×";
+                // Only re-set the label string when the plural actually
+                // changes — keeps the SpriteText layout cache warm in the
+                // overwhelmingly common case (plays incrementing past 1).
+                if (pluralFlipped)
+                    labelText.Text = "PLAY" + (plays == 1 ? "" : "S");
             }
         }
     }
@@ -963,7 +1142,9 @@ namespace osu.Game.Overlays.Toolbar
 
             if (plays == null || plays.Count == 0)
             {
-                rowsFlow.Clear();
+                // Same shape as HotMapsPage: don't re-Clear an empty flow.
+                if (rowsFlow.Children.Count > 0)
+                    rowsFlow.Clear();
                 emptyText.FadeIn(220, Easing.OutQuint);
                 headerText.FadeTo(0.4f, 220, Easing.OutQuint);
                 return;
@@ -971,11 +1152,43 @@ namespace osu.Game.Overlays.Toolbar
 
             emptyText.FadeOut(180, Easing.OutQuint);
             headerText.FadeIn(220, Easing.OutQuint);
-            headerText.Text = $"LIVE PLAYS · {plays.Count}";
+            string newHeader = $"LIVE PLAYS · {plays.Count}";
+            if (!headerText.Text.Equals((LocalisableString)newHeader))
+                headerText.Text = newHeader;
 
-            rowsFlow.Clear();
-            foreach (var play in plays)
-                rowsFlow.Add(new LivePlayRow(play));
+            // Row pooling — see HotMapsPage.SetMaps for the rationale.
+            // LivePlayRow rebuilds are even pricier than HotMapRow
+            // (each row also constructs an UpdateableAvatar which kicks
+            // off an async texture fetch), so this saves ~8 async loads
+            // per poll on a server that has 8 in-flight plays.
+            //
+            // Reuse is by-position: row 0 hosts the most-recent play,
+            // row 1 the next, etc. The server doesn't promise stable
+            // ordering between snapshots (a newly-started play bumps
+            // every other row down), so it's normal for row 0 to show a
+            // completely different user/map across two snapshots. Apply()
+            // handles that gracefully by diffing UserId / BeatmapId /
+            // Title and only refreshing the visual elements that
+            // actually changed.
+            // Trim tail — same shape as HotMapsPage.SetMaps. See that
+            // method's comment for the rationale around using `[^1]`
+            // instead of a cached index.
+            while (rowsFlow.Children.Count > plays.Count)
+                rowsFlow.Remove(rowsFlow.Children[^1], disposeImmediately: true);
+
+            int reusable = rowsFlow.Children.Count;
+            for (int i = 0; i < plays.Count; i++)
+            {
+                if (i < reusable)
+                {
+                    if (rowsFlow.Children[i] is LivePlayRow row)
+                        row.Apply(plays[i]);
+                }
+                else
+                {
+                    rowsFlow.Add(new LivePlayRow(plays[i]));
+                }
+            }
         }
 
         // ─── LivePlayRow ─────────────────────────────────────────────
@@ -988,11 +1201,33 @@ namespace osu.Game.Overlays.Toolbar
         // readable: pp + rank for submitted scores, "PLAYING · 32s"
         // for in-flight. Status badge column is fixed-width (78px) so
         // there's no AutoSize-column-clipping artefact.
+        //
+        // Apply pattern
+        // -------------
+        // The previous implementation captured the play in the
+        // constructor and built one-shot drawables in BDL, meaning
+        // every snapshot's <c>SetPlays</c> tore down all 8 rows and
+        // rebuilt them — each carrying an UpdateableAvatar (async
+        // texture fetch) and a status badge. <see cref="Apply"/>
+        // updates the displayed play in place: it swaps the avatar's
+        // model only when UserId changed, updates the username /
+        // title strings only when their visible content changed,
+        // refreshes the status badge data in place when status didn't
+        // flip, and replaces only the inner status-badge drawable on
+        // the rare playing→submitted transition.
         // ─────────────────────────────────────────────────────────────
         private partial class LivePlayRow : CompositeDrawable, IHasContextMenu
         {
-            private readonly APIToriiServerPulseRecentPlay play;
+            private APIToriiServerPulseRecentPlay play;
+
+            // Refs to mutable visual elements.
             private Box hoverOverlay = null!;
+            private UpdateableAvatar avatar = null!;
+            private OsuSpriteText usernameText = null!;
+            private TruncatingSpriteText titleText = null!;
+            private Container statusBadgeSlot = null!;
+            private PlayingNowBadge? playingBadge;
+            private SubmittedScoreBadge? submittedBadge;
 
             [Resolved(canBeNull: true)]
             private OsuGame? game { get; set; }
@@ -1009,11 +1244,112 @@ namespace osu.Game.Overlays.Toolbar
                 CornerRadius = 8;
             }
 
+            /// <summary>
+            /// Updates the displayed play in place. Free-tier work for
+            /// the common case (same row in two adjacent snapshots, the
+            /// only thing that changed is the StartedSecondsAgo counter
+            /// or a few accuracy points on a freshly-submitted score):
+            /// no allocations beyond the strings used to format the
+            /// badge text, no drawable construction, no async texture
+            /// fetches.
+            /// </summary>
+            public void Apply(APIToriiServerPulseRecentPlay newPlay)
+            {
+                bool sameUser = play.UserId == newPlay.UserId;
+                bool sameAvatarUrl = play.AvatarUrl == newPlay.AvatarUrl;
+                bool sameUsername = play.Username == newPlay.Username;
+                bool sameTitle = play.Title == newPlay.Title && play.TitleUnicode == newPlay.TitleUnicode;
+                bool sameStatus = play.IsSubmitted == newPlay.IsSubmitted;
+
+                play = newPlay;
+
+                if (LoadState != LoadState.Loaded) return;
+
+                // Avatar: swap only when the player identity changed or
+                // the avatar URL changed (cache-bust path). Equal-by-id
+                // re-assignment is safe (ModelBackedDrawable compares
+                // by EqualityComparer.Default which falls back to
+                // reference equality for APIUser, so a fresh-object
+                // assignment WOULD trigger a re-fetch — we explicitly
+                // gate on UserId+AvatarUrl to keep this cheap).
+                if (!sameUser || !sameAvatarUrl)
+                {
+                    avatar.User = new APIUser
+                    {
+                        Id = (int)newPlay.UserId,
+                        Username = newPlay.Username,
+                        AvatarUrl = newPlay.AvatarUrl,
+                    };
+                }
+
+                if (!sameUsername)
+                    usernameText.Text = string.IsNullOrEmpty(newPlay.Username) ? "—" : newPlay.Username;
+
+                if (!sameTitle)
+                {
+                    titleText.Text = string.IsNullOrEmpty(newPlay.Title) && string.IsNullOrEmpty(newPlay.TitleUnicode)
+                        ? (LocalisableString)""
+                        : new RomanisableString(newPlay.TitleUnicode, newPlay.Title);
+                }
+
+                if (!sameStatus)
+                {
+                    // Playing → Submitted (or vice-versa, though the
+                    // server doesn't emit "un-submitted" transitions).
+                    // Replace the inner badge with the appropriate
+                    // type. This is the only path that allocates a new
+                    // drawable in the steady state — it happens once
+                    // per play, when it finishes.
+                    swapStatusBadge(newPlay);
+                }
+                else
+                {
+                    // Same status — update the existing badge's data in
+                    // place. For PlayingNowBadge that's just the
+                    // seconds-elapsed counter (which advances every
+                    // poll); for SubmittedScoreBadge it's pp / rank /
+                    // accuracy / account-delta (which usually settle
+                    // within a couple of polls of submission and then
+                    // stop changing).
+                    if (newPlay.IsSubmitted)
+                        submittedBadge?.SetData(newPlay);
+                    else
+                        playingBadge?.SetSeconds(newPlay.StartedSecondsAgo);
+                }
+            }
+
+            private void swapStatusBadge(APIToriiServerPulseRecentPlay forPlay)
+            {
+                statusBadgeSlot.Clear(disposeChildren: true);
+                playingBadge = null;
+                submittedBadge = null;
+
+                if (forPlay.IsSubmitted)
+                {
+                    submittedBadge = new SubmittedScoreBadge(forPlay)
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                    };
+                    statusBadgeSlot.Add(submittedBadge);
+                }
+                else
+                {
+                    playingBadge = new PlayingNowBadge(forPlay.StartedSecondsAgo)
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                    };
+                    statusBadgeSlot.Add(playingBadge);
+                }
+            }
+
             // Left-click goes straight to the user profile — that's
             // the most common follow-up on a live-plays glance ("who
             // is that, can I follow them?"). Right-click reveals the
             // beatmap actions for when the listener is curious about
-            // the map instead.
+            // the map instead. Uses the latest `play` field so a
+            // recycled row always opens the user currently displayed.
             protected override bool OnClick(ClickEvent e)
             {
                 if (play.UserId > 0)
@@ -1082,10 +1418,6 @@ namespace osu.Game.Overlays.Toolbar
                     AvatarUrl = play.AvatarUrl,
                 };
 
-                Drawable statusBadge = play.IsSubmitted
-                    ? new SubmittedScoreBadge(play)
-                    : (Drawable)new PlayingNowBadge(play.StartedSecondsAgo);
-
                 InternalChildren = new Drawable[]
                 {
                     new Box
@@ -1124,7 +1456,7 @@ namespace osu.Game.Overlays.Toolbar
                         {
                             new Drawable[]
                             {
-                                new UpdateableAvatar(apiUser, isInteractive: false, showGuestOnNull: false)
+                                avatar = new UpdateableAvatar(apiUser, isInteractive: false, showGuestOnNull: false)
                                 {
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
@@ -1143,13 +1475,13 @@ namespace osu.Game.Overlays.Toolbar
                                     Spacing = new Vector2(0, 1),
                                     Children = new Drawable[]
                                     {
-                                        new OsuSpriteText
+                                        usernameText = new OsuSpriteText
                                         {
                                             Text = string.IsNullOrEmpty(play.Username) ? "—" : play.Username,
                                             Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
                                             Colour = Color4.White,
                                         },
-                                        new TruncatingSpriteText
+                                        titleText = new TruncatingSpriteText
                                         {
                                             Text = string.IsNullOrEmpty(play.Title) && string.IsNullOrEmpty(play.TitleUnicode)
                                                 ? (LocalisableString)""
@@ -1161,38 +1493,39 @@ namespace osu.Game.Overlays.Toolbar
                                     }
                                 },
                                 new Container(),
-                                new Container
+                                statusBadgeSlot = new Container
                                 {
                                     Anchor = Anchor.Centre,
                                     Origin = Anchor.Centre,
                                     RelativeSizeAxes = Axes.Both,
-                                    Child = statusBadge.With(d =>
-                                    {
-                                        d.Anchor = Anchor.Centre;
-                                        d.Origin = Anchor.Centre;
-                                    }),
                                 },
                             }
                         }
                     },
                 };
+
+                // Initial status badge — build directly into the slot.
+                swapStatusBadge(play);
             }
         }
 
         // ─── PlayingNowBadge ─────────────────────────────────────────
         // For in-flight plays. "PLAYING · 32s" two-line. Vermillion
         // tint matches the "live" connotation.
+        //
+        // Mutable: <see cref="SetSeconds"/> updates the elapsed-time
+        // line in place. The "PLAYING" label is static so the layout
+        // never reflows past the first frame.
         // ─────────────────────────────────────────────────────────────
         private partial class PlayingNowBadge : CompositeDrawable
         {
+            private int currentSeconds;
+            private OsuSpriteText secondsText = null!;
+
             public PlayingNowBadge(int secondsAgo)
             {
+                currentSeconds = secondsAgo;
                 AutoSizeAxes = Axes.Both;
-
-                string secondsText = secondsAgo < 5 ? "now"
-                    : secondsAgo < 60 ? $"{secondsAgo}s"
-                    : secondsAgo < 3600 ? $"{secondsAgo / 60}m"
-                    : "1h+";
 
                 InternalChild = new Container
                 {
@@ -1223,11 +1556,11 @@ namespace osu.Game.Overlays.Toolbar
                                     Spacing = new Vector2(0.6f, 0),
                                     Colour = torii_red,
                                 },
-                                new OsuSpriteText
+                                secondsText = new OsuSpriteText
                                 {
                                     Anchor = Anchor.TopCentre,
                                     Origin = Anchor.TopCentre,
-                                    Text = secondsText,
+                                    Text = formatSeconds(secondsAgo),
                                     Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
                                     Colour = Color4.White,
                                 },
@@ -1236,6 +1569,19 @@ namespace osu.Game.Overlays.Toolbar
                     }
                 };
             }
+
+            public void SetSeconds(int secondsAgo)
+            {
+                if (currentSeconds == secondsAgo) return;
+                currentSeconds = secondsAgo;
+                secondsText.Text = formatSeconds(secondsAgo);
+            }
+
+            private static string formatSeconds(int secondsAgo) =>
+                secondsAgo < 5 ? "now"
+                : secondsAgo < 60 ? $"{secondsAgo}s"
+                : secondsAgo < 3600 ? $"{secondsAgo / 60}m"
+                : "1h+";
         }
 
         // ─── SubmittedScoreBadge ─────────────────────────────────────
@@ -1243,22 +1589,38 @@ namespace osu.Game.Overlays.Toolbar
         // top, +Npp on bottom. Whole badge tinted by the rank colour
         // so the eye reads "they just got an S, look how big the pp
         // was". Replaces the "+1 PP" feedback the user was missing.
+        //
+        // Mutable: <see cref="SetData"/> updates each field only when
+        // its visible value moved. The delta line is always present
+        // in the layout tree but kept at Alpha=0 / AlwaysPresent=false
+        // so the FillFlow excludes it from its bounding box — toggling
+        // it on/off is just an Alpha flip rather than a tear-down /
+        // rebuild of the bottom row.
         // ─────────────────────────────────────────────────────────────
         private partial class SubmittedScoreBadge : CompositeDrawable
         {
-            public SubmittedScoreBadge(APIToriiServerPulseRecentPlay play)
+            private APIToriiServerPulseRecentPlay play;
+
+            private Box backgroundBox = null!;
+            private OsuSpriteText rankText = null!;
+            private OsuSpriteText accText = null!;
+            private OsuSpriteText ppText = null!;
+            private OsuSpriteText deltaText = null!;
+
+            public SubmittedScoreBadge(APIToriiServerPulseRecentPlay initialPlay)
             {
+                play = initialPlay;
                 AutoSizeAxes = Axes.Both;
 
-                Color4 rankColour = colourForRank(play.Rank);
-                string rankText = string.IsNullOrEmpty(play.Rank) ? "—" : play.Rank;
-                string accText = $"{play.Accuracy * 100:0.##}%";
+                Color4 rankColour = colourForRank(initialPlay.Rank);
+                string initialRank = string.IsNullOrEmpty(initialPlay.Rank) ? "—" : initialPlay.Rank;
+                string initialAcc = $"{initialPlay.Accuracy * 100:0.##}%";
                 // No "+" prefix on the play's intrinsic pp value — that's
                 // what the score is worth, not a delta to the user's
                 // total. The "+Xpp" delta below it (when >= 1) IS a real
                 // account-level gain (statistics.pp_after - pp_before),
                 // captured server-side at submission time.
-                string ppText = play.Pp >= 1 ? $"{play.Pp:0}pp" : "0pp";
+                string initialPp = initialPlay.Pp >= 1 ? $"{initialPlay.Pp:0}pp" : "0pp";
 
                 // Account-pp delta is only shown when the score
                 // meaningfully moved the user's overall pp (>= 1). Sub-1
@@ -1266,8 +1628,8 @@ namespace osu.Game.Overlays.Toolbar
                 // weighted top-100 to register as a "gain". Showing only
                 // the play's value in those cases avoids the misleading
                 // "+0 to total" line.
-                bool showDelta = play.AccountPpDelta >= 1.0;
-                string deltaText = showDelta ? $"+{play.AccountPpDelta:0}pp" : string.Empty;
+                bool showDelta = initialPlay.AccountPpDelta >= 1.0;
+                string initialDelta = showDelta ? $"+{initialPlay.AccountPpDelta:0}pp" : string.Empty;
 
                 InternalChild = new Container
                 {
@@ -1276,7 +1638,7 @@ namespace osu.Game.Overlays.Toolbar
                     CornerRadius = 9,
                     Children = new Drawable[]
                     {
-                        new Box
+                        backgroundBox = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
                             Colour = rankColour.Opacity(0.18f),
@@ -1298,19 +1660,19 @@ namespace osu.Game.Overlays.Toolbar
                                     Spacing = new Vector2(4, 0),
                                     Children = new Drawable[]
                                     {
-                                        new OsuSpriteText
+                                        rankText = new OsuSpriteText
                                         {
                                             Anchor = Anchor.CentreLeft,
                                             Origin = Anchor.CentreLeft,
-                                            Text = rankText,
+                                            Text = initialRank,
                                             Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
                                             Colour = rankColour,
                                         },
-                                        new OsuSpriteText
+                                        accText = new OsuSpriteText
                                         {
                                             Anchor = Anchor.CentreLeft,
                                             Origin = Anchor.CentreLeft,
-                                            Text = accText,
+                                            Text = initialAcc,
                                             Font = OsuFont.GetFont(size: 9, weight: FontWeight.Regular),
                                             Colour = new Color4(255, 255, 255, 175),
                                             Margin = new MarginPadding { Top = 2 },
@@ -1324,7 +1686,35 @@ namespace osu.Game.Overlays.Toolbar
                                     AutoSizeAxes = Axes.Both,
                                     Direction = FillDirection.Horizontal,
                                     Spacing = new Vector2(3, 0),
-                                    Children = buildPpRow(ppText, deltaText, showDelta),
+                                    Children = new Drawable[]
+                                    {
+                                        ppText = new OsuSpriteText
+                                        {
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            Text = initialPp,
+                                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                            Colour = Color4.White,
+                                        },
+                                        // Delta text is always laid out but
+                                        // gated by Alpha + IsPresent so the
+                                        // FillFlow's auto-sizing excludes it
+                                        // when no delta is shown. Toggling
+                                        // visibility no longer re-builds the
+                                        // pp row.
+                                        deltaText = new OsuSpriteText
+                                        {
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            Text = initialDelta,
+                                            Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold),
+                                            // Soft mint green — reads as "+ to your account"
+                                            // without competing with the rank colour above.
+                                            Colour = new Color4(140, 230, 165, 255),
+                                            Margin = new MarginPadding { Top = 1 },
+                                            Alpha = showDelta ? 1f : 0f,
+                                        },
+                                    },
                                 },
                             }
                         }
@@ -1332,51 +1722,35 @@ namespace osu.Game.Overlays.Toolbar
                 };
             }
 
-            // Builds the bottom row of the badge: the play's pp value,
-            // followed by a small green "+Xpp" only when this score
-            // actually lifted the user's account-level pp by at least
-            // 1pp. The delta uses a brand-friendly "gain green" so the
-            // viewer immediately reads the colour as a positive
-            // outcome — distinct from the white play-value next to it.
-            private static Drawable[] buildPpRow(string ppText, string deltaText, bool showDelta)
+            public void SetData(APIToriiServerPulseRecentPlay newPlay)
             {
-                if (!showDelta)
+                bool sameRank = play.Rank == newPlay.Rank;
+                bool sameAcc = play.Accuracy == newPlay.Accuracy;
+                bool samePp = play.Pp == newPlay.Pp;
+                bool sameDelta = play.AccountPpDelta == newPlay.AccountPpDelta;
+
+                play = newPlay;
+
+                if (!sameRank)
                 {
-                    return new Drawable[]
-                    {
-                        new OsuSpriteText
-                        {
-                            Anchor = Anchor.CentreLeft,
-                            Origin = Anchor.CentreLeft,
-                            Text = ppText,
-                            Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
-                            Colour = Color4.White,
-                        },
-                    };
+                    Color4 newRankColour = colourForRank(newPlay.Rank);
+                    rankText.Text = string.IsNullOrEmpty(newPlay.Rank) ? "—" : newPlay.Rank;
+                    rankText.Colour = newRankColour;
+                    backgroundBox.Colour = newRankColour.Opacity(0.18f);
                 }
 
-                return new Drawable[]
+                if (!sameAcc)
+                    accText.Text = $"{newPlay.Accuracy * 100:0.##}%";
+
+                if (!samePp)
+                    ppText.Text = newPlay.Pp >= 1 ? $"{newPlay.Pp:0}pp" : "0pp";
+
+                if (!sameDelta)
                 {
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        Text = ppText,
-                        Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
-                        Colour = Color4.White,
-                    },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        Text = deltaText,
-                        Font = OsuFont.GetFont(size: 9, weight: FontWeight.Bold),
-                        // Soft mint green — reads as "+ to your account"
-                        // without competing with the rank colour above.
-                        Colour = new Color4(140, 230, 165, 255),
-                        Margin = new MarginPadding { Top = 1 },
-                    },
-                };
+                    bool showDelta = newPlay.AccountPpDelta >= 1.0;
+                    deltaText.Text = showDelta ? $"+{newPlay.AccountPpDelta:0}pp" : string.Empty;
+                    deltaText.Alpha = showDelta ? 1f : 0f;
+                }
             }
 
             // Standard osu! rank palette — gold for SS / S, descending
