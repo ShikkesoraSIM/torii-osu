@@ -434,6 +434,19 @@ namespace osu.Game.Configuration
             // flips to false).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
+            // Torii: input + audio thread rate (Hz). Plumbed into
+            // GameHost.ToriiInputAudioHz on startup so updateFrameSyncMode
+            // picks up the value when the frame sync mode bindable is
+            // evaluated. 2000 Hz is the historical Torii competitive default
+            // — high enough that the input/audio loop has tight latency on
+            // capable hardware, low enough that mainstream desktops don't
+            // get thermally cooked. Users on weak machines can drop to 500 /
+            // 1000; users with capable CPUs (or just curiosity) can push 4000
+            // / 8000. Note that "I am stupid" mode (UnlimitedNoCap +
+            // AllowDangerousUnlimitedNoCap) still bypasses this and runs
+            // fully uncapped — this setting is the *capped* rate.
+            SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
+
             // Torii hiccup logger — captures frames slower than ~33 ms (sub-30
             // fps) into a JSONL file under <storage>/torii/hiccups/<timestamp>.jsonl
             // along with surrounding context (current screen, visible overlays,
@@ -804,6 +817,7 @@ namespace osu.Game.Configuration
         DiscordRichPresence,
 
         ShowOnlineExplicitContent,
+        ToriiInputAudioHz,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,

@@ -372,6 +372,17 @@ namespace osu.Game
         private IBindable<LocalisationParameters> localisationParameters = null!;
 
         /// <summary>
+        /// Held as a field (not a local in <see cref="SetHost"/>) so the
+        /// bound copy survives past SetHost's stack frame. Osu-framework
+        /// bindables keep child references via a weak list, so a local
+        /// gets silently dropped on the next GC and the value-changed
+        /// chain to <c>host.ToriiInputAudioHz</c> stops firing. That was
+        /// the "el dropdown no hace NADA" bug — the wiring was correct
+        /// for the first paint, then GC nuked it.
+        /// </summary>
+        private Bindable<ToriiInputAudioHzMode> inputAudioHzSetting = null!;
+
+        /// <summary>
         /// Number of unhandled exceptions to allow before aborting execution.
         /// </summary>
         /// <remarks>
@@ -801,6 +812,21 @@ namespace osu.Game
                 : new OsuConfigManager(Storage);
 
             host.ExceptionThrown += onExceptionThrown;
+
+            // Torii: wire the user-facing input/audio thread Hz setting to
+            // the host's bindable so the framework picks up the value and
+            // re-evaluates frame-sync rates whenever the user changes it.
+            // The Hz enum's numeric value IS the actual Hz (see
+            // ToriiInputAudioHzMode), so the cast back to int just unwraps
+            // the underlying integer for the framework's BindableInt.
+            //
+            // Initial assignment happens via the immediate-fire flag on
+            // BindValueChanged — eq sense as the framework's other config
+            // bindings — so a fresh start picks up the saved preference on
+            // the first updateFrameSyncMode pass rather than the framework's
+            // own default of 2000.
+            inputAudioHzSetting = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
+            inputAudioHzSetting.BindValueChanged(e => host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
         }
 
         /// <summary>

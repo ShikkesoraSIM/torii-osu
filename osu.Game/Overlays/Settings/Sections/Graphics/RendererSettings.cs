@@ -84,6 +84,30 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps" },
                 },
+                // Torii: input + audio thread rate. The historical Torii
+                // competitive default of 2000 Hz used to be hardcoded
+                // regardless of the frame limiter pick — that was fine on
+                // capable desktops but pinned weaker machines at unnecessarily
+                // high CPU cost (especially in VSync / Limit2x modes where
+                // the user is explicitly trying to keep things cool). The
+                // setting now lets users pick their own cap; lower for
+                // older hardware, higher if they want the tightest input
+                // latency. Lives directly under the Frame limiter dropdown
+                // because the two are closely related (input/audio rate
+                // pairs with how often draw/update rate caps are evaluated).
+                new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
+                {
+                    Caption = "Input/audio thread rate",
+                    HintText = "How fast the input + audio threads run. Higher = tighter input latency but more CPU. "
+                               + "2000 Hz is the Torii default; drop to 500/1000 if your machine struggles, "
+                               + "push to 4000/8000 only if you have CPU headroom to spare. "
+                               + "Does not apply when 'I am stupid' is on (that mode runs fully uncapped).",
+                    Current = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz),
+                    NewFeatureId = NewFeatureRegistry.InputAudioHz,
+                })
+                {
+                    Keywords = new[] { @"hz", @"input", @"audio", @"thread", @"polling", @"rate", @"latency", @"frequency", @"competitive", @"2000", @"1000", @"4000", @"8000", @"torii" },
+                },
                 new SettingsItemV2(dangerousUnlimitedCheckbox = new FormCheckBox
                 {
                     Caption = "I am stupid, I ignore warnings and want no limits",
