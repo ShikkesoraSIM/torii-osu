@@ -145,7 +145,36 @@ namespace osu.Game.Online.API
             // post pair lets the dashboard see "an API request was in flight
             // for 2.3s before this stall" — useful for catching sync waits
             // and slow-network UI cascades. No-op when the logger is OFF.
-            string requestTarget = Target;
+            //
+            // Some APIRequest subclasses (the beatmap-submission family —
+            // PutBeatmapSetRequest, PatchBeatmapPackageRequest,
+            // ReplaceBeatmapPackageRequest) intentionally override `Uri`
+            // and leave `Target` as `throw new NotSupportedException()`
+            // because their full URL is built from
+            // `Endpoints.BeatmapSubmissionServiceUrl` rather than the
+            // standard `/api/v2/{Target}` prefix. Reading `.Target`
+            // directly here used to bubble that NotSupportedException
+            // out of `Perform()` — the BSS request never made it onto
+            // the wire, the user got the generic "Error occurred while
+            // handling an API request" toast, and the submission UI
+            // sat at "Preparing for upload..." forever (because the
+            // exception was thrown before either Success or Failure
+            // could fire, so the screen's allowExit() never ran).
+            //
+            // Fall back to the concrete type name for the breadcrumb
+            // detail when Target isn't available — still readable on
+            // the hiccup dashboard, doesn't lose any information that
+            // wasn't already going to read as "PutBeatmapSetRequest"
+            // anyway.
+            string requestTarget;
+            try
+            {
+                requestTarget = Target;
+            }
+            catch (NotSupportedException)
+            {
+                requestTarget = GetType().Name;
+            }
             var perfStart = System.Diagnostics.Stopwatch.GetTimestamp();
             osu.Game.Performance.HiccupBreadcrumbs.Add("api.request.start", requestTarget);
 
