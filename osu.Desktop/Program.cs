@@ -474,6 +474,25 @@ namespace osu.Desktop
                 }
             }
 
+            // Torii: secondary kill watchdog. Fires 2 seconds from now,
+            // independent of whether Environment.Exit (below) succeeds or
+            // hangs in a finalizer. If the finalizers complete cleanly
+            // first, Process.Kill is a no-op (process already gone). If
+            // they hang, this kills the process at 2s instead of forcing
+            // the user to wait the full 5s for the ExitRequested watchdog.
+            //
+            // The "host fully stopped but process won't exit" path Remi
+            // hits goes: user clicks Exit → host completes shutdown in
+            // ~500ms → host.Run returns → Environment.Exit(0) called →
+            // finalizer hangs. With just the ExitRequested watchdog the
+            // process dies at 5s. With this second watchdog it dies at
+            // ~2.5s. Half the wait for the same robustness.
+            Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+                try { System.Diagnostics.Process.GetCurrentProcess().Kill(); } catch { }
+            });
+
             // Torii: force termination after the host has been disposed.
             // The `using` block above triggers host.Dispose() which runs the
             // game's IDisposable chain (network clients close, file writers
