@@ -434,7 +434,36 @@ namespace osu.Desktop
                             {
                                 // Logger may already be torn down. Don't let that stop the exit.
                             }
-                            Environment.Exit(0);
+
+                            // Round 5: use Process.Kill instead of Environment.Exit.
+                            // Remi tested v2026.522.7-nova (round 3) and the log
+                            // shows "Host execution state changed to Stopped"
+                            // followed by silence — host fully stopped, BUT the
+                            // process still didn't terminate.
+                            //
+                            // Working theory: Environment.Exit(0) runs finalizers
+                            // before exiting, and a finalizer in some native
+                            // interop (Realm Core scheduler, BASS native audio,
+                            // etc.) was hanging indefinitely. Environment.Exit
+                            // waits for that finalizer to complete, which never
+                            // happens, so the process stays alive forever.
+                            //
+                            // Process.Kill bypasses finalizers entirely — it's
+                            // the OS-level equivalent of Task Manager's "End
+                            // Task". By the time the watchdog fires (5s after
+                            // exit), the user has already had ample opportunity
+                            // for graceful cleanup. If we're still alive at
+                            // that point, just kill the process.
+                            try
+                            {
+                                System.Diagnostics.Process.GetCurrentProcess().Kill();
+                            }
+                            catch
+                            {
+                                // Fallback: Exit if Kill somehow fails. Don't
+                                // let anything stop the shutdown.
+                                Environment.Exit(0);
+                            }
                         });
                     };
 
