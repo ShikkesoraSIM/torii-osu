@@ -75,6 +75,37 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string UITheme = "v2026.514.0:ui-theme";
 
+        // ---------------------------------------------------------------
+        // v2026.522.x — first release shipping the in-game NSFW media
+        // toggle (mirror of the website's profile_media_show_nsfw
+        // preference) inside the Torii Interface settings subsection.
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Marks the "Show NSFW profile media" toggle at the top of
+        /// Settings → Torii → Interface. The flag controls whether the
+        /// server serves real avatar / cover URLs for users who have
+        /// flagged their profile as NSFW (the in-game counterpart of the
+        /// same toggle on the website's User Preferences page). Brand
+        /// new in-game surface, hence the badge — once the user has
+        /// interacted with it the threshold number of times, the
+        /// tracker drops the badge automatically.
+        /// </summary>
+        public const string NsfwProfileMedia = "v2026.522.0:nsfw-profile-media";
+
+        /// <summary>
+        /// Marks the new "Input/audio thread rate" dropdown in Settings →
+        /// Graphics → Renderer. The rate used to be hardcoded to 2000 Hz
+        /// across every frame-sync mode (introduced with the
+        /// torii_input_audio_hz constant in osu-framework); now users
+        /// pick from 500 / 1000 / 2000 / 4000 / 8000 Hz so weaker
+        /// machines aren't burned by the historical default. Badge calls
+        /// attention to a setting users wouldn't otherwise notice exists
+        /// (it sits between the existing FrameLimiter and "I am stupid"
+        /// rows).
+        /// </summary>
+        public const string InputAudioHz = "v2026.522.0:input-audio-hz";
+
         /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
@@ -86,6 +117,8 @@ namespace osu.Game.Configuration
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
+            NsfwProfileMedia,
+            InputAudioHz,
         };
 
         /// <summary>

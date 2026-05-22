@@ -2,14 +2,18 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Graphics.UserInterfaceV2
 {
@@ -72,6 +76,27 @@ namespace osu.Game.Graphics.UserInterfaceV2
         // the textflow's internal children every time.
         private NewFeatureBadge? badge;
 
+        // Torii: when true, a small "+18" red pill is appended after
+        // the [NEW] badge (or after the tooltip icon if no [NEW] badge
+        // is attached). Used for settings that toggle access to
+        // adult-rated content — currently the NSFW profile media
+        // toggle in Settings → Torii → Interface. The pill is a
+        // visual cue only; the enforcement is server-side via
+        // UserPreference.profile_media_show_nsfw + apply_nsfw_media_policy.
+        private bool showExplicitContentBadge;
+
+        public bool ShowExplicitContentBadge
+        {
+            get => showExplicitContentBadge;
+            init
+            {
+                showExplicitContentBadge = value;
+
+                if (IsLoaded)
+                    updateDisplay();
+            }
+        }
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -124,6 +149,16 @@ namespace osu.Game.Graphics.UserInterfaceV2
                 };
                 textFlow.AddArbitraryDrawable(badge);
             }
+
+            if (showExplicitContentBadge)
+            {
+                textFlow.AddArbitraryDrawable(new ExplicitContentBadge
+                {
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Margin = new MarginPadding { Left = 6 },
+                });
+            }
         }
 
         /// <summary>
@@ -136,6 +171,43 @@ namespace osu.Game.Graphics.UserInterfaceV2
         public void RegisterInteraction()
         {
             badge?.RegisterInteraction();
+        }
+
+        /// <summary>
+        /// Small red "+18" pill rendered inline in the caption flow when
+        /// <see cref="ShowExplicitContentBadge"/> is set. Visual cue
+        /// flagging that the host setting unlocks adult-rated content.
+        /// Sized + padded to roughly match the [NEW] badge's footprint so
+        /// the two read as siblings when both are present.
+        /// </summary>
+        private partial class ExplicitContentBadge : CompositeDrawable
+        {
+            public ExplicitContentBadge()
+            {
+                AutoSizeAxes = Axes.Both;
+                Masking = true;
+                CornerRadius = 3.5f;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                InternalChildren = new Drawable[]
+                {
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Color4.Red.Opacity(0.85f),
+                    },
+                    new OsuSpriteText
+                    {
+                        Text = "+18",
+                        Font = OsuFont.Default.With(weight: FontWeight.Bold, size: 10),
+                        Colour = Color4.White,
+                        Margin = new MarginPadding { Horizontal = 5, Vertical = 1 },
+                    },
+                };
+            }
         }
     }
 }
