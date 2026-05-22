@@ -4,6 +4,7 @@
 using System;
 using System.IO;
 using System.Runtime.Versioning;
+using System.Threading.Tasks;
 using osu.Desktop.LegacyIpc;
 using osu.Desktop.Windows;
 using osu.Desktop.LowLatency;
@@ -397,6 +398,45 @@ namespace osu.Desktop
                     {
                         Logger.Log("No compatible low latency provider available (requires NVIDIA or AMD GPU with recent drivers).");
                     }
+
+                    // Torii: shutdown watchdog. Fires when the host's
+                    // ExitRequested event triggers (user clicked Exit, X
+                    // button, Alt+F4, etc.). Waits 5 seconds for the
+                    // natural shutdown chain to complete, then force-
+                    // terminates the process regardless of state.
+                    //
+                    // This is a stronger safety net than the
+                    // Environment.Exit at the end of Main: that one only
+                    // fires AFTER host.Run() returns, so if the game
+                    // thread hangs DURING the exit sequence (e.g., a
+                    // screen-stack unwind deadlock, an async load that
+                    // doesn't complete, a Wait on a Task that never
+                    // finishes), host.Run never returns and the post-Run
+                    // Exit never fires. This watchdog runs on a separate
+                    // background thread so it's immune to whatever the
+                    // game thread is doing.
+                    //
+                    // 5 seconds is more than enough for a healthy
+                    // shutdown (typically <500ms after exit click); on
+                    // a stuck shutdown the user gets back to their
+                    // desktop within 5 seconds instead of having to
+                    // open Task Manager to kill the process.
+                    host.ExitRequested += () =>
+                    {
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                            try
+                            {
+                                Logger.Log("[Shutdown watchdog] host.Run did not complete within 5s of ExitRequested; force-terminating process.", LoggingTarget.Runtime, LogLevel.Important);
+                            }
+                            catch
+                            {
+                                // Logger may already be torn down. Don't let that stop the exit.
+                            }
+                            Environment.Exit(0);
+                        });
+                    };
 
                     host.Run(new OsuGameDesktop(args)
                     {
