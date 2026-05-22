@@ -18,6 +18,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Chat;
 using osu.Game.Overlays.Notifications;
@@ -53,11 +54,54 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         private SupporterLockedSlot? accentPickerSlot;
         private IBindable<APIUser>? localUser;
 
+        // NSFW profile media toggle state. The value is authoritative
+        // server-side (lives in UserPreference.profile_media_show_nsfw)
+        // because the *server* substitutes avatar / cover URLs with
+        // placeholders before they leave the API — a client-only toggle
+        // would do nothing because we couldn't unsubstitute what we never
+        // got. We fetch the current value at load and PATCH on toggle.
+        //
+        // suppressNsfwPatch gates the BindValueChanged handler so the
+        // initial GET response setting the bindable doesn't echo back
+        // as a PATCH for the same value the server already has.
+        private readonly Bindable<bool> nsfwProfileMediaBindable = new BindableBool();
+        private bool suppressNsfwPatch;
+
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
             Children = new Drawable[]
             {
+                // NSFW profile media toggle. Mirrors the web's User
+                // Preferences page so users get the same control in-game
+                // they have on the website. Lives at the very top of the
+                // Torii Interface subsection because:
+                //   - it's a content-display preference (matches the
+                //     "what do I see" theme of this whole subsection),
+                //   - it's the only ingame surface for this preference
+                //     (no other entry point), so making users scroll
+                //     past cursor + theme settings just to find it
+                //     would be a UX miss,
+                //   - on first visit, the GET below populates the
+                //     checkbox a frame after the panel opens; the user
+                //     sees the live state instead of stale defaults.
+                // Initial state populates from the GET fired in
+                // LoadComplete; toggling fires a PATCH back to the
+                // server (see LoadComplete for the wiring).
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show NSFW profile media",
+                    HintText = "Show real avatars and covers for users who've flagged their profile as NSFW. "
+                               + "When off (default), those users render with placeholders instead. "
+                               + "This mirrors the same toggle on the website's user preferences page; "
+                               + "changing it here saves to your account immediately.",
+                    Current = nsfwProfileMediaBindable,
+                    NewFeatureId = NewFeatureRegistry.NsfwProfileMedia,
+                    ShowExplicitContentBadge = true,
+                })
+                {
+                    Keywords = new[] { @"nsfw", @"18+", @"sensitive", @"avatar", @"cover", @"profile", @"media", @"explicit", @"offensive" },
+                },
                 // Torii: cosmetic UI-theme dropdown ("Torii" vs
                 // "Grayscale by fsyori"). Mirrored from Settings → Skin
                 // — same bindable, same restart-confirm — placed at
@@ -65,33 +109,14 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 // users browsing Torii-specific chrome prefs are the
                 // primary audience for it.
                 new UIThemeDropdownAndRestart(),
-                // Torii cursor controls — DUPLICATED here on purpose. The
-                // canonical home is Settings → User Interface → General
-                // (alongside the other lazer cursor knobs), but the user
-                // also wants them surfaced inside the Torii section since
-                // the "Use Torii cursor" option is a Torii-branded feature
-                // and people browsing Torii-specific settings expect to
-                // find it here. Both copies bind to the same OsuSetting
-                // bindables, so changes round-trip live regardless of which
-                // panel the user touched.
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = UserInterfaceStrings.CursorRotation,
-                    Current = config.GetBindable<bool>(OsuSetting.CursorRotation),
-                })
-                {
-                    Keywords = new[] { @"cursor", @"spin", @"rotate", @"drag", @"torii" },
-                },
-                new SettingsItemV2(new FormSliderBar<float>
-                {
-                    Caption = UserInterfaceStrings.MenuCursorSize,
-                    Current = config.GetBindable<float>(OsuSetting.MenuCursorSize),
-                    KeyboardStep = 0.01f,
-                    LabelFormat = v => $"{v:0.##}x",
-                })
-                {
-                    Keywords = new[] { @"cursor", @"size", @"menu", @"torii" },
-                },
+                // Torii: menu cursor style is the only torii-specific
+                // cursor knob (Lazer Default / Skin Cursor / Torii Cursor)
+                // so it's the only one we surface inside Torii Interface.
+                // The shape / scale / rotation cursor sliders used to be
+                // duplicated here too, but the user found that wasteful —
+                // those still live at Settings → User Interface → General
+                // (the canonical lazer home), reachable via the settings
+                // search.
                 new SettingsItemV2(new FormEnumDropdown<osu.Game.Graphics.Cursor.MenuCursorStyle>
                 {
                     Caption = UserInterfaceStrings.MenuCursorStyle,
@@ -101,13 +126,22 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                     Keywords = new[] { @"cursor", @"gameplay", @"skin", @"torii", @"style" },
                 },
 
+                // Custom UI hue — a single master toggle + the hue picker.
+                // Previously this section also exposed three separate
+                // "Apply hue to menu / overlays / settings panel" toggles,
+                // but in practice everybody enabled the master and left
+                // the three sub-toggles on; the granularity was clutter,
+                // not flexibility. The sub-toggles still exist as
+                // bindables (other code reads them) — they're now driven
+                // entirely by the master in LoadComplete: master ON
+                // forces all three ON, master OFF forces all three OFF.
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = UserInterfaceStrings.EnableCustomUIHue,
                     Current = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled),
                 })
                 {
-                    Keywords = new[] { @"colour", @"color", @"hue", @"theme", @"accent", @"torii" },
+                    Keywords = new[] { @"colour", @"color", @"hue", @"theme", @"accent", @"torii", @"menu", @"overlay", @"settings", @"apply" },
                 },
                 new SettingsItemV2(new FormHuePicker
                 {
@@ -118,21 +152,6 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 {
                     Keywords = new[] { @"colour", @"color", @"hue", @"theme", @"accent", @"torii" },
                 },
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = UserInterfaceStrings.ApplyHueToMenu,
-                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu),
-                }),
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = UserInterfaceStrings.ApplyHueToOverlays,
-                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays),
-                }),
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = UserInterfaceStrings.ApplyHueToSettingsPanel,
-                    Current = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel),
-                }),
 
                 // Server pulse widget — toolbar pill that shows live
                 // "currently playing / plays per minute / top map" stats.
@@ -173,6 +192,33 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
             Add(accentEnableSlot);
             Add(accentPickerSlot);
+
+            // Custom UI hue master → sub-toggle propagation. The three
+            // ApplyHueTo* bindables (menu / overlays / settings panel)
+            // are still consumed by the chrome that actually paints
+            // those surfaces — they just don't have UI of their own any
+            // more. Whenever the master toggle moves, push the same
+            // value into all three so they stay in lock-step. Fires
+            // immediately on bind to bring stale configs (where the
+            // user had toggled the sub-flags independently in an
+            // earlier release) back into a consistent "all three match
+            // master" state on first launch of this version.
+            //
+            // Direction is intentionally master → subs only. There's no
+            // remaining UI that toggles a single sub-flag, so we don't
+            // need to listen for sub-flag changes — and if other code
+            // ever did, the master would still be honoured as the
+            // user-visible source of truth on the next toggle.
+            var customUiHueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
+            var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
+            var applyToOverlays = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays);
+            var applyToSettings = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel);
+            customUiHueEnabled.BindValueChanged(e =>
+            {
+                applyToMenu.Value = e.NewValue;
+                applyToOverlays.Value = e.NewValue;
+                applyToSettings.Value = e.NewValue;
+            }, true);
         }
 
         protected override void LoadComplete()
@@ -187,6 +233,63 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
             localUser = api.LocalUser.GetBoundCopy();
             localUser.BindValueChanged(_ => updateSupporterLock(), true);
+
+            // NSFW profile media wiring. Two halves:
+            //
+            // 1) GET the current preference from the server to populate
+            //    the checkbox so users opening the panel see their real
+            //    saved state. We gate the change handler with
+            //    suppressNsfwPatch so the value assignment from this
+            //    callback doesn't echo back as a redundant PATCH.
+            //
+            // 2) On user toggle, PATCH the new value. Failure shows a
+            //    notification and reverts the visual state so the
+            //    checkbox doesn't lie about server-side reality.
+            //
+            // Both branches are best-effort — a logged-out client or a
+            // server outage leaves the checkbox at its default-false
+            // state and toggling does nothing dramatic (the PATCH just
+            // fails, which we surface to the user).
+            var prefRequest = new GetToriiUserPreferencesRequest();
+            prefRequest.Success += response =>
+            {
+                Schedule(() =>
+                {
+                    suppressNsfwPatch = true;
+                    nsfwProfileMediaBindable.Value = response.ProfileMediaShowNsfw ?? false;
+                    suppressNsfwPatch = false;
+                });
+            };
+            // No Failure handler: leaving the toggle at default-false
+            // when the GET fails is a reasonable fallback — if the user
+            // then toggles, the PATCH will surface its own error.
+            api.Queue(prefRequest);
+
+            nsfwProfileMediaBindable.BindValueChanged(e =>
+            {
+                if (suppressNsfwPatch) return;
+                if (api == null) return;
+
+                var patch = PatchToriiUserPreferencesRequest.ProfileMediaShowNsfw(e.NewValue);
+                patch.Failure += _ =>
+                {
+                    // Revert the visual toggle so the checkbox stays
+                    // honest about server-side state. Schedule because
+                    // Failure can fire off the update thread.
+                    Schedule(() =>
+                    {
+                        suppressNsfwPatch = true;
+                        nsfwProfileMediaBindable.Value = e.OldValue;
+                        suppressNsfwPatch = false;
+
+                        notifications?.Post(new SimpleErrorNotification
+                        {
+                            Text = "Couldn't save your NSFW profile media preference. Try again in a moment.",
+                        });
+                    });
+                };
+                api.Queue(patch);
+            });
         }
 
         private void updateSupporterLock()

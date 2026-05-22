@@ -35,6 +35,28 @@ namespace osu.Game.Graphics.UserInterfaceV2
         /// </summary>
         public LocalisableString HintText { get; init; }
 
+        /// <summary>
+        /// When non-null, a "NEW" feature badge is appended to the caption
+        /// row (same dismiss-after-N-interactions behaviour as
+        /// <see cref="FormDropdown{T}.NewFeatureId"/>). The badge is
+        /// rendered by <see cref="FormFieldCaption"/> which is shared
+        /// across form controls — see <see cref="osu.Game.Configuration.NewFeatureRegistry"/>
+        /// for the registration convention (every new ingame setting
+        /// we add should register an ID here and reference it).
+        /// </summary>
+        public string? NewFeatureId { get; init; }
+
+        /// <summary>
+        /// When <c>true</c>, a small red "+18" pill is appended after
+        /// the caption (and after the [NEW] badge if both are present).
+        /// Visual cue for settings that unlock adult-rated content —
+        /// the only current consumer is the NSFW profile media toggle
+        /// in Settings → Torii → Interface, but the prop is on
+        /// <see cref="FormCheckBox"/> so future similar settings can
+        /// reuse it without re-writing the badge rendering.
+        /// </summary>
+        public bool ShowExplicitContentBadge { get; init; }
+
         private FormControlBackground background = null!;
         private FormFieldCaption caption = null!;
 
@@ -72,6 +94,8 @@ namespace osu.Game.Graphics.UserInterfaceV2
                                 {
                                     Caption = Caption,
                                     TooltipText = HintText,
+                                    NewFeatureId = NewFeatureId,
+                                    ShowExplicitContentBadge = ShowExplicitContentBadge,
                                 },
                             },
                         },
