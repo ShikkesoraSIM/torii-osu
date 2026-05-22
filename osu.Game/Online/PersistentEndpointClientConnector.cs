@@ -223,6 +223,33 @@ namespace osu.Game.Online
             apiState.UnbindAll();
             cancelExistingConnect();
 
+            // Torii: tear down the active connection too, not just cancel
+            // the retry token. Without this the SignalR HubConnection
+            // (or WebSocket equivalent) kept its keepalive / message-
+            // pump / internal-reconnect threads alive past process
+            // shutdown, pinning torii.exe at 1-thread CPU usage
+            // indefinitely after the user clicked Exit (Remi's report —
+            // process shows up in Task Manager at ~5% on a 20-thread
+            // machine, never terminates, online presence stays online
+            // because the websocket is still open server-side).
+            //
+            // Bounded wait so a server that doesn't acknowledge the
+            // close handshake can't hold the process open. 2 seconds
+            // is generous for a healthy SignalR / WebSocket close; on
+            // a dead connection we move on and let the OS reclaim the
+            // socket when the process actually exits.
+            try
+            {
+                Disconnect().Wait(TimeSpan.FromSeconds(2));
+            }
+            catch
+            {
+                // Best-effort: Dispose must complete even if the
+                // disconnect throws (lock timeout, mid-close socket
+                // error, etc.). Worst case we leave the connection
+                // half-open and rely on the OS to reap it.
+            }
+
             isDisposed = true;
         }
 

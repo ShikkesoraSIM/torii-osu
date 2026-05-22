@@ -725,6 +725,19 @@ namespace osu.Game.Online.API
 
             flushQueue();
             cancellationToken.Cancel();
+
+            // Torii: the notifications client connector is constructed
+            // by setUpNotificationsClient and held only on this property
+            // — it's NOT added to base.Content like the spectator /
+            // multiplayer / metadata clients are, so the framework's
+            // Container.Dispose cascade never reaches it and its
+            // Dispose was never being called. That left the underlying
+            // WebSocket connection alive past host shutdown, which is
+            // half of Remi's "process stays alive at 1-thread CPU"
+            // report. (The other half is fixed in
+            // PersistentEndpointClientConnector.Dispose — see the
+            // comment there.)
+            (NotificationsClient as IDisposable)?.Dispose();
         }
 
         internal class WebRequestFlushedException : Exception
