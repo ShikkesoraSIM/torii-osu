@@ -24,7 +24,7 @@ env:
   # NuGet feed referenced by torii-osu/nuget.config — keeping us free of
   # any nuget.org account management or publishing infrastructure.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '94ccdf1e8fd93aa887c2ee61be7659e30cddf95f'
+  FRAMEWORK_REF: 'd540460ad28899d49e079339f54c95c1afc3bedf'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: '25ad583064fb19ecd604813446226cb5c0c7bd35'
   VELDRID_REPOSITORY: 'ShikkesoraSIM/torii-veldrid'

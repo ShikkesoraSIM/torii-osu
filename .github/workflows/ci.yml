@@ -27,7 +27,7 @@ jobs:
         with:
           repository: ShikkesoraSIM/torii-framework
           fetch-depth: 1
-          ref: 94ccdf1e8fd93aa887c2ee61be7659e30cddf95f
+          ref: d540460ad28899d49e079339f54c95c1afc3bedf
           path: osu-framework
 
       - name: Checkout osu-resources dependency
