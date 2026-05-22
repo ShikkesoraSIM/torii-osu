@@ -404,6 +404,31 @@ namespace osu.Desktop
                     });
                 }
             }
+
+            // Torii: force termination after the host has been disposed.
+            // The `using` block above triggers host.Dispose() which runs the
+            // game's IDisposable chain (network clients close, file writers
+            // flush, realm closes its update-thread instance, BASS frees
+            // devices, etc.). After that, returning from Main would leave
+            // the CLR waiting for any non-background thread to finish
+            // before terminating the process.
+            //
+            // In practice, native interop threads spawned by Realm Core's
+            // scheduler, BASS audio (especially WASAPI exclusive mode), and
+            // a couple of other libraries don't always get torn down (or
+            // aren't marked as background threads), which leaves torii.exe
+            // pinned at ~5% CPU on the user's task list after they clicked
+            // Exit, with online presence stuck "online" because the OS
+            // hasn't reaped the sockets yet either. Reported by Remi on
+            // RDNA 4 / WASAPI / wireless headset — wouldn't terminate even
+            // after 60+ seconds.
+            //
+            // Environment.Exit(0) calls finalizers briefly and then exits,
+            // guaranteeing the process disappears from task manager when
+            // the user expects it to. The game-state shutdown already
+            // completed above, so this is purely a "kill the remaining
+            // leaked native threads" safety net, not a way to skip cleanup.
+            Environment.Exit(0);
         }
 
         private static bool trySendIPCMessage(IIpcHost host, string cwd, string[] args)
