@@ -89,7 +89,23 @@ namespace osu.Game.Online.Notifications.WebSocket
         {
             try
             {
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, @"Disconnecting", CancellationToken.None).ConfigureAwait(false);
+                // Torii: bound the close handshake with a 2-second
+                // cancellation token. Previous code passed CancellationToken.None
+                // which meant ClientWebSocket.CloseAsync would wait
+                // indefinitely for the server's close-ack. If the
+                // server didn't respond (dead connection, network
+                // partition, sleeping laptop in the middle of close),
+                // the underlying socket I/O thread would stay alive
+                // forever, pinning the process at 1-thread CPU usage
+                // after the user clicked Exit (Remi's report — process
+                // doesn't terminate, online presence stays online).
+                //
+                // 2 seconds is generous for a healthy WebSocket close
+                // round-trip (typically <100ms); on a dead connection
+                // we abort and let socket.Dispose() in DisposeAsync
+                // forcibly tear down the socket.
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, @"Disconnecting", cts.Token).ConfigureAwait(false);
             }
             catch
             {
