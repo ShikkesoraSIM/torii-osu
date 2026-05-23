@@ -1314,13 +1314,27 @@ jobs:
         done
 
         # client_name is what the Torii server records per version for the
-        # "Playing on Torii Nova client" badge. Rebrand applies here too;
-        # the server treats it as opaque per-version metadata so changing
-        # the string for new versions won't disturb the registration of
-        # older versions already stored under "osu! Torii".
-        PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'version': sys.argv[1], 'client_name': 'Torii Nova', 'hashes': json.loads(sys.argv[2])}))" "$VERSION" "$HASHES")
+        # "Playing on Torii" / "Playing on Torii Nova" badge. We register
+        # distinct brands per release stream so the in-game pill can render
+        # in the right colour (red for stable / amber for preview):
+        #
+        #   master / -torii tags -> "Torii"
+        #   nova   / -nova  tags -> "Torii Nova"
+        #
+        # The server now treats anything whose canonicalised name contains
+        # "torii" as a valid Torii build (was a literal "osutorii" equality
+        # check pre-rebrand, which silently killed the badge for every
+        # post-rebrand build). The osu! client parses "Nova" out of the
+        # brand to pick the colour. OS label is appended server-side as
+        # "<brand>|<os>" so the pill can show a platform icon too.
+        if [[ "$VERSION" == *-nova ]]; then
+          CLIENT_NAME="Torii Nova"
+        else
+          CLIENT_NAME="Torii"
+        fi
+        PAYLOAD=$(python3 -c "import json,sys; print(json.dumps({'version': sys.argv[1], 'client_name': sys.argv[2], 'hashes': json.loads(sys.argv[3])}))" "$VERSION" "$CLIENT_NAME" "$HASHES")
 
-        echo "Registering ${#HASHES} hashes for Torii Nova $VERSION …"
+        echo "Registering ${#HASHES} hashes for $CLIENT_NAME $VERSION …"
 
         HTTP_STATUS=$(curl -s -o /tmp/register_resp.json -w "%{http_code}" \
           -X POST "${TORII_SERVER_URL}/api/private/client-versions/register" \
