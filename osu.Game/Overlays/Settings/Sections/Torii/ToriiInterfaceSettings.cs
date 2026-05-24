@@ -213,12 +213,25 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
             var applyToOverlays = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays);
             var applyToSettings = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel);
-            customUiHueEnabled.BindValueChanged(e =>
+            // Defer to the update thread via Schedule(): the immediate
+            // (runOnceImmediately) firing happens on the BDL thread, and
+            // assignment cascades into downstream listeners that animate
+            // hue-tinted drawables (the menu chrome, overlay backgrounds,
+            // settings-panel accents). Those listeners mutate Transforms
+            // on Ready drawables, which the framework only permits from
+            // the load or update threads -- doing it from BDL throws
+            // InvalidThreadForMutationException and the entire Torii
+            // settings section fails to load, which presents to the user
+            // as "Settings won't open" (Android especially, where the
+            // unhandled-exception ceiling is hit faster on the smaller
+            // dispatch budget). Wrapping in Schedule queues the same
+            // propagation onto the update thread where it's legal.
+            customUiHueEnabled.BindValueChanged(e => Schedule(() =>
             {
                 applyToMenu.Value = e.NewValue;
                 applyToOverlays.Value = e.NewValue;
                 applyToSettings.Value = e.NewValue;
-            }, true);
+            }), true);
         }
 
         protected override void LoadComplete()
