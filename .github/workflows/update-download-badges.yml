@@ -1,0 +1,87 @@
+name: Update download badges
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '24 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update badge json
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const totals = { torii: 0, nova: 0 };
+
+            for (let page = 1; ; page++) {
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner,
+                repo,
+                per_page: 100,
+                page,
+              });
+
+              if (releases.length === 0) break;
+
+              for (const release of releases) {
+                const stream = release.tag_name.endsWith('-nova')
+                  ? 'nova'
+                  : release.tag_name.endsWith('-torii')
+                    ? 'torii'
+                    : null;
+
+                if (!stream) continue;
+
+                for (const asset of release.assets) {
+                  const name = asset.name.toLowerCase();
+
+                  if (name.endsWith('.json') || name.startsWith('releases'))
+                    continue;
+
+                  totals[stream] += asset.download_count;
+                }
+              }
+
+              if (releases.length < 100) break;
+            }
+
+            fs.mkdirSync('assets/badges', { recursive: true });
+
+            for (const [stream, count] of Object.entries(totals)) {
+              fs.writeFileSync(
+                `assets/badges/${stream}-downloads.json`,
+                JSON.stringify({
+                  schemaVersion: 1,
+                  label: `${stream} downloads`,
+                  message: count.toLocaleString('en-US'),
+                  color: 'ff66ab',
+                }, null, 2) + '\n'
+              );
+            }
+
+      - name: Commit badge update
+        shell: bash
+        run: |
+          if git diff --quiet -- assets/badges; then
+            echo "no badge changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/badges/*-downloads.json
+          git commit -m "actualiza downloads del readme"
+          git push
