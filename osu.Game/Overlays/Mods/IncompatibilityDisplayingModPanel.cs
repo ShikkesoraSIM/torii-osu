@@ -34,18 +34,21 @@ namespace osu.Game.Overlays.Mods
 
         protected override void LoadComplete()
         {
-            selectedMods.BindValueChanged(_ => updateIncompatibility(), true);
+            selectedMods.BindValueChanged(_ => UpdateIncompatibility(), true);
             incompatible.BindValueChanged(_ => Scheduler.AddOnce(UpdateState));
             // base call will run `UpdateState()` first time and finish transforms.
             base.LoadComplete();
         }
 
-        private void updateIncompatibility()
+        protected void UpdateIncompatibility()
         {
-            incompatible.Value = selectedMods.Value.Count > 0
-                                 && selectedMods.Value.All(selected => selected.GetType() != Mod.GetType())
-                                 && !ModUtils.CheckCompatibleSet(selectedMods.Value.Append(Mod));
+            incompatible.Value = IsIncompatibleWithSelected(selectedMods.Value);
         }
+
+        protected virtual bool IsIncompatibleWithSelected(IReadOnlyList<Mod> selectedMods) =>
+            selectedMods.Count > 0
+            && selectedMods.All(selected => selected.GetType() != Mod.GetType())
+            && !ModUtils.CheckCompatibleSet(selectedMods.Append(Mod));
 
         protected override Colour4 BackgroundColour => incompatible.Value ? ColourProvider.Background6 : base.BackgroundColour;
         protected override Colour4 ForegroundColour => incompatible.Value ? ColourProvider.Background5 : base.ForegroundColour;

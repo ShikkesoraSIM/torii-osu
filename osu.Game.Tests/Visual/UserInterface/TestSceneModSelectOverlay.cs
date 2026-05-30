@@ -200,6 +200,90 @@ namespace osu.Game.Tests.Visual.UserInterface
         }
 
         [Test]
+        public void TestPitchAdjustWithRateMods()
+        {
+            createScreen();
+            changeRuleset(0);
+
+            AddStep("activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddStep("activate DT", () => getPanelForMod(typeof(OsuModDoubleTime)).TriggerClick());
+            AddAssert("PA+DT active", () => SelectedMods.Value.Any(mod => mod is ModPitchAdjust)
+                                             && SelectedMods.Value.Any(mod => mod is OsuModDoubleTime));
+
+            AddStep("reset mods", () => SelectedMods.SetDefault());
+            AddStep("activate DT", () => getPanelForMod(typeof(OsuModDoubleTime)).TriggerClick());
+            AddStep("activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddAssert("DT+PA active", () => SelectedMods.Value.Any(mod => mod is OsuModDoubleTime)
+                                             && SelectedMods.Value.Any(mod => mod is ModPitchAdjust));
+
+            AddStep("reset mods", () => SelectedMods.SetDefault());
+            AddStep("activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddStep("activate NC", () => getPanelForMod(typeof(OsuModNightcore)).TriggerClick());
+            AddAssert("PA+NC active", () => SelectedMods.Value.Any(mod => mod is ModPitchAdjust)
+                                             && SelectedMods.Value.Any(mod => mod is OsuModNightcore));
+
+            AddStep("reset mods", () => SelectedMods.SetDefault());
+            AddStep("activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddStep("activate HT", () => getPanelForMod(typeof(OsuModHalfTime)).TriggerClick());
+            AddAssert("PA+HT active", () => SelectedMods.Value.Any(mod => mod is ModPitchAdjust)
+                                             && SelectedMods.Value.Any(mod => mod is OsuModHalfTime));
+        }
+
+        [Test]
+        public void TestRateAdjustPitchRemovesPitchAdjust()
+        {
+            createScreen();
+            changeRuleset(0);
+
+            AddStep("select PA+DT", () => SelectedMods.Value = new Mod[] { new ModPitchAdjust(), new OsuModDoubleTime() });
+            AddAssert("PA+DT active", () => SelectedMods.Value.Any(mod => mod is ModPitchAdjust)
+                                             && SelectedMods.Value.Any(mod => mod is OsuModDoubleTime));
+
+            AddStep("enable DT adjust pitch", () => getSelectedMod<OsuModDoubleTime>().AdjustPitch.Value = true);
+            AddUntilStep("PA removed", () => SelectedMods.Value.All(mod => mod is not ModPitchAdjust));
+            AddAssert("DT still active", () => getSelectedMod<OsuModDoubleTime>().AdjustPitch.Value);
+
+            AddStep("select PA+HT", () => SelectedMods.Value = new Mod[] { new ModPitchAdjust(), new OsuModHalfTime() });
+            AddAssert("PA+HT active", () => SelectedMods.Value.Any(mod => mod is ModPitchAdjust)
+                                             && SelectedMods.Value.Any(mod => mod is OsuModHalfTime));
+
+            AddStep("enable HT adjust pitch", () => getSelectedMod<OsuModHalfTime>().AdjustPitch.Value = true);
+            AddUntilStep("PA removed", () => SelectedMods.Value.All(mod => mod is not ModPitchAdjust));
+            AddAssert("HT still active", () => getSelectedMod<OsuModHalfTime>().AdjustPitch.Value);
+        }
+
+        [Test]
+        public void TestPitchAdjustBlockedByRateAdjustPitch()
+        {
+            createScreen();
+            changeRuleset(0);
+
+            AddStep("select DT with adjust pitch", () => SelectedMods.Value = new Mod[]
+            {
+                new OsuModDoubleTime
+                {
+                    AdjustPitch = { Value = true }
+                }
+            });
+
+            AddStep("try activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddAssert("PA not active", () => SelectedMods.Value.All(mod => mod is not ModPitchAdjust));
+            AddAssert("DT still active", () => getSelectedMod<OsuModDoubleTime>().AdjustPitch.Value);
+
+            AddStep("select HT with adjust pitch", () => SelectedMods.Value = new Mod[]
+            {
+                new OsuModHalfTime
+                {
+                    AdjustPitch = { Value = true }
+                }
+            });
+
+            AddStep("try activate PA", () => getPanelForMod(typeof(ModPitchAdjust)).TriggerClick());
+            AddAssert("PA not active", () => SelectedMods.Value.All(mod => mod is not ModPitchAdjust));
+            AddAssert("HT still active", () => getSelectedMod<OsuModHalfTime>().AdjustPitch.Value);
+        }
+
+        [Test]
         public void TestDimmedState()
         {
             createScreen();

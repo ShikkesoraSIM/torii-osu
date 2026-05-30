@@ -36,9 +36,8 @@ namespace osu.Game.Rulesets.Mods
     /// matching this client-side stance.
     /// </para>
     /// <para>
-    /// Conflicts with every other mod that mutates Frequency or Tempo
-    /// (<see cref="ModRateAdjust"/> family + <see cref="ModAdaptiveSpeed"/>).
-    /// Stacking would have BASS_FX compose ambiguous adjustments.
+    /// Can stack with fixed rate mods. Adaptive speed stays blocked because it
+    /// changes rate continuously while PA is trying to keep one pitch offset.
     /// </para>
     /// </remarks>
     public class ModPitchAdjust : Mod, IApplicableToTrack
@@ -52,13 +51,8 @@ namespace osu.Game.Rulesets.Mods
 
         public override double ScoreMultiplier => 1;
 
-        // Stacking with anything else that touches Frequency / Tempo would have
-        // BASS compose adjustments multiplicatively in ways the user-facing UI
-        // can't represent honestly. Mark mutually exclusive with the rate-adjust
-        // family (mirrored on the server in static/mods.json).
         public override Type[] IncompatibleMods => new[]
         {
-            typeof(ModRateAdjust),
             typeof(ModAdaptiveSpeed),
         };
 
