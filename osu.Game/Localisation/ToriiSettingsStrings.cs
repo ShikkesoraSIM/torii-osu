@@ -53,6 +53,23 @@ namespace osu.Game.Localisation
 
         public static LocalisableString PickLazerFolderHeader => new TranslatableString(getKey(@"pick_lazer_folder_header"), @"Select your osu! lazer data folder");
 
+        public static LocalisableString SkipBreaks => new TranslatableString(getKey(@"skip_breaks"), @"Skip breaks mid-map");
+
+        public static LocalisableString SkipBreaksHint => new TranslatableString(getKey(@"skip_breaks_hint"), @"Show a SKIP button during a map's break periods so you can fast-forward past long breaks instead of waiting. The score is unaffected (breaks contain no notes).");
+
+        public static LocalisableString SkipBreaksSingleConfirmation => new TranslatableString(getKey(@"skip_breaks_single_confirmation"), @"Skip breaks with a single confirmation");
+
+        public static LocalisableString SkipBreaksSingleConfirmationHint => new TranslatableString(getKey(@"skip_breaks_single_confirmation_hint"), @"When on, the mid-map skip button activates on a single press. When off, it asks for a quick second press first so an accidental tap can't pull you out of a break.");
+
+        // ── First-time mid-map skip briefing popup ──
+        public static LocalisableString SkipBreakBriefingTitle => new TranslatableString(getKey(@"skip_break_briefing_title"), @"You can skip breaks now");
+
+        public static LocalisableString SkipBreakBriefingBody => new TranslatableString(getKey(@"skip_break_briefing_body"), "We added a button that skips long mid-map breaks. To make sure you don't accidentally skip one and end up in a rough spot, skipping takes a quick double press for now, and this is a one-time warning to let you know.\n\nPrefer a single press? Turn it on below (or later in Settings > Torii > Gameplay). You'll only see this once.");
+
+        public static LocalisableString SkipBreakBriefingInlineTip => new TranslatableString(getKey(@"skip_break_briefing_inline_tip"), @"No need to open settings, flip it right here:");
+
+        public static LocalisableString SkipBreakBriefingDismiss => new TranslatableString(getKey(@"skip_break_briefing_dismiss"), @"Got it, back to the map");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

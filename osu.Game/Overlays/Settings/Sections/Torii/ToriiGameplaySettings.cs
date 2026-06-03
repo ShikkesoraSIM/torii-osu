@@ -6,6 +6,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Localisation;
 
 namespace osu.Game.Overlays.Settings.Sections.Torii
 {
@@ -32,6 +33,26 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 })
                 {
                     Keywords = new[] { @"retry", @"quit", @"confirm", @"pause", @"fail", @"double", @"click", @"misclick", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = ToriiSettingsStrings.SkipBreaks,
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksEnabled),
+                    HintText = ToriiSettingsStrings.SkipBreaksHint,
+                    NewFeatureId = NewFeatureRegistry.SkipBreaks,
+                })
+                {
+                    Keywords = new[] { @"skip", @"break", @"breaks", @"mid", @"map", @"fast", @"forward", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = ToriiSettingsStrings.SkipBreaksSingleConfirmation,
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksSingleConfirmation),
+                    HintText = ToriiSettingsStrings.SkipBreaksSingleConfirmationHint,
+                    NewFeatureId = NewFeatureRegistry.SkipBreaksSingleConfirmation,
+                })
+                {
+                    Keywords = new[] { @"skip", @"break", @"breaks", @"single", @"confirmation", @"double", @"press", @"misclick", @"torii" },
                 },
             };
         }
