@@ -426,6 +426,26 @@ namespace osu.Game.Configuration
             // anyone asks for tuning.
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
 
+            // Torii skip-breaks — a SKIP button during mid-map break periods.
+            // Default ON: it's purely additive (an optional button that seeks
+            // past the empty break time, exactly like the intro skip) and was
+            // explicitly requested by the community for maps with very long
+            // breaks. Players who consider breaks part of the map can turn it
+            // off in Settings → Torii → Gameplay.
+            SetDefault(OsuSetting.ToriiSkipBreaksEnabled, true);
+
+            // Double-press confirmation is the default for the break skip:
+            // breaks are often a wanted breather, and a single misclick (a
+            // stray pen tap landing on the button) pulling you out unprepared
+            // is exactly the frustration we want to avoid. Players who'd
+            // rather skip on one press flip this on (in settings, or right
+            // from the one-time briefing popup).
+            SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
+
+            // One-shot: becomes true after the first-time skip briefing has
+            // been shown + dismissed. Never reset.
+            SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
+
             // Torii server pulse — toolbar pill that shows live "currently
             // playing / plays per minute / top map" stats on hover. Default
             // ON because that's the whole point of shipping it; users who
@@ -801,6 +821,34 @@ namespace osu.Game.Configuration
         // long enough for the user to plausibly care about losing it. See
         // GameplayMenuOverlay for the threshold + arming behaviour.
         ToriiConfirmDangerousButtonsOnLongAttempts,
+
+        /// <summary>
+        /// Torii: when enabled, a SKIP button appears during break periods
+        /// mid-map, letting the player fast-forward to the end of the break
+        /// (seeks the gameplay clock, same mechanism as the intro skip).
+        /// Default ON — it's a community-requested QoL feature and only adds
+        /// an opt-in button; you still have to press skip for anything to
+        /// happen. See <see cref="osu.Game.Screens.Play.SkipBreakOverlay"/>.
+        /// </summary>
+        ToriiSkipBreaksEnabled,
+
+        /// <summary>
+        /// Torii: when enabled, the mid-map break skip activates on a SINGLE
+        /// press. When disabled (default), it requires a quick double-press
+        /// confirmation so a stray pen/tap on the skip button can't yank you
+        /// out of a break you wanted. See
+        /// <see cref="osu.Game.Screens.Play.SkipBreakOverlay"/>.
+        /// </summary>
+        ToriiSkipBreaksSingleConfirmation,
+
+        /// <summary>
+        /// Torii: internal one-shot flag — set true the first time the player
+        /// presses the mid-map skip button, after the explanatory briefing has
+        /// been shown. Not a user-facing setting; gates the one-time popup so
+        /// it never appears again. See
+        /// <see cref="osu.Game.Screens.Play.SkipBreakOverlay"/>.
+        /// </summary>
+        ToriiSkipBreaksBriefingSeen,
         IntroSequence,
         NotifyOnUsernameMentioned,
         NotifyOnPrivateMessage,

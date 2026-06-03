@@ -304,14 +304,20 @@ namespace osu.Game.Screens.Play
             public override void Show() => State = Visibility.Visible;
         }
 
-        private partial class ButtonContainer : VisibilityContainer
+        // internal (not private) so SkipBreakOverlay can reuse the exact
+        // same pop-in/pop-out container for its mid-map break skip button,
+        // keeping the two skip affordances visually identical.
+        internal partial class ButtonContainer : VisibilityContainer
         {
             protected override void PopIn() => this.FadeIn(fade_time);
 
             protected override void PopOut() => this.FadeOut(fade_time);
         }
 
-        private partial class Button : OsuClickableContainer
+        // internal (not private) so SkipBreakOverlay can instantiate the
+        // same triangles + chevrons + "SKIP" button rather than duplicating
+        // ~100 lines of identical visual code.
+        internal partial class Button : OsuClickableContainer
         {
             private Color4 colourNormal;
             private Color4 colourHover;

@@ -106,6 +106,29 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string InputAudioHz = "v2026.522.0:input-audio-hz";
 
+        // ---------------------------------------------------------------
+        // v2026.602.x — first release shipping the mid-map "skip break"
+        // button (Settings → Torii → Gameplay).
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Marks the "Skip breaks mid-map" toggle in Settings → Torii →
+        /// Gameplay. The flag enables a SKIP button that appears during a
+        /// map's break periods and seeks the gameplay clock to the end of
+        /// the break (community-requested QoL for maps with very long
+        /// breaks). Brand-new gameplay surface, so the badge draws the
+        /// user's eye to a setting that's ON by default but easy to miss.
+        /// </summary>
+        public const string SkipBreaks = "v2026.602.0:skip-breaks";
+
+        /// <summary>
+        /// Marks the "Skip breaks with a single confirmation" toggle in
+        /// Settings → Torii → Gameplay (the companion to <see cref="SkipBreaks"/>).
+        /// Flips the mid-map skip button from the default double-press
+        /// confirmation to a single press.
+        /// </summary>
+        public const string SkipBreaksSingleConfirmation = "v2026.602.0:skip-breaks-confirm";
+
         /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
@@ -119,6 +142,8 @@ namespace osu.Game.Configuration
             UITheme,
             NsfwProfileMedia,
             InputAudioHz,
+            SkipBreaks,
+            SkipBreaksSingleConfirmation,
         };
 
         /// <summary>
