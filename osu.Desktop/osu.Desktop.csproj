@@ -50,6 +50,20 @@
     <!-- Support multiple runtime identifiers for cross-platform builds -->
     <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <!--
+      ===========================================================================
+      NOVA A/B EXPERIMENT (2026-06): ServerGarbageCollection flipped true -> false.
+      Hiccup-report data showed Server GC was letting the managed heap balloon to
+      2-3 GB+ (one session hit 6.7 GB), and the eventual blocking Gen2 then froze
+      the game for 5-35 s - concentrated in SoloSongSelect, not the gameplay
+      transitions this config was originally tuned for. Workstation + Concurrent
+      (what upstream osu! ships) keeps a single smaller heap and collects more
+      eagerly with background Gen2, trading the retry-allocation smoothness noted
+      below for far shorter worst-case pauses. Shipped to Nova only, to measure
+      the before/after in the hiccup dashboard. If song-select freezes + peak
+      memory drop without a meaningful gameplay-transition regression, promote to
+      master; otherwise revert to ServerGarbageCollection=true.
+      ===========================================================================
+
       Server GC + Concurrent GC: workstation GC (the default) does generation 0/1
       collections on the calling thread, so the load thread takes the hit when
       a new Player instance allocates everything for the next attempt — that
@@ -78,7 +92,7 @@
       stable Torii channel) where DATAS isn't default; pre-emptively set
       so the property survives any future bump to .NET 10+ on master.
     -->
-    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
     <!--
