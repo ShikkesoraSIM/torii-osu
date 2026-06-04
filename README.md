@@ -14,7 +14,10 @@
     <img alt="Latest release" src="https://img.shields.io/github/v/release/ShikkesoraSIM/torii-osu?include_prereleases&label=latest&color=ff66ab">
   </a>
   <a href="https://github.com/ShikkesoraSIM/torii-osu/releases">
-    <img alt="Downloads" src="https://img.shields.io/github/downloads/ShikkesoraSIM/torii-osu/total?color=ff66ab">
+    <img alt="Torii downloads" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ShikkesoraSIM/torii-osu/master/assets/badges/torii-downloads.json">
+  </a>
+  <a href="https://github.com/ShikkesoraSIM/torii-osu/releases?q=prerelease%3Atrue">
+    <img alt="Nova downloads" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ShikkesoraSIM/torii-osu/master/assets/badges/nova-downloads.json">
   </a>
 </p>
 

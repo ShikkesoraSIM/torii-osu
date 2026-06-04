@@ -277,7 +277,13 @@ namespace osu.Game.Online.Server
             config.BindWith(OsuSetting.ToriiServerPulseEnabled, enabledBindable);
 
             enabledBindable.BindValueChanged(_ => onPollabilityChanged(), true);
-            api.State.BindValueChanged(_ => onPollabilityChanged(), true);
+
+            // api.State raises ValueChanged synchronously on the API thread
+            // (e.g. APIAccess.handleFailure when the network drops mid-session).
+            // onPollabilityChanged writes ConnectionState, whose UI subscribers
+            // run transforms, so marshal onto the update thread first — otherwise
+            // the cascade mutates a loaded drawable off-thread and crashes.
+            api.State.BindValueChanged(_ => Schedule(onPollabilityChanged), true);
 
             // Subscribe to PlayingState so the polling loop pauses the
             // moment we transition into Playing and rearms when we drop

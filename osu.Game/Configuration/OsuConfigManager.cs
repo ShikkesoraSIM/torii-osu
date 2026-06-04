@@ -297,6 +297,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.MenuTips, true);
 
             SetDefault(OsuSetting.AudioOffset, 0, -500.0, 500.0, 1);
+            SetDefault(OsuSetting.NewAudioMigrationApplied, false);
 
             SetDefault(OsuSetting.AutomaticallyAdjustBeatmapOffset, false);
 
@@ -727,6 +728,11 @@ namespace osu.Game.Configuration
         /// This is added to the audio track's current time. Higher values will cause gameplay to occur earlier, relative to the audio track.
         /// </summary>
         AudioOffset,
+
+        /// <summary>
+        /// One-shot flag: whether the migration to the experimental (WASAPI) audio default has run.
+        /// </summary>
+        NewAudioMigrationApplied,
 
         VolumeInactive,
         MenuMusic,
