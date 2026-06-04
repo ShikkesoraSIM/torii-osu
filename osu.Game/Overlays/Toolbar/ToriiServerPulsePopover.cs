@@ -254,7 +254,12 @@ namespace osu.Game.Overlays.Toolbar
 
                 // Header status pip + footer
                 pulse.LastUpdated.BindValueChanged(_ => updateFooter(), true);
-                pulse.ConnectionState.BindValueChanged(v => statusPip.SetState(v.NewValue), true);
+
+                // ConnectionState can change on the API thread (the provider's
+                // api.State binding reacts to APIAccess.handleFailure on a network
+                // drop), and SetState runs transforms — marshal onto the update
+                // thread, same as ToriiServerPulseButton.updateConnectionState.
+                pulse.ConnectionState.BindValueChanged(v => Schedule(() => statusPip.SetState(v.NewValue)), true);
 
                 // Last-viewed page persistence — restore on first load.
                 int restored = Math.Clamp(pulse.LastViewedCarouselPage.Value, 0, page_count - 1);
