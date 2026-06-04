@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics;
 using osu.Framework;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Timing;
@@ -44,6 +45,11 @@ namespace osu.Game.Beatmaps
         private OsuConfigManager config { get; set; } = null!;
 
         [Resolved]
+        private AudioManager audioManager { get; set; } = null!;
+
+        private Bindable<bool>? experimentalAudio;
+
+        [Resolved]
         private RealmAccess realm { get; set; } = null!;
 
         [Resolved]
@@ -68,7 +74,8 @@ namespace osu.Game.Beatmaps
             {
                 // Audio timings in general with newer BASS versions don't match stable.
                 // This only seems to be required on windows. We need to eventually figure out why, with a bit of luck.
-                platformOffsetClock = new OffsetCorrectionClock(interpolatedTrack) { Offset = RuntimeInfo.OS == RuntimeInfo.Platform.Windows ? 15 : 0 };
+                // The actual offset value is set (and kept in sync with the experimental/WASAPI setting) by updatePlatformOffset().
+                platformOffsetClock = new OffsetCorrectionClock(interpolatedTrack);
 
                 // User global offset (set in settings) should also be applied.
                 userGlobalOffsetClock = new OffsetCorrectionClock(platformOffsetClock);
@@ -94,6 +101,11 @@ namespace osu.Game.Beatmaps
                 userAudioOffset = config.GetBindable<double>(OsuSetting.AudioOffset);
                 userAudioOffset.BindValueChanged(offset => userGlobalOffsetClock.Offset = offset.NewValue, true);
 
+                // The platform offset depends on whether the experimental (WASAPI) audio mode is on,
+                // since that path has materially lower latency. Re-evaluate whenever it flips.
+                experimentalAudio = audioManager.UseExperimentalWasapi.GetBoundCopy();
+                experimentalAudio.BindValueChanged(_ => updatePlatformOffset(), true);
+
                 // TODO: this doesn't update when using ChangeSource() to change beatmap.
                 beatmapOffsetSubscription = realm.SubscribeToPropertyChanged(
                     r => r.Find<BeatmapInfo>(beatmap.Value.BeatmapInfo.ID)?.UserSettings,
@@ -102,6 +114,40 @@ namespace osu.Game.Beatmaps
                     {
                         userBeatmapOffsetClock.Offset = val;
                     });
+            }
+        }
+
+        /// <summary>
+        /// Audio timings in general with newer BASS versions don't match stable.
+        /// This only seems to be required on Windows.
+        /// </summary>
+        public const double WINDOWS_BASE_AUDIO_OFFSET = 15;
+
+        /// <summary>
+        /// An additional offset applied to account for the lower latency of the experimental (WASAPI) audio mode.
+        /// </summary>
+        public const double WINDOWS_EXPERIMENTAL_AUDIO_OFFSET = -25;
+
+        private void updatePlatformOffset()
+        {
+            if (!applyOffsets)
+                return;
+
+            Debug.Assert(platformOffsetClock != null);
+
+            switch (RuntimeInfo.OS)
+            {
+                case RuntimeInfo.Platform.Windows:
+                    platformOffsetClock.Offset = WINDOWS_BASE_AUDIO_OFFSET;
+
+                    if (audioManager.UseExperimentalWasapi.Value)
+                        platformOffsetClock.Offset += WINDOWS_EXPERIMENTAL_AUDIO_OFFSET;
+
+                    return;
+
+                default:
+                    platformOffsetClock.Offset = 0;
+                    break;
             }
         }
 

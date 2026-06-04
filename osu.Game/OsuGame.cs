@@ -1138,6 +1138,9 @@ namespace osu.Game
                 { FrameworkSetting.VolumeUniversal, 0.6 },
                 { FrameworkSetting.VolumeMusic, 0.6 },
                 { FrameworkSetting.VolumeEffect, 0.6 },
+                // Low-latency WASAPI audio is the default (matches upstream lazer). Fresh installs
+                // get it out of the box; existing installs are flipped once by NewAudioMigration.
+                { FrameworkSetting.AudioUseExperimentalWasapi, true },
             };
         }
 
@@ -1385,6 +1388,7 @@ namespace osu.Game
 
             loadComponentSingleFile(new AccountCreationOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile<IDialogOverlay>(new DialogOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new NewAudioMigrationOverlay(), topMostOverlayContent.Add);
             loadComponentSingleFile(new MedalOverlay(), topMostOverlayContent.Add);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);

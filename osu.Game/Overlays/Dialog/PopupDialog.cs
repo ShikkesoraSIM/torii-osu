@@ -37,6 +37,11 @@ namespace osu.Game.Overlays.Dialog
         private readonly Container content;
         private readonly Container ring;
         private readonly FillFlowContainer<PopupDialogButton> buttonsContainer;
+
+        /// <summary>
+        /// Extra content slot between the body text and the buttons, for dialogs that need to embed controls.
+        /// </summary>
+        public Container MainContent { get; private set; } = null!;
         private readonly SpriteIcon icon;
         private readonly TextFlowContainer header;
         private readonly TextFlowContainer body;
@@ -221,6 +226,13 @@ namespace osu.Game.Overlays.Dialog
                                     RelativeSizeAxes = Axes.X,
                                     AutoSizeAxes = Axes.Y,
                                     Padding = new MarginPadding { Horizontal = 15 },
+                                },
+                                MainContent = new Container
+                                {
+                                    Origin = Anchor.TopCentre,
+                                    Anchor = Anchor.TopCentre,
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
                                 },
                                 buttonsContainer = new FillFlowContainer<PopupDialogButton>
                                 {
