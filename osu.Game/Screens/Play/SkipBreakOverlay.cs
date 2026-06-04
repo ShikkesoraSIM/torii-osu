@@ -75,10 +75,12 @@ namespace osu.Game.Screens.Play
         /// Extra lead-in (ms) left before the break's natural end when
         /// skipping, so the player lands with room to breathe and react
         /// rather than getting dropped straight onto the first post-break
-        /// note. Tuned up from landing right at the break end after players
-        /// reported the original target felt too tight to react to.
+        /// note. Bumped to 2s after players reported skips landing so close to
+        /// the first notes that they couldn't react and dropped them (lost
+        /// plays). With the break-end fade on top, this leaves well over 2s
+        /// before the first hit object resumes.
         /// </summary>
-        public const double SKIP_LEAD_IN_MS = 1000;
+        public const double SKIP_LEAD_IN_MS = 2000;
 
         /// <summary>
         /// How long (ms) a first press stays "armed" waiting for the

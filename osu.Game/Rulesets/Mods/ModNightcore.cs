@@ -8,6 +8,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
+using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Configuration;
@@ -69,7 +70,12 @@ namespace osu.Game.Rulesets.Mods
     {
         public void ApplyToDrawableRuleset(DrawableRuleset<TObject> drawableRuleset)
         {
-            drawableRuleset.Overlays.Add(new NightcoreBeatContainer());
+            // Match upstream lazer: only play the off-beat hat samples when the
+            // beatmap's tick rate is a multiple of two. On odd tick rates there
+            // is no regular off-beat, so the hats just stand out as noise on the
+            // red ticks - which is exactly the difference players reported.
+            bool playHats = Precision.AlmostEquals(drawableRuleset.Beatmap.Difficulty.SliderTickRate % 2, 0);
+            drawableRuleset.Overlays.Add(new NightcoreBeatContainer(playHats));
         }
 
         public partial class NightcoreBeatContainer : BeatSyncedContainer
@@ -82,8 +88,11 @@ namespace osu.Game.Rulesets.Mods
             private int? firstBeat;
             private int lastBeat = -1;
 
-            public NightcoreBeatContainer()
+            private readonly bool playHats;
+
+            public NightcoreBeatContainer(bool playHats = true)
             {
+                this.playHats = playHats;
                 Divisor = 2;
             }
 
@@ -155,7 +164,8 @@ namespace osu.Game.Rulesets.Mods
                                 break;
 
                             default:
-                                hatSample?.Play();
+                                if (playHats)
+                                    hatSample?.Play();
                                 break;
                         }
 
@@ -173,12 +183,12 @@ namespace osu.Game.Rulesets.Mods
                                 break;
 
                             default:
-                                // note that in stable hat samples would only play if the beatmap tick rate was even
-                                // (https://github.com/peppy/osu-stable-reference/blob/6ab0cf1f9f7b3449f5c0d8defcd458aae72cdb88/osu!/Audio/NightcoreBeat.cs#L30-L32)
-                                // that kind of presumes that only music timed in 4/4 exists, and does not really work well
-                                // if the beatmap e.g. mixes 4/4 and 3/4 signature timing control points.
-                                // therefore this conditional behaviour is not reimplemented.
-                                hatSample?.Play();
+                                // in stable, hat samples only play when the beatmap tick rate is even
+                                // (https://github.com/peppy/osu-stable-reference/blob/6ab0cf1f9f7b3449f5c0d8defcd458aae72cdb88/osu!/Audio/NightcoreBeat.cs#L30-L32).
+                                // reinstated to match lazer: on odd tick rates there is no regular off-beat,
+                                // so playing a hat there just reads as noise on the red ticks.
+                                if (playHats)
+                                    hatSample?.Play();
                                 break;
                         }
 
