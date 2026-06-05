@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
+using osu.Game;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -39,6 +40,12 @@ namespace osu.Game.Configuration
 
         [Resolved]
         private AudioManager audio { get; set; } = null!;
+
+        // Held so the migration briefing waits for the main menu (OverlayActivationMode
+        // flips to All there) instead of popping over the "welcome to osu!" intro.
+        // canBeNull for test scenes that don't spin up a full game.
+        [Resolved(canBeNull: true)]
+        private OsuGame? game { get; set; }
 
         // The embedded legacy-audio toggle is a FormCheckBox, which resolves an
         // OverlayColourProvider (normally supplied by the settings panel). We're a
@@ -92,40 +99,77 @@ namespace osu.Game.Configuration
             };
         }
 
+        private bool shown;
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            runMigration();
+
+            // The engine flip + offset migration runs now (invisible). The briefing
+            // popup, though, is held until the user reaches the main menu - where
+            // OverlayActivationMode flips to All - so it doesn't appear over the
+            // "welcome to osu!" intro animation.
+            if (!runMigration())
+                return;
+
+            if (game == null)
+            {
+                showBriefing();
+                return;
+            }
+
+            game.OverlayActivationMode.BindValueChanged(mode =>
+            {
+                if (mode.NewValue == OverlayActivation.All)
+                    showBriefing();
+            }, true);
         }
 
-        private void runMigration()
+        private void showBriefing()
+        {
+            // BindValueChanged can fire more than once (menu -> gameplay -> menu);
+            // only build + pop the briefing the first time.
+            if (shown)
+                return;
+
+            shown = true;
+            buildContent(pendingWasAlreadyUsing);
+            Show();
+        }
+
+        private bool pendingWasAlreadyUsing;
+
+        /// <summary>
+        /// Runs the one-time engine flip + offset migration. Returns true when a
+        /// briefing popup should be shown (the caller holds it until the menu).
+        /// </summary>
+        private bool runMigration()
         {
             if (config.Get<bool>(OsuSetting.NewAudioMigrationApplied))
-                return;
+                return false;
 
             // Mark as run exactly once, regardless of what happens below.
             config.SetValue(OsuSetting.NewAudioMigrationApplied, true);
 
             // The WASAPI platform-offset split only applies on Windows.
             if (RuntimeInfo.OS != RuntimeInfo.Platform.Windows)
-                return;
+                return false;
 
             // Fresh installs have no stored version; they already get the new default
             // and shouldn't see this or have their offset touched.
             if (config.Get<string>(OsuSetting.Version).Length < 6)
-                return;
+                return false;
 
-            bool wasAlreadyUsing = audio.UseExperimentalWasapi.Value;
+            pendingWasAlreadyUsing = audio.UseExperimentalWasapi.Value;
 
             // Preserve the tuning of prior experimental users: the new platform offset would
             // otherwise shift their feel by WINDOWS_EXPERIMENTAL_AUDIO_OFFSET.
-            if (wasAlreadyUsing)
+            if (pendingWasAlreadyUsing)
                 config.SetValue(OsuSetting.AudioOffset, config.Get<double>(OsuSetting.AudioOffset) - FramedBeatmapClock.WINDOWS_EXPERIMENTAL_AUDIO_OFFSET);
 
             audio.UseExperimentalWasapi.Value = true;
 
-            buildContent(wasAlreadyUsing);
-            Show();
+            return true;
         }
 
         private void buildContent(bool wasAlreadyUsing)
