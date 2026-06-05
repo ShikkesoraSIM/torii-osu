@@ -1,13 +1,14 @@
 name: Auto tag from master
 
 on:
-  push:
-    # `nova` produces experimental builds tagged `vYYYY.MDD.N-nova`. They
-    # ship as GitHub prereleases (see build-gu.yml) so Torii (stable) users
-    # don't auto-update into them via Velopack — only Torii Nova users
-    # (ReleaseStream.Nova in settings, which flips Velopack's
-    # includePrereleases) ever see them.
-    branches: [ master, main, nova ]
+  # Releases are cut MANUALLY only. Pushing commits to master/main/nova no
+  # longer auto-tags, so work can land freely without shipping a build.
+  # To cut a release, run this workflow from the branch you want:
+  #   - master / main -> -torii (stable)
+  #   - nova          -> -nova  (prerelease; served only to Torii Nova users
+  #     via Velopack includePrereleases, see build-gu.yml)
+  # Either from the Actions tab ("Run workflow") or:
+  #   gh workflow run auto-tag.yml --ref master
   workflow_dispatch:
 
 permissions:

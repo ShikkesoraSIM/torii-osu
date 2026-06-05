@@ -47,6 +47,10 @@ namespace osu.Game.Overlays.Profile.Header
                         {
                             User = { BindTarget = User }
                         },
+                        new ViewFollowersButton
+                        {
+                            User = { BindTarget = User }
+                        },
                         new MappingSubscribersButton
                         {
                             User = { BindTarget = User }
