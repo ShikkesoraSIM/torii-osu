@@ -153,11 +153,16 @@ namespace osu.Game.Overlays.Cosmetics
             // slightly off-ratio frequencies stop it retracing one line.
             float t = (float)(Time.Current / 1000.0) * speed;
             float cx = DrawWidth * 0.5f;
-            float cy = DrawHeight * 0.44f;
+            float cy = DrawHeight * 0.46f;
             var p = new Vector2(
-                cx + MathF.Sin(t * 1.15f) * (DrawWidth * 0.40f),
-                cy + MathF.Sin(t * 2.30f) * (DrawHeight * 0.20f));
-            trail.Drive(ToScreenSpace(p));
+                cx + MathF.Sin(t * 1.15f) * (DrawWidth * 0.36f),
+                cy + MathF.Sin(t * 2.30f) * (DrawHeight * 0.18f));
+
+            // Round-trip through the TRAIL's own matrix (not ours), so screen ->
+            // local lands exactly back on p. Using our matrix here let parts drift
+            // outside the trail's local bounds at extreme UI scale and spill past
+            // the card's mask.
+            trail.Drive(trailDrawable.ToScreenSpace(p));
         }
     }
 }
