@@ -424,6 +424,10 @@ namespace osu.Game
             dependencies.CacheAs<IGameplaySettings>(LocalConfig);
             ToriiPpVariantState.Initialise(LocalConfig);
 
+            // Torii cosmetics (cursor-trail store): app-wide owned/equipped/
+            // points state, shared by the cursor containers + the store overlay.
+            dependencies.Cache(new osu.Game.Cosmetics.ToriiCosmeticsManager(LocalConfig));
+
             // Torii: side-car JSON store backing the "[NEW]" pill on
             // settings + menus. Cached here (rather than living inside
             // SkinManager like PinnedSkinsStore) because the badge is

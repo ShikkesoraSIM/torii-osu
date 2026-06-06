@@ -524,6 +524,15 @@ namespace osu.Game.Configuration
             // Defaults on; users on weaker hardware can disable it from Graphics.
             SetDefault(OsuSetting.UserAuraEnabled, true);
 
+            // Torii cosmetics (cursor-trail store). Owned/equipped/customisation
+            // cached client-side; ToriiPointsBalance here is a LOCAL cache (the
+            // authoritative balance lives server-side in g0v0).
+            SetDefault(OsuSetting.EquippedCursorTrail, string.Empty);
+            SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
+            SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
+            SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
+            SetDefault(OsuSetting.ToriiPointsBalance, 5000);
+
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
 
@@ -922,6 +931,13 @@ namespace osu.Game.Configuration
         /// the username appears (chat, profile, leaderboards, multi).
         /// </summary>
         UserAuraEnabled,
+
+        // Torii cosmetics (cursor-trail store).
+        EquippedCursorTrail,
+        OwnedCursorTrails,
+        CursorTrailAdjustUnlocked,
+        CursorTrailCustomisations,
+        ToriiPointsBalance,
 
         /// <summary>
         /// Torii: when on, MenuCursorContainer renders the user's

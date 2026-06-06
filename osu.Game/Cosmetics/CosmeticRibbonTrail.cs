@@ -335,11 +335,12 @@ namespace osu.Game.Cosmetics
 
             if (rgb != null)
             {
-                var offsets = new[] { new Vector2(RgbSplitOffset, 0), Vector2.Zero, new Vector2(-RgbSplitOffset, 0) };
                 for (int k = 0; k < 3; k++)
                 {
+                    // No per-frame array alloc (this runs every frame on the cursor).
+                    float ox = k == 0 ? RgbSplitOffset : k == 2 ? -RgbSplitOffset : 0f;
                     for (int i = 0; i < count; i++)
-                        rgb[k].AddVertex(pathBuffer[i] + offsets[k]);
+                        rgb[k].AddVertex(new Vector2(pathBuffer[i].X + ox, pathBuffer[i].Y));
                     rgb[k].PathRadius = Math.Max(1f, Width * 0.5f * wscale);
                 }
             }

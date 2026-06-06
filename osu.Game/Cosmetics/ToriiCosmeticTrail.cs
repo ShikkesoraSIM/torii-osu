@@ -338,6 +338,7 @@ namespace osu.Game.Cosmetics
             private Color4 primaryLinear;
             private Color4 secondaryLinear;
             private Color4[] paletteLinear;
+            private Color4[] lastSrcPalette;
             private float hueBase;
             private float hueSpread;
             private float animationPhase;
@@ -366,15 +367,21 @@ namespace osu.Game.Cosmetics
                 primaryLinear = Source.PrimaryColour.ToLinear();
                 secondaryLinear = Source.SecondaryColour.ToLinear();
 
+                // Cache the linear palette; only rebuild when the source array
+                // changes, so ApplyState (every frame) allocates nothing.
                 var srcPalette = Source.Palette;
-                if (srcPalette != null && srcPalette.Length > 0)
+                if (!ReferenceEquals(srcPalette, lastSrcPalette))
                 {
-                    paletteLinear = new Color4[srcPalette.Length];
-                    for (int i = 0; i < srcPalette.Length; i++)
-                        paletteLinear[i] = srcPalette[i].ToLinear();
+                    lastSrcPalette = srcPalette;
+                    if (srcPalette != null && srcPalette.Length > 0)
+                    {
+                        paletteLinear = new Color4[srcPalette.Length];
+                        for (int i = 0; i < srcPalette.Length; i++)
+                            paletteLinear[i] = srcPalette[i].ToLinear();
+                    }
+                    else
+                        paletteLinear = null;
                 }
-                else
-                    paletteLinear = null;
 
                 hueBase = Source.HueBase;
                 hueSpread = Source.HueSpread;

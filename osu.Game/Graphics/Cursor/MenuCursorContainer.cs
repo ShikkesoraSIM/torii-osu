@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
+using osu.Game.Cosmetics;
 using osu.Game.Skinning;
 using osuTK;
 
@@ -58,6 +59,13 @@ namespace osu.Game.Graphics.Cursor
         // texture / disjoint-mode flag never drifts away from what
         // the active skin chain currently exposes.
         private SkinnableMenuCursorTrail? cursorTrail;
+
+        // Torii: an equipped store cursor-trail cosmetic replaces the skin trail
+        // here too, so the chosen trail shows in menus (not just gameplay).
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager? cosmetics { get; set; }
+
+        private Drawable? cosmeticTrail;
 
         private Bindable<MenuCursorStyle> menuCursorStyle = null!;
 
@@ -123,6 +131,9 @@ namespace osu.Game.Graphics.Cursor
 
             if (skinSource != null)
                 skinSource.SourceChanged += scheduleRebuildCursorTrail;
+
+            if (cosmetics != null)
+                cosmetics.EquippedTrailId.BindValueChanged(_ => scheduleRebuildCursorTrail());
         }
 
         protected override void Dispose(bool isDisposing)
@@ -148,6 +159,24 @@ namespace osu.Game.Graphics.Cursor
             {
                 Remove(cursorTrail, true);
                 cursorTrail = null;
+            }
+
+            if (cosmeticTrail != null)
+            {
+                Remove(cosmeticTrail, true);
+                cosmeticTrail = null;
+            }
+
+            // An equipped store cosmetic replaces the skin trail and shows for
+            // ANY cursor style (so it's visible in menus, not only gameplay).
+            var equipped = cosmetics?.CreateEquippedTrail();
+            if (equipped != null)
+            {
+                equipped.RelativeSizeAxes = Axes.Both;
+                equipped.Depth = 1;
+                equipped.Alpha = visible ? 1 : 0;
+                Add(cosmeticTrail = equipped);
+                return;
             }
 
             bool gameplayShaped = menuCursorStyle.Value == MenuCursorStyle.SkinCursor
@@ -350,6 +379,7 @@ namespace osu.Game.Graphics.Cursor
             // keeps drawing over the playfield cursor. That's the
             // "gameplay cursor looks weird, something covering it" bug.
             cursorTrail?.FadeTo(1, 250, Easing.OutQuint);
+            cosmeticTrail?.FadeTo(1, 250, Easing.OutQuint);
 
             if (dragRotationState == DragRotationState.NotDragging)
                 activeCursor.RotateTo(0, 400, Easing.OutQuint);
@@ -364,6 +394,7 @@ namespace osu.Game.Graphics.Cursor
             // when gameplay takes over so OsuCursorContainer's trail isn't
             // composited under our menu trail.
             cursorTrail?.FadeTo(0, 250, Easing.OutQuint);
+            cosmeticTrail?.FadeTo(0, 250, Easing.OutQuint);
 
             if (dragRotationState == DragRotationState.NotDragging)
                 activeCursor.RotateTo(0, 400, Easing.OutQuint);
