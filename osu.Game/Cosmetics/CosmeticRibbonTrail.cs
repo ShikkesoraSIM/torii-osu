@@ -55,7 +55,12 @@ namespace osu.Game.Cosmetics
         public float HueCycleSpeed { get; set; } = 0.35f;
 
         private const int max_points = 260;
-        private const float point_spacing = 3f;
+        private const float point_spacing = 4f;
+
+        // Weighted moving-average passes applied to the path each frame to filter
+        // out mouse-sensor / hand jitter so the ribbon reads smooth even though
+        // the raw cursor path is noisy. Endpoints stay anchored.
+        private const int smoothing_passes = 3;
 
         private struct RibbonPoint
         {
@@ -64,6 +69,7 @@ namespace osu.Game.Cosmetics
         }
 
         private readonly List<RibbonPoint> points = new List<RibbonPoint>();
+        private readonly List<Vector2> pathBuffer = new List<Vector2>();
         private Vector2? lastPosition;
         private Vector2? liveHead;
         private float distanceCarry;
@@ -217,27 +223,40 @@ namespace osu.Game.Cosmetics
             corePath.ClearVertices();
             glowPath?.ClearVertices();
 
+            // Raw path: committed points + the live cursor head.
+            pathBuffer.Clear();
             int n = points.Count;
-            bool hasHead = liveHead.HasValue && (n == 0 || Vector2.Distance(points[n - 1].Pos, liveHead.Value) > 0.5f);
-            int total = n + (hasHead ? 1 : 0);
+            for (int i = 0; i < n; i++)
+                pathBuffer.Add(points[i].Pos);
+            if (liveHead.HasValue && (pathBuffer.Count == 0 || Vector2.Distance(pathBuffer[pathBuffer.Count - 1], liveHead.Value) > 0.5f))
+                pathBuffer.Add(liveHead.Value);
 
-            if (total < 2)
+            int count = pathBuffer.Count;
+            if (count < 2)
             {
                 if (headDot != null)
                     headDot.Alpha = 0;
                 return;
             }
 
-            for (int i = 0; i < n; i++)
+            // De-jitter: weighted (1,2,1) moving-average passes, endpoints kept
+            // anchored so the head stays exactly on the cursor and the tail
+            // doesn't drift.
+            for (int pass = 0; pass < smoothing_passes && count >= 3; pass++)
             {
-                corePath.AddVertex(points[i].Pos);
-                glowPath?.AddVertex(points[i].Pos);
+                Vector2 prev = pathBuffer[0];
+                for (int i = 1; i < count - 1; i++)
+                {
+                    Vector2 cur = pathBuffer[i];
+                    pathBuffer[i] = (prev + cur * 2f + pathBuffer[i + 1]) * 0.25f;
+                    prev = cur;
+                }
             }
 
-            if (hasHead)
+            for (int i = 0; i < count; i++)
             {
-                corePath.AddVertex(liveHead.Value);
-                glowPath?.AddVertex(liveHead.Value);
+                corePath.AddVertex(pathBuffer[i]);
+                glowPath?.AddVertex(pathBuffer[i]);
             }
 
             Color4 core = ColourMode == RibbonColourMode.Rainbow ? (Color4)Colour4.FromHSV(huePhase, 0.85f, 1f) : PrimaryColour;
@@ -251,11 +270,10 @@ namespace osu.Game.Cosmetics
 
             if (headDot != null)
             {
-                Vector2 headPos = hasHead ? liveHead.Value : points[n - 1].Pos;
-                headDot.Position = headPos;
+                headDot.Position = pathBuffer[count - 1];
                 headDot.Size = new Vector2(Width * 1.4f);
                 headDot.Colour = core;
-                // Fade the head dot out shortly after you stop, so it doesn't sit
+                // Fade the head dot out shortly after you stop so it doesn't sit
                 // there as a glowing ball at rest.
                 float idle = (float)((Time.Current - lastMoveTime) / 220.0);
                 headDot.Alpha = Math.Clamp(1f - idle, 0f, 1f);
