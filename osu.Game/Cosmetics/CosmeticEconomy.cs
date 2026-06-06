@@ -26,8 +26,10 @@ namespace osu.Game.Cosmetics
         public const int AdjustableDensityUnlock = 2500;
 
         /// <summary>Range a player may push length/density once unlocked, as a
-        /// multiplier over the trail's default.</summary>
-        public const float MinAdjustMultiplier = 0.5f;
-        public const float MaxAdjustMultiplier = 2.0f;
+        /// multiplier over the trail's default. Kept deliberately tight: the
+        /// catalog defaults are already the "good" look, so this is a gentle
+        /// trim/boost, not a 0.5x..2x extreme where the ends are unusable.</summary>
+        public const float MinAdjustMultiplier = 0.7f;
+        public const float MaxAdjustMultiplier = 1.5f;
     }
 }
