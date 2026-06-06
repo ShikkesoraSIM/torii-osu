@@ -156,39 +156,34 @@ namespace osu.Game.Cosmetics
             //    long, tapering, waving, flowing.
             ribbon("trail-comet", "Comet", CosmeticTier.Premium, 2600, t =>
             {
-                // Wide bright head tapering to a thin fading tail.
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                // The simple one: clean white band, blue halo, bright head dot.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(255, 255, 255, 255);
-                t.SecondaryColour = new Color4(110, 170, 255, 255);
-                t.HeadWidth = 18f; t.TailWidth = 2f; t.FadeTail = true;
-                t.Glow = true; t.GlowColour = new Color4(120, 180, 255, 255); t.HeadDot = true;
-                t.RibbonLifetime = 460;
+                t.GlowColour = new Color4(120, 180, 255, 255);
+                t.Glow = true; t.HeadDot = true;
+                t.Width = 12f; t.RibbonLifetime = 450;
             }),
             ribbon("trail-serpent", "Emerald Serpent", CosmeticTier.Special, 1300, t =>
             {
-                // Finite, long, clean snake: constant width, rounded cap, no fade.
+                // Finite, long, clean snake.
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(70, 230, 150, 255);
-                t.HeadWidth = 11f; t.TailWidth = 11f; t.FadeTail = false;
-                t.Glow = false; t.RibbonLifetime = 950;
+                t.Glow = false; t.Width = 11f; t.RibbonLifetime = 950;
             }),
             ribbon("trail-rainbow-ribbon", "Rainbow Ribbon", CosmeticTier.Premium, 3200, t =>
             {
-                // A real spectrum running head->tail, flowing over time.
+                // The simple one: whole band cycles smoothly through the spectrum.
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Rainbow;
-                t.HueSpread = 1f; t.HueCycleSpeed = 0.4f;
-                t.HeadWidth = 12f; t.TailWidth = 7f; t.FadeTail = true;
-                t.Glow = true; t.RibbonLifetime = 820;
+                t.Glow = true; t.HueCycleSpeed = 0.5f;
+                t.Width = 12f; t.RibbonLifetime = 750;
             }),
             ribbon("trail-neon-flux", "Neon Flux", CosmeticTier.Premium, 3000, t =>
             {
-                // Cyan->magenta neon gradient with a magenta halo.
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                // Cyan core with a magenta halo (two-tone neon).
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(70, 240, 255, 255);
-                t.SecondaryColour = new Color4(255, 80, 230, 255);
-                t.HeadWidth = 12f; t.TailWidth = 4f; t.FadeTail = true;
-                t.Glow = true; t.GlowColour = new Color4(255, 90, 235, 255);
-                t.RibbonLifetime = 700;
+                t.GlowColour = new Color4(255, 80, 230, 255);
+                t.Glow = true; t.Width = 9f; t.RibbonLifetime = 650;
             }),
 
             // ── More shaped particle trails (varied forms + motion).
