@@ -1390,6 +1390,7 @@ namespace osu.Game
             loadComponentSingleFile(new AccountCreationOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile<IDialogOverlay>(new DialogOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new NewAudioMigrationOverlay(), topMostOverlayContent.Add);
+            loadComponentSingleFile(new ToriiRestrictionOverlay(), topMostOverlayContent.Add);
             loadComponentSingleFile(new MedalOverlay(), topMostOverlayContent.Add);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);
