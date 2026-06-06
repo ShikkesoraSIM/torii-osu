@@ -66,11 +66,10 @@ namespace osu.Game.Overlays.Cosmetics
                             Spacing = new Vector2(0, 2),
                             Children = new Drawable[]
                             {
-                                new OsuSpriteText
+                                new TruncatingSpriteText
                                 {
                                     Text = def.Name,
                                     Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
-                                    Truncate = true,
                                     RelativeSizeAxes = Axes.X,
                                 },
                                 new OsuSpriteText
