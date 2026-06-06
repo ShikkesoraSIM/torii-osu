@@ -58,6 +58,7 @@ namespace osu.Game.Overlays.Cosmetics
         private OsuSpriteText rotationText;
 
         private CosmeticTrailDefinition selected;
+        private StoreItemCard selectedCard;
 
         public CosmeticStoreOverlay()
         {
@@ -278,8 +279,17 @@ namespace osu.Game.Overlays.Cosmetics
                 featured = (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>()).Select(d => d.Id).ToHashSet();
             }
 
+            selectedCard = null;
+
             foreach (var def in items)
-                cardFlow.Add(new StoreItemCard(def, cosmetics, featured.Contains(def.Id)) { Action = () => onCardClicked(def) });
+            {
+                bool isSelected = selected != null && def.Id == selected.Id;
+                var card = new StoreItemCard(def, cosmetics, featured.Contains(def.Id), isSelected);
+                card.Action = () => onCardClicked(def, card);
+                if (isSelected)
+                    selectedCard = card;
+                cardFlow.Add(card);
+            }
 
             if (!cardFlow.Any())
             {
@@ -292,7 +302,7 @@ namespace osu.Game.Overlays.Cosmetics
             }
         }
 
-        private void onCardClicked(CosmeticTrailDefinition def)
+        private void onCardClicked(CosmeticTrailDefinition def, StoreItemCard card)
         {
             // Inventory: a single click equips (fast skin-swap-style flow).
             if (tabs.Current.Value == StoreTab.Inventory && (cosmetics?.IsOwned(def.Id) ?? false))
@@ -301,12 +311,18 @@ namespace osu.Game.Overlays.Cosmetics
                 showToast($"Equipped {def.Name}");
             }
 
-            selectItem(def);
+            selectItem(def, card);
         }
 
-        private void selectItem(CosmeticTrailDefinition def)
+        private void selectItem(CosmeticTrailDefinition def, StoreItemCard card)
         {
             selected = def;
+
+            if (selectedCard != null && selectedCard != card)
+                selectedCard.SetSelected(false);
+            selectedCard = card;
+            card?.SetSelected(true);
+
             detailContainer.Clear();
             detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, showToast));
         }

@@ -68,7 +68,10 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
             showTrail.BindValueChanged(_ => updateSkinTrailVisibility());
 
             if (cosmetics != null)
+            {
                 cosmetics.EquippedTrailId.BindValueChanged(_ => Schedule(rebuildCosmeticTrail), true);
+                cosmetics.CustomisationChanged += onCustomisationChanged;
+            }
             else
                 updateSkinTrailVisibility();
 
@@ -105,6 +108,15 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
 
             updateSkinTrailVisibility();
         }
+
+        // Live slider tweak from the store: if the changed trail is the one
+        // we're showing, re-apply its length/density to the existing instance
+        // (no rebuild, so it updates under the cursor as you drag).
+        private void onCustomisationChanged(string id) => Schedule(() =>
+        {
+            if (cosmeticTrail != null && cosmetics != null && id == cosmetics.EquippedTrailId.Value)
+                cosmetics.ApplyCustomisationTo(cosmeticTrail, id);
+        });
 
         private void updateSkinTrailVisibility()
         {
@@ -176,6 +188,13 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         {
             fadeContainer.FadeTo(0.05f, 450, Easing.OutQuint);
             ActiveCursor.ScaleTo(0.8f, 450, Easing.OutQuint);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (cosmetics != null)
+                cosmetics.CustomisationChanged -= onCustomisationChanged;
+            base.Dispose(isDisposing);
         }
 
         private partial class DefaultCursorTrail : CursorTrail

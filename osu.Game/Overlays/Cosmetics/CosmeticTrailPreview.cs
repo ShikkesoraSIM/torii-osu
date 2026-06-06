@@ -23,12 +23,17 @@ namespace osu.Game.Overlays.Cosmetics
     public partial class CosmeticTrailPreview : Container
     {
         private readonly CosmeticTrailDefinition def;
+        private readonly float speed;
         private Drawable trailDrawable;
         private ICosmeticTrail trail;
+        private bool active = true;
 
-        public CosmeticTrailPreview(CosmeticTrailDefinition def)
+        /// <param name="speed">Orbit speed multiplier. Cards use a calmer orbit;
+        /// the detail panel a livelier one.</param>
+        public CosmeticTrailPreview(CosmeticTrailDefinition def, float speed = 1f)
         {
             this.def = def;
+            this.speed = speed;
             Masking = true;
             CornerRadius = BriefingTheme.CornerSm;
         }
@@ -52,14 +57,27 @@ namespace osu.Game.Overlays.Cosmetics
             trail?.SetDensityMultiplier(density);
         }
 
+        /// <summary>Gate the trail engine. The store grid sets this false for
+        /// scrolled-out cards so we don't drive ~35 live trails at once; on
+        /// re-show we reset so there's no streak across the gap.</summary>
+        public void SetActive(bool value)
+        {
+            if (active == value)
+                return;
+
+            active = value;
+            if (active)
+                trail?.Reset();
+        }
+
         protected override void Update()
         {
             base.Update();
 
-            if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
+            if (!active || trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                 return;
 
-            float t = (float)(Time.Current / 1000.0);
+            float t = (float)(Time.Current / 1000.0) * speed;
             var centre = DrawSize / 2;
             var p = centre + new Vector2(MathF.Cos(t * 2.1f) * (DrawSize.X * 0.3f),
                                          MathF.Sin(t * 2.7f) * (DrawSize.Y * 0.32f));

@@ -37,6 +37,11 @@ namespace osu.Game.Cosmetics
         /// UI can refresh.</summary>
         public event Action InventoryChanged;
 
+        /// <summary>Fires (with the trail id) when a trail's length/density is
+        /// tweaked, so an already-equipped live trail can re-apply it on the fly
+        /// instead of only picking it up on the next equip.</summary>
+        public event Action<string> CustomisationChanged;
+
         /// <summary>Local starter balance, granted once per profile (placeholder
         /// until the server economy is wired).</summary>
         public const int StartingPoints = 90000;
@@ -129,8 +134,25 @@ namespace osu.Game.Cosmetics
             map[id] = (length, density);
             config.SetValue(OsuSetting.CursorTrailCustomisations,
                 string.Join(";", map.Select(kv => $"{kv.Key}:{kv.Value.Item1.ToString(CultureInfo.InvariantCulture)}:{kv.Value.Item2.ToString(CultureInfo.InvariantCulture)}")));
-            // No InventoryChanged here: this fires per slider tick, and we don't
-            // want to rebuild the card grid on every drag.
+
+            // Deliberately NOT InventoryChanged (that rebuilds the whole card
+            // grid, and this fires per slider tick). CustomisationChanged is the
+            // light-touch signal: a live equipped trail just re-applies the new
+            // multipliers, no rebuild.
+            CustomisationChanged?.Invoke(id);
+        }
+
+        /// <summary>Re-apply the saved length/density for <paramref name="id"/>
+        /// to an already-built trail instance (used for live slider updates on
+        /// the equipped cursor). No-op if customisation isn't unlocked.</summary>
+        public void ApplyCustomisationTo(Drawable trail, string id)
+        {
+            if (trail is not ICosmeticTrail t || !AdjustUnlocked)
+                return;
+
+            var (length, density) = GetCustomisation(id);
+            t.SetLengthMultiplier(length);
+            t.SetDensityMultiplier(density);
         }
 
         // ── Trail building (used by the cursor containers) ──────────────────

@@ -133,13 +133,27 @@ namespace osu.Game.Graphics.Cursor
                 skinSource.SourceChanged += scheduleRebuildCursorTrail;
 
             if (cosmetics != null)
+            {
                 cosmetics.EquippedTrailId.BindValueChanged(_ => scheduleRebuildCursorTrail());
+                cosmetics.CustomisationChanged += onCustomisationChanged;
+            }
         }
+
+        // Live slider tweak from the store: re-apply length/density to the
+        // equipped menu trail in place (no rebuild) so it updates as you drag.
+        private void onCustomisationChanged(string id) => Schedule(() =>
+        {
+            if (cosmeticTrail != null && cosmetics != null && id == cosmetics.EquippedTrailId.Value)
+                cosmetics.ApplyCustomisationTo(cosmeticTrail, id);
+        });
 
         protected override void Dispose(bool isDisposing)
         {
             if (skinSource != null)
                 skinSource.SourceChanged -= scheduleRebuildCursorTrail;
+
+            if (cosmetics != null)
+                cosmetics.CustomisationChanged -= onCustomisationChanged;
 
             base.Dispose(isDisposing);
         }

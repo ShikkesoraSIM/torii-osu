@@ -4,9 +4,14 @@
 #nullable disable
 
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Primitives;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -17,22 +22,29 @@ using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Cosmetics
 {
-    /// <summary>A shop tile: name, tier, and either a price or an owned/equipped
-    /// badge. Clicking it selects (Store) or equips (Inventory) — wired by the
-    /// overlay.</summary>
+    /// <summary>A shop tile: a big live trail preview with the name, tier and a
+    /// price / owned / equipped footer over it. Clicking it selects (Store) or
+    /// equips (Inventory) — wired by the overlay. Hover lifts it; the overlay
+    /// can mark it selected for a highlighted border.</summary>
     public partial class StoreItemCard : OsuClickableContainer
     {
         private readonly CosmeticTrailDefinition def;
         private readonly ToriiCosmeticsManager cosmetics;
-
         private readonly bool featured;
+        private readonly bool startSelected;
 
-        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, bool featured = false)
+        private Container content;
+        private Container selectionBorder;
+        private Box hoverHighlight;
+        private CosmeticTrailPreview preview;
+
+        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, bool featured = false, bool selected = false)
         {
             this.def = def;
             this.cosmetics = cosmetics;
             this.featured = featured;
-            Size = new Vector2(150, 92);
+            startSelected = selected;
+            Size = new Vector2(244, 168);
         }
 
         [BackgroundDependencyLoader]
@@ -45,68 +57,218 @@ namespace osu.Game.Overlays.Cosmetics
                 : owned ? BriefingTheme.AccentSky
                 : BriefingTheme.AccentAmber;
 
-            string footer = equipped ? "EQUIPPED" : owned ? "OWNED" : $"{def.Price:N0} pts";
-
-            Child = new BriefingGlass
+            var clipChildren = new Drawable[]
             {
-                RelativeSizeAxes = Axes.Both,
-                RelativeContentSize = Axes.Both,
-                CornerSize = BriefingTheme.CornerSm,
-                SurfaceLift = 1.35f,
-                ShadowOpacity = 0.18f,
-                ShadowRadius = 8f,
-                Child = new Container
+                // The star of the card: a calm live preview of the actual trail.
+                preview = new CosmeticTrailPreview(def, 0.85f) { RelativeSizeAxes = Axes.Both },
+                // Scrim so the name/price stay legible over a bright trail.
+                new Box
                 {
-                    RelativeSizeAxes = Axes.Both,
-                    Padding = new MarginPadding(BriefingTheme.SpacingSm),
+                    RelativeSizeAxes = Axes.X,
+                    Height = 78,
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0f), Color4.Black.Opacity(0.82f)),
+                },
+                new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 3),
+                    Padding = new MarginPadding { Horizontal = 12, Bottom = 10 },
                     Children = new Drawable[]
                     {
-                        new FillFlowContainer
+                        new TruncatingSpriteText
                         {
+                            Text = def.Name,
+                            Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
                             RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            Direction = FillDirection.Vertical,
-                            Spacing = new Vector2(0, 2),
-                            Children = new Drawable[]
-                            {
-                                new TruncatingSpriteText
-                                {
-                                    Text = def.Name,
-                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
-                                    RelativeSizeAxes = Axes.X,
-                                },
-                                new OsuSpriteText
-                                {
-                                    Text = def.Tier.ToString().ToUpperInvariant(),
-                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
-                                    Colour = tierColour(def.Tier),
-                                },
-                            },
                         },
-                        new OsuSpriteText
+                        createFooter(owned, equipped, footerColour),
+                    },
+                },
+                hoverHighlight = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4.White.Opacity(0.06f),
+                    Blending = BlendingParameters.Additive,
+                    Alpha = 0,
+                },
+            };
+
+            Child = content = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Children = new Drawable[]
+                {
+                    new BriefingGlass
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        RelativeContentSize = Axes.Both,
+                        CornerSize = BriefingTheme.CornerSm,
+                        SurfaceLift = 1.2f,
+                        ShadowOpacity = 0.2f,
+                        ShadowRadius = 10f,
+                        Child = new Container
                         {
-                            Anchor = Anchor.BottomLeft,
-                            Origin = Anchor.BottomLeft,
-                            Text = footer,
-                            Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
-                            Colour = footerColour,
+                            RelativeSizeAxes = Axes.Both,
+                            Masking = true,
+                            CornerRadius = BriefingTheme.CornerSm,
+                            Children = clipChildren,
                         },
+                    },
+                    // Featured star (daily-rotation flag).
+                    featured
+                        ? new SpriteIcon
+                        {
+                            Anchor = Anchor.TopRight,
+                            Origin = Anchor.TopRight,
+                            Margin = new MarginPadding(9),
+                            Icon = FontAwesome.Solid.Star,
+                            Size = new Vector2(13),
+                            Colour = BriefingTheme.AccentAmber,
+                        }
+                        : Empty(),
+                    // Ownership badge (top-left pill).
+                    owned ? ownedPill(equipped) : Empty(),
+                    // Selection border, faded in by the overlay when picked.
+                    selectionBorder = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = BriefingTheme.CornerSm,
+                        BorderThickness = 2.5f,
+                        BorderColour = BriefingTheme.AccentPink,
+                        Alpha = 0,
+                        Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Transparent, AlwaysPresent = true },
                     },
                 },
             };
 
-            if (featured)
+            if (startSelected)
+                selectionBorder.Alpha = 1;
+        }
+
+        private Drawable createFooter(bool owned, bool equipped, Color4 footerColour)
+        {
+            var row = new FillFlowContainer
             {
-                Add(new SpriteIcon
+                AutoSizeAxes = Axes.Both,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(6, 0),
+                Children = new Drawable[]
                 {
-                    Anchor = Anchor.TopRight,
-                    Origin = Anchor.TopRight,
-                    Margin = new MarginPadding(7),
-                    Icon = FontAwesome.Solid.Star,
-                    Size = new Vector2(12),
-                    Colour = BriefingTheme.AccentAmber,
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = def.Tier.ToString().ToUpperInvariant(),
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                        Colour = tierColour(def.Tier),
+                    },
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = "·",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    },
+                },
+            };
+
+            if (owned)
+            {
+                row.Add(new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = equipped ? "EQUIPPED" : "OWNED",
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                    Colour = footerColour,
                 });
             }
+            else
+            {
+                row.Add(new SpriteIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Icon = FontAwesome.Solid.Coins,
+                    Size = new Vector2(11),
+                    Colour = footerColour,
+                });
+                row.Add(new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = $"{def.Price:N0}",
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                    Colour = footerColour,
+                });
+            }
+
+            return row;
+        }
+
+        private Drawable ownedPill(bool equipped) => new Container
+        {
+            Anchor = Anchor.TopLeft,
+            Origin = Anchor.TopLeft,
+            Margin = new MarginPadding(8),
+            AutoSizeAxes = Axes.Both,
+            Masking = true,
+            CornerRadius = 5f,
+            Children = new Drawable[]
+            {
+                new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = (equipped ? BriefingTheme.AccentGain : BriefingTheme.AccentSky).Opacity(0.92f),
+                },
+                new OsuSpriteText
+                {
+                    Margin = new MarginPadding { Horizontal = 7, Vertical = 3 },
+                    Text = equipped ? "EQUIPPED" : "OWNED",
+                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                    Colour = Color4.Black.Opacity(0.85f),
+                },
+            },
+        };
+
+        /// <summary>Highlight (or clear) this card's selection border.</summary>
+        public void SetSelected(bool selected) => selectionBorder?.FadeTo(selected ? 1 : 0, 140, Easing.OutQuint);
+
+        // The card's nearest masking ancestor is the store's scroll container,
+        // so this flips false exactly when the card scrolls out of view — the
+        // signal we use to pause its preview's trail engine (the preview's own
+        // masking parent is this card, which always contains it, so it can't
+        // detect scroll culling itself).
+        protected override bool ComputeIsMaskedAway(RectangleF maskingBounds)
+        {
+            bool masked = base.ComputeIsMaskedAway(maskingBounds);
+            preview?.SetActive(!masked);
+            return masked;
+        }
+
+        protected override bool OnHover(HoverEvent e)
+        {
+            preview?.SetActive(true); // safety: a hovered card always animates
+            content.ScaleTo(1.035f, 220, Easing.OutQuint);
+            hoverHighlight.FadeTo(1, 160, Easing.OutQuint);
+            return base.OnHover(e);
+        }
+
+        protected override void OnHoverLost(HoverLostEvent e)
+        {
+            content.ScaleTo(1f, 260, Easing.OutQuint);
+            hoverHighlight.FadeTo(0, 220, Easing.OutQuint);
+            base.OnHoverLost(e);
         }
 
         private static Color4 tierColour(CosmeticTier tier) => tier switch

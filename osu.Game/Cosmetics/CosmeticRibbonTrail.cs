@@ -107,6 +107,13 @@ namespace osu.Game.Cosmetics
         private float? baseWidthScale;
         private float widthScale = 1f;
 
+        // Effective point budget. Length scales this (not just lifetime): at a
+        // normal cursor speed the trail almost always hits the point cap well
+        // before the lifetime cutoff, so scaling lifetime alone does nothing
+        // visible. Scaling how many points we keep is what actually lengthens
+        // (or shortens) the ribbon.
+        private int pointBudget = max_points;
+
         public CosmeticRibbonTrail()
         {
             Clock = new FramedClock();
@@ -213,6 +220,9 @@ namespace osu.Game.Cosmetics
         {
             baseLifetime ??= RibbonLifetime;
             RibbonLifetime = baseLifetime.Value * multiplier;
+            // Keep more / fewer points so the change is actually visible (see
+            // pointBudget). Clamped so a long setting can't blow up the mesh.
+            pointBudget = Math.Clamp((int)(max_points * multiplier), 24, 560);
         }
 
         public void SetDensityMultiplier(float multiplier)
@@ -256,7 +266,7 @@ namespace osu.Game.Cosmetics
         private void addPoint(Vector2 position)
         {
             points.Add(new RibbonPoint { Pos = position, Time = Time.Current });
-            if (points.Count > max_points)
+            while (points.Count > pointBudget)
                 points.RemoveAt(0);
         }
 
