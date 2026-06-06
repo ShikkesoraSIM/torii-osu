@@ -86,12 +86,17 @@ namespace osu.Game.Cosmetics
 
             if (paused)
             {
-                // Freeze every live particle where it is (clear its drift/fade/
-                // expire transforms), so a paused trail is a static snapshot
-                // instead of fading out to nothing. Preview-only; the equipped
+                // Freeze every live particle where it is: clear its drift/fade/
+                // expire transforms AND pin its lifetime, so it STAYS (a static
+                // snapshot) instead of expiring and vanishing. Clearing the
+                // transforms alone left the Expire-set LifetimeEnd in place, so
+                // the particles still disappeared. Preview-only; the equipped
                 // trail never pauses.
                 foreach (var c in InternalChildren)
+                {
                     c.ClearTransforms();
+                    c.LifetimeEnd = double.MaxValue;
+                }
             }
             else
             {

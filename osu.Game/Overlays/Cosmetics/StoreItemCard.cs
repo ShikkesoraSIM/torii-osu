@@ -62,8 +62,9 @@ namespace osu.Game.Overlays.Cosmetics
 
             var clipChildren = new Drawable[]
             {
-                // The star of the card: a calm live preview of the actual trail.
-                preview = new CosmeticTrailPreview(def, 0.85f) { RelativeSizeAxes = Axes.Both },
+                // The star of the card: a live preview of the actual trail (a
+                // lively sweep speed so the hover animation doesn't feel sluggish).
+                preview = new CosmeticTrailPreview(def, 2f) { RelativeSizeAxes = Axes.Both },
                 // Scrim so the name/price stay legible over a bright trail.
                 new Box
                 {

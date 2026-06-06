@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -34,16 +35,20 @@ namespace osu.Game.Overlays.Cosmetics
         private FillFlowContainer flow;
         private CosmeticTrailPreview preview;
 
-        // Current customisation, mutated by the preset chips below.
+        // Current customisation (Length is a 0..1 scale, 1 = catalog default;
+        // Density / Size are multipliers within the CosmeticEconomy ranges).
         private float curLen = 1f;
         private float curDens = 1f;
         private float curSize = 1f;
 
-        // Preset chips per axis. Length is a 0..1 scale (1 = catalog default);
-        // density / size are multipliers within the CosmeticEconomy ranges.
-        private static readonly (string name, float value)[] length_presets = { ("Short", 0.35f), ("Normal", 0.7f), ("Long", 1f) };
-        private static readonly (string name, float value)[] density_presets = { ("Low", 0.7f), ("Normal", 1f), ("High", 1.35f) };
-        private static readonly (string name, float value)[] size_presets = { ("Small", 0.75f), ("Normal", 1f), ("Big", 1.4f) };
+        // When the panel is too short to stack all sliders (e.g. big UI scale),
+        // collapse to a single slider plus axis-picker buttons.
+        private bool compact;
+        private int selectedAxis;
+
+        // Below this panel height the three stacked sliders don't fit, so we go
+        // compact (one slider + Length/Density/Size buttons).
+        private const float compact_threshold = 470f;
 
         public CosmeticDetailPanel(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, Action<string> notify)
         {
@@ -83,7 +88,7 @@ namespace osu.Game.Overlays.Cosmetics
             bool equipped = cosmetics != null && cosmetics.EquippedTrailId.Value == def.Id;
             (curLen, curDens, curSize) = cosmetics?.GetCustomisation(def.Id) ?? (1f, 1f, 1f);
 
-            flow.Add(preview = new CosmeticTrailPreview(def)
+            flow.Add(preview = new CosmeticTrailPreview(def, 1.6f)
             {
                 RelativeSizeAxes = Axes.X,
                 Height = 150,
@@ -159,18 +164,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (cosmetics != null && cosmetics.AdjustUnlocked)
             {
-                // Preset chips per axis (clearer than sliders). Density only makes
-                // sense for dot / particle trails; a continuous ribbon hides it.
-                bool showDensity = def.Family != CosmeticTrailFamily.Ribbon;
-
-                flow.Add(presetRow("Length", length_presets, curLen, v => { curLen = v; applyAll(); }));
-
-                if (showDensity)
-                    flow.Add(presetRow("Density", density_presets, curDens, v => { curDens = v; applyAll(); }));
-
-                flow.Add(presetRow("Size", size_presets, curSize, v => { curSize = v; applyAll(); }));
-
-                applyAll();
+                buildCustomisation();
             }
             else
             {
@@ -209,78 +203,113 @@ namespace osu.Game.Overlays.Cosmetics
             Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
         };
 
-        /// <summary>A labelled row of preset chips; the chip closest to the
-        /// current value is highlighted, tapping one sets the value.</summary>
-        private Drawable presetRow(string title, (string name, float value)[] presets, float current, Action<float> onSet)
+        /// <summary>Build the length/density/size sliders. Normally all three
+        /// are stacked; when the panel is too short (big UI scale) it collapses
+        /// to one slider plus Length/Density/Size picker buttons.</summary>
+        private void buildCustomisation()
         {
-            var chips = new List<(Box bg, OsuSpriteText text, float value)>();
+            bool showDensity = def.Family != CosmeticTrailFamily.Ribbon;
 
-            var chipFlow = new FillFlowContainer
+            // Length is a 0..1 scale; density/size are multipliers in range.
+            var length = new BindableFloat(curLen) { MinValue = 0f, MaxValue = 1f, Precision = 0.05f };
+            var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
+            var size = new BindableFloat(curSize) { MinValue = CosmeticEconomy.MinSizeMultiplier, MaxValue = CosmeticEconomy.MaxSizeMultiplier, Precision = 0.05f };
+
+            length.BindValueChanged(v => { curLen = v.NewValue; applyAll(); });
+            density.BindValueChanged(v => { curDens = v.NewValue; applyAll(); });
+            size.BindValueChanged(v => { curSize = v.NewValue; applyAll(); });
+
+            var axes = new List<(string name, BindableFloat bindable)> { ("Length", length) };
+            if (showDensity)
+                axes.Add(("Density", density));
+            axes.Add(("Size", size));
+
+            if (!compact)
             {
-                AutoSizeAxes = Axes.Both,
-                Direction = FillDirection.Horizontal,
-                Spacing = new Vector2(6, 0),
-            };
-
-            void refresh(float selected)
-            {
-                // Highlight the chip whose value is closest to the current value.
-                float best = presets[0].value;
-                foreach (var pr in presets)
+                foreach (var a in axes)
                 {
-                    if (Math.Abs(pr.value - selected) < Math.Abs(best - selected))
-                        best = pr.value;
-                }
-
-                foreach (var c in chips)
-                {
-                    bool sel = Math.Abs(c.value - best) < 0.001f;
-                    c.bg.FadeColour(sel ? BriefingTheme.AccentPink : Color4.White.Opacity(0.08f), 120, Easing.OutQuint);
-                    c.text.FadeColour(sel ? Color4.White : Color4.White.Opacity(BriefingTheme.InkSecondary), 120, Easing.OutQuint);
+                    flow.Add(label(a.name));
+                    flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = a.bindable });
                 }
             }
-
-            foreach (var p in presets)
+            else
             {
-                Box bg;
-                OsuSpriteText txt;
-                float val = p.value;
+                selectedAxis = Math.Clamp(selectedAxis, 0, axes.Count - 1);
+                flow.Add(axisSelector(axes));
+                flow.Add(label(axes[selectedAxis].name));
+                flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = axes[selectedAxis].bindable });
+            }
 
-                chipFlow.Add(new OsuClickableContainer
+            applyAll();
+        }
+
+        /// <summary>The Length / Density / Size picker shown in compact mode.</summary>
+        private Drawable axisSelector(List<(string name, BindableFloat bindable)> axes)
+        {
+            var buttons = new Drawable[axes.Count];
+
+            for (int i = 0; i < axes.Count; i++)
+            {
+                int index = i;
+                bool sel = index == selectedAxis;
+
+                buttons[i] = new OsuClickableContainer
                 {
-                    AutoSizeAxes = Axes.Both,
+                    RelativeSizeAxes = Axes.X,
+                    Height = 30,
                     Masking = true,
                     CornerRadius = 6f,
+                    Margin = new MarginPadding { Horizontal = 3 },
                     Action = () =>
                     {
-                        onSet(val);
-                        refresh(val);
+                        selectedAxis = index;
+                        rebuild();
                     },
                     Children = new Drawable[]
                     {
-                        bg = new Box { RelativeSizeAxes = Axes.Both },
-                        txt = new OsuSpriteText
+                        new Box { RelativeSizeAxes = Axes.Both, Colour = sel ? BriefingTheme.AccentPink : Color4.White.Opacity(0.08f) },
+                        new OsuSpriteText
                         {
-                            Margin = new MarginPadding { Horizontal = 13, Vertical = 6 },
-                            Text = p.name,
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = axes[index].name,
                             Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                            Colour = sel ? Color4.White : Color4.White.Opacity(BriefingTheme.InkSecondary),
                         },
                     },
-                });
-
-                chips.Add((bg, txt, val));
+                };
             }
 
-            refresh(current);
+            var cols = new Dimension[axes.Count];
+            for (int i = 0; i < cols.Length; i++)
+                cols[i] = new Dimension();
 
-            return new FillFlowContainer
+            return new GridContainer
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 4),
-                Children = new Drawable[] { label(title), chipFlow },
+                ColumnDimensions = cols,
+                RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
+                Content = new[] { buttons },
             };
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (flow == null)
+                return;
+
+            // Switch to the compact one-slider layout when the panel is too short
+            // for three stacked sliders (e.g. at a large UI scale).
+            bool wantCompact = DrawHeight > 0 && DrawHeight < compact_threshold;
+
+            if (wantCompact != compact)
+            {
+                compact = wantCompact;
+                rebuild();
+            }
         }
 
         private void applyAll() => applyCustom(curLen, curDens, curSize);
