@@ -250,6 +250,14 @@ namespace osu.Game.Cosmetics
             IntervalMultiplierOverride = baseInterval.Value / Math.Max(0.05f, multiplier);
         }
 
+        public void Reset()
+        {
+            for (int i = 0; i < parts.Length; i++)
+                parts[i].InvalidationID = -1;
+            currentIndex = 0;
+            lastPosition = null;
+        }
+
         protected void AddTrail(Vector2 position)
         {
             position = ToLocalSpace(position);

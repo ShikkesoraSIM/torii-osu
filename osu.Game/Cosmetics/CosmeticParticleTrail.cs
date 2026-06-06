@@ -85,6 +85,14 @@ namespace osu.Game.Cosmetics
             SpawnInterval = baseInterval.Value / Math.Max(0.05f, multiplier);
         }
 
+        public void Reset()
+        {
+            // Leave live particles to fade out naturally; just break path
+            // continuity so the next move doesn't draw a streak across the gap.
+            lastPosition = null;
+            distanceCarry = 0;
+        }
+
         private void AddTrail(Vector2 screenSpacePosition)
         {
             Vector2 position = ToLocalSpace(screenSpacePosition);

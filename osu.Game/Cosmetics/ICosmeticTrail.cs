@@ -21,5 +21,10 @@ namespace osu.Game.Cosmetics
 
         /// <summary>Scale how densely parts / particles are emitted.</summary>
         void SetDensityMultiplier(float multiplier);
+
+        /// <summary>Drop the current path so the next Drive starts fresh (used
+        /// when handing control between a synthetic driver and the real cursor,
+        /// to avoid a streak across the gap).</summary>
+        void Reset();
     }
 }

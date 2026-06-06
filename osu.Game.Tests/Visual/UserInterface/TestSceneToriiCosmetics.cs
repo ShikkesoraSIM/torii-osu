@@ -8,6 +8,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Input.Events;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
@@ -174,6 +175,22 @@ namespace osu.Game.Tests.Visual.UserInterface
                 trail.SetDensityMultiplier(densityMul);
             }
 
+            private bool hovering;
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                hovering = true;
+                trail?.Reset(); // start fresh from the cursor (no streak from the orbit)
+                return false;
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hovering = false;
+                trail?.Reset(); // resume the auto-orbit cleanly
+                base.OnHoverLost(e);
+            }
+
             protected override void Update()
             {
                 base.Update();
@@ -181,10 +198,10 @@ namespace osu.Game.Tests.Visual.UserInterface
                 if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                     return;
 
-                // Hovering a tile hands control to your real cursor (the trail
-                // follows the mouse like in gameplay); the auto-orbit only runs
-                // when the tile isn't hovered.
-                if (IsHovered)
+                // While hovered, your real (high-frequency) cursor drives the
+                // trail like in gameplay; the auto-orbit only runs when the tile
+                // isn't hovered.
+                if (hovering)
                     return;
 
                 // Orbit a synthetic cursor in a lissajous figure so the trail

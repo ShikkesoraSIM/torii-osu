@@ -148,41 +148,47 @@ namespace osu.Game.Cosmetics
             }),
             particle("trail-stardust", "Stardust", CosmeticTier.Premium, 2800, CosmeticParticles.RainbowSparkle, t =>
             {
-                t.Drift = new Vector2(0, -6); t.DriftJitter = 12; t.SpinDegrees = 60; t.SpawnInterval = 18;
-                t.ParticleLifetime = 800; t.StartScale = 1f; t.EndScale = 0.3f;
+                t.Drift = new Vector2(0, -6); t.DriftJitter = 12; t.SpinDegrees = 60; t.SpawnInterval = 12;
+                t.ParticleLifetime = 850; t.StartScale = 1.5f; t.EndScale = 0.3f;
             }),
 
             // ── Connected RIBBON trails (a stitched mesh, not dots): finite,
             //    long, tapering, waving, flowing.
             ribbon("trail-comet", "Comet", CosmeticTier.Premium, 2600, t =>
             {
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
+                // Wide bright head tapering to a thin fading tail.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
                 t.PrimaryColour = new Color4(255, 255, 255, 255);
-                t.GlowColour = new Color4(120, 180, 255, 255);
-                t.Glow = true; t.HeadDot = true;
-                t.Width = 11f; t.RibbonLifetime = 430;
+                t.SecondaryColour = new Color4(110, 170, 255, 255);
+                t.HeadWidth = 18f; t.TailWidth = 2f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(120, 180, 255, 255); t.HeadDot = true;
+                t.RibbonLifetime = 460;
             }),
             ribbon("trail-serpent", "Emerald Serpent", CosmeticTier.Special, 1300, t =>
             {
-                // Finite, long, clean snake (rounded cap, no glow).
+                // Finite, long, clean snake: constant width, rounded cap, no fade.
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(70, 230, 150, 255);
-                t.Glow = false; t.Width = 10f; t.RibbonLifetime = 950;
+                t.HeadWidth = 11f; t.TailWidth = 11f; t.FadeTail = false;
+                t.Glow = false; t.RibbonLifetime = 950;
             }),
             ribbon("trail-rainbow-ribbon", "Rainbow Ribbon", CosmeticTier.Premium, 3200, t =>
             {
+                // A real spectrum running head->tail, flowing over time.
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Rainbow;
-                t.Glow = true; t.HueCycleSpeed = 0.6f;
-                t.Width = 11f; t.RibbonLifetime = 750;
+                t.HueSpread = 1f; t.HueCycleSpeed = 0.4f;
+                t.HeadWidth = 12f; t.TailWidth = 7f; t.FadeTail = true;
+                t.Glow = true; t.RibbonLifetime = 820;
             }),
-            ribbon("trail-neon-wave", "Neon Wave", CosmeticTier.Premium, 3000, t =>
+            ribbon("trail-neon-flux", "Neon Flux", CosmeticTier.Premium, 3000, t =>
             {
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
-                t.PrimaryColour = new Color4(60, 240, 255, 255);
-                t.GlowColour = new Color4(255, 80, 230, 255);
-                t.Glow = true; t.Width = 8f;
-                t.WaveAmplitude = 12f; t.WaveFrequency = 0.5f; t.WaveSpeed = 6f;
-                t.RibbonLifetime = 600;
+                // Cyan->magenta neon gradient with a magenta halo.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.PrimaryColour = new Color4(70, 240, 255, 255);
+                t.SecondaryColour = new Color4(255, 80, 230, 255);
+                t.HeadWidth = 12f; t.TailWidth = 4f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(255, 90, 235, 255);
+                t.RibbonLifetime = 700;
             }),
 
             // ── More shaped particle trails (varied forms + motion).
