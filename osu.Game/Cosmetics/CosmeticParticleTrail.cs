@@ -53,7 +53,7 @@ namespace osu.Game.Cosmetics
 
         private int spawnIndex;
         private Vector2? lastPosition;
-        private readonly InputResampler resampler = new InputResampler();
+        private float distanceCarry;
         private readonly Random random = new Random();
 
         public CosmeticParticleTrail()
@@ -92,26 +92,28 @@ namespace osu.Game.Cosmetics
             if (!lastPosition.HasValue)
             {
                 lastPosition = position;
-                resampler.AddPosition(position);
                 return;
             }
 
-            foreach (Vector2 pos2 in resampler.AddPosition(position))
+            Vector2 diff = position - lastPosition.Value;
+            float distance = diff.Length;
+            if (distance <= 0)
+                return;
+
+            // Accumulate leftover travel across frames so particles emit evenly
+            // even when each frame's move is smaller than the spawn interval.
+            Vector2 direction = diff / distance;
+            float traveled = 0;
+            while (distanceCarry + (distance - traveled) >= SpawnInterval)
             {
-                Vector2 pos1 = lastPosition.Value;
-                Vector2 diff = pos2 - pos1;
-                float distance = diff.Length;
-
-                if (distance <= 0)
-                    continue;
-
-                Vector2 direction = diff / distance;
-
-                for (float d = SpawnInterval; d < distance; d += SpawnInterval)
-                    spawn(pos1 + direction * d);
-
-                lastPosition = pos2;
+                float step = SpawnInterval - distanceCarry;
+                traveled += step;
+                spawn(lastPosition.Value + direction * traveled);
+                distanceCarry = 0;
             }
+
+            distanceCarry += distance - traveled;
+            lastPosition = position;
         }
 
         private void spawn(Vector2 localPosition)

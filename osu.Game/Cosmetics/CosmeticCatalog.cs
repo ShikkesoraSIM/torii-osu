@@ -156,32 +156,33 @@ namespace osu.Game.Cosmetics
             //    long, tapering, waving, flowing.
             ribbon("trail-comet", "Comet", CosmeticTier.Premium, 2600, t =>
             {
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(255, 255, 255, 255);
-                t.SecondaryColour = new Color4(120, 180, 255, 255);
-                t.HeadWidth = 18f; t.TailWidth = 1f; t.RibbonLifetime = 480; t.FadeTail = true;
+                t.GlowColour = new Color4(120, 180, 255, 255);
+                t.Glow = true; t.HeadDot = true;
+                t.Width = 11f; t.RibbonLifetime = 430;
             }),
             ribbon("trail-serpent", "Emerald Serpent", CosmeticTier.Special, 1300, t =>
             {
-                // Finite, long, DEFINED tail (no fade) - the classic snake ribbon.
+                // Finite, long, clean snake (rounded cap, no glow).
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(70, 230, 150, 255);
-                t.HeadWidth = 8f; t.TailWidth = 8f; t.RibbonLifetime = 950; t.FadeTail = false;
-                t.Blending = BlendingParameters.Inherit;
+                t.Glow = false; t.Width = 10f; t.RibbonLifetime = 950;
             }),
             ribbon("trail-rainbow-ribbon", "Rainbow Ribbon", CosmeticTier.Premium, 3200, t =>
             {
                 t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Rainbow;
-                t.HueSpread = 1f; t.HueCycleSpeed = 0.5f;
-                t.HeadWidth = 10f; t.TailWidth = 6f; t.RibbonLifetime = 800; t.FadeTail = true;
+                t.Glow = true; t.HueCycleSpeed = 0.6f;
+                t.Width = 11f; t.RibbonLifetime = 750;
             }),
             ribbon("trail-neon-wave", "Neon Wave", CosmeticTier.Premium, 3000, t =>
             {
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
                 t.PrimaryColour = new Color4(60, 240, 255, 255);
-                t.SecondaryColour = new Color4(255, 80, 230, 255);
-                t.HeadWidth = 7f; t.TailWidth = 3f; t.RibbonLifetime = 650; t.FadeTail = true;
-                t.WaveAmplitude = 10f; t.WaveFrequency = 0.5f; t.WaveSpeed = 5f;
+                t.GlowColour = new Color4(255, 80, 230, 255);
+                t.Glow = true; t.Width = 8f;
+                t.WaveAmplitude = 12f; t.WaveFrequency = 0.5f; t.WaveSpeed = 6f;
+                t.RibbonLifetime = 600;
             }),
 
             // ── More shaped particle trails (varied forms + motion).
