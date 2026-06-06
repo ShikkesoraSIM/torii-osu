@@ -8,7 +8,6 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
@@ -32,18 +31,22 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly ToriiCosmeticsManager cosmetics;
         private readonly bool featured;
         private readonly bool startSelected;
+        private readonly Drawable viewport;
 
         private Container content;
         private Container selectionBorder;
         private Box hoverHighlight;
         private CosmeticTrailPreview preview;
 
-        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, bool featured = false, bool selected = false)
+        /// <param name="viewport">The scroll viewport; the preview only animates
+        /// while the card overlaps it, so off-screen cards stay cheap.</param>
+        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, bool featured = false, bool selected = false, Drawable viewport = null)
         {
             this.def = def;
             this.cosmetics = cosmetics;
             this.featured = featured;
             startSelected = selected;
+            this.viewport = viewport;
             Size = new Vector2(244, 168);
         }
 
@@ -152,6 +155,8 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (startSelected)
                 selectionBorder.Alpha = 1;
+
+            preview.AnimationViewport = viewport;
         }
 
         private Drawable createFooter(bool owned, bool equipped, Color4 footerColour)
@@ -244,21 +249,8 @@ namespace osu.Game.Overlays.Cosmetics
         /// <summary>Highlight (or clear) this card's selection border.</summary>
         public void SetSelected(bool selected) => selectionBorder?.FadeTo(selected ? 1 : 0, 140, Easing.OutQuint);
 
-        // The card's nearest masking ancestor is the store's scroll container,
-        // so this flips false exactly when the card scrolls out of view — the
-        // signal we use to pause its preview's trail engine (the preview's own
-        // masking parent is this card, which always contains it, so it can't
-        // detect scroll culling itself).
-        protected override bool ComputeIsMaskedAway(RectangleF maskingBounds)
-        {
-            bool masked = base.ComputeIsMaskedAway(maskingBounds);
-            preview?.SetActive(!masked);
-            return masked;
-        }
-
         protected override bool OnHover(HoverEvent e)
         {
-            preview?.SetActive(true); // safety: a hovered card always animates
             content.ScaleTo(1.035f, 220, Easing.OutQuint);
             hoverHighlight.FadeTo(1, 160, Easing.OutQuint);
             return base.OnHover(e);

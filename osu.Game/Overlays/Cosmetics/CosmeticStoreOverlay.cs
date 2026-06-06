@@ -52,6 +52,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         private BriefingGlass mainPanel;
         private OsuTabControl<StoreTab> tabs;
+        private OsuScrollContainer cardScroll;
         private FillFlowContainer cardFlow;
         private Container detailContainer;
         private OsuSpriteText pointsText;
@@ -197,7 +198,7 @@ namespace osu.Game.Overlays.Cosmetics
                 {
                     new[]
                     {
-                        (Drawable)new OsuScrollContainer
+                        (Drawable)(cardScroll = new OsuScrollContainer
                         {
                             RelativeSizeAxes = Axes.Both,
                             ScrollbarVisible = false,
@@ -208,7 +209,7 @@ namespace osu.Game.Overlays.Cosmetics
                                 Direction = FillDirection.Full,
                                 Spacing = new Vector2(BriefingTheme.SpacingSm),
                             },
-                        },
+                        }),
                         Empty(),
                         new BriefingGlass
                         {
@@ -259,39 +260,48 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
 
             cardFlow.Clear();
+            selectedCard = null;
 
             bool inventory = tabs.Current.Value == StoreTab.Inventory;
 
-            IEnumerable<CosmeticTrailDefinition> items;
-            HashSet<string> featured;
+            HashSet<string> featured = inventory
+                ? new HashSet<string>()
+                : (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>()).Select(d => d.Id).ToHashSet();
 
-            if (inventory)
+            IEnumerable<CosmeticTrailDefinition> trails = inventory
+                ? CosmeticCatalog.Trails.Where(t => cosmetics?.IsOwned(t.Id) ?? false)
+                : CosmeticCatalog.Trails;
+
+            // Category groups. Only a category that actually has items gets a
+            // header (no empty "Name Colours:" rows). New cosmetic kinds (name
+            // colours, user auras, ...) slot in here as additional groups.
+            var groups = new (string title, IconUsage icon, List<CosmeticTrailDefinition> items)[]
             {
-                var owned = cosmetics?.OwnedIds.ToHashSet() ?? new HashSet<string>();
-                items = CosmeticCatalog.Trails.Where(t => owned.Contains(t.Id));
-                featured = new HashSet<string>();
-            }
-            else
+                ("Cursor Trails", FontAwesome.Solid.PaintBrush, trails.ToList()),
+            };
+
+            bool anyContent = false;
+
+            foreach (var (title, icon, list) in groups)
             {
-                // Whole catalog is buyable; the daily rotation just flags a few
-                // as "featured" (placeholder for the real Fortnite-style shop).
-                items = CosmeticCatalog.Trails;
-                featured = (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>()).Select(d => d.Id).ToHashSet();
+                if (list.Count == 0)
+                    continue;
+
+                anyContent = true;
+                cardFlow.Add(categoryHeader(title, icon));
+
+                foreach (var def in list)
+                {
+                    bool isSelected = selected != null && def.Id == selected.Id;
+                    var card = new StoreItemCard(def, cosmetics, featured.Contains(def.Id), isSelected, cardScroll);
+                    card.Action = () => onCardClicked(def, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cardFlow.Add(card);
+                }
             }
 
-            selectedCard = null;
-
-            foreach (var def in items)
-            {
-                bool isSelected = selected != null && def.Id == selected.Id;
-                var card = new StoreItemCard(def, cosmetics, featured.Contains(def.Id), isSelected);
-                card.Action = () => onCardClicked(def, card);
-                if (isSelected)
-                    selectedCard = card;
-                cardFlow.Add(card);
-            }
-
-            if (!cardFlow.Any())
+            if (!anyContent)
             {
                 cardFlow.Add(new OsuSpriteText
                 {
@@ -301,6 +311,35 @@ namespace osu.Game.Overlays.Cosmetics
                 });
             }
         }
+
+        /// <summary>A full-width section header that forces a new row in the
+        /// card flow, so cards group visually under their category.</summary>
+        private Drawable categoryHeader(string title, IconUsage icon) => new FillFlowContainer
+        {
+            RelativeSizeAxes = Axes.X,
+            AutoSizeAxes = Axes.Y,
+            Direction = FillDirection.Horizontal,
+            Spacing = new Vector2(8, 0),
+            Margin = new MarginPadding { Top = 2, Bottom = 2, Left = 2 },
+            Children = new Drawable[]
+            {
+                new SpriteIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Icon = icon,
+                    Size = new Vector2(14),
+                    Colour = BriefingTheme.AccentPink,
+                },
+                new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = title,
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
+                },
+            },
+        };
 
         private void onCardClicked(CosmeticTrailDefinition def, StoreItemCard card)
         {

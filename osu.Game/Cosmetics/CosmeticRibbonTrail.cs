@@ -214,19 +214,29 @@ namespace osu.Game.Cosmetics
             distanceCarry = 0;
         }
 
-        public void SetLengthMultiplier(float multiplier)
+        public void SetLengthScale(float scale01)
         {
             // Length is purely the lifetime (TIME), so the trail behaves like
             // osu!'s: it persists for a set time and catches up to the cursor
-            // when you stop, instead of being a fixed-distance smear.
+            // when you stop, instead of being a fixed-distance smear. 0 maps to
+            // a fixed short floor (same ms as every other trail), 1 to default.
             baseLifetime ??= RibbonLifetime;
-            RibbonLifetime = baseLifetime.Value * multiplier;
+            scale01 = Math.Clamp(scale01, 0f, 1f);
+            RibbonLifetime = CosmeticEconomy.LengthFloorMilliseconds
+                             + (baseLifetime.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
         }
 
+        // A connected ribbon is one continuous band, so "density" (count per
+        // travel) has no meaning. The shop hides this slider for ribbons; this
+        // stays a no-op so the shared customisation path can call it blindly.
         public void SetDensityMultiplier(float multiplier)
         {
+        }
+
+        public void SetSizeMultiplier(float multiplier)
+        {
             baseWidthScale ??= widthScale;
-            widthScale = baseWidthScale.Value * multiplier;
+            widthScale = baseWidthScale.Value * Math.Max(0.1f, multiplier);
         }
 
         private void AddTrail(Vector2 screenSpacePosition)

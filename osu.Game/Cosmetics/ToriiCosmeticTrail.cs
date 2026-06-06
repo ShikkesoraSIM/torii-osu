@@ -18,7 +18,6 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Framework.Timing;
-using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Graphics.ES30;
@@ -146,22 +145,20 @@ namespace osu.Game.Cosmetics
                 parts[i].InvalidationID = -1;
         }
 
-        [Resolved(canBeNull: true)]
-        private ISkinSource skinSource { get; set; }
-
         [BackgroundDependencyLoader]
         private void load(IRenderer renderer, ShaderManager shaders, TextureStore textures)
         {
-            // Soft, ROUND trail dot: prefer the active skin's cursortrail, then
-            // the built-in game texture, only falling back to a (square) white
-            // pixel if neither exists. This is what makes the trail read as a
-            // smooth glowing ribbon instead of a chain of squares.
-            texture ??= skinSource?.GetTexture(@"cursortrail") ?? textures.Get(@"Cursor/cursortrail") ?? renderer.WhitePixel;
+            // Always the game's own soft ROUND trail texture, never the active
+            // skin's cursortrail. A skin that ships a square / blocky
+            // cursortrail.png would otherwise turn every cosmetic dot trail into
+            // squares (the bug the user hit). Cosmetics are skin-independent, so
+            // they should look identical whatever skin is loaded.
+            texture ??= textures.Get(@"Cursor/cursortrail") ?? renderer.WhitePixel;
             shader = shaders.Load(@"CursorTrail", FragmentShaderDescriptor.TEXTURE);
 
             // Normalise so Thickness is the part size in px regardless of the
-            // source texture's native size.
-            CursorScale = new Vector2(Thickness / Math.Max(1f, texture.DisplayWidth));
+            // source texture's native size (times any size-slider multiplier).
+            CursorScale = new Vector2(Thickness / Math.Max(1f, texture.DisplayWidth) * sizeMultiplier);
         }
 
         protected override void LoadComplete()
@@ -243,17 +240,31 @@ namespace osu.Game.Cosmetics
 
         private double? baseFade;
         private float? baseInterval;
+        private float sizeMultiplier = 1f;
 
-        public void SetLengthMultiplier(float multiplier)
+        public void SetLengthScale(float scale01)
         {
             baseFade ??= FadeDurationOverride;
-            FadeDurationOverride = baseFade.Value * multiplier;
+            scale01 = Math.Clamp(scale01, 0f, 1f);
+            // 0 -> a fixed short floor (same ms for every trail), 1 -> the
+            // trail's own default. Time-based, so the min feels consistent.
+            FadeDurationOverride = CosmeticEconomy.LengthFloorMilliseconds
+                                   + (baseFade.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
         }
 
         public void SetDensityMultiplier(float multiplier)
         {
             baseInterval ??= IntervalMultiplierOverride;
             IntervalMultiplierOverride = baseInterval.Value / Math.Max(0.05f, multiplier);
+        }
+
+        public void SetSizeMultiplier(float multiplier)
+        {
+            sizeMultiplier = Math.Max(0.1f, multiplier);
+            // CursorScale is (re)derived in load(); if we're already loaded,
+            // apply immediately so a live slider drag updates the dot size.
+            if (texture != null)
+                CursorScale = new Vector2(Thickness / Math.Max(1f, texture.DisplayWidth) * sizeMultiplier);
         }
 
         public void Reset()

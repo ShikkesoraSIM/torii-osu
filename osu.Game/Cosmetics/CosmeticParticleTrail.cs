@@ -48,8 +48,15 @@ namespace osu.Game.Cosmetics
         /// <summary>Hard cap on alive particles, to bound GPU/CPU work.</summary>
         public int MaxAlive { get; set; } = 160;
 
+        // Particles need enough life to fade in (90ms) and out (160ms), so their
+        // length floor is higher than the dot/ribbon one. They are inherently
+        // chunkier than a line trail, so a slightly longer minimum is expected.
+        private const double particle_length_floor_ms = 200;
+
         private float? baseInterval;
         private double? baseLifetime;
+        private float? baseStartScale;
+        private float? baseEndScale;
 
         private int spawnIndex;
         private Vector2? lastPosition;
@@ -73,16 +80,26 @@ namespace osu.Game.Cosmetics
 
         public void Drive(Vector2 screenSpacePosition) => AddTrail(screenSpacePosition);
 
-        public void SetLengthMultiplier(float multiplier)
+        public void SetLengthScale(float scale01)
         {
             baseLifetime ??= ParticleLifetime;
-            ParticleLifetime = baseLifetime.Value * multiplier;
+            scale01 = Math.Clamp(scale01, 0f, 1f);
+            ParticleLifetime = particle_length_floor_ms + (baseLifetime.Value - particle_length_floor_ms) * scale01;
         }
 
         public void SetDensityMultiplier(float multiplier)
         {
             baseInterval ??= SpawnInterval;
             SpawnInterval = baseInterval.Value / Math.Max(0.05f, multiplier);
+        }
+
+        public void SetSizeMultiplier(float multiplier)
+        {
+            baseStartScale ??= StartScale;
+            baseEndScale ??= EndScale;
+            multiplier = Math.Max(0.1f, multiplier);
+            StartScale = baseStartScale.Value * multiplier;
+            EndScale = baseEndScale.Value * multiplier;
         }
 
         public void Reset()

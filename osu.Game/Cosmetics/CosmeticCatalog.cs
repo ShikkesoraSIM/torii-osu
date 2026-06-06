@@ -34,14 +34,19 @@ namespace osu.Game.Cosmetics
         public CosmeticTier Tier { get; }
         public int Price { get; }
 
+        /// <summary>Render family, so the shop shows only the sliders that make
+        /// sense (e.g. no density slider for a continuous ribbon).</summary>
+        public CosmeticTrailFamily Family { get; }
+
         private readonly Func<Drawable> factory;
 
-        public CosmeticTrailDefinition(string id, string name, CosmeticTier tier, int price, Func<Drawable> factory)
+        public CosmeticTrailDefinition(string id, string name, CosmeticTier tier, int price, CosmeticTrailFamily family, Func<Drawable> factory)
         {
             Id = id;
             Name = name;
             Tier = tier;
             Price = price;
+            Family = family;
             this.factory = factory;
         }
 
@@ -290,7 +295,7 @@ namespace osu.Game.Cosmetics
         };
 
         private static CosmeticTrailDefinition smooth(string id, string name, CosmeticTier tier, int price, Action<ToriiCosmeticTrail> configure)
-            => new CosmeticTrailDefinition(id, name, tier, price, () =>
+            => new CosmeticTrailDefinition(id, name, tier, price, CosmeticTrailFamily.Dot, () =>
             {
                 var t = new ToriiCosmeticTrail();
                 configure(t);
@@ -298,7 +303,7 @@ namespace osu.Game.Cosmetics
             });
 
         private static CosmeticTrailDefinition particle(string id, string name, CosmeticTier tier, int price, Func<int, Drawable> factory, Action<CosmeticParticleTrail> configure)
-            => new CosmeticTrailDefinition(id, name, tier, price, () =>
+            => new CosmeticTrailDefinition(id, name, tier, price, CosmeticTrailFamily.Particle, () =>
             {
                 var t = new CosmeticParticleTrail { ParticleFactory = factory };
                 configure(t);
@@ -306,7 +311,7 @@ namespace osu.Game.Cosmetics
             });
 
         private static CosmeticTrailDefinition ribbon(string id, string name, CosmeticTier tier, int price, Action<CosmeticRibbonTrail> configure)
-            => new CosmeticTrailDefinition(id, name, tier, price, () =>
+            => new CosmeticTrailDefinition(id, name, tier, price, CosmeticTrailFamily.Ribbon, () =>
             {
                 var t = new CosmeticRibbonTrail();
                 configure(t);

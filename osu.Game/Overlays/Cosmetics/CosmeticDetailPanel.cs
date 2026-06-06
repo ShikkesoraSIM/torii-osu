@@ -61,7 +61,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             bool owned = cosmetics?.IsOwned(def.Id) ?? false;
             bool equipped = cosmetics != null && cosmetics.EquippedTrailId.Value == def.Id;
-            var (curLen, curDens) = cosmetics?.GetCustomisation(def.Id) ?? (1f, 1f);
+            var (curLen, curDens, curSize) = cosmetics?.GetCustomisation(def.Id) ?? (1f, 1f, 1f);
 
             flow.Add(preview = new CosmeticTrailPreview(def)
             {
@@ -148,18 +148,34 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (cosmetics != null && cosmetics.AdjustUnlocked)
             {
-                var length = new BindableFloat(curLen) { MinValue = CosmeticEconomy.MinLengthMultiplier, MaxValue = CosmeticEconomy.MaxLengthMultiplier, Precision = 0.05f };
-                var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
+                // Length is a 0..1 scale (1 = catalog default, 0 = a fixed short
+                // floor shared by every trail). Density only makes sense for
+                // dot / particle trails; a continuous ribbon hides it.
+                bool showDensity = def.Family != CosmeticTrailFamily.Ribbon;
 
-                length.BindValueChanged(_ => applyCustom(length.Value, density.Value));
-                density.BindValueChanged(_ => applyCustom(length.Value, density.Value));
+                var length = new BindableFloat(curLen) { MinValue = 0f, MaxValue = 1f, Precision = 0.05f };
+                var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
+                var size = new BindableFloat(curSize) { MinValue = CosmeticEconomy.MinSizeMultiplier, MaxValue = CosmeticEconomy.MaxSizeMultiplier, Precision = 0.05f };
+
+                void apply() => applyCustom(length.Value, density.Value, size.Value);
+
+                length.BindValueChanged(_ => apply());
+                density.BindValueChanged(_ => apply());
+                size.BindValueChanged(_ => apply());
 
                 flow.Add(label("Length"));
                 flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = length });
-                flow.Add(label("Density"));
-                flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = density });
 
-                applyCustom(curLen, curDens);
+                if (showDensity)
+                {
+                    flow.Add(label("Density"));
+                    flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = density });
+                }
+
+                flow.Add(label("Size"));
+                flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = size });
+
+                apply();
             }
             else
             {
@@ -198,10 +214,10 @@ namespace osu.Game.Overlays.Cosmetics
             Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
         };
 
-        private void applyCustom(float length, float density)
+        private void applyCustom(float length, float density, float size)
         {
-            preview?.ApplyCustomisation(length, density);
-            cosmetics?.SetCustomisation(def.Id, length, density);
+            preview?.ApplyCustomisation(length, density, size);
+            cosmetics?.SetCustomisation(def.Id, length, density, size);
         }
     }
 }

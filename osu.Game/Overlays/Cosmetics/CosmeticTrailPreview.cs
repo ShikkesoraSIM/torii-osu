@@ -5,6 +5,7 @@
 
 using System;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.PolygonExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
@@ -16,9 +17,10 @@ using osuTK.Graphics;
 namespace osu.Game.Overlays.Cosmetics
 {
     /// <summary>
-    /// A small live preview of a cursor-trail cosmetic that auto-orbits a
-    /// synthetic cursor (so the trail draws itself without real mouse input).
-    /// One instance at a time (shown in the detail panel) to stay GC-light.
+    /// A live preview of a cursor-trail cosmetic that drives a synthetic cursor
+    /// so the trail draws itself without real mouse input. The motion is a flat
+    /// horizontal sweep (not a tight circle) so ribbons read as a clean flowing
+    /// band instead of fanning into a disc.
     /// </summary>
     public partial class CosmeticTrailPreview : Container
     {
@@ -26,10 +28,15 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly float speed;
         private Drawable trailDrawable;
         private ICosmeticTrail trail;
-        private bool active = true;
+        private bool wasAnimating = true;
 
-        /// <param name="speed">Orbit speed multiplier. Cards use a calmer orbit;
-        /// the detail panel a livelier one.</param>
+        /// <summary>If set, the trail only animates while this drawable's screen
+        /// quad overlaps ours. The store grid points every card's preview at the
+        /// scroll viewport so off-screen cards go quiet (otherwise ~35 live
+        /// trails would run at once and lag). Null = always animate (detail
+        /// panel, where there's only one).</summary>
+        public Drawable AnimationViewport { get; set; }
+
         public CosmeticTrailPreview(CosmeticTrailDefinition def, float speed = 1f)
         {
             this.def = def;
@@ -44,6 +51,15 @@ namespace osu.Game.Overlays.Cosmetics
             trailDrawable = def.Create();
             trail = trailDrawable as ICosmeticTrail;
 
+            // Previews are small; a heavy particle trail (e.g. Galaxy at 220
+            // alive) is overkill here and is the main grid-lag culprit. Trim it
+            // hard for the preview only (the equipped trail keeps its full cap).
+            if (trailDrawable is CosmeticParticleTrail particles)
+            {
+                particles.MaxAlive = Math.Min(particles.MaxAlive, 36);
+                particles.SpawnInterval *= 1.4f;
+            }
+
             InternalChildren = new[]
             {
                 new Box { RelativeSizeAxes = Axes.Both, Colour = new Color4(14, 14, 22, 255) },
@@ -51,36 +67,46 @@ namespace osu.Game.Overlays.Cosmetics
             };
         }
 
-        public void ApplyCustomisation(float length, float density)
+        public void ApplyCustomisation(float length, float density, float size)
         {
-            trail?.SetLengthMultiplier(length);
+            trail?.SetLengthScale(length);
             trail?.SetDensityMultiplier(density);
-        }
-
-        /// <summary>Gate the trail engine. The store grid sets this false for
-        /// scrolled-out cards so we don't drive ~35 live trails at once; on
-        /// re-show we reset so there's no streak across the gap.</summary>
-        public void SetActive(bool value)
-        {
-            if (active == value)
-                return;
-
-            active = value;
-            if (active)
-                trail?.Reset();
+            trail?.SetSizeMultiplier(size);
         }
 
         protected override void Update()
         {
             base.Update();
 
-            if (!active || trail == null || DrawWidth <= 0 || DrawHeight <= 0)
+            if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                 return;
 
+            bool animating = AnimationViewport == null
+                             || AnimationViewport.ScreenSpaceDrawQuad.Intersects(ScreenSpaceDrawQuad);
+
+            if (!animating)
+            {
+                wasAnimating = false;
+                return;
+            }
+
+            // Just came back on screen: start a fresh path so there's no streak
+            // drawn across wherever the cursor "was".
+            if (!wasAnimating)
+            {
+                trail.Reset();
+                wasAnimating = true;
+            }
+
+            // Flat, wide horizontal sweep with a gentle vertical wave. Wide X +
+            // small Y keeps it a flowing band rather than a circular fan, and
+            // the slightly off-ratio frequencies stop it retracing one line.
             float t = (float)(Time.Current / 1000.0) * speed;
-            var centre = DrawSize / 2;
-            var p = centre + new Vector2(MathF.Cos(t * 2.1f) * (DrawSize.X * 0.3f),
-                                         MathF.Sin(t * 2.7f) * (DrawSize.Y * 0.32f));
+            float cx = DrawWidth * 0.5f;
+            float cy = DrawHeight * 0.44f;
+            var p = new Vector2(
+                cx + MathF.Sin(t * 1.15f) * (DrawWidth * 0.40f),
+                cy + MathF.Sin(t * 2.30f) * (DrawHeight * 0.20f));
             trail.Drive(ToScreenSpace(p));
         }
     }

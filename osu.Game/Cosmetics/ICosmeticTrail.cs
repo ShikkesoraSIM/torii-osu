@@ -16,15 +16,38 @@ namespace osu.Game.Cosmetics
         /// from real mouse input or a synthetic driver.</summary>
         void Drive(Vector2 screenSpacePosition);
 
-        /// <summary>Scale the trail's tail length / particle lifetime.</summary>
-        void SetLengthMultiplier(float multiplier);
+        /// <summary>Set the trail's length as a 0..1 scale, where 1 is the
+        /// trail's catalog default and 0 is a short, FIXED floor that is the
+        /// same wall-clock duration for every trail. Length is time-based (like
+        /// osu!'s trail), so the minimum feels identical whatever the trail.</summary>
+        void SetLengthScale(float scale01);
 
-        /// <summary>Scale how densely parts / particles are emitted.</summary>
+        /// <summary>Scale how densely parts / particles are emitted (count per
+        /// unit of cursor travel). Not all trails support this (a continuous
+        /// ribbon has no meaningful density) — see <see cref="CosmeticTrailFamily"/>.</summary>
         void SetDensityMultiplier(float multiplier);
+
+        /// <summary>Scale the visual SIZE / thickness of the trail (dot size,
+        /// ribbon width, particle scale).</summary>
+        void SetSizeMultiplier(float multiplier);
 
         /// <summary>Drop the current path so the next Drive starts fresh (used
         /// when handing control between a synthetic driver and the real cursor,
         /// to avoid a streak across the gap).</summary>
         void Reset();
+    }
+
+    /// <summary>Which render family a trail belongs to, so the shop can show only
+    /// the customisation sliders that make sense for it.</summary>
+    public enum CosmeticTrailFamily
+    {
+        /// <summary>Soft dot trail (osu!-style). Length + density + size.</summary>
+        Dot,
+
+        /// <summary>Connected smooth ribbon. Length + size (no meaningful density).</summary>
+        Ribbon,
+
+        /// <summary>Shaped particles. Length + density + size.</summary>
+        Particle,
     }
 }

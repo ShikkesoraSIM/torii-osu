@@ -105,35 +105,46 @@ namespace osu.Game.Cosmetics
 
         // ── Per-trail customisation (length / density multipliers) ──────────
 
-        public (float length, float density) GetCustomisation(string id)
+        public (float length, float density, float size) GetCustomisation(string id)
         {
             foreach (string entry in config.Get<string>(OsuSetting.CursorTrailCustomisations).Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
                 string[] parts = entry.Split(':');
-                if (parts.Length == 3 && parts[0] == id
+                if (parts.Length >= 3 && parts[0] == id
                     && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float len)
                     && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float dens))
-                    return (len, dens);
+                {
+                    // Size is the newer 4th field; default to 1 for old entries.
+                    float size = 1f;
+                    if (parts.Length < 4 || !float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out size) || size <= 0)
+                        size = 1f;
+                    return (len, dens, size);
+                }
             }
 
-            return (1f, 1f);
+            return (1f, 1f, 1f);
         }
 
-        public void SetCustomisation(string id, float length, float density)
+        public void SetCustomisation(string id, float length, float density, float size)
         {
-            var map = new Dictionary<string, (float, float)>();
+            var map = new Dictionary<string, (float l, float d, float s)>();
             foreach (string entry in config.Get<string>(OsuSetting.CursorTrailCustomisations).Split(';', StringSplitOptions.RemoveEmptyEntries))
             {
                 string[] parts = entry.Split(':');
-                if (parts.Length == 3
+                if (parts.Length >= 3
                     && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float l)
                     && float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float d))
-                    map[parts[0]] = (l, d);
+                {
+                    float s = 1f;
+                    if (parts.Length >= 4)
+                        float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out s);
+                    map[parts[0]] = (l, d, s <= 0 ? 1f : s);
+                }
             }
 
-            map[id] = (length, density);
+            map[id] = (length, density, size);
             config.SetValue(OsuSetting.CursorTrailCustomisations,
-                string.Join(";", map.Select(kv => $"{kv.Key}:{kv.Value.Item1.ToString(CultureInfo.InvariantCulture)}:{kv.Value.Item2.ToString(CultureInfo.InvariantCulture)}")));
+                string.Join(";", map.Select(kv => $"{kv.Key}:{kv.Value.l.ToString(CultureInfo.InvariantCulture)}:{kv.Value.d.ToString(CultureInfo.InvariantCulture)}:{kv.Value.s.ToString(CultureInfo.InvariantCulture)}")));
 
             // Deliberately NOT InventoryChanged (that rebuilds the whole card
             // grid, and this fires per slider tick). CustomisationChanged is the
@@ -150,9 +161,10 @@ namespace osu.Game.Cosmetics
             if (trail is not ICosmeticTrail t || !AdjustUnlocked)
                 return;
 
-            var (length, density) = GetCustomisation(id);
-            t.SetLengthMultiplier(length);
+            var (length, density, size) = GetCustomisation(id);
+            t.SetLengthScale(length);
             t.SetDensityMultiplier(density);
+            t.SetSizeMultiplier(size);
         }
 
         // ── Trail building (used by the cursor containers) ──────────────────
@@ -172,9 +184,10 @@ namespace osu.Game.Cosmetics
             var drawable = def.Create();
             if (drawable is ICosmeticTrail trail && AdjustUnlocked)
             {
-                var (length, density) = GetCustomisation(id);
-                trail.SetLengthMultiplier(length);
+                var (length, density, size) = GetCustomisation(id);
+                trail.SetLengthScale(length);
                 trail.SetDensityMultiplier(density);
+                trail.SetSizeMultiplier(size);
             }
 
             return drawable;

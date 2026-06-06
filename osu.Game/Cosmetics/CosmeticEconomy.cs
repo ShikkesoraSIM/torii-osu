@@ -25,16 +25,19 @@ namespace osu.Game.Cosmetics
         /// thickness on owned trails.</summary>
         public const int AdjustableDensityUnlock = 2500;
 
-        /// <summary>Range for the LENGTH slider, as a multiplier over the trail's
-        /// default. Weighted hard toward SHORTENING: the default (1x) is already
-        /// a long-ish look, a long trail reads as a weird smear, so most of the
-        /// slider trims it down. Only a hair of headroom above default.</summary>
-        public const float MinLengthMultiplier = 0.25f;
-        public const float MaxLengthMultiplier = 1.2f;
-
-        /// <summary>Range for the DENSITY / thickness slider. Kept moderate so
-        /// neither end looks broken (too sparse / too fat).</summary>
+        /// <summary>Range for the DENSITY slider (count per unit travel). Kept
+        /// moderate so neither end looks broken (too sparse / too fat).</summary>
         public const float MinDensityMultiplier = 0.6f;
         public const float MaxDensityMultiplier = 1.4f;
+
+        /// <summary>Range for the SIZE / thickness slider.</summary>
+        public const float MinSizeMultiplier = 0.6f;
+        public const float MaxSizeMultiplier = 1.6f;
+
+        /// <summary>The absolute, trail-independent SHORT end of the length
+        /// slider (ms). Length 0 maps here for every dot/ribbon trail, so the
+        /// minimum looks the same short length whatever the trail's default is.
+        /// Length 1 maps back to the trail's own catalog default.</summary>
+        public const double LengthFloorMilliseconds = 90;
     }
 }

@@ -63,7 +63,7 @@ namespace osu.Game.Tests.Visual.UserInterface
 
             rebuild();
 
-            AddSliderStep("trail length x", 0.3f, 2.5f, 1f, v =>
+            AddSliderStep("trail length (0..1)", 0f, 1f, 1f, v =>
             {
                 lengthMul = v;
                 applyMultipliers();
@@ -176,12 +176,13 @@ namespace osu.Game.Tests.Visual.UserInterface
                 };
             }
 
-            public void SetMultipliers(float lengthMul, float densityMul)
+            public void SetMultipliers(float lengthScale, float densityMul)
             {
                 if (trail == null)
                     return;
 
-                trail.SetLengthMultiplier(lengthMul);
+                // Length is now a 0..1 scale (1 = catalog default, 0 = short floor).
+                trail.SetLengthScale(lengthScale);
                 trail.SetDensityMultiplier(densityMul);
             }
 
