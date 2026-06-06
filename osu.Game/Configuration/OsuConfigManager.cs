@@ -531,7 +531,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
             SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
             SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
-            SetDefault(OsuSetting.ToriiPointsBalance, 5000);
+            SetDefault(OsuSetting.ToriiPointsBalance, 90000);
+            SetDefault(OsuSetting.ToriiPointsSeeded, false);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -938,6 +939,7 @@ namespace osu.Game.Configuration
         CursorTrailAdjustUnlocked,
         CursorTrailCustomisations,
         ToriiPointsBalance,
+        ToriiPointsSeeded,
 
         /// <summary>
         /// Torii: when on, MenuCursorContainer renders the user's

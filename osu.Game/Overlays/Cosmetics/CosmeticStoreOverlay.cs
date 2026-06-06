@@ -55,7 +55,7 @@ namespace osu.Game.Overlays.Cosmetics
         private FillFlowContainer cardFlow;
         private Container detailContainer;
         private OsuSpriteText pointsText;
-        private OsuSpriteText statusText;
+        private OsuSpriteText rotationText;
 
         private CosmeticTrailDefinition selected;
 
@@ -172,11 +172,10 @@ namespace osu.Game.Overlays.Cosmetics
                         Height = 30,
                         AccentColour = BriefingTheme.AccentPink,
                     },
-                    statusText = new OsuSpriteText
+                    rotationText = new OsuSpriteText
                     {
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
-                        Colour = BriefingTheme.AccentGain,
-                        Alpha = 0,
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                     },
                 },
             };
@@ -229,9 +228,16 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (cosmetics != null)
             {
-                cosmetics.PointsBalance.BindValueChanged(v => pointsText.Text = $"{v.NewValue:N0}", true);
+                cosmetics.PointsBalance.BindValueChanged(v =>
+                {
+                    pointsText.Text = $"{v.NewValue:N0}";
+                    pointsText.ScaleTo(1.3f).ScaleTo(1f, 450, Easing.OutBack);
+                }, true);
                 cosmetics.EquippedTrailId.BindValueChanged(_ => rebuildCards());
                 cosmetics.InventoryChanged += onInventoryChanged;
+
+                int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
+                rotationText.Text = $"⭐ Featured rotates in ~{hours}h  (placeholder)";
             }
 
             tabs.Current.BindValueChanged(_ => rebuildCards(), true);
@@ -253,26 +259,33 @@ namespace osu.Game.Overlays.Cosmetics
 
             cardFlow.Clear();
 
-            IEnumerable<CosmeticTrailDefinition> items;
+            bool inventory = tabs.Current.Value == StoreTab.Inventory;
 
-            if (tabs.Current.Value == StoreTab.Inventory)
+            IEnumerable<CosmeticTrailDefinition> items;
+            HashSet<string> featured;
+
+            if (inventory)
             {
                 var owned = cosmetics?.OwnedIds.ToHashSet() ?? new HashSet<string>();
                 items = CosmeticCatalog.Trails.Where(t => owned.Contains(t.Id));
+                featured = new HashSet<string>();
             }
             else
             {
-                items = cosmetics?.GetDailyStore() ?? CosmeticCatalog.Trails.Take(6);
+                // Whole catalog is buyable; the daily rotation just flags a few
+                // as "featured" (placeholder for the real Fortnite-style shop).
+                items = CosmeticCatalog.Trails;
+                featured = (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>()).Select(d => d.Id).ToHashSet();
             }
 
             foreach (var def in items)
-                cardFlow.Add(new StoreItemCard(def, cosmetics) { Action = () => onCardClicked(def) });
+                cardFlow.Add(new StoreItemCard(def, cosmetics, featured.Contains(def.Id)) { Action = () => onCardClicked(def) });
 
             if (!cardFlow.Any())
             {
                 cardFlow.Add(new OsuSpriteText
                 {
-                    Text = tabs.Current.Value == StoreTab.Inventory ? "Nothing owned yet. Buy a trail in the Store tab!" : "Store is empty.",
+                    Text = "Nothing owned yet. Buy a trail in the Store tab!",
                     Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 });
@@ -285,7 +298,7 @@ namespace osu.Game.Overlays.Cosmetics
             if (tabs.Current.Value == StoreTab.Inventory && (cosmetics?.IsOwned(def.Id) ?? false))
             {
                 cosmetics.Equip(def.Id);
-                flashStatus($"Equipped {def.Name}");
+                showToast($"Equipped {def.Name}");
             }
 
             selectItem(def);
@@ -295,13 +308,62 @@ namespace osu.Game.Overlays.Cosmetics
         {
             selected = def;
             detailContainer.Clear();
-            detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, flashStatus));
+            detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, showToast));
         }
 
-        private void flashStatus(string message)
+        private void showToast(string message)
         {
-            statusText.Text = message;
-            statusText.FadeIn(120).Then().Delay(1400).FadeOut(400);
+            var toast = new Container
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                Y = 80,
+                AutoSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = BriefingTheme.CornerSm,
+                EdgeEffect = new osu.Framework.Graphics.Effects.EdgeEffectParameters
+                {
+                    Type = osu.Framework.Graphics.Effects.EdgeEffectType.Shadow,
+                    Colour = Color4.Black.Opacity(0.4f),
+                    Radius = 14,
+                },
+                Alpha = 0,
+                Children = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = new Color4(18, 20, 32, 240) },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(8, 0),
+                        Padding = new MarginPadding { Horizontal = 18, Vertical = 11 },
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Icon = FontAwesome.Solid.Check,
+                                Size = new Vector2(15),
+                                Colour = BriefingTheme.AccentGain,
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Text = message,
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                },
+            };
+
+            AddInternal(toast);
+
+            toast.FadeInFromZero(150, Easing.OutQuint);
+            toast.ScaleTo(0.85f).ScaleTo(1f, 380, Easing.OutBack);
+            toast.Delay(1550).FadeOut(350, Easing.OutQuint).Expire();
         }
 
         protected override void PopIn()

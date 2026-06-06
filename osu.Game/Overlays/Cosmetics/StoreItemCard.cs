@@ -25,10 +25,13 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly CosmeticTrailDefinition def;
         private readonly ToriiCosmeticsManager cosmetics;
 
-        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics)
+        private readonly bool featured;
+
+        public StoreItemCard(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, bool featured = false)
         {
             this.def = def;
             this.cosmetics = cosmetics;
+            this.featured = featured;
             Size = new Vector2(150, 92);
         }
 
@@ -91,6 +94,19 @@ namespace osu.Game.Overlays.Cosmetics
                     },
                 },
             };
+
+            if (featured)
+            {
+                Add(new SpriteIcon
+                {
+                    Anchor = Anchor.TopRight,
+                    Origin = Anchor.TopRight,
+                    Margin = new MarginPadding(7),
+                    Icon = FontAwesome.Solid.Star,
+                    Size = new Vector2(12),
+                    Colour = BriefingTheme.AccentAmber,
+                });
+            }
         }
 
         private static Color4 tierColour(CosmeticTier tier) => tier switch

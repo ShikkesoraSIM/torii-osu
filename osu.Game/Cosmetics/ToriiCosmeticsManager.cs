@@ -37,11 +37,22 @@ namespace osu.Game.Cosmetics
         /// UI can refresh.</summary>
         public event Action InventoryChanged;
 
+        /// <summary>Local starter balance, granted once per profile (placeholder
+        /// until the server economy is wired).</summary>
+        public const int StartingPoints = 90000;
+
         public ToriiCosmeticsManager(OsuConfigManager config)
         {
             this.config = config;
             EquippedTrailId = config.GetBindable<string>(OsuSetting.EquippedCursorTrail);
             PointsBalance = config.GetBindable<int>(OsuSetting.ToriiPointsBalance);
+
+            // Grant the starter balance once (covers profiles created before this).
+            if (!config.Get<bool>(OsuSetting.ToriiPointsSeeded))
+            {
+                PointsBalance.Value = StartingPoints;
+                config.SetValue(OsuSetting.ToriiPointsSeeded, true);
+            }
         }
 
         // ── Ownership ───────────────────────────────────────────────────────
