@@ -181,6 +181,12 @@ namespace osu.Game.Tests.Visual.UserInterface
                 if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                     return;
 
+                // Hovering a tile hands control to your real cursor (the trail
+                // follows the mouse like in gameplay); the auto-orbit only runs
+                // when the tile isn't hovered.
+                if (IsHovered)
+                    return;
+
                 // Orbit a synthetic cursor in a lissajous figure so the trail
                 // draws itself continuously without real mouse input.
                 float t = (float)(Time.Current / 1000.0);
