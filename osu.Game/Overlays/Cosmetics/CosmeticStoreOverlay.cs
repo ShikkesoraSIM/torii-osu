@@ -60,6 +60,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         private CosmeticTrailDefinition selected;
         private StoreItemCard selectedCard;
+        private readonly List<StoreItemCard> cards = new List<StoreItemCard>();
 
         public CosmeticStoreOverlay()
         {
@@ -317,7 +318,9 @@ namespace osu.Game.Overlays.Cosmetics
                     pointsText.Text = $"{v.NewValue:N0}";
                     pointsText.ScaleTo(1.3f).ScaleTo(1f, 450, Easing.OutBack);
                 }, true);
-                cosmetics.EquippedTrailId.BindValueChanged(_ => rebuildCards());
+                // Buy / equip only flip badges; refresh them in place instead of
+                // rebuilding the whole grid (35 trail previews) which lagged hard.
+                cosmetics.EquippedTrailId.BindValueChanged(_ => refreshCards());
                 cosmetics.InventoryChanged += onInventoryChanged;
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
@@ -334,7 +337,16 @@ namespace osu.Game.Overlays.Cosmetics
             base.Dispose(isDisposing);
         }
 
-        private void onInventoryChanged() => Schedule(rebuildCards);
+        // Buying only flips an OWNED badge (the whole catalog is always shown in
+        // Store, and you can't buy from Inventory), so just refresh badges. A
+        // genuine add/remove only happens on a tab switch, which still rebuilds.
+        private void onInventoryChanged() => Schedule(refreshCards);
+
+        private void refreshCards()
+        {
+            foreach (var card in cards)
+                card.RefreshState();
+        }
 
         private void rebuildCards()
         {
@@ -342,6 +354,7 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
 
             cardFlow.Clear();
+            cards.Clear();
             selectedCard = null;
 
             bool inventory = tabs.Current.Value == StoreTab.Inventory;
@@ -379,6 +392,7 @@ namespace osu.Game.Overlays.Cosmetics
                     card.Action = () => onCardClicked(def, card);
                     if (isSelected)
                         selectedCard = card;
+                    cards.Add(card);
                     cardFlow.Add(card);
                 }
             }

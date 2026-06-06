@@ -37,6 +37,8 @@ namespace osu.Game.Overlays.Cosmetics
         private Container selectionBorder;
         private Box hoverHighlight;
         private CosmeticTrailPreview preview;
+        private Container footerHolder;
+        private Container badgeHolder;
 
         /// <param name="viewport">The scroll viewport; the preview only animates
         /// while the card overlaps it, so off-screen cards stay cheap.</param>
@@ -91,7 +93,12 @@ namespace osu.Game.Overlays.Cosmetics
                             Font = OsuFont.GetFont(size: BriefingTheme.TypeHeadline, weight: FontWeight.SemiBold),
                             RelativeSizeAxes = Axes.X,
                         },
-                        createFooter(owned, equipped, footerColour),
+                        // Footer rebuilt in place on buy/equip (no preview reload).
+                        footerHolder = new Container
+                        {
+                            AutoSizeAxes = Axes.Both,
+                            Child = createFooter(owned, equipped, footerColour),
+                        },
                     },
                 },
                 hoverHighlight = new Box
@@ -138,8 +145,14 @@ namespace osu.Game.Overlays.Cosmetics
                             Colour = BriefingTheme.AccentAmber,
                         }
                         : Empty(),
-                    // Ownership badge (top-left pill).
-                    owned ? ownedPill(equipped) : Empty(),
+                    // Ownership badge (top-left pill), rebuilt in place on refresh.
+                    badgeHolder = new Container
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.TopLeft,
+                        AutoSizeAxes = Axes.Both,
+                        Child = owned ? ownedPill(equipped) : Empty(),
+                    },
                     // Selection border, faded in by the overlay when picked.
                     selectionBorder = new Container
                     {
@@ -249,6 +262,25 @@ namespace osu.Game.Overlays.Cosmetics
 
         /// <summary>Highlight (or clear) this card's selection border.</summary>
         public void SetSelected(bool selected) => selectionBorder?.FadeTo(selected ? 1 : 0, 140, Easing.OutQuint);
+
+        /// <summary>Update the owned / equipped badge + footer in place (cheap),
+        /// WITHOUT recreating the preview. Used on buy / equip so we don't rebuild
+        /// the whole grid (35 trails) and lag.</summary>
+        public void RefreshState()
+        {
+            if (footerHolder == null)
+                return;
+
+            bool owned = cosmetics?.IsOwned(def.Id) ?? false;
+            bool equipped = cosmetics != null && cosmetics.EquippedTrailId.Value == def.Id;
+
+            Color4 footerColour = equipped ? BriefingTheme.AccentGain
+                : owned ? BriefingTheme.AccentSky
+                : BriefingTheme.AccentAmber;
+
+            footerHolder.Child = createFooter(owned, equipped, footerColour);
+            badgeHolder.Child = owned ? ownedPill(equipped) : Empty();
+        }
 
         protected override bool OnHover(HoverEvent e)
         {

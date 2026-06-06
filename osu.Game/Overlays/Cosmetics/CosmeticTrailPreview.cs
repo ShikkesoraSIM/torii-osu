@@ -47,8 +47,10 @@ namespace osu.Game.Overlays.Cosmetics
 
         private Mode mode = Mode.Paused;
         private double snapshotElapsed;
+        private bool snapshotReady;
         private bool hovered;
         private Vector2? lastScreenCentre;
+        private BufferedContainer buffer;
 
         /// <summary>If set, the trail only runs while this drawable's screen quad
         /// overlaps ours (the store grid points cards at the scroll viewport).
@@ -82,7 +84,11 @@ namespace osu.Game.Overlays.Cosmetics
             // clips to the card's bounds: the dot trail's custom draw node does
             // NOT honour the rounded mask, and at extreme UI scale its parts
             // leaked outside. A buffer captures only what's inside its bounds.
-            InternalChild = new BufferedContainer(cachedFrameBuffer: false)
+            //
+            // cachedFrameBuffer: a frozen snapshot then costs nothing per frame
+            // (the buffer isn't redrawn). While animating we call ForceRedraw()
+            // each frame so the cached frame keeps up.
+            InternalChild = buffer = new BufferedContainer(cachedFrameBuffer: true)
             {
                 RelativeSizeAxes = Axes.Both,
                 Children = new Drawable[]
@@ -136,16 +142,27 @@ namespace osu.Game.Overlays.Cosmetics
                 {
                     trail.SetPaused(false);
                     trail.Reset();
+                    snapshotReady = false; // live changes the trail; rebuild snapshot on unhover
                     mode = Mode.Live;
                 }
 
                 driveSweep(speed);
+                buffer?.ForceRedraw();
                 return;
             }
 
-            // Snapshot: already frozen, nothing to do.
+            // Already frozen: nothing to do (cached buffer, ~0 cost).
             if (mode == Mode.Snapshot)
                 return;
+
+            // Built once already (e.g. scrolled away and back): just re-freeze the
+            // cached frame, don't replay the 1s build animation. Saves the work.
+            if (snapshotReady)
+            {
+                trail.SetPaused(true);
+                mode = Mode.Snapshot;
+                return;
+            }
 
             // Build the snapshot with a fast full sweep, then freeze it.
             if (mode != Mode.Building)
@@ -157,11 +174,13 @@ namespace osu.Game.Overlays.Cosmetics
             }
 
             driveSweep(snapshot_speed);
+            buffer?.ForceRedraw();
             snapshotElapsed += Time.Elapsed;
 
             if (snapshotElapsed >= snapshot_build_ms)
             {
                 trail.SetPaused(true);
+                snapshotReady = true;
                 mode = Mode.Snapshot;
             }
         }
