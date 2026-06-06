@@ -243,23 +243,33 @@ namespace osu.Game.Overlays.Cosmetics
             applyAll();
         }
 
-        /// <summary>The Length / Density / Size picker shown in compact mode.</summary>
+        /// <summary>The Length / Density / Size picker shown in compact mode.
+        /// Equal flex columns with absolute gap columns between them, so buttons
+        /// fill their cell exactly (no margin overflow clipping the last one).</summary>
         private Drawable axisSelector(List<(string name, BindableFloat bindable)> axes)
         {
-            var buttons = new Drawable[axes.Count];
+            var cells = new List<Drawable>();
+            var cols = new List<Dimension>();
 
             for (int i = 0; i < axes.Count; i++)
             {
+                if (i > 0)
+                {
+                    cols.Add(new Dimension(GridSizeMode.Absolute, 6));
+                    cells.Add(Empty());
+                }
+
+                cols.Add(new Dimension());
+
                 int index = i;
                 bool sel = index == selectedAxis;
 
-                buttons[i] = new OsuClickableContainer
+                cells.Add(new OsuClickableContainer
                 {
                     RelativeSizeAxes = Axes.X,
                     Height = 30,
                     Masking = true,
                     CornerRadius = 6f,
-                    Margin = new MarginPadding { Horizontal = 3 },
                     Action = () =>
                     {
                         selectedAxis = index;
@@ -277,20 +287,16 @@ namespace osu.Game.Overlays.Cosmetics
                             Colour = sel ? Color4.White : Color4.White.Opacity(BriefingTheme.InkSecondary),
                         },
                     },
-                };
+                });
             }
-
-            var cols = new Dimension[axes.Count];
-            for (int i = 0; i < cols.Length; i++)
-                cols[i] = new Dimension();
 
             return new GridContainer
             {
                 RelativeSizeAxes = Axes.X,
                 AutoSizeAxes = Axes.Y,
-                ColumnDimensions = cols,
+                ColumnDimensions = cols.ToArray(),
                 RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
-                Content = new[] { buttons },
+                Content = new[] { cells.ToArray() },
             };
         }
 
