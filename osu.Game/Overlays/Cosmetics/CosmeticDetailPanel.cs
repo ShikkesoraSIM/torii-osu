@@ -11,6 +11,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -44,12 +45,19 @@ namespace osu.Game.Overlays.Cosmetics
         [BackgroundDependencyLoader]
         private void load()
         {
-            Child = flow = new FillFlowContainer
+            // Scrollable so a tall set of controls (or a small window) can never
+            // clip the bottom slider. No visible bar; it just rescues overflow.
+            Child = new OsuScrollContainer
             {
-                RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, BriefingTheme.SpacingMd),
+                RelativeSizeAxes = Axes.Both,
+                ScrollbarVisible = false,
+                Child = flow = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, BriefingTheme.SpacingMd),
+                },
             };
 
             rebuild();
@@ -116,35 +124,26 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
             }
 
+            // One toggle button: pink "Equip" when not equipped, a muted blue
+            // "Unequip" when it is (the label/colour carry the state, so we don't
+            // need a separate disabled "Equipped" button taking up room).
             flow.Add(new RoundedButton
             {
                 RelativeSizeAxes = Axes.X,
                 Height = 40,
-                Text = equipped ? "Equipped ✓" : "Equip",
-                BackgroundColour = equipped ? BriefingTheme.AccentGain : BriefingTheme.AccentPink,
-                Enabled = { Value = !equipped },
+                Text = equipped ? "Unequip" : "Equip",
+                BackgroundColour = equipped ? BriefingTheme.AccentSky : BriefingTheme.AccentPink,
                 Action = () =>
                 {
-                    cosmetics?.Equip(def.Id);
-                    notify?.Invoke($"Equipped {def.Name}");
+                    if (equipped)
+                        cosmetics?.Unequip();
+                    else
+                        cosmetics?.Equip(def.Id);
+
+                    notify?.Invoke(equipped ? $"Unequipped {def.Name}" : $"Equipped {def.Name}");
                     rebuild();
                 },
             });
-
-            if (equipped)
-            {
-                flow.Add(new RoundedButton
-                {
-                    RelativeSizeAxes = Axes.X,
-                    Height = 32,
-                    Text = "Unequip",
-                    Action = () =>
-                    {
-                        cosmetics?.Unequip();
-                        rebuild();
-                    },
-                });
-            }
 
             if (cosmetics != null && cosmetics.AdjustUnlocked)
             {
