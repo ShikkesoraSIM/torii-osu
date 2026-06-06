@@ -307,6 +307,12 @@ namespace osu.Game.Cosmetics
             {
                 var t = new CosmeticParticleTrail { ParticleFactory = factory };
                 configure(t);
+                // The per-trail tuning read too sparse to make out the shape, so
+                // bump every particle trail's density (and the alive cap to match,
+                // so it stays as long, just fuller). Potato mode is the escape for
+                // weak hardware.
+                t.SpawnInterval *= 0.7f;
+                t.MaxAlive = (int)(t.MaxAlive * 1.4f);
                 return t;
             });
 

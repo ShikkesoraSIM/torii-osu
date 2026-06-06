@@ -174,13 +174,85 @@ namespace osu.Game.Overlays.Cosmetics
                         Height = 30,
                         AccentColour = BriefingTheme.AccentPink,
                     },
-                    rotationText = new OsuSpriteText
+                    new Container
                     {
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
-                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Children = new Drawable[]
+                        {
+                            rotationText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                                Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                            },
+                            createPotatoToggle(),
+                        },
                     },
                 },
             };
+        }
+
+        /// <summary>A small toggle pill for "Potato PC" mode (frozen-snapshot
+        /// previews). Bound to the shared setting so previews react instantly.</summary>
+        private Drawable createPotatoToggle()
+        {
+            if (cosmetics == null)
+                return Empty();
+
+            Box bg;
+            SpriteIcon icon;
+            OsuSpriteText label;
+
+            var toggle = new OsuClickableContainer
+            {
+                Anchor = Anchor.CentreRight,
+                Origin = Anchor.CentreRight,
+                AutoSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = 6f,
+                Action = () => cosmetics.StorePotatoMode.Value = !cosmetics.StorePotatoMode.Value,
+                Children = new Drawable[]
+                {
+                    bg = new Box { RelativeSizeAxes = Axes.Both },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(6, 0),
+                        Padding = new MarginPadding { Horizontal = 10, Vertical = 5 },
+                        Children = new Drawable[]
+                        {
+                            icon = new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Icon = FontAwesome.Solid.Bolt,
+                                Size = new Vector2(11),
+                            },
+                            label = new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Text = "Potato PC mode",
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                },
+            };
+
+            cosmetics.StorePotatoMode.BindValueChanged(v =>
+            {
+                bool on = v.NewValue;
+                bg.Colour = on ? BriefingTheme.AccentGain : Color4.White.Opacity(0.10f);
+                Color4 fg = on ? Color4.Black.Opacity(0.85f) : Color4.White.Opacity(BriefingTheme.InkSecondary);
+                icon.Colour = fg;
+                label.Colour = fg;
+            }, true);
+
+            return toggle;
         }
 
         private Drawable createBody()

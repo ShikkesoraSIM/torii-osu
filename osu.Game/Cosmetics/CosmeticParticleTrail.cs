@@ -77,7 +77,28 @@ namespace osu.Game.Cosmetics
 
         public void SetInputActive(bool active) => inputActive = active;
 
-        public void SetPaused(bool paused) => this.paused = paused;
+        public void SetPaused(bool paused)
+        {
+            if (this.paused == paused)
+                return;
+
+            this.paused = paused;
+
+            if (paused)
+            {
+                // Freeze every live particle where it is (clear its drift/fade/
+                // expire transforms), so a paused trail is a static snapshot
+                // instead of fading out to nothing. Preview-only; the equipped
+                // trail never pauses.
+                foreach (var c in InternalChildren)
+                    c.ClearTransforms();
+            }
+            else
+            {
+                // Resuming: drop the frozen particles so fresh ones spawn cleanly.
+                ClearInternal();
+            }
+        }
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {

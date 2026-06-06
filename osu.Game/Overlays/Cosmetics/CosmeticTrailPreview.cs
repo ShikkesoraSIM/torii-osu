@@ -21,15 +21,27 @@ namespace osu.Game.Overlays.Cosmetics
     /// so the trail draws itself without real mouse input. The motion is a flat
     /// horizontal sweep (not a tight circle) so ribbons read as a clean flowing
     /// band instead of fanning into a disc.
+    ///
+    /// In "Potato PC" mode it animates a brief burst to form a representative
+    /// frame, then freezes into a static snapshot (near-zero per-frame cost).
     /// </summary>
     public partial class CosmeticTrailPreview : Container
     {
+        private const double snapshot_build_ms = 750;
+
         private readonly CosmeticTrailDefinition def;
         private readonly float speed;
         private Drawable trailDrawable;
         private ICosmeticTrail trail;
         private bool wasAnimating;
         private Vector2? lastScreenCentre;
+
+        private bool lastPotato;
+        private bool snapshotBuilt;
+        private double snapshotElapsed;
+
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager cosmetics { get; set; }
 
         /// <summary>If set, the trail only animates while this drawable's screen
         /// quad overlaps ours. The store grid points every card's preview at the
@@ -52,19 +64,9 @@ namespace osu.Game.Overlays.Cosmetics
             trailDrawable = def.Create();
             trail = trailDrawable as ICosmeticTrail;
 
-            // The preview is driven by our synthetic sweep only. Stop it from
-            // also reacting to the real mouse, or moving over a card floods the
-            // trail with points and it goes haywire / lags.
+            // Driven only by our synthetic sweep; ignore the real mouse so moving
+            // over a card doesn't flood the trail and make it lag / go haywire.
             trail?.SetInputActive(false);
-
-            // Previews are small; a heavy particle trail (e.g. Galaxy at 220
-            // alive) is overkill here and is the main grid-lag culprit. Trim it
-            // hard for the preview only (the equipped trail keeps its full cap).
-            if (trailDrawable is CosmeticParticleTrail particles)
-            {
-                particles.MaxAlive = Math.Min(particles.MaxAlive, 36);
-                particles.SpawnInterval *= 1.4f;
-            }
 
             InternalChildren = new[]
             {
@@ -87,11 +89,6 @@ namespace osu.Game.Overlays.Cosmetics
             if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                 return;
 
-            // Animate only when the card is on screen AND holding still. While
-            // the user scrolls (the card is moving) we freeze every preview, so
-            // a fast scroll through the grid doesn't rebuild a dozen trails per
-            // frame. Detect "moving" from our own screen position delta, so no
-            // shared scroll state is needed.
             var centre = ScreenSpaceDrawQuad.Centre;
             bool moving = lastScreenCentre is Vector2 last && Vector2.Distance(centre, last) > 0.5f;
             lastScreenCentre = centre;
@@ -99,27 +96,61 @@ namespace osu.Game.Overlays.Cosmetics
             bool onScreen = AnimationViewport == null
                             || AnimationViewport.ScreenSpaceDrawQuad.Intersects(ScreenSpaceDrawQuad);
 
-            bool animating = onScreen && !moving;
+            bool potato = cosmetics?.StorePotatoMode.Value ?? false;
 
-            if (!animating)
+            // Mode flipped: rebuild cleanly under the new mode.
+            if (potato != lastPotato)
             {
-                trail.SetPaused(true); // idempotent; also freezes cards that open off-screen
+                lastPotato = potato;
+                snapshotBuilt = false;
+                snapshotElapsed = 0;
+                wasAnimating = false;
+                trail.SetPaused(false);
+                trail.Reset();
+            }
+
+            // Potato: once the snapshot is built, keep it frozen forever (cheap).
+            if (potato && snapshotBuilt)
+                return;
+
+            // Drive only while on screen AND still (both modes). Scrolling or
+            // off-screen freezes, so a fast scroll doesn't rebuild a dozen trails
+            // per frame.
+            if (!onScreen || moving)
+            {
+                trail.SetPaused(true);
                 wasAnimating = false;
                 return;
             }
 
-            // Just resumed: unfreeze and start a fresh path so there's no streak
-            // drawn across wherever the synthetic cursor "was".
             if (!wasAnimating)
             {
                 trail.SetPaused(false);
                 trail.Reset();
+                snapshotElapsed = 0;
                 wasAnimating = true;
             }
 
+            driveSweep();
+
+            // Potato: animate a short burst into a representative mid-animation
+            // frame, then freeze it.
+            if (potato)
+            {
+                snapshotElapsed += Time.Elapsed;
+                if (snapshotElapsed >= snapshot_build_ms)
+                {
+                    trail.SetPaused(true);
+                    snapshotBuilt = true;
+                }
+            }
+        }
+
+        private void driveSweep()
+        {
             // Flat, wide horizontal sweep with a gentle vertical wave. Wide X +
-            // small Y keeps it a flowing band rather than a circular fan, and
-            // the slightly off-ratio frequencies stop it retracing one line.
+            // small Y keeps it a flowing band rather than a circular fan, and the
+            // slightly off-ratio frequencies stop it retracing one line.
             float t = (float)(Time.Current / 1000.0) * speed;
             float cx = DrawWidth * 0.5f;
             float cy = DrawHeight * 0.44f;

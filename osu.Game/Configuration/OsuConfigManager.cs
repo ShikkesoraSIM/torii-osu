@@ -533,6 +533,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
             SetDefault(OsuSetting.ToriiPointsBalance, 90000);
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
+            SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -940,6 +941,10 @@ namespace osu.Game.Configuration
         CursorTrailCustomisations,
         ToriiPointsBalance,
         ToriiPointsSeeded,
+
+        /// <summary>Store "Potato PC" mode: previews render a frozen snapshot
+        /// instead of animating live, for weak hardware.</summary>
+        CosmeticStorePotatoMode,
 
         /// <summary>
         /// Torii: when on, MenuCursorContainer renders the user's

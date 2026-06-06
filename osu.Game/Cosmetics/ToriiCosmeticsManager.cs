@@ -33,6 +33,10 @@ namespace osu.Game.Cosmetics
         /// <summary>Local points balance cache (server is authoritative later).</summary>
         public Bindable<int> PointsBalance { get; }
 
+        /// <summary>"Potato PC" mode: store previews show a frozen snapshot
+        /// instead of animating live, for weak hardware.</summary>
+        public Bindable<bool> StorePotatoMode { get; }
+
         /// <summary>Fires when ownership / customisation changes, so the store
         /// UI can refresh.</summary>
         public event Action InventoryChanged;
@@ -51,6 +55,7 @@ namespace osu.Game.Cosmetics
             this.config = config;
             EquippedTrailId = config.GetBindable<string>(OsuSetting.EquippedCursorTrail);
             PointsBalance = config.GetBindable<int>(OsuSetting.ToriiPointsBalance);
+            StorePotatoMode = config.GetBindable<bool>(OsuSetting.CosmeticStorePotatoMode);
 
             // Grant the starter balance once (covers profiles created before this).
             if (!config.Get<bool>(OsuSetting.ToriiPointsSeeded))
