@@ -118,7 +118,8 @@ namespace osu.Game.Cosmetics
             map[id] = (length, density);
             config.SetValue(OsuSetting.CursorTrailCustomisations,
                 string.Join(";", map.Select(kv => $"{kv.Key}:{kv.Value.Item1.ToString(CultureInfo.InvariantCulture)}:{kv.Value.Item2.ToString(CultureInfo.InvariantCulture)}")));
-            InventoryChanged?.Invoke();
+            // No InventoryChanged here: this fires per slider tick, and we don't
+            // want to rebuild the card grid on every drag.
         }
 
         // ── Trail building (used by the cursor containers) ──────────────────

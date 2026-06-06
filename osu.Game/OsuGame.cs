@@ -1370,6 +1370,7 @@ namespace osu.Game
             loadComponentSingleFile(new MessageNotifier(), Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);
             loadComponentSingleFile(changelogOverlay = new ChangelogOverlay(), overlayContent.Add, false);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticStoreOverlay(), overlayContent.Add, false);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(wikiOverlay = new WikiOverlay(), overlayContent.Add, false);

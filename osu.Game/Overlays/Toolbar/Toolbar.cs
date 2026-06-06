@@ -287,6 +287,7 @@ namespace osu.Game.Overlays.Toolbar
                                     {
                                         //new ToolbarNewsButton(),
                                         new ToolbarChangelogButton(),
+                                        new ToolbarCosmeticStoreButton(),
                                         //new ToolbarWikiButton(),
                                         new ToolbarRankingsButton(),
                                         new ToolbarBeatmapListingButton(),
