@@ -190,6 +190,9 @@ namespace osu.Game.Cosmetics
         {
             base.Update();
 
+            if (paused)
+                return;
+
             Invalidate(Invalidation.DrawNode);
 
             const int fade_clock_reset_threshold = 1000000;
@@ -227,10 +230,13 @@ namespace osu.Game.Cosmetics
         private readonly InputResampler resampler = new InputResampler();
 
         private bool inputActive = true;
+        private bool paused;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
 
         public void SetInputActive(bool active) => inputActive = active;
+
+        public void SetPaused(bool paused) => this.paused = paused;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {

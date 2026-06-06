@@ -28,7 +28,8 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly float speed;
         private Drawable trailDrawable;
         private ICosmeticTrail trail;
-        private bool wasAnimating = true;
+        private bool wasAnimating;
+        private Vector2? lastScreenCentre;
 
         /// <summary>If set, the trail only animates while this drawable's screen
         /// quad overlaps ours. The store grid points every card's preview at the
@@ -86,19 +87,32 @@ namespace osu.Game.Overlays.Cosmetics
             if (trail == null || DrawWidth <= 0 || DrawHeight <= 0)
                 return;
 
-            bool animating = AnimationViewport == null
-                             || AnimationViewport.ScreenSpaceDrawQuad.Intersects(ScreenSpaceDrawQuad);
+            // Animate only when the card is on screen AND holding still. While
+            // the user scrolls (the card is moving) we freeze every preview, so
+            // a fast scroll through the grid doesn't rebuild a dozen trails per
+            // frame. Detect "moving" from our own screen position delta, so no
+            // shared scroll state is needed.
+            var centre = ScreenSpaceDrawQuad.Centre;
+            bool moving = lastScreenCentre is Vector2 last && Vector2.Distance(centre, last) > 0.5f;
+            lastScreenCentre = centre;
+
+            bool onScreen = AnimationViewport == null
+                            || AnimationViewport.ScreenSpaceDrawQuad.Intersects(ScreenSpaceDrawQuad);
+
+            bool animating = onScreen && !moving;
 
             if (!animating)
             {
+                trail.SetPaused(true); // idempotent; also freezes cards that open off-screen
                 wasAnimating = false;
                 return;
             }
 
-            // Just came back on screen: start a fresh path so there's no streak
-            // drawn across wherever the cursor "was".
+            // Just resumed: unfreeze and start a fresh path so there's no streak
+            // drawn across wherever the synthetic cursor "was".
             if (!wasAnimating)
             {
+                trail.SetPaused(false);
                 trail.Reset();
                 wasAnimating = true;
             }

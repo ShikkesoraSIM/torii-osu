@@ -196,11 +196,14 @@ namespace osu.Game.Cosmetics
         private float baseWidth() => Segmented ? Math.Max(HeadWidth, TailWidth) : Width;
 
         private bool inputActive = true;
+        private bool paused;
 
         public override bool IsPresent => true;
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
 
         public void SetInputActive(bool active) => inputActive = active;
+
+        public void SetPaused(bool paused) => this.paused = paused;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
@@ -286,6 +289,9 @@ namespace osu.Game.Cosmetics
         protected override void Update()
         {
             base.Update();
+
+            if (paused)
+                return;
 
             huePhase += (float)(Time.Elapsed / 1000.0) * HueCycleSpeed;
             huePhase -= MathF.Floor(huePhase);

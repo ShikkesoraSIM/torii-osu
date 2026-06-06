@@ -71,10 +71,13 @@ namespace osu.Game.Cosmetics
         }
 
         private bool inputActive = true;
+        private bool paused;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
 
         public void SetInputActive(bool active) => inputActive = active;
+
+        public void SetPaused(bool paused) => this.paused = paused;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
@@ -148,7 +151,7 @@ namespace osu.Game.Cosmetics
 
         private void spawn(Vector2 localPosition)
         {
-            if (ParticleFactory == null || InternalChildren.Count >= MaxAlive)
+            if (paused || ParticleFactory == null || InternalChildren.Count >= MaxAlive)
                 return;
 
             Drawable particle = ParticleFactory(spawnIndex++);

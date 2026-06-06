@@ -41,6 +41,11 @@ namespace osu.Game.Cosmetics
         /// turn it OFF so they only follow their synthetic <see cref="Drive"/>
         /// and don't go haywire when you move over them.</summary>
         void SetInputActive(bool active);
+
+        /// <summary>Freeze all per-frame work (path rebuilds, fade, emission).
+        /// Shop previews pause while their card is scrolling/off-screen so a
+        /// fast scroll through the grid doesn't rebuild a dozen trails a frame.</summary>
+        void SetPaused(bool paused);
     }
 
     /// <summary>Which render family a trail belongs to, so the shop can show only
