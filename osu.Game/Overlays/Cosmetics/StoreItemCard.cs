@@ -251,6 +251,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         protected override bool OnHover(HoverEvent e)
         {
+            preview?.SetHovered(true); // animate this card live while hovered
             content.ScaleTo(1.035f, 220, Easing.OutQuint);
             hoverHighlight.FadeTo(1, 160, Easing.OutQuint);
             return base.OnHover(e);
@@ -258,6 +259,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         protected override void OnHoverLost(HoverLostEvent e)
         {
+            preview?.SetHovered(false); // back to the still snapshot
             content.ScaleTo(1f, 260, Easing.OutQuint);
             hoverHighlight.FadeTo(0, 220, Easing.OutQuint);
             base.OnHoverLost(e);

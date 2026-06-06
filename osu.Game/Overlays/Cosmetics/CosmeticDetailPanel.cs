@@ -4,11 +4,12 @@
 #nullable disable
 
 using System;
+using System.Collections.Generic;
 using osu.Framework.Allocation;
-using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -32,6 +33,17 @@ namespace osu.Game.Overlays.Cosmetics
 
         private FillFlowContainer flow;
         private CosmeticTrailPreview preview;
+
+        // Current customisation, mutated by the preset chips below.
+        private float curLen = 1f;
+        private float curDens = 1f;
+        private float curSize = 1f;
+
+        // Preset chips per axis. Length is a 0..1 scale (1 = catalog default);
+        // density / size are multipliers within the CosmeticEconomy ranges.
+        private static readonly (string name, float value)[] length_presets = { ("Short", 0.35f), ("Normal", 0.7f), ("Long", 1f) };
+        private static readonly (string name, float value)[] density_presets = { ("Low", 0.7f), ("Normal", 1f), ("High", 1.35f) };
+        private static readonly (string name, float value)[] size_presets = { ("Small", 0.75f), ("Normal", 1f), ("Big", 1.4f) };
 
         public CosmeticDetailPanel(CosmeticTrailDefinition def, ToriiCosmeticsManager cosmetics, Action<string> notify)
         {
@@ -69,7 +81,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             bool owned = cosmetics?.IsOwned(def.Id) ?? false;
             bool equipped = cosmetics != null && cosmetics.EquippedTrailId.Value == def.Id;
-            var (curLen, curDens, curSize) = cosmetics?.GetCustomisation(def.Id) ?? (1f, 1f, 1f);
+            (curLen, curDens, curSize) = cosmetics?.GetCustomisation(def.Id) ?? (1f, 1f, 1f);
 
             flow.Add(preview = new CosmeticTrailPreview(def)
             {
@@ -147,34 +159,18 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (cosmetics != null && cosmetics.AdjustUnlocked)
             {
-                // Length is a 0..1 scale (1 = catalog default, 0 = a fixed short
-                // floor shared by every trail). Density only makes sense for
-                // dot / particle trails; a continuous ribbon hides it.
+                // Preset chips per axis (clearer than sliders). Density only makes
+                // sense for dot / particle trails; a continuous ribbon hides it.
                 bool showDensity = def.Family != CosmeticTrailFamily.Ribbon;
 
-                var length = new BindableFloat(curLen) { MinValue = 0f, MaxValue = 1f, Precision = 0.05f };
-                var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
-                var size = new BindableFloat(curSize) { MinValue = CosmeticEconomy.MinSizeMultiplier, MaxValue = CosmeticEconomy.MaxSizeMultiplier, Precision = 0.05f };
-
-                void apply() => applyCustom(length.Value, density.Value, size.Value);
-
-                length.BindValueChanged(_ => apply());
-                density.BindValueChanged(_ => apply());
-                size.BindValueChanged(_ => apply());
-
-                flow.Add(label("Length"));
-                flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = length });
+                flow.Add(presetRow("Length", length_presets, curLen, v => { curLen = v; applyAll(); }));
 
                 if (showDensity)
-                {
-                    flow.Add(label("Density"));
-                    flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = density });
-                }
+                    flow.Add(presetRow("Density", density_presets, curDens, v => { curDens = v; applyAll(); }));
 
-                flow.Add(label("Size"));
-                flow.Add(new RoundedSliderBar<float> { RelativeSizeAxes = Axes.X, Current = size });
+                flow.Add(presetRow("Size", size_presets, curSize, v => { curSize = v; applyAll(); }));
 
-                apply();
+                applyAll();
             }
             else
             {
@@ -182,7 +178,7 @@ namespace osu.Game.Overlays.Cosmetics
 
                 flow.Add(new OsuSpriteText
                 {
-                    Text = "Customise length & density:",
+                    Text = "Customise length, density & size:",
                     Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 });
@@ -212,6 +208,82 @@ namespace osu.Game.Overlays.Cosmetics
             Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
             Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
         };
+
+        /// <summary>A labelled row of preset chips; the chip closest to the
+        /// current value is highlighted, tapping one sets the value.</summary>
+        private Drawable presetRow(string title, (string name, float value)[] presets, float current, Action<float> onSet)
+        {
+            var chips = new List<(Box bg, OsuSpriteText text, float value)>();
+
+            var chipFlow = new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Both,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(6, 0),
+            };
+
+            void refresh(float selected)
+            {
+                // Highlight the chip whose value is closest to the current value.
+                float best = presets[0].value;
+                foreach (var pr in presets)
+                {
+                    if (Math.Abs(pr.value - selected) < Math.Abs(best - selected))
+                        best = pr.value;
+                }
+
+                foreach (var c in chips)
+                {
+                    bool sel = Math.Abs(c.value - best) < 0.001f;
+                    c.bg.FadeColour(sel ? BriefingTheme.AccentPink : Color4.White.Opacity(0.08f), 120, Easing.OutQuint);
+                    c.text.FadeColour(sel ? Color4.White : Color4.White.Opacity(BriefingTheme.InkSecondary), 120, Easing.OutQuint);
+                }
+            }
+
+            foreach (var p in presets)
+            {
+                Box bg;
+                OsuSpriteText txt;
+                float val = p.value;
+
+                chipFlow.Add(new OsuClickableContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Masking = true,
+                    CornerRadius = 6f,
+                    Action = () =>
+                    {
+                        onSet(val);
+                        refresh(val);
+                    },
+                    Children = new Drawable[]
+                    {
+                        bg = new Box { RelativeSizeAxes = Axes.Both },
+                        txt = new OsuSpriteText
+                        {
+                            Margin = new MarginPadding { Horizontal = 13, Vertical = 6 },
+                            Text = p.name,
+                            Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                        },
+                    },
+                });
+
+                chips.Add((bg, txt, val));
+            }
+
+            refresh(current);
+
+            return new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 4),
+                Children = new Drawable[] { label(title), chipFlow },
+            };
+        }
+
+        private void applyAll() => applyCustom(curLen, curDens, curSize);
 
         private void applyCustom(float length, float density, float size)
         {
