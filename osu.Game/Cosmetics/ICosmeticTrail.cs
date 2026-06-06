@@ -35,6 +35,12 @@ namespace osu.Game.Cosmetics
         /// when handing control between a synthetic driver and the real cursor,
         /// to avoid a streak across the gap).</summary>
         void Reset();
+
+        /// <summary>Enable/disable reacting to the REAL mouse. The equipped
+        /// cursor trail leaves this on (it follows the cursor); shop previews
+        /// turn it OFF so they only follow their synthetic <see cref="Drive"/>
+        /// and don't go haywire when you move over them.</summary>
+        void SetInputActive(bool active);
     }
 
     /// <summary>Which render family a trail belongs to, so the shop can show only

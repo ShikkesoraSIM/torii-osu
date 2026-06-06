@@ -198,18 +198,28 @@ namespace osu.Game.Overlays.Cosmetics
                 {
                     new[]
                     {
-                        (Drawable)(cardScroll = new OsuScrollContainer
+                        // Rounded mask so partially-scrolled cards clip to the
+                        // panel's shape instead of poking over its border, with
+                        // a little bottom clearance so the last row isn't flush.
+                        (Drawable)new Container
                         {
                             RelativeSizeAxes = Axes.Both,
-                            ScrollbarVisible = false,
-                            Child = cardFlow = new FillFlowContainer
+                            Masking = true,
+                            CornerRadius = BriefingTheme.CornerMd,
+                            Child = cardScroll = new OsuScrollContainer
                             {
-                                RelativeSizeAxes = Axes.X,
-                                AutoSizeAxes = Axes.Y,
-                                Direction = FillDirection.Full,
-                                Spacing = new Vector2(BriefingTheme.SpacingSm),
+                                RelativeSizeAxes = Axes.Both,
+                                ScrollbarVisible = false,
+                                Child = cardFlow = new FillFlowContainer
+                                {
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
+                                    Direction = FillDirection.Full,
+                                    Spacing = new Vector2(BriefingTheme.SpacingSm),
+                                    Padding = new MarginPadding { Top = 2, Bottom = BriefingTheme.SpacingMd },
+                                },
                             },
-                        }),
+                        },
                         Empty(),
                         new BriefingGlass
                         {
@@ -239,7 +249,7 @@ namespace osu.Game.Overlays.Cosmetics
                 cosmetics.InventoryChanged += onInventoryChanged;
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
-                rotationText.Text = $"⭐ Featured rotates in ~{hours}h  (placeholder)";
+                rotationText.Text = $"Featured rotates in ~{hours}h  (placeholder)";
             }
 
             tabs.Current.BindValueChanged(_ => rebuildCards(), true);

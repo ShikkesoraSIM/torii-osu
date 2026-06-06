@@ -226,11 +226,16 @@ namespace osu.Game.Cosmetics
         private Vector2? lastPosition;
         private readonly InputResampler resampler = new InputResampler();
 
-        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => true;
+        private bool inputActive = true;
+
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
+
+        public void SetInputActive(bool active) => inputActive = active;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
-            AddTrail(e.ScreenSpaceMousePosition);
+            if (inputActive)
+                AddTrail(e.ScreenSpaceMousePosition);
             return base.OnMouseMove(e);
         }
 
@@ -248,8 +253,18 @@ namespace osu.Game.Cosmetics
             scale01 = Math.Clamp(scale01, 0f, 1f);
             // 0 -> a fixed short floor (same ms for every trail), 1 -> the
             // trail's own default. Time-based, so the min feels consistent.
-            FadeDurationOverride = CosmeticEconomy.LengthFloorMilliseconds
-                                   + (baseFade.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
+            double newFade = CosmeticEconomy.LengthFloorMilliseconds
+                             + (baseFade.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
+
+            // `time` is elapsed/FadeDuration, so changing the duration under
+            // live parts would rescale time and make already-faded parts pop
+            // back into view (the "giant old trail" when dragging length up).
+            // Re-anchor timeOffset so `time` is continuous: existing parts keep
+            // fading from where they are, only the rate going forward changes.
+            if (IsLoaded && newFade > 0)
+                timeOffset = Time.Current - time * newFade;
+
+            FadeDurationOverride = newFade;
         }
 
         public void SetDensityMultiplier(float multiplier)

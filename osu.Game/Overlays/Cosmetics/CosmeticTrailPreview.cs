@@ -51,6 +51,11 @@ namespace osu.Game.Overlays.Cosmetics
             trailDrawable = def.Create();
             trail = trailDrawable as ICosmeticTrail;
 
+            // The preview is driven by our synthetic sweep only. Stop it from
+            // also reacting to the real mouse, or moving over a card floods the
+            // trail with points and it goes haywire / lags.
+            trail?.SetInputActive(false);
+
             // Previews are small; a heavy particle trail (e.g. Galaxy at 220
             // alive) is overkill here and is the main grid-lag culprit. Trim it
             // hard for the preview only (the equipped trail keeps its full cap).

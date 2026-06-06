@@ -70,11 +70,16 @@ namespace osu.Game.Cosmetics
             Blending = BlendingParameters.Additive;
         }
 
-        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => true;
+        private bool inputActive = true;
+
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
+
+        public void SetInputActive(bool active) => inputActive = active;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
-            AddTrail(e.ScreenSpaceMousePosition);
+            if (inputActive)
+                AddTrail(e.ScreenSpaceMousePosition);
             return base.OnMouseMove(e);
         }
 
