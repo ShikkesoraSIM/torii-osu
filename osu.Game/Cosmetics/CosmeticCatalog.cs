@@ -82,16 +82,15 @@ namespace osu.Game.Cosmetics
             gradient("trail-frost", "Frost", 900, new Color4(235, 250, 255, 255), new Color4(70, 180, 255, 255)),
 
             // ── Smooth ribbons: premium animated spectra.
-            smooth("trail-aurora", "Aurora", CosmeticTier.Premium, 2500, t =>
+            ribbon("trail-aurora", "Aurora", CosmeticTier.Premium, 2500, t =>
             {
-                t.ColourMode = ToriiCosmeticTrail.TrailColourMode.Rainbow;
-                t.HueBase = 0.32f;
-                t.HueSpread = 0.42f;
-                t.HueCycleSpeed = 0.12f;
-                t.FadeDurationOverride = 950;
-                t.IntervalMultiplierOverride = 0.34f;
-                t.Thickness = 26f;
-                t.Blending = BlendingParameters.Additive;
+                // Aurora palette (green -> teal -> violet), a few colours, not a rainbow.
+                t.Segmented = true;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Palette;
+                t.Palette = new[] { new Color4(80, 240, 160, 255), new Color4(70, 210, 220, 255), new Color4(150, 100, 230, 255) };
+                t.HeadWidth = 14f; t.TailWidth = 9f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(90, 220, 180, 255);
+                t.RibbonLifetime = 900;
             }),
             smooth("trail-rainbow-engined", "Rainbow (Engined)", CosmeticTier.Premium, 4000, t =>
             {
@@ -184,6 +183,74 @@ namespace osu.Game.Cosmetics
                 t.PrimaryColour = new Color4(70, 240, 255, 255);
                 t.GlowColour = new Color4(255, 80, 230, 255);
                 t.Glow = true; t.Width = 9f; t.RibbonLifetime = 650;
+            }),
+
+            // ── "Fancy" segmented variants of the above: per-length colour +
+            //    taper + tail fade (kept alongside the simple ones).
+            ribbon("trail-comet-prime", "Comet Prime", CosmeticTier.Premium, 3200, t =>
+            {
+                t.Segmented = true;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.PrimaryColour = new Color4(255, 255, 255, 255);
+                t.SecondaryColour = new Color4(110, 170, 255, 255);
+                t.HeadWidth = 18f; t.TailWidth = 2f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(120, 180, 255, 255); t.HeadDot = true;
+                t.RibbonLifetime = 470;
+            }),
+            ribbon("trail-spectrum", "Spectrum", CosmeticTier.Premium, 3600, t =>
+            {
+                t.Segmented = true;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Rainbow;
+                t.HueSpread = 1f; t.HueCycleSpeed = 0.35f;
+                t.HeadWidth = 12f; t.TailWidth = 6f; t.FadeTail = true;
+                t.Glow = true; t.RibbonLifetime = 820;
+            }),
+            ribbon("trail-neon-surge", "Neon Surge", CosmeticTier.Premium, 3400, t =>
+            {
+                t.Segmented = true;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.PrimaryColour = new Color4(70, 240, 255, 255);
+                t.SecondaryColour = new Color4(255, 80, 230, 255);
+                t.HeadWidth = 13f; t.TailWidth = 4f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(255, 90, 235, 255);
+                t.RibbonLifetime = 700;
+            }),
+
+            // ── Creative / unique ribbons.
+            ribbon("trail-nebula", "Nebula", CosmeticTier.Premium, 3400, t =>
+            {
+                // Deep-space band: purple -> magenta -> blue.
+                t.Segmented = true;
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Palette;
+                t.Palette = new[] { new Color4(150, 90, 240, 255), new Color4(230, 90, 200, 255), new Color4(80, 120, 255, 255) };
+                t.HeadWidth = 16f; t.TailWidth = 10f; t.FadeTail = true;
+                t.Glow = true; t.GlowColour = new Color4(160, 90, 240, 255);
+                t.RibbonLifetime = 950;
+            }),
+            ribbon("trail-glitch", "Glitch", CosmeticTier.Premium, 2600, t =>
+            {
+                // Chromatic aberration: R/G/B copies that separate as you move.
+                t.RgbSplit = true; t.RgbSplitOffset = 3.5f;
+                t.Width = 8f; t.Glow = false; t.RibbonLifetime = 420;
+            }),
+            ribbon("trail-wisp", "Wisp", CosmeticTier.Special, 1400, t =>
+            {
+                // Ethereal: a big soft orb head trailing a thin faint wisp.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
+                t.PrimaryColour = new Color4(180, 240, 255, 255);
+                t.GlowColour = new Color4(120, 200, 255, 255);
+                t.Glow = true; t.HeadDot = true; t.HeadDotScale = 3.2f;
+                t.Width = 5f; t.RibbonLifetime = 430;
+            }),
+            ribbon("trail-heartbeat", "Heartbeat", CosmeticTier.Special, 1300, t =>
+            {
+                // Width pulses like a heartbeat.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
+                t.PrimaryColour = new Color4(255, 80, 120, 255);
+                t.GlowColour = new Color4(255, 60, 100, 255);
+                t.Glow = true; t.Width = 9f;
+                t.PulseAmount = 0.4f; t.PulseSpeed = 1.8f;
+                t.RibbonLifetime = 600;
             }),
 
             // ── More shaped particle trails (varied forms + motion).
