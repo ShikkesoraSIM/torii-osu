@@ -54,6 +54,7 @@ namespace osu.Game.Cosmetics
             Solid,
             Gradient,
             Rainbow,
+            Palette,
         }
 
         // ── Cosmetic configuration (set by the catalog) ─────────────────────
@@ -65,6 +66,11 @@ namespace osu.Game.Cosmetics
 
         /// <summary>The tail colour of a Gradient (unused for Solid/Rainbow).</summary>
         public Color4 SecondaryColour { get; set; } = Color4.White;
+
+        /// <summary>Palette mode: colours interpolated head→tail across this list
+        /// (e.g. an aurora green/teal/violet), giving the same soft dot style as
+        /// Rainbow but with chosen colours instead of the full wheel.</summary>
+        public Color4[] Palette { get; set; }
 
         /// <summary>Rainbow: hue (0..1) at the head of the trail.</summary>
         public float HueBase { get; set; }
@@ -331,6 +337,7 @@ namespace osu.Game.Cosmetics
             private TrailColourMode colourMode;
             private Color4 primaryLinear;
             private Color4 secondaryLinear;
+            private Color4[] paletteLinear;
             private float hueBase;
             private float hueSpread;
             private float animationPhase;
@@ -358,6 +365,17 @@ namespace osu.Game.Cosmetics
                 colourMode = Source.ColourMode;
                 primaryLinear = Source.PrimaryColour.ToLinear();
                 secondaryLinear = Source.SecondaryColour.ToLinear();
+
+                var srcPalette = Source.Palette;
+                if (srcPalette != null && srcPalette.Length > 0)
+                {
+                    paletteLinear = new Color4[srcPalette.Length];
+                    for (int i = 0; i < srcPalette.Length; i++)
+                        paletteLinear[i] = srcPalette[i].ToLinear();
+                }
+                else
+                    paletteLinear = null;
+
                 hueBase = Source.HueBase;
                 hueSpread = Source.HueSpread;
                 animationPhase = Source.animationPhase;
@@ -394,6 +412,15 @@ namespace osu.Game.Cosmetics
                         hue -= MathF.Floor(hue); // fractional part, wrapped to 0..1
                         var c = Colour4.FromHSV(hue, 1f, 1f);
                         return new Color4(c.R, c.G, c.B, 1f).ToLinear();
+
+                    case TrailColourMode.Palette when paletteLinear != null:
+                        if (paletteLinear.Length == 1)
+                            return paletteLinear[0];
+                        float f = Math.Clamp(posFraction, 0f, 1f) * (paletteLinear.Length - 1);
+                        int idx = (int)MathF.Floor(f);
+                        if (idx >= paletteLinear.Length - 1)
+                            return paletteLinear[paletteLinear.Length - 1];
+                        return lerp(paletteLinear[idx], paletteLinear[idx + 1], f - idx);
 
                     default:
                         return primaryLinear;

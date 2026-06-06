@@ -134,6 +134,16 @@ namespace osu.Game.Tests.Visual.UserInterface
                 trailDrawable = def.Create();
                 trail = (ICosmeticTrail)trailDrawable;
 
+                // Technical render engine, shown only in this test scene so we
+                // can tell which kind of trail each cosmetic uses.
+                string engine = trailDrawable switch
+                {
+                    ToriiCosmeticTrail => "dot",
+                    CosmeticRibbonTrail => "ribbon",
+                    CosmeticParticleTrail => "particles",
+                    _ => "trail",
+                };
+
                 InternalChildren = new Drawable[]
                 {
                     new Box
@@ -157,7 +167,7 @@ namespace osu.Game.Tests.Visual.UserInterface
                             },
                             new OsuSpriteText
                             {
-                                Text = $"{def.Tier} · {def.Price:N0} pts",
+                                Text = $"{def.Tier} · {def.Price:N0} pts · ({engine})",
                                 Font = OsuFont.GetFont(size: 12, weight: FontWeight.Regular),
                                 Colour = tierColour(def.Tier),
                             },

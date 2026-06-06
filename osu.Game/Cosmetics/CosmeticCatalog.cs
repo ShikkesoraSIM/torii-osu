@@ -82,15 +82,16 @@ namespace osu.Game.Cosmetics
             gradient("trail-frost", "Frost", 900, new Color4(235, 250, 255, 255), new Color4(70, 180, 255, 255)),
 
             // ── Smooth ribbons: premium animated spectra.
-            ribbon("trail-aurora", "Aurora", CosmeticTier.Premium, 2500, t =>
+            smooth("trail-aurora", "Aurora", CosmeticTier.Premium, 2500, t =>
             {
-                // Aurora palette (green -> teal -> violet), a few colours, not a rainbow.
-                t.Segmented = true;
-                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Palette;
+                // Same soft "engined" dot style as Rainbow (Engined), but an
+                // aurora palette (green -> teal -> violet) instead of the wheel.
+                t.ColourMode = ToriiCosmeticTrail.TrailColourMode.Palette;
                 t.Palette = new[] { new Color4(80, 240, 160, 255), new Color4(70, 210, 220, 255), new Color4(150, 100, 230, 255) };
-                t.HeadWidth = 14f; t.TailWidth = 9f; t.FadeTail = true;
-                t.Glow = true; t.GlowColour = new Color4(90, 220, 180, 255);
-                t.RibbonLifetime = 900;
+                t.FadeDurationOverride = 1100;
+                t.IntervalMultiplierOverride = 0.3f;
+                t.Thickness = 26f;
+                t.Blending = BlendingParameters.Additive;
             }),
             smooth("trail-rainbow-engined", "Rainbow (Engined)", CosmeticTier.Premium, 4000, t =>
             {
