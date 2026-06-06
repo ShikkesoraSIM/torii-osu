@@ -68,10 +68,21 @@ namespace osu.Game.Overlays.Cosmetics
             // over a card doesn't flood the trail and make it lag / go haywire.
             trail?.SetInputActive(false);
 
-            InternalChildren = new[]
+            // Render the trail into a framebuffer sized to the card. The dot
+            // trail draws with a custom draw node that does NOT honour the
+            // rounded mask, so at extreme UI scale its parts leaked outside the
+            // card. A buffer hard-clips to its own bounds (anything drawn past
+            // the edge just isn't captured), so the trail physically cannot
+            // escape. cachedFrameBuffer means a frozen (potato) preview is only
+            // rendered once, not every frame.
+            InternalChild = new BufferedContainer(cachedFrameBuffer: true)
             {
-                new Box { RelativeSizeAxes = Axes.Both, Colour = new Color4(14, 14, 22, 255) },
-                trailDrawable,
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = new Color4(14, 14, 22, 255) },
+                    trailDrawable,
+                },
             };
         }
 
