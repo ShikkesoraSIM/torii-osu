@@ -148,8 +148,8 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (cosmetics != null && cosmetics.AdjustUnlocked)
             {
-                var length = new BindableFloat(curLen) { MinValue = CosmeticEconomy.MinAdjustMultiplier, MaxValue = CosmeticEconomy.MaxAdjustMultiplier, Precision = 0.05f };
-                var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinAdjustMultiplier, MaxValue = CosmeticEconomy.MaxAdjustMultiplier, Precision = 0.05f };
+                var length = new BindableFloat(curLen) { MinValue = CosmeticEconomy.MinLengthMultiplier, MaxValue = CosmeticEconomy.MaxLengthMultiplier, Precision = 0.05f };
+                var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
 
                 length.BindValueChanged(_ => applyCustom(length.Value, density.Value));
                 density.BindValueChanged(_ => applyCustom(length.Value, density.Value));

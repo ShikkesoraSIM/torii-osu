@@ -78,7 +78,12 @@ namespace osu.Game.Cosmetics
         public float HueCycleSpeed { get; set; } = 0.35f;
 
         private const int segment_count = 16;
-        private const int max_points = 260;
+        // Generous safety cap only. The trail length is governed by TIME
+        // (RibbonLifetime), like osu!'s own cursor trail: points age out after a
+        // fixed lifetime regardless of how far you moved. This cap sits high
+        // enough (~2400px of path) that it never trims before the lifetime does
+        // at sane speeds, so the ribbon stops feeling distance-bound / "weird".
+        private const int max_points = 600;
         private const float point_spacing = 4f;
         private const int smoothing_passes = 3;
 
@@ -106,13 +111,6 @@ namespace osu.Game.Cosmetics
         private double? baseLifetime;
         private float? baseWidthScale;
         private float widthScale = 1f;
-
-        // Effective point budget. Length scales this (not just lifetime): at a
-        // normal cursor speed the trail almost always hits the point cap well
-        // before the lifetime cutoff, so scaling lifetime alone does nothing
-        // visible. Scaling how many points we keep is what actually lengthens
-        // (or shortens) the ribbon.
-        private int pointBudget = max_points;
 
         public CosmeticRibbonTrail()
         {
@@ -218,11 +216,11 @@ namespace osu.Game.Cosmetics
 
         public void SetLengthMultiplier(float multiplier)
         {
+            // Length is purely the lifetime (TIME), so the trail behaves like
+            // osu!'s: it persists for a set time and catches up to the cursor
+            // when you stop, instead of being a fixed-distance smear.
             baseLifetime ??= RibbonLifetime;
             RibbonLifetime = baseLifetime.Value * multiplier;
-            // Keep more / fewer points so the change is actually visible (see
-            // pointBudget). Clamped so a long setting can't blow up the mesh.
-            pointBudget = Math.Clamp((int)(max_points * multiplier), 24, 560);
         }
 
         public void SetDensityMultiplier(float multiplier)
@@ -266,7 +264,7 @@ namespace osu.Game.Cosmetics
         private void addPoint(Vector2 position)
         {
             points.Add(new RibbonPoint { Pos = position, Time = Time.Current });
-            while (points.Count > pointBudget)
+            while (points.Count > max_points)
                 points.RemoveAt(0);
         }
 

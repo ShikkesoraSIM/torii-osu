@@ -25,11 +25,16 @@ namespace osu.Game.Cosmetics
         /// thickness on owned trails.</summary>
         public const int AdjustableDensityUnlock = 2500;
 
-        /// <summary>Range a player may push length/density once unlocked, as a
-        /// multiplier over the trail's default. Kept deliberately tight: the
-        /// catalog defaults are already the "good" look, so this is a gentle
-        /// trim/boost, not a 0.5x..2x extreme where the ends are unusable.</summary>
-        public const float MinAdjustMultiplier = 0.7f;
-        public const float MaxAdjustMultiplier = 1.5f;
+        /// <summary>Range for the LENGTH slider, as a multiplier over the trail's
+        /// default. Weighted hard toward SHORTENING: the default (1x) is already
+        /// a long-ish look, a long trail reads as a weird smear, so most of the
+        /// slider trims it down. Only a hair of headroom above default.</summary>
+        public const float MinLengthMultiplier = 0.25f;
+        public const float MaxLengthMultiplier = 1.2f;
+
+        /// <summary>Range for the DENSITY / thickness slider. Kept moderate so
+        /// neither end looks broken (too sparse / too fat).</summary>
+        public const float MinDensityMultiplier = 0.6f;
+        public const float MaxDensityMultiplier = 1.4f;
     }
 }
