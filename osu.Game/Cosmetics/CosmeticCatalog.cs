@@ -142,13 +142,80 @@ namespace osu.Game.Cosmetics
             }),
             particle("trail-inferno", "Inferno", CosmeticTier.Premium, 2200, CosmeticParticles.Flame, t =>
             {
-                t.Drift = new Vector2(0, -20); t.DriftJitter = 8; t.SpawnInterval = 14;
-                t.ParticleLifetime = 600; t.StartScale = 1.2f; t.EndScale = 0.3f; t.MaxAlive = 200;
+                // Calmer than a full bonfire so it doesn't pull focus mid-play.
+                t.Drift = new Vector2(0, -20); t.DriftJitter = 8; t.SpawnInterval = 18;
+                t.ParticleLifetime = 600; t.StartScale = 1f; t.EndScale = 0.3f; t.MaxAlive = 140;
             }),
             particle("trail-stardust", "Stardust", CosmeticTier.Premium, 2800, CosmeticParticles.RainbowSparkle, t =>
             {
                 t.Drift = new Vector2(0, -6); t.DriftJitter = 12; t.SpinDegrees = 60; t.SpawnInterval = 18;
                 t.ParticleLifetime = 800; t.StartScale = 1f; t.EndScale = 0.3f;
+            }),
+
+            // ── Connected RIBBON trails (a stitched mesh, not dots): finite,
+            //    long, tapering, waving, flowing.
+            ribbon("trail-comet", "Comet", CosmeticTier.Premium, 2600, t =>
+            {
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.PrimaryColour = new Color4(255, 255, 255, 255);
+                t.SecondaryColour = new Color4(120, 180, 255, 255);
+                t.HeadWidth = 18f; t.TailWidth = 1f; t.RibbonLifetime = 480; t.FadeTail = true;
+            }),
+            ribbon("trail-serpent", "Emerald Serpent", CosmeticTier.Special, 1300, t =>
+            {
+                // Finite, long, DEFINED tail (no fade) - the classic snake ribbon.
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Solid;
+                t.PrimaryColour = new Color4(70, 230, 150, 255);
+                t.HeadWidth = 8f; t.TailWidth = 8f; t.RibbonLifetime = 950; t.FadeTail = false;
+                t.Blending = BlendingParameters.Inherit;
+            }),
+            ribbon("trail-rainbow-ribbon", "Rainbow Ribbon", CosmeticTier.Premium, 3200, t =>
+            {
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Rainbow;
+                t.HueSpread = 1f; t.HueCycleSpeed = 0.5f;
+                t.HeadWidth = 10f; t.TailWidth = 6f; t.RibbonLifetime = 800; t.FadeTail = true;
+            }),
+            ribbon("trail-neon-wave", "Neon Wave", CosmeticTier.Premium, 3000, t =>
+            {
+                t.ColourMode = CosmeticRibbonTrail.RibbonColourMode.Gradient;
+                t.PrimaryColour = new Color4(60, 240, 255, 255);
+                t.SecondaryColour = new Color4(255, 80, 230, 255);
+                t.HeadWidth = 7f; t.TailWidth = 3f; t.RibbonLifetime = 650; t.FadeTail = true;
+                t.WaveAmplitude = 10f; t.WaveFrequency = 0.5f; t.WaveSpeed = 5f;
+            }),
+
+            // ── More shaped particle trails (varied forms + motion).
+            particle("trail-confetti", "Confetti", CosmeticTier.Special, 1000, CosmeticParticles.Confetti, t =>
+            {
+                t.Drift = new Vector2(0, 26); t.DriftJitter = 22; t.SpinDegrees = 320; t.SpawnInterval = 20;
+                t.ParticleLifetime = 1100; t.StartScale = 1f; t.EndScale = 0.9f;
+                t.Blending = BlendingParameters.Inherit;
+            }),
+            particle("trail-smoke", "Smoke", CosmeticTier.Basic, 500, CosmeticParticles.Smoke, t =>
+            {
+                t.Drift = new Vector2(0, -18); t.DriftJitter = 14; t.SpawnInterval = 18;
+                t.ParticleLifetime = 900; t.StartScale = 0.5f; t.EndScale = 2.2f; // billow out
+            }),
+            particle("trail-prism", "Prism", CosmeticTier.Special, 1200, CosmeticParticles.Geometric, t =>
+            {
+                t.Drift = new Vector2(0, -10); t.DriftJitter = 12; t.SpinDegrees = 220; t.SpawnInterval = 22;
+                t.ParticleLifetime = 850; t.StartScale = 1f; t.EndScale = 0.4f;
+            }),
+            particle("trail-galaxy", "Galaxy", CosmeticTier.Premium, 2600, CosmeticParticles.GalaxyDust, t =>
+            {
+                t.Drift = new Vector2(0, -5); t.DriftJitter = 14; t.SpawnInterval = 12;
+                t.ParticleLifetime = 1000; t.StartScale = 1f; t.EndScale = 0.5f; t.MaxAlive = 220;
+            }),
+            particle("trail-arcade", "Arcade", CosmeticTier.Special, 900, CosmeticParticles.Pixel, t =>
+            {
+                t.Drift = new Vector2(0, -8); t.DriftJitter = 16; t.SpawnInterval = 16;
+                t.ParticleLifetime = 700; t.StartScale = 1f; t.EndScale = 1f;
+                t.Blending = BlendingParameters.Inherit;
+            }),
+            particle("trail-storm", "Storm", CosmeticTier.Premium, 2400, CosmeticParticles.Bolt, t =>
+            {
+                t.Drift = new Vector2(0, -6); t.DriftJitter = 18; t.SpawnInterval = 24;
+                t.ParticleLifetime = 500; t.StartScale = 1.2f; t.EndScale = 0.5f;
             }),
         };
 
@@ -164,6 +231,14 @@ namespace osu.Game.Cosmetics
             => new CosmeticTrailDefinition(id, name, tier, price, () =>
             {
                 var t = new CosmeticParticleTrail { ParticleFactory = factory };
+                configure(t);
+                return t;
+            });
+
+        private static CosmeticTrailDefinition ribbon(string id, string name, CosmeticTier tier, int price, Action<CosmeticRibbonTrail> configure)
+            => new CosmeticTrailDefinition(id, name, tier, price, () =>
+            {
+                var t = new CosmeticRibbonTrail();
                 configure(t);
                 return t;
             });

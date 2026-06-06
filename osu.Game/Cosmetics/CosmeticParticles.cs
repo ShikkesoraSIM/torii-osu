@@ -134,5 +134,78 @@ namespace osu.Game.Cosmetics
                 },
             };
         }
+
+        private static readonly Color4[] confetti_palette =
+        {
+            new Color4(255, 90, 110, 255), new Color4(90, 200, 255, 255), new Color4(120, 235, 140, 255),
+            new Color4(255, 210, 80, 255), new Color4(200, 120, 255, 255), new Color4(255, 140, 70, 255),
+        };
+
+        private static readonly Color4[] retro_palette =
+        {
+            new Color4(255, 80, 90, 255), new Color4(70, 220, 120, 255), new Color4(80, 150, 255, 255),
+            new Color4(255, 220, 70, 255), new Color4(255, 120, 220, 255),
+        };
+
+        private static readonly Color4[] galaxy_palette =
+        {
+            new Color4(180, 150, 255, 255), new Color4(120, 170, 255, 255), new Color4(235, 220, 255, 255), white,
+        };
+
+        /// <summary>Small rotating confetti rectangle, vivid colour by index.</summary>
+        public static Drawable Confetti(int index) => new Box
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(7, 4),
+            Colour = confetti_palette[index % confetti_palette.Length],
+            Rotation = index * 53 % 360,
+        };
+
+        /// <summary>Faint smoke puff (billows out + fades via the trail).</summary>
+        public static Drawable Smoke(int index) => new Circle
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(11),
+            Colour = new Color4(205, 205, 215, 110),
+        };
+
+        /// <summary>Spinning geometric triangle, cool palette.</summary>
+        public static Drawable Geometric(int index) => new Triangle
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(13),
+            Colour = galaxy_palette[index % galaxy_palette.Length],
+            Rotation = index * 40 % 360,
+        };
+
+        /// <summary>Tiny galaxy mote: small star, cool palette, occasional bright.</summary>
+        public static Drawable GalaxyDust(int index)
+        {
+            bool bright = index % 5 == 0;
+            return new Circle
+            {
+                Origin = Anchor.Centre,
+                Size = new Vector2(bright ? 5.5f : 3f),
+                Colour = galaxy_palette[index % galaxy_palette.Length],
+            };
+        }
+
+        /// <summary>Deliberate retro pixel: a crisp arcade-coloured square (this
+        /// time squares are the point).</summary>
+        public static Drawable Pixel(int index) => new Box
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(6),
+            Colour = retro_palette[index % retro_palette.Length],
+        };
+
+        /// <summary>Electric bolt, yellow/blue flicker.</summary>
+        public static Drawable Bolt(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Bolt,
+            Size = new Vector2(14),
+            Colour = index % 2 == 0 ? new Color4(255, 235, 110, 255) : new Color4(150, 215, 255, 255),
+        };
     }
 }
