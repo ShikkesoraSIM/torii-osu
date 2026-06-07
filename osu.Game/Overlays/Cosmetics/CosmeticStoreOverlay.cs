@@ -58,9 +58,9 @@ namespace osu.Game.Overlays.Cosmetics
         private OsuSpriteText pointsText;
         private OsuSpriteText rotationText;
 
-        private CosmeticTrailDefinition selected;
-        private StoreItemCard selectedCard;
-        private readonly List<StoreItemCard> cards = new List<StoreItemCard>();
+        private string selectedId = string.Empty;
+        private IStoreCard selectedCard;
+        private readonly List<IStoreCard> cards = new List<IStoreCard>();
 
         public CosmeticStoreOverlay()
         {
@@ -321,6 +321,7 @@ namespace osu.Game.Overlays.Cosmetics
                 // Buy / equip only flip badges; refresh them in place instead of
                 // rebuilding the whole grid (35 trail previews) which lagged hard.
                 cosmetics.EquippedTrailId.BindValueChanged(_ => refreshCards());
+                cosmetics.EquippedNameColourId.BindValueChanged(_ => refreshCards());
                 cosmetics.InventoryChanged += onInventoryChanged;
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
@@ -387,9 +388,31 @@ namespace osu.Game.Overlays.Cosmetics
 
                 foreach (var def in list)
                 {
-                    bool isSelected = selected != null && def.Id == selected.Id;
+                    bool isSelected = def.Id == selectedId;
                     var card = new StoreItemCard(def, cosmetics, featured.Contains(def.Id), isSelected, cardScroll);
                     card.Action = () => onCardClicked(def, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cards.Add(card);
+                    cardFlow.Add(card);
+                }
+            }
+
+            // ── Name colours (second category) ──────────────────────────────
+            var colours = (inventory
+                ? CosmeticNameColourCatalog.Colours.Where(c => cosmetics?.IsOwned(c.Id) ?? false)
+                : CosmeticNameColourCatalog.Colours).ToList();
+
+            if (colours.Count > 0)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Name Colours", FontAwesome.Solid.Palette));
+
+                foreach (var c in colours)
+                {
+                    bool isSelected = c.Id == selectedId;
+                    var card = new NameColourCard(c, cosmetics, isSelected);
+                    card.Action = () => onNameColourClicked(c, card);
                     if (isSelected)
                         selectedCard = card;
                     cards.Add(card);
@@ -446,20 +469,32 @@ namespace osu.Game.Overlays.Cosmetics
                 showToast($"Equipped {def.Name}");
             }
 
-            selectItem(def, card);
+            setSelectedCard(card, def.Id);
+            detailContainer.Clear();
+            detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, showToast));
         }
 
-        private void selectItem(CosmeticTrailDefinition def, StoreItemCard card)
+        private void onNameColourClicked(CosmeticNameColour colour, NameColourCard card)
         {
-            selected = def;
+            if (tabs.Current.Value == StoreTab.Inventory && (cosmetics?.IsOwned(colour.Id) ?? false))
+            {
+                cosmetics.EquipNameColour(colour.Id);
+                showToast($"Equipped {colour.Name}");
+            }
 
-            if (selectedCard != null && selectedCard != card)
+            setSelectedCard(card, colour.Id);
+            detailContainer.Clear();
+            detailContainer.Add(new NameColourDetailPanel(colour, cosmetics, showToast));
+        }
+
+        private void setSelectedCard(IStoreCard card, string id)
+        {
+            selectedId = id;
+
+            if (selectedCard != null && !ReferenceEquals(selectedCard, card))
                 selectedCard.SetSelected(false);
             selectedCard = card;
             card?.SetSelected(true);
-
-            detailContainer.Clear();
-            detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, showToast));
         }
 
         private void showToast(string message)

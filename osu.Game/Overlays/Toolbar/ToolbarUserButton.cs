@@ -9,6 +9,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Sprites;
+using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -34,6 +35,12 @@ namespace osu.Game.Overlays.Toolbar
         private IBindable<APIState> apiState = null!;
 
         private OsuSpriteText usernameText = null!;
+
+        // Torii: equipped username-colour cosmetic, painted onto the name below.
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager? cosmetics { get; set; }
+
+        private CosmeticNameColour? currentNameColour;
 
         public ToolbarUserButton()
         {
@@ -102,6 +109,22 @@ namespace osu.Game.Overlays.Toolbar
             localUser.BindValueChanged(userChanged, true);
 
             StateContainer = login;
+
+            // Re-resolve the equipped name colour on change (Update paints it).
+            if (cosmetics != null)
+                cosmetics.EquippedNameColourId.BindValueChanged(_ => currentNameColour = cosmetics.GetEquippedNameColour(), true);
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            // Paint the username in the equipped colour (per-frame so the rainbow
+            // animates); reset to default white when nothing is equipped.
+            if (currentNameColour != null)
+                currentNameColour.Apply(usernameText, Time.Current);
+            else
+                CosmeticNameColour.Clear(usernameText);
         }
 
         private void userChanged(ValueChangedEvent<APIUser> user) => Schedule(() =>

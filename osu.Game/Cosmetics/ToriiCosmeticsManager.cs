@@ -30,6 +30,10 @@ namespace osu.Game.Cosmetics
         /// <summary>Equipped trail id ("" = none, use the skin's trail).</summary>
         public Bindable<string> EquippedTrailId { get; }
 
+        /// <summary>Equipped username-colour id ("" = default white). Ownership
+        /// is shared with everything else via <see cref="IsOwned"/> / <see cref="Buy"/>.</summary>
+        public Bindable<string> EquippedNameColourId { get; }
+
         /// <summary>Local points balance cache (server is authoritative later).</summary>
         public Bindable<int> PointsBalance { get; }
 
@@ -54,6 +58,7 @@ namespace osu.Game.Cosmetics
         {
             this.config = config;
             EquippedTrailId = config.GetBindable<string>(OsuSetting.EquippedCursorTrail);
+            EquippedNameColourId = config.GetBindable<string>(OsuSetting.EquippedNameColour);
             PointsBalance = config.GetBindable<int>(OsuSetting.ToriiPointsBalance);
             StorePotatoMode = config.GetBindable<bool>(OsuSetting.CosmeticStorePotatoMode);
 
@@ -107,6 +112,19 @@ namespace osu.Game.Cosmetics
         public void Equip(string id) => EquippedTrailId.Value = id ?? string.Empty;
 
         public void Unequip() => EquippedTrailId.Value = string.Empty;
+
+        // ── Name colours (ownership shared with Buy/IsOwned above) ───────────
+
+        public void EquipNameColour(string id) => EquippedNameColourId.Value = id ?? string.Empty;
+
+        public void UnequipNameColour() => EquippedNameColourId.Value = string.Empty;
+
+        /// <summary>The equipped name-colour definition, or null for default.</summary>
+        public CosmeticNameColour GetEquippedNameColour()
+        {
+            string id = EquippedNameColourId.Value;
+            return string.IsNullOrEmpty(id) ? null : CosmeticNameColourCatalog.Colours.FirstOrDefault(c => c.Id == id);
+        }
 
         // ── Per-trail customisation (length / density multipliers) ──────────
 

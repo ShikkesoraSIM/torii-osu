@@ -25,8 +25,10 @@ namespace osu.Game.Overlays.Cosmetics
     /// price / owned / equipped footer over it. Clicking it selects (Store) or
     /// equips (Inventory) — wired by the overlay. Hover lifts it; the overlay
     /// can mark it selected for a highlighted border.</summary>
-    public partial class StoreItemCard : OsuClickableContainer
+    public partial class StoreItemCard : OsuClickableContainer, IStoreCard
     {
+        public string ItemId => def.Id;
+
         private readonly CosmeticTrailDefinition def;
         private readonly ToriiCosmeticsManager cosmetics;
         private readonly bool featured;

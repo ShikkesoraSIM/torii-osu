@@ -534,6 +534,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiPointsBalance, 90000);
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
             SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
+            SetDefault(OsuSetting.EquippedNameColour, string.Empty);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -945,6 +946,9 @@ namespace osu.Game.Configuration
         /// <summary>Store "Potato PC" mode: previews render a frozen snapshot
         /// instead of animating live, for weak hardware.</summary>
         CosmeticStorePotatoMode,
+
+        /// <summary>Equipped username-colour cosmetic id ("" = default white).</summary>
+        EquippedNameColour,
 
         /// <summary>
         /// Torii: when on, MenuCursorContainer renders the user's
