@@ -426,8 +426,10 @@ namespace osu.Game.Overlays.Cosmetics
             colours.AddRange(inventory
                 ? CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsOwned(c.Id) ?? false)
                 : CosmeticNameColourCatalog.Buyable);
-            // Earned: your role colours + group-gated specials you're entitled to.
-            colours.AddRange(CosmeticNameColourCatalog.GetEntitledEarned(localUser));
+            // Role (earned) colours are NEVER sold: Inventory only, where you
+            // already have them by role.
+            if (inventory)
+                colours.AddRange(CosmeticNameColourCatalog.GetEntitledEarned(localUser));
 
             if (colours.Count > 0)
             {

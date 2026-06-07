@@ -23,6 +23,10 @@ namespace osu.Game.Cosmetics
 
         /// <summary>Animated: breathes between two colours.</summary>
         Pulse,
+
+        /// <summary>Role colour: the name in the colour with a soft white halo
+        /// glow (special, not a flat solid). EARNED-only, for role colours.</summary>
+        Halo,
     }
 
     /// <summary>
@@ -96,6 +100,12 @@ namespace osu.Game.Cosmetics
                         Primary.G + (Secondary.G - Primary.G) * u,
                         Primary.B + (Secondary.B - Primary.B) * u,
                         1f);
+                    break;
+
+                case NameColourStyle.Halo:
+                    // Just the tint here; the soft white halo glow is added by
+                    // NameColourText (needs a wrapper, not just a text colour).
+                    text.Colour = Primary;
                     break;
             }
         }

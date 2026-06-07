@@ -4,12 +4,15 @@
 #nullable disable
 
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Effects;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API;
+using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Cosmetics
 {
@@ -34,11 +37,31 @@ namespace osu.Game.Overlays.Cosmetics
         [BackgroundDependencyLoader]
         private void load()
         {
-            InternalChild = text = new OsuSpriteText
+            text = new OsuSpriteText
             {
                 Text = api?.LocalUser.Value?.Username ?? "Player",
                 Font = OsuFont.GetFont(size: fontSize, weight: FontWeight.SemiBold),
             };
+
+            // Role (Halo) colours get a soft white glow so they read as special.
+            if (colour != null && colour.Style == NameColourStyle.Halo)
+            {
+                InternalChild = new Container
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Masking = true,
+                    CornerRadius = 4f,
+                    EdgeEffect = new EdgeEffectParameters
+                    {
+                        Type = EdgeEffectType.Glow,
+                        Colour = Color4.White.Opacity(0.55f),
+                        Radius = 11f,
+                    },
+                    Child = text,
+                };
+            }
+            else
+                InternalChild = text;
 
             colour?.Apply(text, Time.Current);
         }

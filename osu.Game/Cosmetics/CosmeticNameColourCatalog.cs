@@ -11,18 +11,17 @@ using osuTK.Graphics;
 namespace osu.Game.Cosmetics
 {
     /// <summary>
-    /// Catalog + resolver for username-colour cosmetics. Two sources, ONE system
-    /// (so everything is documented and swappable):
+    /// Catalog + resolver for username-colour cosmetics. Two distinct kinds:
     ///
-    ///   - <see cref="Buyable"/> — static solids / gradients, bought with points.
-    ///   - EARNED — granted by an API group, never for sale:
-    ///       * Role colours: derived at runtime from the user's groups
-    ///         (admin red, supporter pink, ...). This is the SAME source the
-    ///         game already uses to tint your name; here it just becomes a
-    ///         selectable, swappable cosmetic.
-    ///       * <see cref="Special"/> — flashy animated ones gated behind a
-    ///         specific group (placeholder mapping; server-configurable later),
-    ///         mirroring how auras are gated in <c>AuraRegistry</c>.
+    ///   - <see cref="Buyable"/> — static solids / gradients, bought with points
+    ///     (earned by playing). These are the ONLY name colours sold in the store.
+    ///
+    ///   - ROLE colours — derived at runtime from the user's API groups
+    ///     (admin red, supporter pink, ...). NOT sold anywhere: you have them
+    ///     because of your role, they only appear in your Inventory, and they
+    ///     render with the special <see cref="NameColourStyle.Halo"/> (a soft
+    ///     white glow) so a role colour always reads as special, never a flat
+    ///     solid. Same entitlement model as auras (group identifier match).
     /// </summary>
     public static class CosmeticNameColourCatalog
     {
@@ -41,20 +40,10 @@ namespace osu.Game.Cosmetics
             gradient("name-berry", "Berry", 800, new Color4(255, 110, 200, 255), new Color4(150, 90, 240, 255)),
         };
 
-        /// <summary>Flashy animated colours, each gated behind a group (earned,
-        /// never bought). The group mapping is a placeholder for now.</summary>
-        public static readonly IReadOnlyList<CosmeticNameColour> Special = new[]
-        {
-            rainbow("name-rainbow", "Rainbow", "torii-admin", "torii-dev"),
-            pulse("name-inferno", "Inferno", new Color4(255, 90, 40, 255), new Color4(255, 210, 80, 255), "torii-supporter"),
-            pulse("name-glacier", "Glacier", new Color4(120, 220, 255, 255), new Color4(245, 250, 255, 255), "torii-qat", "torii-mod"),
-            pulse("name-nebula", "Nebula", new Color4(170, 90, 240, 255), new Color4(255, 90, 200, 255), "torii-founder"),
-        };
-
         private const string group_prefix = "name-group-";
 
-        /// <summary>A solid name colour matching one of the user's groups (e.g.
-        /// the admin red), so a role colour is a swappable cosmetic too.</summary>
+        /// <summary>The halo role colour matching one of the user's groups (e.g.
+        /// the admin red). Earned, never sold, swappable like any cosmetic.</summary>
         public static CosmeticNameColour GroupColourFor(APIUserGroup group)
         {
             if (group?.Identifier == null || string.IsNullOrEmpty(group.Colour))
@@ -71,23 +60,15 @@ namespace osu.Game.Cosmetics
             }
 
             return new CosmeticNameColour(group_prefix + group.Identifier, group.Name ?? group.ShortName ?? "Role",
-                CosmeticTier.Premium, 0, NameColourStyle.Solid, colour, owningGroups: new[] { group.Identifier });
+                CosmeticTier.Premium, 0, NameColourStyle.Halo, colour, owningGroups: new[] { group.Identifier });
         }
 
-        /// <summary>Every EARNED colour the user is entitled to: their role
-        /// colours plus the special ones their groups grant.</summary>
+        /// <summary>Every EARNED (role) colour the user is entitled to, one per
+        /// group of theirs that carries a colour. Inventory-only.</summary>
         public static IEnumerable<CosmeticNameColour> GetEntitledEarned(APIUser user)
         {
             if (user?.Groups == null || user.Groups.Length == 0)
                 yield break;
-
-            var groupIds = user.Groups.Where(g => g.Identifier != null).Select(g => g.Identifier).ToHashSet();
-
-            foreach (var special in Special)
-            {
-                if (special.OwningGroups.Any(groupIds.Contains))
-                    yield return special;
-            }
 
             foreach (var group in user.Groups)
             {
@@ -97,7 +78,7 @@ namespace osu.Game.Cosmetics
             }
         }
 
-        /// <summary>Resolve any colour id (buyable, special, or a role colour
+        /// <summary>Resolve any colour id (a buyable one, or a role colour
         /// derived from the user's groups).</summary>
         public static CosmeticNameColour GetById(string id, APIUser user)
         {
@@ -107,10 +88,6 @@ namespace osu.Game.Cosmetics
             var b = Buyable.FirstOrDefault(c => c.Id == id);
             if (b != null)
                 return b;
-
-            var s = Special.FirstOrDefault(c => c.Id == id);
-            if (s != null)
-                return s;
 
             if (id.StartsWith(group_prefix, StringComparison.Ordinal) && user?.Groups != null)
             {
@@ -128,11 +105,5 @@ namespace osu.Game.Cosmetics
 
         private static CosmeticNameColour gradient(string id, string name, int price, Color4 a, Color4 b)
             => new CosmeticNameColour(id, name, CosmeticTier.Special, price, NameColourStyle.Gradient, a, b);
-
-        private static CosmeticNameColour rainbow(string id, string name, params string[] groups)
-            => new CosmeticNameColour(id, name, CosmeticTier.Premium, 0, NameColourStyle.Rainbow, Color4.White, owningGroups: groups);
-
-        private static CosmeticNameColour pulse(string id, string name, Color4 a, Color4 b, params string[] groups)
-            => new CosmeticNameColour(id, name, CosmeticTier.Premium, 0, NameColourStyle.Pulse, a, b, owningGroups: groups);
     }
 }
