@@ -131,6 +131,17 @@ namespace osu.Game.Overlays.Cosmetics
                         AutoSizeAxes = Axes.Both,
                         Child = owned ? ownedPill(equipped) : Empty(),
                     },
+                    // Persistent rarity border: tier colour, thicker for rarer
+                    // tiers. The pink selection border draws on top when picked.
+                    new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Masking = true,
+                        CornerRadius = BriefingTheme.CornerSm,
+                        BorderThickness = rarityBorderThickness(colour.Tier),
+                        BorderColour = tierColour(colour.Tier).Opacity(0.65f),
+                        Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Transparent, AlwaysPresent = true },
+                    },
                     selectionBorder = new Container
                     {
                         RelativeSizeAxes = Axes.Both,
@@ -274,6 +285,13 @@ namespace osu.Game.Overlays.Cosmetics
             CosmeticTier.Special => BriefingTheme.AccentSky,
             CosmeticTier.Premium => BriefingTheme.AccentAmber,
             _ => Color4.White,
+        };
+
+        private static float rarityBorderThickness(CosmeticTier tier) => tier switch
+        {
+            CosmeticTier.Special => 1.5f,
+            CosmeticTier.Premium => 2.5f,
+            _ => 1f,
         };
     }
 }
