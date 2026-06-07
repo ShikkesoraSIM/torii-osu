@@ -21,7 +21,9 @@ using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API.Requests;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Input.Bindings;
 using osu.Game.Overlays.ToriiBriefing;
@@ -448,6 +450,31 @@ namespace osu.Game.Overlays.Cosmetics
                 }
             }
 
+            // ── Auras (third category) ──────────────────────────────────────
+            // Earned by role/group. Inventory-only (no buyable auras yet).
+            // Equipping one applies it everywhere your name shows.
+            if (inventory)
+            {
+                var auras = AuraRegistry.GetEntitledAuras(localUser).ToList();
+
+                if (auras.Count > 0)
+                {
+                    anyContent = true;
+                    cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
+
+                    foreach (var preset in auras)
+                    {
+                        bool isSelected = preset.AuraId == selectedId;
+                        var card = new AuraCard(preset, isSelected);
+                        card.Action = () => onAuraClicked(preset, card);
+                        if (isSelected)
+                            selectedCard = card;
+                        cards.Add(card);
+                        cardFlow.Add(card);
+                    }
+                }
+            }
+
             if (!anyContent)
             {
                 cardFlow.Add(new OsuSpriteText
@@ -513,6 +540,54 @@ namespace osu.Game.Overlays.Cosmetics
             setSelectedCard(card, colour.Id);
             detailContainer.Clear();
             detailContainer.Add(new NameColourDetailPanel(colour, cosmetics, showToast));
+        }
+
+        private void onAuraClicked(AuraPreset preset, AuraCard card)
+        {
+            // Single click equips (auras are earned, nothing to buy/customise).
+            equipAura(preset.AuraId);
+            showToast($"Equipped {AuraCard.DisplayNameFor(preset.AuraId)} aura");
+
+            setSelectedCard(card, preset.AuraId);
+            refreshCards();
+
+            detailContainer.Clear();
+            detailContainer.Add(new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 10),
+                Children = new Drawable[]
+                {
+                    new OsuSpriteText
+                    {
+                        Text = AuraCard.DisplayNameFor(preset.AuraId),
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
+                    },
+                    new OsuSpriteText
+                    {
+                        Text = "Earned aura. Now showing everywhere your name appears.",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    },
+                },
+            });
+        }
+
+        // Equip an aura the same way the settings dropdown does: update the
+        // in-memory local user + fire the aura-changed channel (so every
+        // surface re-resolves in place), then persist server-side.
+        private void equipAura(string auraId)
+        {
+            if (api?.LocalUser.Value == null)
+                return;
+
+            api.LocalUser.Value.EquippedAura = auraId;
+            UserAuraEvents.NotifyUserAuraChanged(api.LocalUser.Value.Id, auraId);
+
+            var req = new UpdateEquippedAuraRequest(auraId);
+            api.Queue(req);
         }
 
         private void setSelectedCard(IStoreCard card, string id)
