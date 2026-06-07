@@ -119,13 +119,6 @@ namespace osu.Game.Cosmetics
 
         public void UnequipNameColour() => EquippedNameColourId.Value = string.Empty;
 
-        /// <summary>The equipped name-colour definition, or null for default.</summary>
-        public CosmeticNameColour GetEquippedNameColour()
-        {
-            string id = EquippedNameColourId.Value;
-            return string.IsNullOrEmpty(id) ? null : CosmeticNameColourCatalog.Colours.FirstOrDefault(c => c.Id == id);
-        }
-
         // ── Per-trail customisation (length / density multipliers) ──────────
 
         public (float length, float density, float size) GetCustomisation(string id)

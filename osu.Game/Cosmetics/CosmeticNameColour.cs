@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Sprites;
@@ -25,9 +26,13 @@ namespace osu.Game.Cosmetics
     }
 
     /// <summary>
-    /// A username colour cosmetic. Static styles (solid / gradient) are bought
-    /// with points; the animated / flashy ones (<see cref="Earned"/>) are
-    /// prestige: granted manually for doing something, not for-sale.
+    /// A username colour cosmetic. There are two kinds:
+    ///   - BUYABLE (<see cref="OwningGroups"/> null): static solids / gradients
+    ///     bought with points (earned by playing).
+    ///   - EARNED (<see cref="OwningGroups"/> set): granted by one of those API
+    ///     groups, NOT for sale. This covers both your role colours (admin red,
+    ///     supporter pink, ... derived from your actual groups) and special
+    ///     animated ones gated behind a group, exactly like the aura system.
     /// </summary>
     public sealed class CosmeticNameColour
     {
@@ -39,11 +44,16 @@ namespace osu.Game.Cosmetics
         public Color4 Primary { get; }
         public Color4 Secondary { get; }
 
-        /// <summary>Prestige colour: not purchasable, granted manually (server
-        /// side later). Shown with an EARNED tag instead of a price.</summary>
-        public bool Earned { get; }
+        /// <summary>API group identifiers that grant this colour (e.g.
+        /// "torii-admin"). Null = buyable with points. Mirrors
+        /// <c>AuraPreset.OwningGroupIdentifiers</c>.</summary>
+        public IReadOnlyList<string> OwningGroups { get; }
 
-        public CosmeticNameColour(string id, string name, CosmeticTier tier, int price, NameColourStyle style, Color4 primary, Color4 secondary = default, bool earned = false)
+        /// <summary>Granted by a group (not purchasable). Shown with an EARNED
+        /// tag instead of a price.</summary>
+        public bool Earned => OwningGroups != null && OwningGroups.Count > 0;
+
+        public CosmeticNameColour(string id, string name, CosmeticTier tier, int price, NameColourStyle style, Color4 primary, Color4 secondary = default, IReadOnlyList<string> owningGroups = null)
         {
             Id = id;
             Name = name;
@@ -52,7 +62,7 @@ namespace osu.Game.Cosmetics
             Style = style;
             Primary = primary;
             Secondary = secondary == default ? primary : secondary;
-            Earned = earned;
+            OwningGroups = owningGroups;
         }
 
         /// <summary>Paint a username text in this colour. Call every frame for the

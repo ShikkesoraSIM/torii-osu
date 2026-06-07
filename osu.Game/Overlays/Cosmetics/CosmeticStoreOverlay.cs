@@ -50,6 +50,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private ToriiCosmeticsManager cosmetics { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private osu.Game.Online.API.IAPIProvider api { get; set; }
+
         private BriefingGlass mainPanel;
         private OsuTabControl<StoreTab> tabs;
         private OsuScrollContainer cardScroll;
@@ -362,7 +365,7 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
 
             var trail = CosmeticCatalog.Trails.FirstOrDefault(t => t.Id == cosmetics.EquippedTrailId.Value);
-            var colour = cosmetics.GetEquippedNameColour();
+            var colour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, api?.LocalUser.Value);
 
             equippedText.Text = $"Equipped trail: {trail?.Name ?? "none"}   ·   name colour: {colour?.Name ?? "none"}";
         }
@@ -417,9 +420,14 @@ namespace osu.Game.Overlays.Cosmetics
             }
 
             // ── Name colours (second category) ──────────────────────────────
-            var colours = (inventory
-                ? CosmeticNameColourCatalog.Colours.Where(c => c.Earned || (cosmetics?.IsOwned(c.Id) ?? false))
-                : CosmeticNameColourCatalog.Colours).ToList();
+            var localUser = api?.LocalUser.Value;
+            var colours = new List<CosmeticNameColour>();
+            // Buyable: all in Store, owned-only in Inventory.
+            colours.AddRange(inventory
+                ? CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsOwned(c.Id) ?? false)
+                : CosmeticNameColourCatalog.Buyable);
+            // Earned: your role colours + group-gated specials you're entitled to.
+            colours.AddRange(CosmeticNameColourCatalog.GetEntitledEarned(localUser));
 
             if (colours.Count > 0)
             {

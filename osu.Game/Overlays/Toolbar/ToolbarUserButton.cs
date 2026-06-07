@@ -112,8 +112,13 @@ namespace osu.Game.Overlays.Toolbar
 
             // Re-resolve the equipped name colour on change (Update paints it).
             if (cosmetics != null)
-                cosmetics.EquippedNameColourId.BindValueChanged(_ => currentNameColour = cosmetics.GetEquippedNameColour(), true);
+                cosmetics.EquippedNameColourId.BindValueChanged(_ => updateNameColour(), true);
         }
+
+        private void updateNameColour()
+            => currentNameColour = cosmetics == null
+                ? null
+                : CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, localUser.Value);
 
         protected override void Update()
         {
@@ -131,6 +136,7 @@ namespace osu.Game.Overlays.Toolbar
         {
             usernameText.Text = user.NewValue.Username;
             avatar.User = user.NewValue;
+            updateNameColour(); // role colours depend on the user's groups
         });
 
         private void onlineStateChanged(ValueChangedEvent<APIState> state) => Schedule(() =>
