@@ -22,6 +22,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserEffects;
+using osu.Game.Graphics.UserEffects.Presets;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
@@ -417,6 +418,11 @@ namespace osu.Game.Overlays.Cosmetics
                 anyContent = true;
                 cardFlow.Add(categoryHeader(title, icon));
 
+                if (inventory && title == "Cursor Trails")
+                    addNoneCard("trail", "No Cursor Trail", FontAwesome.Solid.Ban,
+                        () => string.IsNullOrEmpty(cosmetics?.EquippedTrailId.Value),
+                        () => cosmetics?.Unequip());
+
                 foreach (var def in list)
                 {
                     bool isSelected = def.Id == selectedId;
@@ -445,6 +451,11 @@ namespace osu.Game.Overlays.Cosmetics
             {
                 anyContent = true;
                 cardFlow.Add(categoryHeader("Name Colours", FontAwesome.Solid.Palette));
+
+                if (inventory)
+                    addNoneCard("namecolour", "No Name Colour", FontAwesome.Solid.Ban,
+                        () => string.IsNullOrEmpty(cosmetics?.EquippedNameColourId.Value),
+                        () => cosmetics?.UnequipNameColour());
 
                 foreach (var c in colours)
                 {
@@ -476,26 +487,27 @@ namespace osu.Game.Overlays.Cosmetics
                         auraEntries.Add((e.Preset, e.Price, e.Tier, null));
                 }
 
-                // Earned auras: prefer the server catalog (authoritative — it
-                // includes auras not granted by a group, e.g. Founder by id,
-                // and carries proper display names). Fall back to the local
-                // group-based list until the catalog request lands.
-                if (auraCatalog?.Available?.Length > 0)
+                // TESTING: list EVERY registered aura (minus the buyable one) so
+                // they can all be previewed in one place and we can pick which
+                // to sell. Names come from the server catalog where known, else
+                // derived from the id. (For shipping, swap this back to listing
+                // catalog.Available only — the auras the user is entitled to.)
+                var catalogNames = new Dictionary<string, string>();
+                if (auraCatalog?.Available != null)
                 {
                     foreach (var entry in auraCatalog.Available)
-                    {
-                        var preset = AuraRegistry.GetById(entry.Id);
-                        if (preset != null && seenAuras.Add(entry.Id))
-                            auraEntries.Add((preset, null, CosmeticTier.Premium, entry.DisplayName));
-                    }
+                        catalogNames[entry.Id] = entry.DisplayName;
                 }
-                else
+
+                foreach (var preset in AuraRegistry.AllPresets)
                 {
-                    foreach (var preset in AuraRegistry.GetEntitledAuras(localUser))
-                    {
-                        if (seenAuras.Add(preset.AuraId))
-                            auraEntries.Add((preset, null, CosmeticTier.Premium, null));
-                    }
+                    if (preset.AuraId == StardustAuraPreset.ID)
+                        continue;
+                    if (!seenAuras.Add(preset.AuraId))
+                        continue;
+
+                    string nm = catalogNames.TryGetValue(preset.AuraId, out var dn) ? dn : null;
+                    auraEntries.Add((preset, null, CosmeticTier.Premium, nm));
                 }
             }
             else
@@ -511,6 +523,11 @@ namespace osu.Game.Overlays.Cosmetics
             {
                 anyContent = true;
                 cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
+
+                if (inventory)
+                    addNoneCard("aura", "No Aura", FontAwesome.Solid.Ban,
+                        () => api?.LocalUser.Value == null || AuraRegistry.ResolveForUser(api.LocalUser.Value) == null,
+                        unequipAura);
 
                 foreach (var (preset, price, tier, name) in auraEntries)
                 {
@@ -563,6 +580,30 @@ namespace osu.Game.Overlays.Cosmetics
                 },
             },
         };
+
+        // A "clear / none" tile, placed first in an Inventory category. Click
+        // unequips whatever is active in that category and selects the tile.
+        private void addNoneCard(string key, string label, IconUsage icon, Func<bool> isActive, Action unequip)
+        {
+            string id = "none:" + key;
+            bool isSelected = id == selectedId;
+
+            var card = new NoneCard(key, label, icon, isActive, isSelected);
+            card.Action = () =>
+            {
+                unequip?.Invoke();
+                setSelectedCard(card, id);
+                detailContainer.Clear();
+                refreshCards();
+                showToast($"Cleared: {label}");
+            };
+
+            if (isSelected)
+                selectedCard = card;
+
+            cards.Add(card);
+            cardFlow.Add(card);
+        }
 
         private void onCardClicked(CosmeticTrailDefinition def, StoreItemCard card)
         {

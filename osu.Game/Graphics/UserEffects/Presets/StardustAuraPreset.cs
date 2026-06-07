@@ -47,10 +47,10 @@ namespace osu.Game.Graphics.UserEffects.Presets
         // value keeps it last if it ever ends up in a priority comparison.
         public override int DefaultPriority => 250;
 
-        // Lively enough to read as a real effect, still tasteful.
-        public override double SpawnIntervalMs => 240;
-        public override double SpawnJitterMs => 160;
-        public override int MaxAlive => 11;
+        // Lowkey ambience — present but never busy.
+        public override double SpawnIntervalMs => 320;
+        public override double SpawnJitterMs => 200;
+        public override int MaxAlive => 7;
 
         // Cool glow hugging the letters.
         public override Color4? GlowColour => glow_cool;
@@ -66,16 +66,17 @@ namespace osu.Game.Graphics.UserEffects.Presets
             float driftX = (float)((random.NextDouble() - 0.5) * parentSize.X * 0.22f);
             float driftY = -(float)(0.4 + random.NextDouble() * 0.5) * parentSize.Y;
 
-            float size = (5f + (float)random.NextDouble() * 4f) * ParticleScale(parentSize);
+            float size = (4f + (float)random.NextDouble() * 3f) * ParticleScale(parentSize);
             Color4 glint = glint_palette[random.Next(glint_palette.Length)];
 
             // 4-point sparkle: bright white core + two crossed glints. Additive
-            // so overlaps read as light. AutoSize container centres all three.
+            // so overlaps read as light. Origin Centre (anchor stays top-left)
+            // so Position is measured from the name's top-left and sparkles span
+            // the FULL width, not just the right half.
             float arm = size * 0.12f;
 
             var sparkle = new Container
             {
-                Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
                 AutoSizeAxes = Axes.Both,
                 Position = new Vector2(startX, startY),
