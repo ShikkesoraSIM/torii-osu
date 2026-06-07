@@ -57,6 +57,7 @@ namespace osu.Game.Overlays.Cosmetics
         private Container detailContainer;
         private OsuSpriteText pointsText;
         private OsuSpriteText rotationText;
+        private OsuSpriteText equippedText;
 
         private string selectedId = string.Empty;
         private IStoreCard selectedCard;
@@ -191,6 +192,11 @@ namespace osu.Game.Overlays.Cosmetics
                             createPotatoToggle(),
                         },
                     },
+                    equippedText = new OsuSpriteText
+                    {
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    },
                 },
             };
         }
@@ -320,12 +326,13 @@ namespace osu.Game.Overlays.Cosmetics
                 }, true);
                 // Buy / equip only flip badges; refresh them in place instead of
                 // rebuilding the whole grid (35 trail previews) which lagged hard.
-                cosmetics.EquippedTrailId.BindValueChanged(_ => refreshCards());
-                cosmetics.EquippedNameColourId.BindValueChanged(_ => refreshCards());
+                cosmetics.EquippedTrailId.BindValueChanged(_ => { refreshCards(); updateEquippedText(); });
+                cosmetics.EquippedNameColourId.BindValueChanged(_ => { refreshCards(); updateEquippedText(); });
                 cosmetics.InventoryChanged += onInventoryChanged;
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
-                rotationText.Text = $"Featured rotates in ~{hours}h  (placeholder)";
+                rotationText.Text = $"Featured rotates in ~{hours}h";
+                updateEquippedText();
             }
 
             tabs.Current.BindValueChanged(_ => rebuildCards(), true);
@@ -347,6 +354,17 @@ namespace osu.Game.Overlays.Cosmetics
         {
             foreach (var card in cards)
                 card.RefreshState();
+        }
+
+        private void updateEquippedText()
+        {
+            if (equippedText == null || cosmetics == null)
+                return;
+
+            var trail = CosmeticCatalog.Trails.FirstOrDefault(t => t.Id == cosmetics.EquippedTrailId.Value);
+            var colour = cosmetics.GetEquippedNameColour();
+
+            equippedText.Text = $"Equipped trail: {trail?.Name ?? "none"}   ·   name colour: {colour?.Name ?? "none"}";
         }
 
         private void rebuildCards()
