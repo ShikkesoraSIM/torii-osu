@@ -35,14 +35,14 @@ namespace osu.Game.Graphics.UserEffects.Presets
         private static readonly Color4 sand_gold = new Color4(255, 216, 132, 255);
         private static readonly Color4 sand_tan = new Color4(240, 198, 150, 255);
 
-        // Classic beach-ball stripes.
-        private static readonly Color4[] ball_stripes =
+        // Summer "props" rendered as clean FontAwesome glyphs (crisp vectors,
+        // no hand-drawn jank), each tinted a bright holiday colour.
+        private static readonly (IconUsage icon, Color4 colour)[] summer_props =
         {
-            new Color4(255, 95, 95, 255),   // red
-            new Color4(255, 220, 95, 255),  // yellow
-            new Color4(245, 245, 245, 255), // white
-            new Color4(95, 195, 240, 255),  // cyan
-            new Color4(140, 220, 130, 255), // green
+            (FontAwesome.Solid.VolleyballBall, new Color4(255, 252, 248, 255)), // beach/volley ball
+            (FontAwesome.Solid.UmbrellaBeach, new Color4(255, 120, 110, 255)),  // beach umbrella
+            (FontAwesome.Solid.IceCream, new Color4(255, 160, 205, 255)),       // ice cream
+            (FontAwesome.Solid.Cocktail, new Color4(120, 228, 220, 255)),       // cocktail
         };
 
         public override string AuraId => ID;
@@ -70,7 +70,7 @@ namespace osu.Game.Graphics.UserEffects.Presets
             else if (roll < 0.86)
                 emitSun(parent, parentSize, random, big: random.NextDouble() < 0.25);
             else
-                emitBeachBall(parent, parentSize, random);
+                emitProp(parent, parentSize, random);
         }
 
         // Warm golden sand grain that shimmers upward like heat haze. The
@@ -178,51 +178,43 @@ namespace osu.Game.Graphics.UserEffects.Presets
             bubble.Delay(lifetime - 300).FadeOut(300, Easing.InQuad).Expire();
         }
 
-        // A striped beach ball that bobs up and slowly spins. The signature
-        // "fun" element — rare so it stays a highlight, not clutter.
-        private void emitBeachBall(Container parent, Vector2 parentSize, Random random)
+        // A summer "prop": a clean FontAwesome glyph (beach/volley ball, beach
+        // umbrella, ice cream, cocktail) that bobs up and gently sways. Rare so
+        // it stays a fun highlight, not clutter.
+        private void emitProp(Container parent, Vector2 parentSize, Random random)
         {
+            var (icon, colour) = summer_props[random.Next(summer_props.Length)];
+
             float scale = ParticleScale(parentSize);
-            float s = (10f + (float)random.NextDouble() * 6f) * scale;
+            float size = (12f + (float)random.NextDouble() * 6f) * scale;
 
             float startX = (float)(0.12 + random.NextDouble() * 0.76) * parentSize.X;
             float startY = parentSize.Y * (0.6f + (float)random.NextDouble() * 0.45f);
             float endX = startX + (float)((random.NextDouble() - 0.5) * parentSize.X * 0.3f);
             float endY = -parentSize.Y * (0.5f + (float)random.NextDouble() * 0.6f);
 
-            float stripeW = s / 5f;
-            var stripes = new List<Drawable>();
-            for (int i = 0; i < 5; i++)
-            {
-                stripes.Add(new Box
-                {
-                    Position = new Vector2(i * stripeW, 0),
-                    // Slight overlap (+0.6) so no seams show between stripes.
-                    Size = new Vector2(stripeW + 0.6f, s),
-                    Colour = ball_stripes[i % ball_stripes.Length],
-                });
-            }
-
-            var ball = new CircularContainer
+            // Origin Centre, anchor top-left → Position spans the full width.
+            var prop = new SpriteIcon
             {
                 Origin = Anchor.Centre,
-                Size = new Vector2(s),
-                Masking = true,
+                Icon = icon,
+                Size = new Vector2(size),
+                Colour = colour,
                 Position = new Vector2(startX, startY),
                 Alpha = 0,
                 Scale = new Vector2(0.6f),
-                Rotation = (float)(random.NextDouble() * 40 - 20),
-                Children = stripes.ToArray(),
+                Rotation = (float)(random.NextDouble() * 26 - 13),
             };
 
-            parent.Add(ball);
+            parent.Add(prop);
 
             double lifetime = 1500 + random.NextDouble() * 700;
-            ball.FadeTo(0.95f, 240, Easing.OutQuad);
-            ball.ScaleTo(1f, 440, Easing.OutBack);
-            ball.MoveTo(new Vector2(endX, endY), lifetime, Easing.OutSine);
-            ball.RotateTo(ball.Rotation + (random.NextDouble() < 0.5 ? 55 : -55), lifetime, Easing.InOutSine);
-            ball.Delay(lifetime - 320).FadeOut(320, Easing.InQuad).Expire();
+            prop.FadeTo(0.95f, 240, Easing.OutQuad);
+            prop.ScaleTo(1f, 440, Easing.OutBack);
+            prop.MoveTo(new Vector2(endX, endY), lifetime, Easing.OutSine);
+            // Gentle sway rather than a full spin (props read better upright).
+            prop.RotateTo(prop.Rotation + (random.NextDouble() < 0.5 ? 14 : -14), lifetime, Easing.InOutSine);
+            prop.Delay(lifetime - 320).FadeOut(320, Easing.InQuad).Expire();
         }
 
         // A little sun glyph that fades in, spins, and pops out. The rare "big"
