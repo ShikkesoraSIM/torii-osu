@@ -127,8 +127,10 @@ namespace osu.Game.Cosmetics
             {
                 glowPath = new SmoothPath
                 {
-                    AutoSizeAxes = Axes.None,
-                    RelativeSizeAxes = Axes.Both,
+                    // Auto-size to the trail (see note below); RelativeSizeAxes
+                    // here would size the buffer to the playfield and clip the
+                    // ribbon at the note edges in gameplay.
+                    AutoSizeAxes = Axes.Both,
                     PathRadius = Math.Max(1f, baseWidth() * 0.95f),
                     Blending = BlendingParameters.Additive,
                 };
@@ -143,8 +145,15 @@ namespace osu.Game.Cosmetics
                 {
                     rgb[i] = new SmoothPath
                     {
-                        AutoSizeAxes = Axes.None,
-                        RelativeSizeAxes = Axes.Both,
+                        // Auto-size to the trail's own bounds, NOT the parent.
+                        // The framework Path is a buffered drawable; forcing
+                        // RelativeSizeAxes.Both makes its offscreen buffer the size
+                        // of the parent (the PLAYFIELD in gameplay), which hard-clips
+                        // the ribbon at the playfield edge (right where notes are).
+                        // Auto-sizing grows the buffer to cover the trail wherever
+                        // the cursor goes, so it never clips. (Menus already worked
+                        // because that cursor layer fills the whole screen.)
+                        AutoSizeAxes = Axes.Both,
                         PathRadius = Math.Max(1f, Width * 0.5f),
                         Colour = cols[i],
                         Blending = BlendingParameters.Additive,
@@ -159,8 +168,15 @@ namespace osu.Game.Cosmetics
                 {
                     segments[i] = new SmoothPath
                     {
-                        AutoSizeAxes = Axes.None,
-                        RelativeSizeAxes = Axes.Both,
+                        // Auto-size to the trail's own bounds, NOT the parent.
+                        // The framework Path is a buffered drawable; forcing
+                        // RelativeSizeAxes.Both makes its offscreen buffer the size
+                        // of the parent (the PLAYFIELD in gameplay), which hard-clips
+                        // the ribbon at the playfield edge (right where notes are).
+                        // Auto-sizing grows the buffer to cover the trail wherever
+                        // the cursor goes, so it never clips. (Menus already worked
+                        // because that cursor layer fills the whole screen.)
+                        AutoSizeAxes = Axes.Both,
                         PathRadius = Math.Max(1f, HeadWidth * 0.5f),
                         // Normal blend so sub-band joins don't bloom into dots.
                     };
@@ -171,8 +187,10 @@ namespace osu.Game.Cosmetics
             {
                 corePath = new SmoothPath
                 {
-                    AutoSizeAxes = Axes.None,
-                    RelativeSizeAxes = Axes.Both,
+                    // Auto-size to the trail (see note below); RelativeSizeAxes
+                    // here would size the buffer to the playfield and clip the
+                    // ribbon at the note edges in gameplay.
+                    AutoSizeAxes = Axes.Both,
                     PathRadius = Math.Max(1f, Width * 0.5f),
                 };
                 children.Add(corePath);
@@ -362,6 +380,7 @@ namespace osu.Game.Cosmetics
                 glowPath.PathRadius = Math.Max(1f, baseWidth() * 0.95f * wscale);
                 Color4 g = ColourMode == RibbonColourMode.Rainbow ? (Color4)Colour4.FromHSV((huePhase + 0.06f) % 1f, 0.9f, 1f) : GlowColour;
                 glowPath.Colour = new Color4(g.R, g.G, g.B, 0.30f);
+                anchorPath(glowPath);
             }
 
             if (rgb != null)
@@ -373,6 +392,7 @@ namespace osu.Game.Cosmetics
                     for (int i = 0; i < count; i++)
                         rgb[k].AddVertex(new Vector2(pathBuffer[i].X + ox, pathBuffer[i].Y));
                     rgb[k].PathRadius = Math.Max(1f, Width * 0.5f * wscale);
+                    anchorPath(rgb[k]);
                 }
             }
             else if (segments != null)
@@ -396,6 +416,7 @@ namespace osu.Game.Cosmetics
                     Color4 c = colourFor(posFrac);
                     float alpha = FadeTail ? 1f - posFrac : 1f;
                     seg.Colour = new Color4(c.R, c.G, c.B, c.A * alpha);
+                    anchorPath(seg);
                 }
             }
             else if (corePath != null)
@@ -404,6 +425,7 @@ namespace osu.Game.Cosmetics
                     corePath.AddVertex(pathBuffer[i]);
                 corePath.PathRadius = Math.Max(1f, Width * 0.5f * wscale);
                 corePath.Colour = ColourMode == RibbonColourMode.Rainbow ? (Color4)Colour4.FromHSV(huePhase, 0.85f, 1f) : PrimaryColour;
+                anchorPath(corePath);
             }
 
             if (headDot != null)
@@ -415,6 +437,14 @@ namespace osu.Game.Cosmetics
                 headDot.Alpha = Math.Clamp(1f - idle, 0f, 1f);
             }
         }
+
+        // Anchor a buffered path so its offscreen buffer covers its full vertex
+        // bounds (including any extent left/above the trail's local origin). The
+        // framework Path always includes (0,0) in its bounds and offsets content
+        // by the bounds' top-left; pinning Position to that top-left keeps the
+        // trail aligned to the cursor AND stops the buffer clipping the side that
+        // runs past the cursor container's origin (the residual edge cut).
+        private static void anchorPath(SmoothPath p) => p.Position = -p.PositionInBoundingBox(Vector2.Zero);
 
         private Color4 colourFor(float posFrac)
         {

@@ -39,6 +39,11 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         [Resolved(canBeNull: true)]
         private ToriiCosmeticsManager cosmetics { get; set; }
 
+        // Used to isolate the playfield's own scale from the global UI scale when
+        // sizing the cosmetic trail (see Update).
+        [Resolved(canBeNull: true)]
+        private DrawableRuleset drawableRuleset { get; set; }
+
         private Drawable cosmeticTrail;
 
         public OsuCursorContainer()
@@ -144,6 +149,26 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
             {
                 trail.NewPartScale = ActiveCursor.CurrentExpandedScale;
                 trail.PartRotation = ActiveCursor.CurrentRotation;
+            }
+
+            // Torii: the gameplay cursor lives INSIDE the scaled playfield, so an
+            // equipped cosmetic trail renders larger here than in the menu (1:1).
+            // Counter ONLY the playfield's own scale, not the global UI scale:
+            //   cursorScale  = global UI scale * playfield scale  (this container)
+            //   screenScale  = global UI scale                    (the ruleset root)
+            //   playfield    = cursorScale / screenScale
+            // Scaling the trail by 1/playfield lands it at the same on-screen size
+            // as the 1:1 menu. (Countering the full cursorScale also removed the UI
+            // scale, which made it a touch too small.)
+            if (cosmeticTrail != null)
+            {
+                float cursorScale = DrawWidth > 0 ? ScreenSpaceDrawQuad.Width / DrawWidth : 1f;
+                float screenScale = drawableRuleset != null && drawableRuleset.DrawWidth > 0
+                    ? drawableRuleset.ScreenSpaceDrawQuad.Width / drawableRuleset.DrawWidth
+                    : cursorScale;
+
+                if (cursorScale > 0.0001f)
+                    cosmeticTrail.Scale = new Vector2(screenScale / cursorScale);
             }
         }
 
