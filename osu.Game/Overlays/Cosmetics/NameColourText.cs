@@ -4,25 +4,26 @@
 #nullable disable
 
 using osu.Framework.Allocation;
-using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Effects;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API;
-using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Cosmetics
 {
-    /// <summary>Shows the local player's username painted in a given name colour
-    /// (animated for the rainbow style). Used as the store preview for a colour.</summary>
+    /// <summary>Shows the local player's username painted in a given name colour,
+    /// using the SAME component the profile header uses
+    /// (<see cref="GlowingFreeWidthSpriteText"/>). Role colours therefore get the exact
+    /// profile look (colour on the text + matching additive glow); buyable colours
+    /// render flat. The particle aura (hearts) is a separate cosmetic, not part of
+    /// the name colour.</summary>
     public partial class NameColourText : CompositeDrawable
     {
         private readonly CosmeticNameColour colour;
         private readonly float fontSize;
-        private OsuSpriteText text;
+        private GlowingFreeWidthSpriteText text;
 
         [Resolved(canBeNull: true)]
         private IAPIProvider api { get; set; }
@@ -37,31 +38,11 @@ namespace osu.Game.Overlays.Cosmetics
         [BackgroundDependencyLoader]
         private void load()
         {
-            text = new OsuSpriteText
+            InternalChild = text = new GlowingFreeWidthSpriteText
             {
-                Text = api?.LocalUser.Value?.Username ?? "Player",
                 Font = OsuFont.GetFont(size: fontSize, weight: FontWeight.SemiBold),
+                Text = api?.LocalUser.Value?.Username ?? "Player",
             };
-
-            // Role (Halo) colours get a soft white glow so they read as special.
-            if (colour != null && colour.Style == NameColourStyle.Halo)
-            {
-                InternalChild = new Container
-                {
-                    AutoSizeAxes = Axes.Both,
-                    Masking = true,
-                    CornerRadius = 4f,
-                    EdgeEffect = new EdgeEffectParameters
-                    {
-                        Type = EdgeEffectType.Glow,
-                        Colour = Color4.White.Opacity(0.55f),
-                        Radius = 11f,
-                    },
-                    Child = text,
-                };
-            }
-            else
-                InternalChild = text;
 
             colour?.Apply(text, Time.Current);
         }
@@ -70,8 +51,10 @@ namespace osu.Game.Overlays.Cosmetics
         {
             base.Update();
 
-            // Static styles are set once at load; only the rainbow needs ticking.
-            if (colour != null && colour.Style == NameColourStyle.Rainbow)
+            // Only animated styles need per-frame repainting; static colours are
+            // set once at load (the buffered glow only redraws when it changes).
+            if (text != null && colour != null
+                && (colour.Style == NameColourStyle.Rainbow || colour.Style == NameColourStyle.Pulse))
                 colour.Apply(text, Time.Current);
         }
     }

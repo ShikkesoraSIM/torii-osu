@@ -20,8 +20,9 @@ namespace osu.Game.Cosmetics
     ///     (admin red, supporter pink, ...). NOT sold anywhere: you have them
     ///     because of your role, they only appear in your Inventory, and they
     ///     render with the special <see cref="NameColourStyle.Halo"/> (a soft
-    ///     white glow) so a role colour always reads as special, never a flat
-    ///     solid. Same entitlement model as auras (group identifier match).
+    ///     glow that hugs the letters in the role colour, like the profile)
+    ///     so a role colour always reads as special, never a flat solid.
+    ///     Same entitlement model as auras (group identifier match).
     /// </summary>
     public static class CosmeticNameColourCatalog
     {

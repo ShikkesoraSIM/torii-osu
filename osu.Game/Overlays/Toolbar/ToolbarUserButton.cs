@@ -34,7 +34,7 @@ namespace osu.Game.Overlays.Toolbar
 
         private IBindable<APIState> apiState = null!;
 
-        private OsuSpriteText usernameText = null!;
+        private GlowingFreeWidthSpriteText usernameText = null!;
 
         // Torii: equipped username-colour cosmetic, painted onto the name below.
         [Resolved(canBeNull: true)]
@@ -52,7 +52,7 @@ namespace osu.Game.Overlays.Toolbar
         {
             Flow.AddRange(new Drawable[]
             {
-                usernameText = new OsuSpriteText
+                usernameText = new GlowingFreeWidthSpriteText
                 {
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
@@ -116,20 +116,28 @@ namespace osu.Game.Overlays.Toolbar
         }
 
         private void updateNameColour()
-            => currentNameColour = cosmetics == null
+        {
+            currentNameColour = cosmetics == null
                 ? null
                 : CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, localUser.Value);
+
+            // Apply once on change. Static colours (incl. the role glow) only need a
+            // single paint; the per-frame path below covers the animated styles.
+            if (currentNameColour != null)
+                currentNameColour.Apply(usernameText, Time.Current);
+            else
+                CosmeticNameColour.Clear(usernameText);
+        }
 
         protected override void Update()
         {
             base.Update();
 
-            // Paint the username in the equipped colour (per-frame so the rainbow
-            // animates); reset to default white when nothing is equipped.
-            if (currentNameColour != null)
+            // Only animated styles repaint per frame — re-applying a static colour
+            // each frame would needlessly re-blur the glow buffer.
+            if (currentNameColour != null
+                && (currentNameColour.Style == NameColourStyle.Rainbow || currentNameColour.Style == NameColourStyle.Pulse))
                 currentNameColour.Apply(usernameText, Time.Current);
-            else
-                CosmeticNameColour.Clear(usernameText);
         }
 
         private void userChanged(ValueChangedEvent<APIUser> user) => Schedule(() =>

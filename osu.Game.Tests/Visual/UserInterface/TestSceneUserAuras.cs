@@ -143,6 +143,18 @@ namespace osu.Game.Tests.Visual.UserInterface
                 // to drive UserAuraContainer through its real resolution
                 // path (so we exercise everything end-to-end, not just the
                 // emitter in isolation).
+                //
+                // If the preset declares RequiredPlaymodes (used by the
+                // per-mode Consul auras to disambiguate the four advisor
+                // groups that share identifier "torii-advisor"), include
+                // the first required playmode in the synthesised group
+                // payload too. Otherwise the eligibility check in
+                // AuraRegistry filters the preset out and the tile
+                // renders blank — defeating the purpose of the catalogue.
+                string[]? playmodes = preset.RequiredPlaymodes is { Count: > 0 }
+                    ? new[] { preset.RequiredPlaymodes[0] }
+                    : null;
+
                 APIUser fakeUser = new APIUser
                 {
                     Id = -1,
@@ -154,6 +166,8 @@ namespace osu.Game.Tests.Visual.UserInterface
                             Identifier = preset.OwningGroupIdentifiers[0],
                             Name = preset.OwningGroupIdentifiers[0],
                             Colour = "#888888",
+                            Playmodes = playmodes,
+                            HasPlaymodes = playmodes != null,
                         },
                     },
                 };

@@ -50,6 +50,30 @@ namespace osu.Game.Graphics.UserEffects
         public abstract IReadOnlyList<string> OwningGroupIdentifiers { get; }
 
         /// <summary>
+        /// Optional per-ruleset filter. When non-null, the user's matching
+        /// group entry must ALSO carry at least one of these playmode
+        /// strings ("osu" / "taiko" / "fruits" / "mania") for the aura to
+        /// be considered eligible. Returns null for the common case where
+        /// no playmode constraint applies.
+        /// </summary>
+        /// <remarks>
+        /// Designed for the per-mode Consul auras (osu! Consul, Taiko
+        /// Consul, …) where the four advisor groups intentionally share
+        /// the same client-side <see cref="OwningGroupIdentifiers"/>
+        /// ("torii-advisor") and differ only by their <c>Playmodes</c>
+        /// payload. Without this filter, a user holding any one of the
+        /// mode-advisor groups would match all four Consul presets in the
+        /// local fallback resolver.
+        ///
+        /// The server-side catalog is still the authoritative source of
+        /// truth for "which auras can this user equip" — the playmode
+        /// filter here is what makes the client-side fallback resolver
+        /// (Path 2 in <see cref="AuraRegistry.ResolveForUser"/>) agree
+        /// with the server when it has not been able to pre-resolve.
+        /// </remarks>
+        public virtual IReadOnlyList<string>? RequiredPlaymodes => null;
+
+        /// <summary>
         /// Tie-breaker for the client-side default-aura fallback. Used only
         /// when <c>APIUser.EquippedAura</c> is null AND the user owns more
         /// than one eligible group — the preset with the lowest priority
@@ -83,8 +107,56 @@ namespace osu.Game.Graphics.UserEffects
         /// shapes via blur, which is the expected look in 99% of cases.
         /// This hook is left in place for future "non-text" overlay needs
         /// (e.g. an animated frame around an avatar — different shape).
+        ///
+        /// For SEALS / inline ornaments that should sit immediately
+        /// before / after the username text and participate in the
+        /// wrapper's bounding box (so row layouts treat them as part of
+        /// the name), prefer <see cref="CreateLeadingOrnament"/> and
+        /// <see cref="CreateTrailingOrnament"/> instead — those return
+        /// drawables that get laid out in a horizontal flow with the
+        /// target, so they push / pull the text and the wrapper's
+        /// AutoSize includes them.
         /// </remarks>
         public virtual Drawable? CreateBackground() => null;
+
+        /// <summary>
+        /// Optional ornament rendered IMMEDIATELY BEFORE (to the left of)
+        /// the wrapped username, as part of the wrapper's auto-sized
+        /// horizontal layout. Returns null when the preset has no
+        /// leading ornament.
+        /// </summary>
+        /// <remarks>
+        /// Unlike <see cref="CreateBackground"/> (which renders behind
+        /// the username via the particle emitter, OUTSIDE the wrapper's
+        /// auto-size bounds), leading + trailing ornaments are inline
+        /// children of the wrapper itself. They participate in the
+        /// wrapper's bounding box, so a parent row / column layout sees
+        /// "username + ornaments" as a single unit and aligns / sizes
+        /// accordingly. This avoids the ornaments bleeding past the
+        /// username column into adjacent UI (the original bug that
+        /// motivated the inline-flow path).
+        ///
+        /// Used by the Founder design variants for their persistent
+        /// gold flanking seals. NOT honoured by the
+        /// <see cref="UserAuraContainer"/> when the wrapper is in
+        /// constrained-width mode (RelativeSizeAxes on X, e.g. the
+        /// song-select leaderboard's TruncatingSpriteText path) — in
+        /// that case the inline flow would race the truncating text
+        /// for available width and the result is ill-defined; the
+        /// preset just renders without ornaments there. Most
+        /// surfaces (chat, user panels, profile header, dashboards)
+        /// use auto-sized wrappers, so the inline flow takes effect
+        /// there.
+        /// </remarks>
+        public virtual Drawable? CreateLeadingOrnament() => null;
+
+        /// <summary>
+        /// Optional ornament rendered IMMEDIATELY AFTER (to the right
+        /// of) the wrapped username, mirror of
+        /// <see cref="CreateLeadingOrnament"/>. Same layout + bounding-box
+        /// semantics.
+        /// </summary>
+        public virtual Drawable? CreateTrailingOrnament() => null;
 
         /// <summary>
         /// Colour of the persistent text-shape glow rendered behind the

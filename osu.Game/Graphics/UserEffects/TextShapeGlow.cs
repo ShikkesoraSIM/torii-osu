@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
@@ -62,6 +63,34 @@ namespace osu.Game.Graphics.UserEffects
         /// </summary>
         public OsuSpriteText Mirror { get; }
 
+        /// <summary>
+        /// Optional maximum width (in pixels) for the rendered glow buffer.
+        /// When set to a positive value, the buffer's width is clamped to
+        /// <c>MaxWidth + 2 * <see cref="GlowPadding"/></c> and the inner
+        /// <see cref="Mirror"/> is masked at that boundary — glyphs past
+        /// the cap are clipped, eliminating the "ghost glow" that
+        /// otherwise extends past a truncated username (e.g. when the
+        /// target is a <c>TruncatingSpriteText</c> in a narrow song-select
+        /// or gameplay-leaderboard row).
+        ///
+        /// Default 0 = unbounded (original auto-size behaviour). Setting a
+        /// positive value flips the buffer to fixed-width + auto-height
+        /// (so the glow still hugs the line height naturally). Resetting
+        /// to 0 reverts to fully auto-sized.
+        /// </summary>
+        public float MaxWidth
+        {
+            get => maxWidth;
+            set
+            {
+                if (Math.Abs(maxWidth - value) < 0.5f) return;
+                maxWidth = value;
+                applyMaxWidth();
+            }
+        }
+
+        private float maxWidth;
+
         public TextShapeGlow(LocalisableString text, FontUsage font, Color4 colour)
             : base(cachedFrameBuffer: false)
         {
@@ -86,25 +115,58 @@ namespace osu.Game.Graphics.UserEffects
             BackgroundColour = new Color4(0, 0, 0, 0);
             Alpha = 0;
 
-            // Mirror SpriteText pinned to TopLeft so it lands at the same
-            // pixel origin as the wrapped target text (which Wrap also
-            // resets to TopLeft inside the wrapper). The wrapping
-            // UserAuraContainer offsets this whole BufferedContainer by
-            // -GlowPadding so that, after the inward Padding pushes the
-            // SpriteText right/down by GlowPadding, the SpriteText ends up
-            // at the wrapper's (0, 0) — exactly overlapping the target.
+            // Mirror SpriteText nested inside an explicit Masking
+            // Container. Setting Masking on the BufferedContainer
+            // itself doesn't clip what gets rasterised into the
+            // offscreen buffer — only what gets displayed from it —
+            // so a long Mirror would still bake a "ghost" of the
+            // full text into the buffer even after we shrank the
+            // buffer via MaxWidth. The inner masking container
+            // matches the buffer's content area (minus GlowPadding
+            // each side) and Masking=true clips the Mirror's draw
+            // call at that boundary, so the ghost truly disappears
+            // when the visible target text is truncated.
             //
             // OsuSpriteText (not raw SpriteText) per the project's banned-
             // API analyzer.
-            Child = Mirror = new OsuSpriteText
+            Child = mirrorClipContainer = new Container
             {
                 Anchor = Anchor.TopLeft,
                 Origin = Anchor.TopLeft,
-                Text = text,
-                Font = font,
-                Colour = colour,
+                AutoSizeAxes = Axes.Both,
+                Child = Mirror = new OsuSpriteText
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Text = text,
+                    Font = font,
+                    Colour = colour,
+                    // OsuSpriteText defaults to Shadow=true (a drop
+                    // shadow offset slightly down + right under each
+                    // glyph). Inside the Mirror, that shadow gets
+                    // rasterised into the offscreen buffer ALONG WITH
+                    // the glyph, and the BufferedContainer's gaussian
+                    // blur smears the two together — the resulting
+                    // halo is no longer centred on the glyph outline,
+                    // it's centred on (glyph + shadow). Visually the
+                    // halo appears shifted down by ~half the shadow
+                    // offset, which reads as "the glow doesn't line
+                    // up with the username letters" in surfaces where
+                    // the eye can compare them side by side (user
+                    // panels, chat). Suppressing the Mirror's own
+                    // shadow keeps the halo strictly outlining the
+                    // glyph; the target text on top still draws its
+                    // own drop shadow normally.
+                    Shadow = false,
+                },
             };
         }
+
+        // Holder we toggle Masking + Width on when MaxWidth changes;
+        // the Mirror inside gets clipped via this container's Masking
+        // rather than the BufferedContainer's (which only clips the
+        // displayed buffer, not what gets rasterised into it).
+        private readonly Container mirrorClipContainer;
 
         protected override void LoadComplete()
         {
@@ -118,6 +180,58 @@ namespace osu.Game.Graphics.UserEffects
                 .FadeTo(MaxAlpha, DurationMs, Easing.InOutSine)
                 .Then()
                 .FadeTo(MinAlpha, DurationMs, Easing.InOutSine));
+        }
+
+        // Toggle between auto-sized (unbounded) and fixed-width-with-clip
+        // (bounded) modes. When bounded, the inner mirrorClipContainer's
+        // Masking clips the Mirror's draw call before it hits the
+        // offscreen buffer, which is what hides the "ghost glow" past
+        // a truncated username.
+        private void applyMaxWidth()
+        {
+            if (maxWidth <= 0)
+            {
+                // Unbounded: revert to auto-sized + unmasked everywhere.
+                // BufferedContainer auto-sizes to the inner clip
+                // container (which auto-sizes to the Mirror's natural
+                // text extent).
+                //
+                // Axes hygiene: AutoSizeAxes and RelativeSizeAxes are
+                // not allowed to overlap on the same axis. We're coming
+                // from the bounded branch which set X to Relative on
+                // the inner container; if we set AutoSizeAxes = Both
+                // first, X is in BOTH for one statement and the setter
+                // throws. Clear RelativeSizeAxes first, then promote
+                // AutoSizeAxes. Same dance for the BufferedContainer
+                // itself even though it doesn't currently flip Relative
+                // — Width is harmless when AutoSize takes over.
+                mirrorClipContainer.RelativeSizeAxes = Axes.None;
+                mirrorClipContainer.AutoSizeAxes = Axes.Both;
+                mirrorClipContainer.Masking = false;
+                AutoSizeAxes = Axes.Both;
+            }
+            else
+            {
+                // Bounded: fix the BufferedContainer's X to the cap +
+                // 2 * GlowPadding (so the gaussian blur still has
+                // padding budget on the left/right cap). Inside, the
+                // mirrorClipContainer takes the BufferedContainer's
+                // full width (minus padding) and masks the Mirror at
+                // that boundary — so glyphs past the cap are dropped
+                // before rasterising into the buffer, not just hidden
+                // after.
+                //
+                // Same axes-overlap risk in reverse: coming from the
+                // unbounded branch the inner container has AutoSizeAxes
+                // = Both, so we must shrink AutoSizeAxes off X BEFORE
+                // adding RelativeSizeAxes = X.
+                AutoSizeAxes = Axes.Y;
+                Width = maxWidth + 2 * GlowPadding;
+                mirrorClipContainer.AutoSizeAxes = Axes.Y;
+                mirrorClipContainer.RelativeSizeAxes = Axes.X;
+                mirrorClipContainer.Width = 1f;
+                mirrorClipContainer.Masking = true;
+            }
         }
     }
 }

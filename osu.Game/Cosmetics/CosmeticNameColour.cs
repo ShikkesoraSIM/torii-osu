@@ -3,9 +3,11 @@
 
 using System;
 using System.Collections.Generic;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Sprites;
+using osu.Game.Graphics.Sprites;
 using osuTK.Graphics;
 
 namespace osu.Game.Cosmetics
@@ -24,8 +26,9 @@ namespace osu.Game.Cosmetics
         /// <summary>Animated: breathes between two colours.</summary>
         Pulse,
 
-        /// <summary>Role colour: the name in the colour with a soft white halo
-        /// glow (special, not a flat solid). EARNED-only, for role colours.</summary>
+        /// <summary>Role colour: the name in the colour with a soft glow that
+        /// hugs the letters in the same colour (like the profile), so it reads
+        /// special and never a flat solid. EARNED-only, for role colours.</summary>
         Halo,
     }
 
@@ -69,19 +72,33 @@ namespace osu.Game.Cosmetics
             OwningGroups = owningGroups;
         }
 
-        /// <summary>Paint a username text in this colour. Call every frame for the
-        /// animated (Rainbow) style; for the static styles it's idempotent.</summary>
-        public void Apply(SpriteText text, double timeMs)
+        /// <summary>Paint a plain username text in this colour. Call every frame for
+        /// the animated styles; for the static ones it's idempotent. No glow (a plain
+        /// SpriteText can't render one) — role colours that want the profile glow use
+        /// the <see cref="GlowingFreeWidthSpriteText"/> overload below.</summary>
+        public void Apply(SpriteText text, double timeMs) => text.Colour = resolveTextColour(timeMs);
+
+        /// <summary>Paint a username in this colour WITH the profile-style glow. Role
+        /// (Halo) colours get the colour on the text plus a matching additive glow at
+        /// 0.6 alpha — the exact treatment TopHeaderContainer uses for the profile
+        /// name, so a role colour looks identical everywhere it's shown. Buyable
+        /// colours render with no glow (transparent), same as before.</summary>
+        public void Apply(GlowingFreeWidthSpriteText text, double timeMs)
+        {
+            text.TextColour = resolveTextColour(timeMs);
+            text.GlowColour = Style == NameColourStyle.Halo
+                ? Primary.Opacity(0.6f)
+                : new Color4(0, 0, 0, 0);
+        }
+
+        /// <summary>The text colour for this cosmetic at <paramref name="timeMs"/>
+        /// (gradients + animated styles included). Shared by both Apply overloads.</summary>
+        private ColourInfo resolveTextColour(double timeMs)
         {
             switch (Style)
             {
-                case NameColourStyle.Solid:
-                    text.Colour = Primary;
-                    break;
-
                 case NameColourStyle.Gradient:
-                    text.Colour = ColourInfo.GradientHorizontal(Primary, Secondary);
-                    break;
+                    return ColourInfo.GradientHorizontal(Primary, Secondary);
 
                 case NameColourStyle.Rainbow:
                     // A two-hue gradient whose hue offset drifts over time, so the
@@ -89,28 +106,32 @@ namespace osu.Game.Cosmetics
                     float hue = (float)((timeMs / 3500.0) % 1.0);
                     var a = (Color4)Colour4.FromHSV(hue, 0.85f, 1f);
                     var b = (Color4)Colour4.FromHSV((hue + 0.25f) % 1f, 0.85f, 1f);
-                    text.Colour = ColourInfo.GradientHorizontal(a, b);
-                    break;
+                    return ColourInfo.GradientHorizontal(a, b);
 
                 case NameColourStyle.Pulse:
                     // Breathe between the two colours.
                     float u = (float)((Math.Sin(timeMs / 700.0) + 1.0) / 2.0);
-                    text.Colour = new Color4(
+                    return new Color4(
                         Primary.R + (Secondary.R - Primary.R) * u,
                         Primary.G + (Secondary.G - Primary.G) * u,
                         Primary.B + (Secondary.B - Primary.B) * u,
                         1f);
-                    break;
 
+                case NameColourStyle.Solid:
                 case NameColourStyle.Halo:
-                    // Just the tint here; the soft white halo glow is added by
-                    // NameColourText (needs a wrapper, not just a text colour).
-                    text.Colour = Primary;
-                    break;
+                default:
+                    return Primary;
             }
         }
 
-        /// <summary>Reset a username text to the plain default colour.</summary>
+        /// <summary>Reset a plain username text to the default colour.</summary>
         public static void Clear(SpriteText text) => text.Colour = Color4.White;
+
+        /// <summary>Reset a glowing username to the default colour with no glow.</summary>
+        public static void Clear(GlowingFreeWidthSpriteText text)
+        {
+            text.TextColour = Color4.White;
+            text.GlowColour = new Color4(0, 0, 0, 0);
+        }
     }
 }
