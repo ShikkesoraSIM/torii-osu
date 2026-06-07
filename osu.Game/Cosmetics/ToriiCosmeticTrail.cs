@@ -253,14 +253,16 @@ namespace osu.Game.Cosmetics
         private float? baseInterval;
         private float sizeMultiplier = 1f;
 
-        public void SetLengthScale(float scale01)
+        public void SetLengthScale(float scale)
         {
             baseFade ??= FadeDurationOverride;
-            scale01 = Math.Clamp(scale01, 0f, 1f);
+            scale = Math.Clamp(scale, 0f, 1.5f);
             // 0 -> a fixed short floor (same ms for every trail), 1 -> the
-            // trail's own default. Time-based, so the min feels consistent.
-            double newFade = CosmeticEconomy.LengthFloorMilliseconds
-                             + (baseFade.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
+            // trail's own default, >1 -> a bit longer than default. Time-based,
+            // so the min feels consistent across trails.
+            double newFade = scale <= 1f
+                ? CosmeticEconomy.LengthFloorMilliseconds + (baseFade.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale
+                : baseFade.Value * scale;
 
             // `time` is elapsed/FadeDuration, so changing the duration under
             // live parts would rescale time and make already-faded parts pop

@@ -114,11 +114,13 @@ namespace osu.Game.Cosmetics
 
         public void Drive(Vector2 screenSpacePosition) => AddTrail(screenSpacePosition);
 
-        public void SetLengthScale(float scale01)
+        public void SetLengthScale(float scale)
         {
             baseLifetime ??= ParticleLifetime;
-            scale01 = Math.Clamp(scale01, 0f, 1f);
-            ParticleLifetime = particle_length_floor_ms + (baseLifetime.Value - particle_length_floor_ms) * scale01;
+            scale = Math.Clamp(scale, 0f, 1.5f);
+            ParticleLifetime = scale <= 1f
+                ? particle_length_floor_ms + (baseLifetime.Value - particle_length_floor_ms) * scale
+                : baseLifetime.Value * scale;
         }
 
         public void SetDensityMultiplier(float multiplier)

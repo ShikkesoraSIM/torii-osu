@@ -222,16 +222,18 @@ namespace osu.Game.Cosmetics
             distanceCarry = 0;
         }
 
-        public void SetLengthScale(float scale01)
+        public void SetLengthScale(float scale)
         {
             // Length is purely the lifetime (TIME), so the trail behaves like
             // osu!'s: it persists for a set time and catches up to the cursor
             // when you stop, instead of being a fixed-distance smear. 0 maps to
-            // a fixed short floor (same ms as every other trail), 1 to default.
+            // a fixed short floor (same ms as every other trail), 1 to default,
+            // >1 to a bit longer than default.
             baseLifetime ??= RibbonLifetime;
-            scale01 = Math.Clamp(scale01, 0f, 1f);
-            RibbonLifetime = CosmeticEconomy.LengthFloorMilliseconds
-                             + (baseLifetime.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale01;
+            scale = Math.Clamp(scale, 0f, 1.5f);
+            RibbonLifetime = scale <= 1f
+                ? CosmeticEconomy.LengthFloorMilliseconds + (baseLifetime.Value - CosmeticEconomy.LengthFloorMilliseconds) * scale
+                : baseLifetime.Value * scale;
         }
 
         // A connected ribbon is one continuous band, so "density" (count per

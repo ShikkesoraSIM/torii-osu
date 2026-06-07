@@ -39,6 +39,36 @@ namespace osu.Game.Overlays.Cosmetics
         private CosmeticTrailPreview preview;
         private Container footerHolder;
         private Container badgeHolder;
+        private OsuClickableContainer cycleButton;
+        private OsuSpriteText cycleLabel;
+        private int cycleIndex = -1;
+
+        // Style presets the bottom-right button steps through (length scale,
+        // density mult, size mult). Ribbons skip the density steps.
+        private static readonly (string name, float l, float d, float s)[] full_cycle =
+        {
+            ("Shorter", 0.45f, 1f, 1f),
+            ("Longer", 1.3f, 1f, 1f),
+            ("Denser", 1f, 1.35f, 1f),
+            ("Sparser", 1f, 0.7f, 1f),
+            ("Bigger", 1f, 1f, 1.4f),
+            ("Smaller", 1f, 1f, 0.75f),
+            ("Default", 1f, 1f, 1f),
+        };
+
+        private static readonly (string name, float l, float d, float s)[] ribbon_cycle =
+        {
+            ("Shorter", 0.45f, 1f, 1f),
+            ("Longer", 1.3f, 1f, 1f),
+            ("Bigger", 1f, 1f, 1.4f),
+            ("Smaller", 1f, 1f, 0.75f),
+            ("Default", 1f, 1f, 1f),
+        };
+
+        private (string name, float l, float d, float s)[] cyclePresets
+            => def.Family == CosmeticTrailFamily.Ribbon ? ribbon_cycle : full_cycle;
+
+        private bool canCustomise => (cosmetics?.IsOwned(def.Id) ?? false) && (cosmetics?.AdjustUnlocked ?? false);
 
         /// <param name="viewport">The scroll viewport; the preview only animates
         /// while the card overlaps it, so off-screen cards stay cheap.</param>
@@ -164,6 +194,39 @@ namespace osu.Game.Overlays.Cosmetics
                         Alpha = 0,
                         Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Transparent, AlwaysPresent = true },
                     },
+                    // Brief flash of the style name when cycling.
+                    cycleLabel = new OsuSpriteText
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.Bold),
+                        Alpha = 0,
+                    },
+                    // Bottom-right "next style" button: tap to cycle length /
+                    // density / size presets for this trail.
+                    cycleButton = new OsuClickableContainer
+                    {
+                        Anchor = Anchor.BottomRight,
+                        Origin = Anchor.BottomRight,
+                        Margin = new MarginPadding(8),
+                        Size = new Vector2(28),
+                        Masking = true,
+                        CornerRadius = 14f,
+                        Alpha = 0,
+                        Action = cycle,
+                        Children = new Drawable[]
+                        {
+                            new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Black.Opacity(0.55f) },
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Icon = FontAwesome.Solid.AngleRight,
+                                Size = new Vector2(13),
+                                Colour = Color4.White,
+                            },
+                        },
+                    },
                 },
             };
 
@@ -171,6 +234,32 @@ namespace osu.Game.Overlays.Cosmetics
                 selectionBorder.Alpha = 1;
 
             preview.AnimationViewport = viewport;
+
+            // Reflect the saved style + show the cycle button only when
+            // customisation is available (owned + the account-wide unlock).
+            if (canCustomise)
+            {
+                preview.InitialCustomisation = cosmetics.GetCustomisation(def.Id);
+                cycleButton.Alpha = 1;
+            }
+        }
+
+        /// <summary>Step to the next length/density/size preset for this trail.</summary>
+        private void cycle()
+        {
+            if (cosmetics == null)
+                return;
+
+            var presets = cyclePresets;
+            cycleIndex = (cycleIndex + 1) % presets.Length;
+            var p = presets[cycleIndex];
+
+            preview?.ApplyCustomisation(p.l, p.d, p.s);
+            cosmetics.SetCustomisation(def.Id, p.l, p.d, p.s);
+
+            cycleLabel.Text = p.name;
+            cycleLabel.ClearTransforms();
+            cycleLabel.FadeTo(0.95f).FadeOut(850, Easing.OutQuint);
         }
 
         private Drawable createFooter(bool owned, bool equipped, Color4 footerColour)
@@ -280,6 +369,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             footerHolder.Child = createFooter(owned, equipped, footerColour);
             badgeHolder.Child = owned ? ownedPill(equipped) : Empty();
+            cycleButton.Alpha = canCustomise ? 1 : 0;
         }
 
         protected override bool OnHover(HoverEvent e)

@@ -57,6 +57,10 @@ namespace osu.Game.Overlays.Cosmetics
         /// Null = the detail panel, which is always live.</summary>
         public Drawable AnimationViewport { get; set; }
 
+        /// <summary>Optional saved customisation (length, density, size) applied
+        /// once at load, so a card shows its persisted style. Set before load.</summary>
+        public (float length, float density, float size)? InitialCustomisation { get; set; }
+
         private bool alwaysLive => AnimationViewport == null;
 
         [Resolved(canBeNull: true)]
@@ -79,6 +83,14 @@ namespace osu.Game.Overlays.Cosmetics
             // Driven only by our synthetic sweep; ignore the real mouse so moving
             // over a card doesn't flood the trail and make it lag / go haywire.
             trail?.SetInputActive(false);
+
+            // Reflect a persisted style straight away (the card's cycle button).
+            if (InitialCustomisation is (float il, float id, float isz))
+            {
+                trail?.SetLengthScale(il);
+                trail?.SetDensityMultiplier(id);
+                trail?.SetSizeMultiplier(isz);
+            }
 
             // Render the trail into a framebuffer sized to the card so it hard-
             // clips to the card's bounds: the dot trail's custom draw node does
@@ -104,6 +116,12 @@ namespace osu.Game.Overlays.Cosmetics
             trail?.SetLengthScale(length);
             trail?.SetDensityMultiplier(density);
             trail?.SetSizeMultiplier(size);
+
+            // Rebuild the still snapshot so the new style actually shows on the
+            // card (a frozen snapshot wouldn't otherwise reflect the change).
+            snapshotReady = false;
+            if (mode == Mode.Snapshot)
+                mode = Mode.Paused;
         }
 
         /// <summary>Card hover: live while hovered, snapshot otherwise.</summary>

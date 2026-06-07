@@ -211,7 +211,7 @@ namespace osu.Game.Overlays.Cosmetics
             bool showDensity = def.Family != CosmeticTrailFamily.Ribbon;
 
             // Length is a 0..1 scale; density/size are multipliers in range.
-            var length = new BindableFloat(curLen) { MinValue = 0f, MaxValue = 1f, Precision = 0.05f };
+            var length = new BindableFloat(curLen) { MinValue = 0f, MaxValue = 1.3f, Precision = 0.05f };
             var density = new BindableFloat(curDens) { MinValue = CosmeticEconomy.MinDensityMultiplier, MaxValue = CosmeticEconomy.MaxDensityMultiplier, Precision = 0.05f };
             var size = new BindableFloat(curSize) { MinValue = CosmeticEconomy.MinSizeMultiplier, MaxValue = CosmeticEconomy.MaxSizeMultiplier, Precision = 0.05f };
 
