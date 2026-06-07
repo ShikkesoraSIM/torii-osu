@@ -438,6 +438,13 @@ namespace osu.Game
             osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserHasNameColour =
                 () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value);
 
+            // Accessibility / perf toggles: "reduced motion" calms the glow +
+            // hides particles; "ignore cosmetics" renders plain usernames.
+            osu.Game.Graphics.UserEffects.UserAuraContainer.ReducedMotion =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsReducedMotion);
+            osu.Game.Graphics.UserEffects.UserAuraContainer.CosmeticsSuppressed =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden);
+
             // ...and the same colour through ToriiColourHelper, which is the
             // username-colour authority the leaderboards already read (they set
             // the name colour via a transform, so they have to pull it from here

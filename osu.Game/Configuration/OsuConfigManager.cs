@@ -535,6 +535,8 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
             SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
+            SetDefault(OsuSetting.CosmeticsReducedMotion, false);
+            SetDefault(OsuSetting.CosmeticsHidden, false);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -1030,5 +1032,14 @@ namespace osu.Game.Configuration
         /// AAudio, etc.). Toggle changes require an app restart.
         /// </summary>
         EnableOboeAudio,
+
+        /// <summary>Torii cosmetics: "reduced motion" — the role-colour glow holds
+        /// steady (no pulse) and particle auras are hidden, while the colours
+        /// themselves still apply. For motion sensitivity / weaker hardware.</summary>
+        CosmeticsReducedMotion,
+
+        /// <summary>Torii cosmetics: "ignore cosmetics" — render plain usernames
+        /// with no colour, glow or particle aura (the vanilla look).</summary>
+        CosmeticsHidden,
     }
 }

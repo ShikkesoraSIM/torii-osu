@@ -71,6 +71,27 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 {
                     Keywords = new[] { "aura", "particles", "torii", "title", "effect" },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Reduced motion",
+                    HintText = "Keep your name colours but hold the glow steady (no pulsing) and "
+                               + "hide the moving particle auras. Good for motion sensitivity or "
+                               + "weaker hardware.",
+                    Current = config.GetBindable<bool>(OsuSetting.CosmeticsReducedMotion),
+                })
+                {
+                    Keywords = new[] { "reduced", "motion", "pulse", "accessibility", "cosmetic", "aura" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Ignore cosmetics",
+                    HintText = "Show plain usernames everywhere, with no name colour, glow or "
+                               + "particle aura (the vanilla look).",
+                    Current = config.GetBindable<bool>(OsuSetting.CosmeticsHidden),
+                })
+                {
+                    Keywords = new[] { "ignore", "disable", "cosmetic", "name colour", "aura", "vanilla" },
+                },
                 new SettingsItemV2(dropdown = new FormDropdown<AuraOption>
                 {
                     Caption = "My equipped aura",
