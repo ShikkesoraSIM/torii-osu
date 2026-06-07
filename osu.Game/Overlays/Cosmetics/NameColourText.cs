@@ -51,10 +51,12 @@ namespace osu.Game.Overlays.Cosmetics
         {
             base.Update();
 
-            // Only animated styles need per-frame repainting; static colours are
-            // set once at load (the buffered glow only redraws when it changes).
+            // Animated styles AND the pulsing role glow need per-frame repaint;
+            // plain solids/gradients are set once at load.
             if (text != null && colour != null
-                && (colour.Style == NameColourStyle.Rainbow || colour.Style == NameColourStyle.Pulse))
+                && (colour.Style == NameColourStyle.Rainbow
+                    || colour.Style == NameColourStyle.Pulse
+                    || colour.Style == NameColourStyle.Halo))
                 colour.Apply(text, Time.Current);
         }
     }

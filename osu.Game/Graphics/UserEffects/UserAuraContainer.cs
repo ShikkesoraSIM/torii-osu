@@ -48,6 +48,15 @@ namespace osu.Game.Graphics.UserEffects
         /// decorator wraps their name even if they have no aura.</summary>
         public static Func<bool>? LocalUserHasNameColour;
 
+        /// <summary>Future "ignore cosmetics" toggle: when it returns true, names
+        /// render bare (no colour, glow, or particles). Null = not suppressed.</summary>
+        public static Func<bool>? CosmeticsSuppressed;
+
+        /// <summary>Future "reduced motion" toggle: when it returns true, the glow
+        /// holds steady (no pulse) and the particle field is hidden, while the
+        /// colour itself still applies. Null = full motion.</summary>
+        public static Func<bool>? ReducedMotion;
+
         private APIUser? user;
         private readonly Drawable target;
         private readonly Axes requestedRelativeSizeAxes;
@@ -161,6 +170,11 @@ namespace osu.Game.Graphics.UserEffects
         private void load(OsuConfigManager? config)
         {
             auraEnabled = config?.GetBindable<bool>(OsuSetting.UserAuraEnabled) ?? new Bindable<bool>(true);
+
+            // Resolve the local user's equipped name colour BEFORE the first
+            // build so the glow layer can be tinted to it (matching the profile).
+            resolveNameColour();
+
             // rebuildEmitter handles the full layer stack including the
             // target placement (direct child OR wrapped in an inline
             // FillFlowContainer with leading + trailing ornaments). We
@@ -185,15 +199,21 @@ namespace osu.Game.Graphics.UserEffects
             if (metadataClient != null)
                 metadataClient.UserUpdated += onRemoteUserUpdated;
 
-            // Torii: track the local user's equipped name colour so it updates
-            // live in every surface the moment they change it in the store.
+            // Track the local user's equipped name colour so the text colour AND
+            // the glow tint update live in every surface when they change it.
             if (cosmetics != null)
             {
                 equippedNameColourId = cosmetics.EquippedNameColourId.GetBoundCopy();
-                equippedNameColourId.BindValueChanged(_ => resolveNameColour(), true);
+                equippedNameColourId.BindValueChanged(_ =>
+                {
+                    resolveNameColour();
+
+                    // Only the local user's own decorations depend on the equipped
+                    // colour; rebuild just those (not every other wrapper on screen).
+                    if (loaded && user != null && api?.LocalUser.Value != null && user.Id == api.LocalUser.Value.Id)
+                        rebuildEmitter();
+                });
             }
-            else
-                resolveNameColour();
         }
 
         private void onUserAuraChanged(int changedUserId, string? newEffectiveAuraId)
@@ -330,11 +350,28 @@ namespace osu.Game.Graphics.UserEffects
                 Remove(target, disposeImmediately: false);
             }
 
+            // Future "ignore cosmetics" toggle: render the bare username (vanilla
+            // look) with no colour, glow or particles.
+            if (CosmeticsSuppressed?.Invoke() ?? false)
+            {
+                Add(target);
+                return;
+            }
+
             var preset = AuraRegistry.ResolveForUser(effectiveAuraUser());
+
+            // A role (earned) colour gets a dramatic, additive, pulsing bloom in
+            // its own colour so it reads as clearly special, never a flat solid. A
+            // buyable solid/gradient stays flat (its only glow, if any, comes from
+            // the user's aura). Other users fall back to the aura's glow.
+            bool roleGlow = nameColour?.Style == NameColourStyle.Halo;
+            Color4? glowTint = roleGlow ? nameColour!.Primary : preset?.GlowColour;
+
             if (preset == null)
             {
-                // No aura — just put the target back as a direct child
-                // and bail. Other layers stay null.
+                // No aura. Still glow when the local user has a role colour, then
+                // attach the bare target.
+                addTextGlow(glowTint, roleGlow);
                 Add(target);
                 applyEnabledState();
                 return;
@@ -346,16 +383,7 @@ namespace osu.Game.Graphics.UserEffects
             // to align with the target's actual position (which is non-
             // zero when an inline flow pushes the target right of any
             // leading ornament).
-            if (preset.GlowColour is Color4 glowColour && target is SpriteText spriteText)
-            {
-                Add(textGlow = new TextShapeGlow(spriteText.Text, spriteText.Font, glowColour)
-                {
-                    Anchor = Anchor.TopLeft,
-                    Origin = Anchor.TopLeft,
-                    Position = new Vector2(-TextShapeGlow.GlowPadding),
-                    BypassAutoSizeAxes = Axes.Both,
-                });
-            }
+            addTextGlow(glowTint, roleGlow);
 
             // Decide layout up front so the emitter knows whether to
             // skip its CreateBackground call (which a variant would
@@ -544,7 +572,7 @@ namespace osu.Game.Graphics.UserEffects
             // for static colours (the Colour setter no-ops when unchanged); animates
             // for the rainbow / pulse styles. The role glow still comes from the
             // aura layer behind the text, so role colours read like the profile.
-            if (nameColour != null && target is SpriteText nameText)
+            if (nameColour != null && target is SpriteText nameText && !(CosmeticsSuppressed?.Invoke() ?? false))
                 nameColour.Apply(nameText, Time.Current);
 
             // Sync the emitter's bounds to the actual rendered text bounds
@@ -673,8 +701,14 @@ namespace osu.Game.Graphics.UserEffects
 
         private void applyEnabledState()
         {
+            // Particles hide when the aura setting is off, or under the (future)
+            // reduced-motion / ignore-cosmetics toggles.
+            bool show = auraEnabled.Value
+                        && !(ReducedMotion?.Invoke() ?? false)
+                        && !(CosmeticsSuppressed?.Invoke() ?? false);
+
             if (emitter != null)
-                emitter.Alpha = auraEnabled.Value ? 1 : 0;
+                emitter.Alpha = show ? 1 : 0;
         }
 
         // Resolve the equipped name colour for the wrapped user. For now only the
@@ -684,11 +718,15 @@ namespace osu.Game.Graphics.UserEffects
         {
             nameColour = null;
 
-            if (user == null || cosmetics == null || api?.LocalUser.Value == null)
+            var local = api?.LocalUser.Value;
+            if (user == null || cosmetics == null || local == null)
                 return;
 
-            if (user.Id == api.LocalUser.Value.Id)
-                nameColour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, user);
+            // Resolve from the FULL local user, not the per-row `user`: role
+            // colours (id "name-group-...") need the user's groups to resolve, and
+            // the stripped score/leaderboard user object usually has none.
+            if (user.Id == local.Id)
+                nameColour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, local);
         }
 
         // The local user's per-row object on most surfaces (chat, leaderboards,
@@ -703,6 +741,45 @@ namespace osu.Game.Graphics.UserEffects
                 return local;
 
             return user;
+        }
+
+        // Adds the letter-hugging glow behind the target, tinted to <paramref
+        // name="tint"/>. For the local user's name colour it blooms additively so
+        // it reads like the profile name; the aura's own glow keeps its softer
+        // normal blend.
+        private void addTextGlow(Color4? tint, bool dramatic)
+        {
+            if (tint is not Color4 glowColour || target is not SpriteText spriteText)
+                return;
+
+            bool reduced = ReducedMotion?.Invoke() ?? false;
+
+            // Role glow: push the colour toward white so the additive bloom reads
+            // as a bright "colour blurred with white" halo, clearly distinct from a
+            // flat solid. Other glows keep their own colour.
+            Color4 glow = dramatic
+                ? new Color4(
+                    glowColour.R + (1f - glowColour.R) * 0.5f,
+                    glowColour.G + (1f - glowColour.G) * 0.5f,
+                    glowColour.B + (1f - glowColour.B) * 0.5f,
+                    1f)
+                : glowColour;
+
+            // TextShapeGlow now blooms additively internally (the GlowingDrawable
+            // pipeline the toolbar/profile use); we just feed it the tint + the
+            // pulse shape. A deeper blur + pulse swing makes role colours exaggerated.
+            Add(textGlow = new TextShapeGlow(spriteText.Text, spriteText.Font, glow)
+            {
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.TopLeft,
+                Position = new Vector2(-TextShapeGlow.GlowPadding),
+                BypassAutoSizeAxes = Axes.Both,
+                BlurSigma = dramatic ? new Vector2(5f) : new Vector2(4f),
+                MaxAlpha = dramatic ? 1f : 0.9f,
+                MinAlpha = dramatic ? 0.45f : 0.5f,
+                DurationMs = dramatic ? 700 : 1500,
+                Pulsate = !reduced,
+            });
         }
 
         protected override void Dispose(bool isDisposing)

@@ -133,10 +133,12 @@ namespace osu.Game.Overlays.Toolbar
         {
             base.Update();
 
-            // Only animated styles repaint per frame — re-applying a static colour
-            // each frame would needlessly re-blur the glow buffer.
+            // Animated styles AND the pulsing role glow repaint per frame; plain
+            // solids/gradients are painted once on change.
             if (currentNameColour != null
-                && (currentNameColour.Style == NameColourStyle.Rainbow || currentNameColour.Style == NameColourStyle.Pulse))
+                && (currentNameColour.Style == NameColourStyle.Rainbow
+                    || currentNameColour.Style == NameColourStyle.Pulse
+                    || currentNameColour.Style == NameColourStyle.Halo))
                 currentNameColour.Apply(usernameText, Time.Current);
         }
 

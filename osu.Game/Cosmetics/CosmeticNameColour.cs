@@ -86,9 +86,17 @@ namespace osu.Game.Cosmetics
         public void Apply(GlowingFreeWidthSpriteText text, double timeMs)
         {
             text.TextColour = resolveTextColour(timeMs);
-            text.GlowColour = Style == NameColourStyle.Halo
-                ? Primary.Opacity(0.6f)
-                : new Color4(0, 0, 0, 0);
+
+            if (Style == NameColourStyle.Halo)
+            {
+                // Pulse the bloom so a role colour reads as alive everywhere it
+                // shows (matching the pulsing glow of the aura surfaces), never a
+                // flat solid.
+                float a = 0.4f + 0.6f * (float)((Math.Sin(timeMs / 260.0) + 1.0) / 2.0);
+                text.GlowColour = Primary.Opacity(a);
+            }
+            else
+                text.GlowColour = new Color4(0, 0, 0, 0);
         }
 
         /// <summary>The text colour for this cosmetic at <paramref name="timeMs"/>
