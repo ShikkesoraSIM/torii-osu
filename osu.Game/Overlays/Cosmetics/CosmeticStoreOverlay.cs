@@ -451,27 +451,46 @@ namespace osu.Game.Overlays.Cosmetics
             }
 
             // ── Auras (third category) ──────────────────────────────────────
-            // Earned by role/group. Inventory-only (no buyable auras yet).
-            // Equipping one applies it everywhere your name shows.
+            // Earned auras come from a role/group (price null). Stardust is the
+            // one points-buyable aura. Store shows the buyable one; Inventory
+            // shows earned auras plus any buyable aura you already own.
+            // Equipping any applies it everywhere your name shows.
+            var auraEntries = new List<(AuraPreset preset, int? price, CosmeticTier tier)>();
+
             if (inventory)
             {
-                var auras = AuraRegistry.GetEntitledAuras(localUser).ToList();
+                foreach (var preset in AuraRegistry.GetEntitledAuras(localUser))
+                    auraEntries.Add((preset, null, CosmeticTier.Premium));
 
-                if (auras.Count > 0)
+                foreach (var e in BuyableAuraCatalog.All)
                 {
-                    anyContent = true;
-                    cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
+                    if ((cosmetics?.IsOwned(e.Id) ?? false) && e.Preset != null)
+                        auraEntries.Add((e.Preset, e.Price, e.Tier));
+                }
+            }
+            else
+            {
+                foreach (var e in BuyableAuraCatalog.All)
+                {
+                    if (e.Preset != null)
+                        auraEntries.Add((e.Preset, e.Price, e.Tier));
+                }
+            }
 
-                    foreach (var preset in auras)
-                    {
-                        bool isSelected = preset.AuraId == selectedId;
-                        var card = new AuraCard(preset, isSelected);
-                        card.Action = () => onAuraClicked(preset, card);
-                        if (isSelected)
-                            selectedCard = card;
-                        cards.Add(card);
-                        cardFlow.Add(card);
-                    }
+            if (auraEntries.Count > 0)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
+
+                foreach (var (preset, price, tier) in auraEntries)
+                {
+                    bool isSelected = preset.AuraId == selectedId;
+                    var card = new AuraCard(preset, price, tier, cosmetics, isSelected);
+                    card.Action = () => onAuraClicked(preset, price, tier, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cards.Add(card);
+                    cardFlow.Add(card);
                 }
             }
 
@@ -542,42 +561,28 @@ namespace osu.Game.Overlays.Cosmetics
             detailContainer.Add(new NameColourDetailPanel(colour, cosmetics, showToast));
         }
 
-        private void onAuraClicked(AuraPreset preset, AuraCard card)
+        private void onAuraClicked(AuraPreset preset, int? price, CosmeticTier tier, AuraCard card)
         {
-            // Single click equips (auras are earned, nothing to buy/customise).
-            equipAura(preset.AuraId);
-            showToast($"Equipped {AuraCard.DisplayNameFor(preset.AuraId)} aura");
+            bool owned = price == null || (cosmetics?.IsOwned(preset.AuraId) ?? false);
+
+            // Inventory + owned/earned: single click equips (fast skin-swap flow,
+            // same as trails / name colours). Buyable + unowned: just open the
+            // detail panel so the user can buy it there.
+            if (tabs.Current.Value == StoreTab.Inventory && owned)
+            {
+                equipAura(preset.AuraId);
+                showToast($"Equipped {AuraCard.DisplayNameFor(preset.AuraId)} aura");
+            }
 
             setSelectedCard(card, preset.AuraId);
-            refreshCards();
-
             detailContainer.Clear();
-            detailContainer.Add(new FillFlowContainer
-            {
-                RelativeSizeAxes = Axes.X,
-                AutoSizeAxes = Axes.Y,
-                Direction = FillDirection.Vertical,
-                Spacing = new Vector2(0, 10),
-                Children = new Drawable[]
-                {
-                    new OsuSpriteText
-                    {
-                        Text = AuraCard.DisplayNameFor(preset.AuraId),
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
-                    },
-                    new OsuSpriteText
-                    {
-                        Text = "Earned aura. Now showing everywhere your name appears.",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
-                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
-                    },
-                },
-            });
+            detailContainer.Add(new AuraDetailPanel(preset, price, tier, cosmetics, equipAura, unequipAura, showToast));
         }
 
         // Equip an aura the same way the settings dropdown does: update the
         // in-memory local user + fire the aura-changed channel (so every
-        // surface re-resolves in place), then persist server-side.
+        // surface re-resolves in place), then persist server-side. Finally
+        // refresh card badges so the EQUIPPED state moves to the new aura.
         private void equipAura(string auraId)
         {
             if (api?.LocalUser.Value == null)
@@ -588,7 +593,13 @@ namespace osu.Game.Overlays.Cosmetics
 
             var req = new UpdateEquippedAuraRequest(auraId);
             api.Queue(req);
+
+            refreshCards();
         }
+
+        // "none" is the server sentinel for "no aura" — clears any equipped or
+        // group-default aura so the local user renders plain.
+        private void unequipAura() => equipAura("none");
 
         private void setSelectedCard(IStoreCard card, string id)
         {

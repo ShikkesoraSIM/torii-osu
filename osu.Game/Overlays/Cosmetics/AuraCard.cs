@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
+using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
@@ -28,12 +29,18 @@ namespace osu.Game.Overlays.Cosmetics
 {
     /// <summary>Inventory/store tile for a user aura: shows a sample username with
     /// the aura's glow + particles playing behind it, plus a name / earned /
-    /// equipped footer. Click equips it (Inventory) or selects it (Store).</summary>
+    /// owned / price footer. Earned auras equip on click; buyable ones open the
+    /// detail panel to purchase.</summary>
     public partial class AuraCard : OsuClickableContainer, IStoreCard
     {
         public string ItemId => preset.AuraId;
 
         private readonly AuraPreset preset;
+
+        // Null = earned (granted by a group). Set = a buyable aura (points price).
+        private readonly int? price;
+        private readonly CosmeticTier tier;
+        private readonly ToriiCosmeticsManager cosmetics;
         private readonly bool startSelected;
 
         [Resolved(canBeNull: true)]
@@ -45,12 +52,18 @@ namespace osu.Game.Overlays.Cosmetics
         private Container badgeHolder;
         private Box hoverHighlight;
 
-        public AuraCard(AuraPreset preset, bool selected = false)
+        public AuraCard(AuraPreset preset, int? price, CosmeticTier tier, ToriiCosmeticsManager cosmetics, bool selected = false)
         {
             this.preset = preset;
+            this.price = price;
+            this.tier = tier;
+            this.cosmetics = cosmetics;
             startSelected = selected;
             Size = new Vector2(244, 168);
         }
+
+        private bool earned => price == null;
+        private bool isOwned => earned || (cosmetics?.IsOwned(preset.AuraId) ?? false);
 
         private bool isEquipped => api?.LocalUser.Value != null
                                    && AuraRegistry.ResolveForUser(api.LocalUser.Value)?.AuraId == preset.AuraId;
@@ -59,6 +72,7 @@ namespace osu.Game.Overlays.Cosmetics
         private void load()
         {
             bool equipped = isEquipped;
+            bool owned = isOwned;
             string username = api?.LocalUser.Value?.Username ?? "Aura";
 
             // A throwaway user with this aura equipped, so the shared
@@ -131,7 +145,7 @@ namespace osu.Game.Overlays.Cosmetics
                                         footerHolder = new Container
                                         {
                                             AutoSizeAxes = Axes.Both,
-                                            Child = createFooter(equipped),
+                                            Child = createFooter(owned, equipped),
                                         },
                                     },
                                 },
@@ -150,16 +164,17 @@ namespace osu.Game.Overlays.Cosmetics
                         Anchor = Anchor.TopLeft,
                         Origin = Anchor.TopLeft,
                         AutoSizeAxes = Axes.Both,
-                        Child = badge(equipped),
+                        Child = owned ? badge(equipped) : Empty(),
                     },
-                    // Auras are "earned" — give them the rare amber border.
+                    // Persistent rarity border: amber for earned auras, tier
+                    // colour for buyable ones. Pink selection border draws over.
                     new Container
                     {
                         RelativeSizeAxes = Axes.Both,
                         Masking = true,
                         CornerRadius = BriefingTheme.CornerSm,
-                        BorderThickness = 2.5f,
-                        BorderColour = BriefingTheme.AccentAmber.Opacity(0.65f),
+                        BorderThickness = earned ? 2.5f : rarityBorderThickness(tier),
+                        BorderColour = (earned ? BriefingTheme.AccentAmber : tierColour(tier)).Opacity(0.65f),
                         Child = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Transparent, AlwaysPresent = true },
                     },
                     selectionBorder = new Container
@@ -179,9 +194,12 @@ namespace osu.Game.Overlays.Cosmetics
                 selectionBorder.Alpha = 1;
         }
 
-        private Drawable createFooter(bool equipped)
+        private Drawable createFooter(bool owned, bool equipped)
         {
-            Color4 footerColour = equipped ? BriefingTheme.AccentGain : BriefingTheme.AccentAmber;
+            Color4 stateColour = equipped ? BriefingTheme.AccentGain
+                : earned ? BriefingTheme.AccentAmber
+                : owned ? BriefingTheme.AccentSky
+                : BriefingTheme.AccentAmber;
 
             var row = new FillFlowContainer
             {
@@ -194,9 +212,9 @@ namespace osu.Game.Overlays.Cosmetics
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        Text = "AURA",
+                        Text = earned ? "AURA" : tier.ToString().ToUpperInvariant(),
                         Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
-                        Colour = BriefingTheme.AccentAmber,
+                        Colour = earned ? BriefingTheme.AccentAmber : tierColour(tier),
                     },
                     new OsuSpriteText
                     {
@@ -206,44 +224,70 @@ namespace osu.Game.Overlays.Cosmetics
                         Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
                         Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                     },
-                    new OsuSpriteText
-                    {
-                        Anchor = Anchor.CentreLeft,
-                        Origin = Anchor.CentreLeft,
-                        Text = equipped ? "EQUIPPED" : "EARNED",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
-                        Colour = footerColour,
-                    },
                 },
             };
+
+            if (owned)
+            {
+                row.Add(new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = equipped ? "EQUIPPED" : earned ? "EARNED" : "OWNED",
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                    Colour = stateColour,
+                });
+            }
+            else
+            {
+                row.Add(new SpriteIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Icon = FontAwesome.Solid.Coins,
+                    Size = new Vector2(11),
+                    Colour = stateColour,
+                });
+                row.Add(new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = $"{price:N0}",
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                    Colour = stateColour,
+                });
+            }
 
             return row;
         }
 
-        private Drawable badge(bool equipped) => new Container
+        private Drawable badge(bool equipped)
         {
-            Anchor = Anchor.TopLeft,
-            Origin = Anchor.TopLeft,
-            Margin = new MarginPadding(8),
-            AutoSizeAxes = Axes.Both,
-            Masking = true,
-            CornerRadius = 5f,
-            Children = new Drawable[]
+            Color4 pill = equipped ? BriefingTheme.AccentGain
+                : earned ? BriefingTheme.AccentAmber
+                : BriefingTheme.AccentSky;
+
+            return new Container
             {
-                new Box
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.TopLeft,
+                Margin = new MarginPadding(8),
+                AutoSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = 5f,
+                Children = new Drawable[]
                 {
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = (equipped ? BriefingTheme.AccentGain : BriefingTheme.AccentAmber).Opacity(0.92f),
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = pill.Opacity(0.92f) },
+                    new OsuSpriteText
+                    {
+                        Margin = new MarginPadding { Horizontal = 7, Vertical = 3 },
+                        Text = equipped ? "EQUIPPED" : earned ? "EARNED" : "OWNED",
+                        Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
+                        Colour = Color4.Black.Opacity(0.85f),
+                    },
                 },
-                new OsuSpriteText
-                {
-                    Margin = new MarginPadding { Horizontal = 7, Vertical = 3 },
-                    Text = equipped ? "EQUIPPED" : "EARNED",
-                    Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
-                    Colour = Color4.Black.Opacity(0.85f),
-                },
-            },
-        };
+            };
+        }
 
         public void SetSelected(bool selected) => selectionBorder?.FadeTo(selected ? 1 : 0, 140, Easing.OutQuint);
 
@@ -253,8 +297,9 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
 
             bool equipped = isEquipped;
-            footerHolder.Child = createFooter(equipped);
-            badgeHolder.Child = badge(equipped);
+            bool owned = isOwned;
+            footerHolder.Child = createFooter(owned, equipped);
+            badgeHolder.Child = owned ? badge(equipped) : Empty();
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -282,5 +327,20 @@ namespace osu.Game.Overlays.Cosmetics
                 ? p
                 : char.ToUpper(p[0], CultureInfo.InvariantCulture) + p.Substring(1)));
         }
+
+        private static Color4 tierColour(CosmeticTier t) => t switch
+        {
+            CosmeticTier.Basic => new Color4(150, 160, 175, 255),
+            CosmeticTier.Special => BriefingTheme.AccentSky,
+            CosmeticTier.Premium => BriefingTheme.AccentAmber,
+            _ => Color4.White,
+        };
+
+        private static float rarityBorderThickness(CosmeticTier t) => t switch
+        {
+            CosmeticTier.Special => 1.5f,
+            CosmeticTier.Premium => 2.5f,
+            _ => 1f,
+        };
     }
 }

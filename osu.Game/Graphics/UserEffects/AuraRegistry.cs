@@ -78,6 +78,11 @@ namespace osu.Game.Graphics.UserEffects
             // explicit-equip only (high DefaultPriority so it never auto-wins
             // the group fallback). Earned, never bought, like every aura.
             new SummerAuraPreset(),
+            // Stardust — the ONLY points-purchasable aura. No owning group, so
+            // it never appears in the entitled list or group fallback; it only
+            // renders when a user explicitly equips it after buying. Deliberately
+            // subtle so a bought aura never outshines an earned one.
+            new StardustAuraPreset(),
             // Founder aura design VARIANTS — registered so the visual
             // test scene (TestSceneFounderVariants + AllSurfaces
             // personas in TestSceneAurasInRealUI) can resolve them by
