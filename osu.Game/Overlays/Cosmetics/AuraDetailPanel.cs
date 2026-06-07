@@ -32,6 +32,7 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly AuraPreset preset;
         private readonly int? price;
         private readonly CosmeticTier tier;
+        private readonly string displayName;
         private readonly ToriiCosmeticsManager cosmetics;
         private readonly Action<string> equip;
         private readonly Action unequip;
@@ -43,13 +44,15 @@ namespace osu.Game.Overlays.Cosmetics
         private FillFlowContainer flow;
 
         private bool earned => price == null;
+        private string title => string.IsNullOrEmpty(displayName) ? AuraCard.DisplayNameFor(preset.AuraId) : displayName;
 
-        public AuraDetailPanel(AuraPreset preset, int? price, CosmeticTier tier, ToriiCosmeticsManager cosmetics,
+        public AuraDetailPanel(AuraPreset preset, int? price, CosmeticTier tier, string displayName, ToriiCosmeticsManager cosmetics,
                                Action<string> equip, Action unequip, Action<string> notify)
         {
             this.preset = preset;
             this.price = price;
             this.tier = tier;
+            this.displayName = displayName;
             this.cosmetics = cosmetics;
             this.equip = equip;
             this.unequip = unequip;
@@ -117,7 +120,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             flow.Add(new OsuSpriteText
             {
-                Text = AuraCard.DisplayNameFor(preset.AuraId),
+                Text = title,
                 Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
             });
 
@@ -150,7 +153,7 @@ namespace osu.Game.Overlays.Cosmetics
                     {
                         if (cosmetics != null && cosmetics.Buy(preset.AuraId, price ?? 0))
                         {
-                            notify?.Invoke($"Purchased {AuraCard.DisplayNameFor(preset.AuraId)}");
+                            notify?.Invoke($"Purchased {title}");
                             // Auto-equip on purchase so the buy feels immediate.
                             equip?.Invoke(preset.AuraId);
                             rebuild();
@@ -185,8 +188,8 @@ namespace osu.Game.Overlays.Cosmetics
                         equip?.Invoke(preset.AuraId);
 
                     notify?.Invoke(equipped
-                        ? $"Unequipped {AuraCard.DisplayNameFor(preset.AuraId)}"
-                        : $"Equipped {AuraCard.DisplayNameFor(preset.AuraId)}");
+                        ? $"Unequipped {title}"
+                        : $"Equipped {title}");
                     rebuild();
                 },
             });

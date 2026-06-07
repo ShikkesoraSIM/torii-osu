@@ -24,6 +24,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API.Requests;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Input.Bindings;
 using osu.Game.Overlays.ToriiBriefing;
@@ -54,6 +55,13 @@ namespace osu.Game.Overlays.Cosmetics
 
         [Resolved(canBeNull: true)]
         private osu.Game.Online.API.IAPIProvider api { get; set; }
+
+        // Cached server aura catalog (authoritative list of the user's entitled
+        // auras + their display names — includes auras granted by something
+        // other than a group, e.g. Founder by id, which the local group-based
+        // resolver can't see). Null until the first fetch lands; rebuildCards
+        // falls back to the local list meanwhile.
+        private APIAuraCatalog auraCatalog;
 
         private BriefingGlass mainPanel;
         private OsuTabControl<StoreTab> tabs;
@@ -455,25 +463,47 @@ namespace osu.Game.Overlays.Cosmetics
             // one points-buyable aura. Store shows the buyable one; Inventory
             // shows earned auras plus any buyable aura you already own.
             // Equipping any applies it everywhere your name shows.
-            var auraEntries = new List<(AuraPreset preset, int? price, CosmeticTier tier)>();
+            var auraEntries = new List<(AuraPreset preset, int? price, CosmeticTier tier, string name)>();
+            var seenAuras = new HashSet<string>();
 
             if (inventory)
             {
-                foreach (var preset in AuraRegistry.GetEntitledAuras(localUser))
-                    auraEntries.Add((preset, null, CosmeticTier.Premium));
-
+                // Client-owned buyable auras first, so a bought aura always
+                // shows as OWNED/buyable even if the server later lists it too.
                 foreach (var e in BuyableAuraCatalog.All)
                 {
-                    if ((cosmetics?.IsOwned(e.Id) ?? false) && e.Preset != null)
-                        auraEntries.Add((e.Preset, e.Price, e.Tier));
+                    if (e.Preset != null && (cosmetics?.IsOwned(e.Id) ?? false) && seenAuras.Add(e.Id))
+                        auraEntries.Add((e.Preset, e.Price, e.Tier, null));
+                }
+
+                // Earned auras: prefer the server catalog (authoritative — it
+                // includes auras not granted by a group, e.g. Founder by id,
+                // and carries proper display names). Fall back to the local
+                // group-based list until the catalog request lands.
+                if (auraCatalog?.Available?.Length > 0)
+                {
+                    foreach (var entry in auraCatalog.Available)
+                    {
+                        var preset = AuraRegistry.GetById(entry.Id);
+                        if (preset != null && seenAuras.Add(entry.Id))
+                            auraEntries.Add((preset, null, CosmeticTier.Premium, entry.DisplayName));
+                    }
+                }
+                else
+                {
+                    foreach (var preset in AuraRegistry.GetEntitledAuras(localUser))
+                    {
+                        if (seenAuras.Add(preset.AuraId))
+                            auraEntries.Add((preset, null, CosmeticTier.Premium, null));
+                    }
                 }
             }
             else
             {
                 foreach (var e in BuyableAuraCatalog.All)
                 {
-                    if (e.Preset != null)
-                        auraEntries.Add((e.Preset, e.Price, e.Tier));
+                    if (e.Preset != null && seenAuras.Add(e.Id))
+                        auraEntries.Add((e.Preset, e.Price, e.Tier, null));
                 }
             }
 
@@ -482,11 +512,11 @@ namespace osu.Game.Overlays.Cosmetics
                 anyContent = true;
                 cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
 
-                foreach (var (preset, price, tier) in auraEntries)
+                foreach (var (preset, price, tier, name) in auraEntries)
                 {
                     bool isSelected = preset.AuraId == selectedId;
-                    var card = new AuraCard(preset, price, tier, cosmetics, isSelected);
-                    card.Action = () => onAuraClicked(preset, price, tier, card);
+                    var card = new AuraCard(preset, price, tier, cosmetics, name, isSelected);
+                    card.Action = () => onAuraClicked(preset, price, tier, name, card);
                     if (isSelected)
                         selectedCard = card;
                     cards.Add(card);
@@ -561,9 +591,10 @@ namespace osu.Game.Overlays.Cosmetics
             detailContainer.Add(new NameColourDetailPanel(colour, cosmetics, showToast));
         }
 
-        private void onAuraClicked(AuraPreset preset, int? price, CosmeticTier tier, AuraCard card)
+        private void onAuraClicked(AuraPreset preset, int? price, CosmeticTier tier, string name, AuraCard card)
         {
             bool owned = price == null || (cosmetics?.IsOwned(preset.AuraId) ?? false);
+            string display = string.IsNullOrEmpty(name) ? AuraCard.DisplayNameFor(preset.AuraId) : name;
 
             // Inventory + owned/earned: single click equips (fast skin-swap flow,
             // same as trails / name colours). Buyable + unowned: just open the
@@ -571,12 +602,12 @@ namespace osu.Game.Overlays.Cosmetics
             if (tabs.Current.Value == StoreTab.Inventory && owned)
             {
                 equipAura(preset.AuraId);
-                showToast($"Equipped {AuraCard.DisplayNameFor(preset.AuraId)} aura");
+                showToast($"Equipped {display} aura");
             }
 
             setSelectedCard(card, preset.AuraId);
             detailContainer.Clear();
-            detailContainer.Add(new AuraDetailPanel(preset, price, tier, cosmetics, equipAura, unequipAura, showToast));
+            detailContainer.Add(new AuraDetailPanel(preset, price, tier, name, cosmetics, equipAura, unequipAura, showToast));
         }
 
         // Equip an aura the same way the settings dropdown does: update the
@@ -671,7 +702,26 @@ namespace osu.Game.Overlays.Cosmetics
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
             mainPanel.ScaleTo(0.94f).ScaleTo(1f, BriefingTheme.EntranceDuration, Easing.OutBack)
                      .MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
+            fetchAuraCatalog();
             rebuildCards();
+        }
+
+        // Pull the authoritative aura list from the server (same source the
+        // settings picker uses) so the Inventory shows every aura the user can
+        // equip — including ones not derived from a group. Non-fatal on
+        // failure: rebuildCards falls back to the local group-based list.
+        private void fetchAuraCatalog()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var req = new GetAuraCatalogRequest();
+            req.Success += catalog => Schedule(() =>
+            {
+                auraCatalog = catalog;
+                rebuildCards();
+            });
+            api.Queue(req);
         }
 
         protected override void PopOut()

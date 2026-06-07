@@ -23,10 +23,18 @@ namespace osu.Game.Graphics.UserEffects.Presets
     {
         public const string ID = "stardust";
 
-        // Cool silver-white, two close tones so motes vary subtly.
-        private static readonly Color4 dust_silver = new Color4(224, 230, 245, 255);
-        private static readonly Color4 dust_pale = new Color4(200, 212, 240, 255);
-        private static readonly Color4 glow_cool = new Color4(196, 210, 240, 255);
+        // Icy "stardust" palette: a bright white core with cool glints that
+        // vary between icy cyan, soft white and a touch of violet, so the
+        // sparkles read as galaxy glitter rather than flat grey dots.
+        private static readonly Color4[] glint_palette =
+        {
+            new Color4(160, 220, 255, 255), // icy cyan
+            new Color4(205, 225, 255, 255), // cool white
+            new Color4(200, 175, 255, 255), // soft violet
+            new Color4(255, 240, 210, 255), // faint warm star
+        };
+
+        private static readonly Color4 glow_cool = new Color4(165, 205, 255, 255);
 
         public override string AuraId => ID;
 
@@ -39,57 +47,91 @@ namespace osu.Game.Graphics.UserEffects.Presets
         // value keeps it last if it ever ends up in a priority comparison.
         public override int DefaultPriority => 250;
 
-        // Sparse + slow: lowkey ambience, not a particle storm.
-        public override double SpawnIntervalMs => 360;
-        public override double SpawnJitterMs => 240;
-        public override int MaxAlive => 8;
+        // Lively enough to read as a real effect, still tasteful.
+        public override double SpawnIntervalMs => 240;
+        public override double SpawnJitterMs => 160;
+        public override int MaxAlive => 11;
 
-        // Faint cool glow hugging the letters. Much softer than the elite auras.
+        // Cool glow hugging the letters.
         public override Color4? GlowColour => glow_cool;
 
         public override void EmitParticle(Container parent, Vector2 parentSize, Random random)
         {
-            // Spawn anywhere across the name, biased to the lower half so motes
-            // have room to drift up through the text.
-            float startX = (float)(random.NextDouble()) * parentSize.X;
-            float startY = (float)(0.35 + random.NextDouble() * 0.6) * parentSize.Y;
+            // Spawn anywhere across the name, biased to the lower half so the
+            // sparkles have room to drift up through the text.
+            float startX = (float)random.NextDouble() * parentSize.X;
+            float startY = (float)(0.3 + random.NextDouble() * 0.65) * parentSize.Y;
 
             // Mostly-vertical slow rise with a touch of sideways wander.
-            float driftX = (float)((random.NextDouble() - 0.5) * parentSize.X * 0.18f);
-            float driftY = -(float)(0.35 + random.NextDouble() * 0.45) * parentSize.Y;
+            float driftX = (float)((random.NextDouble() - 0.5) * parentSize.X * 0.22f);
+            float driftY = -(float)(0.4 + random.NextDouble() * 0.5) * parentSize.Y;
 
-            float size = (1.6f + (float)random.NextDouble() * 1.8f) * ParticleScale(parentSize);
-            Color4 colour = random.NextDouble() < 0.5 ? dust_silver : dust_pale;
+            float size = (5f + (float)random.NextDouble() * 4f) * ParticleScale(parentSize);
+            Color4 glint = glint_palette[random.Next(glint_palette.Length)];
 
-            var mote = new Circle
+            // 4-point sparkle: bright white core + two crossed glints. Additive
+            // so overlaps read as light. AutoSize container centres all three.
+            float arm = size * 0.12f;
+
+            var sparkle = new Container
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                Size = new Vector2(size),
-                Colour = colour,
+                AutoSizeAxes = Axes.Both,
                 Position = new Vector2(startX, startY),
                 Alpha = 0,
-                // Additive so overlapping motes read as soft light, not paint.
-                Blending = BlendingParameters.Additive,
+                Scale = new Vector2(0f),
+                Rotation = (float)(random.NextDouble() * 30 - 15),
+                Children = new Drawable[]
+                {
+                    new Box
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(arm, size),
+                        Colour = glint,
+                        Blending = BlendingParameters.Additive,
+                    },
+                    new Box
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(size, arm),
+                        Colour = glint,
+                        Blending = BlendingParameters.Additive,
+                    },
+                    new Circle
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(size * 0.42f),
+                        Colour = Color4.White,
+                        Blending = BlendingParameters.Additive,
+                    },
+                },
             };
 
-            parent.Add(mote);
+            parent.Add(sparkle);
 
-            double lifetime = 1500 + random.NextDouble() * 700;
+            double lifetime = 1400 + random.NextDouble() * 700;
+            float peak = 0.85f + (float)random.NextDouble() * 0.15f;
 
             // Gentle rise.
-            mote.MoveTo(new Vector2(startX + driftX, startY + driftY), lifetime, Easing.OutSine);
+            sparkle.MoveTo(new Vector2(startX + driftX, startY + driftY), lifetime, Easing.OutSine);
 
-            // Twinkle: fade up to a soft peak, shimmer, then fade out as it rises.
-            float peak = 0.4f + (float)random.NextDouble() * 0.25f;
-            mote.FadeTo(peak, 320, Easing.OutQuad)
-                .Then().FadeTo(peak * 0.5f, 360, Easing.InOutSine)
-                .Then().FadeTo(peak, 360, Easing.InOutSine)
-                .Then().FadeOut((float)lifetime * 0.4f, Easing.InQuad);
+            // Twinkle in, shimmer once, twinkle out — both scale + alpha so it
+            // reads as a star catching light rather than a fading dot.
+            sparkle.FadeTo(peak, 240, Easing.OutQuad)
+                   .Then().FadeTo(peak * 0.55f, 300, Easing.InOutSine)
+                   .Then().FadeTo(peak, 300, Easing.InOutSine)
+                   .Then().FadeOut((float)lifetime * 0.32f, Easing.InQuad);
 
-            mote.ScaleTo(0.7f).ScaleTo(1f, 420, Easing.OutQuad);
+            sparkle.ScaleTo(1f, 260, Easing.OutBack)
+                   .Then().ScaleTo(0.78f, 300, Easing.InOutSine)
+                   .Then().ScaleTo(1f, 300, Easing.InOutSine)
+                   .Then().ScaleTo(0.2f, (float)lifetime * 0.32f, Easing.InQuad);
 
-            mote.Delay(lifetime).Expire();
+            sparkle.Delay(lifetime).Expire();
         }
     }
 }

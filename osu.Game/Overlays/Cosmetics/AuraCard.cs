@@ -41,6 +41,7 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly int? price;
         private readonly CosmeticTier tier;
         private readonly ToriiCosmeticsManager cosmetics;
+        private readonly string displayNameOverride;
         private readonly bool startSelected;
 
         [Resolved(canBeNull: true)]
@@ -52,12 +53,13 @@ namespace osu.Game.Overlays.Cosmetics
         private Container badgeHolder;
         private Box hoverHighlight;
 
-        public AuraCard(AuraPreset preset, int? price, CosmeticTier tier, ToriiCosmeticsManager cosmetics, bool selected = false)
+        public AuraCard(AuraPreset preset, int? price, CosmeticTier tier, ToriiCosmeticsManager cosmetics, string displayNameOverride = null, bool selected = false)
         {
             this.preset = preset;
             this.price = price;
             this.tier = tier;
             this.cosmetics = cosmetics;
+            this.displayNameOverride = displayNameOverride;
             startSelected = selected;
             Size = new Vector2(244, 168);
         }
@@ -316,7 +318,7 @@ namespace osu.Game.Overlays.Cosmetics
             base.OnHoverLost(e);
         }
 
-        private string displayName => DisplayNameFor(preset.AuraId);
+        private string displayName => string.IsNullOrEmpty(displayNameOverride) ? DisplayNameFor(preset.AuraId) : displayNameOverride;
 
         // Server catalog owns the canonical names; offline we derive a friendly
         // label from the aura id ("admin-embers" -> "Admin Embers").
