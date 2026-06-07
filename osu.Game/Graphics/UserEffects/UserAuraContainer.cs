@@ -9,6 +9,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Configuration;
+using osu.Game.Cosmetics;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
@@ -35,6 +36,18 @@ namespace osu.Game.Graphics.UserEffects
     /// </summary>
     public partial class UserAuraContainer : Container
     {
+        /// <summary>
+        /// Returns the FULL local user (with groups + equipped cosmetics), or
+        /// null. Wired once at startup so this decorator can resolve the local
+        /// user's aura + name colour even on surfaces that only carry a stripped
+        /// user object (a leaderboard score's user has no groups, for example).
+        /// </summary>
+        public static Func<APIUser?>? LocalUserProvider;
+
+        /// <summary>True when the local user has a name colour equipped — so the
+        /// decorator wraps their name even if they have no aura.</summary>
+        public static Func<bool>? LocalUserHasNameColour;
+
         private APIUser? user;
         private readonly Drawable target;
         private readonly Axes requestedRelativeSizeAxes;
@@ -89,6 +102,16 @@ namespace osu.Game.Graphics.UserEffects
 
         [Resolved(CanBeNull = true)]
         private IAPIProvider? api { get; set; }
+
+        // Torii: the local user's equipped name colour, painted onto the wrapped
+        // username so it shows in EVERY surface that already wraps for auras
+        // (chat, song-select + gameplay leaderboards, user panels, profile).
+        // CanBeNull for test scenes / contexts without the cosmetics manager.
+        [Resolved(CanBeNull = true)]
+        private ToriiCosmeticsManager? cosmetics { get; set; }
+
+        private Bindable<string>? equippedNameColourId;
+        private CosmeticNameColour? nameColour;
 
         // Tracks the most recent fetch we kicked off in response to a
         // remote UserUpdated broadcast, so we can ignore older races
@@ -161,6 +184,16 @@ namespace osu.Game.Graphics.UserEffects
             // payload. Refresh in place by refetching their public profile.
             if (metadataClient != null)
                 metadataClient.UserUpdated += onRemoteUserUpdated;
+
+            // Torii: track the local user's equipped name colour so it updates
+            // live in every surface the moment they change it in the store.
+            if (cosmetics != null)
+            {
+                equippedNameColourId = cosmetics.EquippedNameColourId.GetBoundCopy();
+                equippedNameColourId.BindValueChanged(_ => resolveNameColour(), true);
+            }
+            else
+                resolveNameColour();
         }
 
         private void onUserAuraChanged(int changedUserId, string? newEffectiveAuraId)
@@ -229,6 +262,7 @@ namespace osu.Game.Graphics.UserEffects
                 return;
 
             user = newUser;
+            resolveNameColour();
             if (loaded)
                 rebuildEmitter();
         }
@@ -296,7 +330,7 @@ namespace osu.Game.Graphics.UserEffects
                 Remove(target, disposeImmediately: false);
             }
 
-            var preset = AuraRegistry.ResolveForUser(user);
+            var preset = AuraRegistry.ResolveForUser(effectiveAuraUser());
             if (preset == null)
             {
                 // No aura — just put the target back as a direct child
@@ -505,6 +539,14 @@ namespace osu.Game.Graphics.UserEffects
         {
             base.Update();
 
+            // Torii: paint the local user's equipped name colour every frame so it
+            // wins over each surface's own colouring + hover transforms. Idempotent
+            // for static colours (the Colour setter no-ops when unchanged); animates
+            // for the rainbow / pulse styles. The role glow still comes from the
+            // aura layer behind the text, so role colours read like the profile.
+            if (nameColour != null && target is SpriteText nameText)
+                nameColour.Apply(nameText, Time.Current);
+
             // Sync the emitter's bounds to the actual rendered text bounds
             // each frame. The glow's Mirror SpriteText auto-sizes to the
             // username text shape regardless of the wrapper's
@@ -635,6 +677,34 @@ namespace osu.Game.Graphics.UserEffects
                 emitter.Alpha = auraEnabled.Value ? 1 : 0;
         }
 
+        // Resolve the equipped name colour for the wrapped user. For now only the
+        // local user has a client-side equipped colour (kept in config); other
+        // users will pick theirs up once the server broadcasts it on APIUser.
+        private void resolveNameColour()
+        {
+            nameColour = null;
+
+            if (user == null || cosmetics == null || api?.LocalUser.Value == null)
+                return;
+
+            if (user.Id == api.LocalUser.Value.Id)
+                nameColour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, user);
+        }
+
+        // The local user's per-row object on most surfaces (chat, leaderboards,
+        // score panels) is a stripped APIUser with no groups, so its aura can't
+        // resolve. When the wrapped user IS the local user, resolve the aura from
+        // the FULL local user instead, so it shows everywhere their name appears
+        // (not only on the profile, which already holds the full object).
+        private APIUser? effectiveAuraUser()
+        {
+            var local = api?.LocalUser.Value;
+            if (local != null && user != null && user.Id == local.Id)
+                return local;
+
+            return user;
+        }
+
         protected override void Dispose(bool isDisposing)
         {
             // Static event reference would otherwise pin this container in
@@ -645,6 +715,8 @@ namespace osu.Game.Graphics.UserEffects
 
             if (metadataClient != null)
                 metadataClient.UserUpdated -= onRemoteUserUpdated;
+
+            equippedNameColourId?.UnbindAll();
 
             base.Dispose(isDisposing);
         }
@@ -663,9 +735,25 @@ namespace osu.Game.Graphics.UserEffects
         ///     at e.g. <c>Anchor.CentreLeft</c> caused the wrapper's auto-size
         ///     calculation to misbehave (and in some panels, throw outright).
         /// </summary>
+        // Decide whether a username needs decorating. Other users: only if they
+        // have a resolvable aura. The local user: if they have an aura (resolved
+        // from their FULL data, which a surface's stripped per-row user object may
+        // lack) OR an equipped name colour to paint.
+        private static bool shouldDecorate(APIUser? user)
+        {
+            if (AuraRegistry.ResolveForUser(user) != null)
+                return true;
+
+            var local = LocalUserProvider?.Invoke();
+            if (local != null && user != null && user.Id == local.Id)
+                return AuraRegistry.ResolveForUser(local) != null || (LocalUserHasNameColour?.Invoke() ?? false);
+
+            return false;
+        }
+
         public static Drawable Wrap(APIUser? user, Drawable target)
         {
-            if (AuraRegistry.ResolveForUser(user) == null)
+            if (!shouldDecorate(user))
                 return target;
 
             var anchor = target.Anchor;

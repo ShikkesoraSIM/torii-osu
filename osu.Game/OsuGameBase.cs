@@ -426,7 +426,33 @@ namespace osu.Game
 
             // Torii cosmetics (cursor-trail store): app-wide owned/equipped/
             // points state, shared by the cursor containers + the store overlay.
-            dependencies.Cache(new osu.Game.Cosmetics.ToriiCosmeticsManager(LocalConfig));
+            var toriiCosmetics = new osu.Game.Cosmetics.ToriiCosmeticsManager(LocalConfig);
+            dependencies.Cache(toriiCosmetics);
+
+            // Torii: let the username decorator (UserAuraContainer) resolve the
+            // FULL local user on surfaces that only carry a stripped user object
+            // (a leaderboard score's user has no groups), so the local player's
+            // aura + equipped name colour show up everywhere their name appears,
+            // not just on their profile. Lambdas read live state when invoked.
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserProvider = () => API?.LocalUser.Value;
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserHasNameColour =
+                () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value);
+
+            // ...and the same colour through ToriiColourHelper, which is the
+            // username-colour authority the leaderboards already read (they set
+            // the name colour via a transform, so they have to pull it from here
+            // rather than have it painted on top).
+            osu.Game.Online.ToriiColourHelper.LocalEquippedNameColourProvider = () =>
+            {
+                string colourId = toriiCosmetics.EquippedNameColourId.Value;
+                if (string.IsNullOrEmpty(colourId))
+                    return null;
+
+                var resolved = osu.Game.Cosmetics.CosmeticNameColourCatalog.GetById(colourId, API?.LocalUser.Value);
+                return resolved == null
+                    ? (Colour4?)null
+                    : new Colour4(resolved.Primary.R, resolved.Primary.G, resolved.Primary.B, resolved.Primary.A);
+            };
 
             // Torii: side-car JSON store backing the "[NEW]" pill on
             // settings + menus. Cached here (rather than living inside
