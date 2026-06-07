@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Audio.Sample;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
@@ -64,6 +66,10 @@ namespace osu.Game.Overlays.Cosmetics
         // falls back to the local list meanwhile.
         private APIAuraCatalog auraCatalog;
 
+        private Sample buySample;
+        private Sample equipSample;
+        private Sample unequipSample;
+
         private BriefingGlass mainPanel;
         private OsuTabControl<StoreTab> tabs;
         private OsuScrollContainer cardScroll;
@@ -84,8 +90,12 @@ namespace osu.Game.Overlays.Cosmetics
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(AudioManager audio)
         {
+            buySample = audio.Samples.Get(@"SongSelect/confirm-selection");
+            equipSample = audio.Samples.Get(@"UI/check-on");
+            unequipSample = audio.Samples.Get(@"UI/check-off");
+
             InternalChildren = new Drawable[]
             {
                 new Box
@@ -99,32 +109,36 @@ namespace osu.Game.Overlays.Cosmetics
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
                     Size = new Vector2(0.9f, 0.86f),
-                    Child = mainPanel = new BriefingGlass
+                    Children = new Drawable[]
                     {
-                        RelativeSizeAxes = Axes.Both,
-                        RelativeContentSize = Axes.Both,
-                        CornerSize = BriefingTheme.CornerLg,
-                        SpecularStrength = 0.18f,
-                        SpecularHeight = 80f,
-                        ShadowOpacity = 0.4f,
-                        ShadowRadius = 30,
-                        Child = new GridContainer
+                        mainPanel = new BriefingGlass
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Padding = new MarginPadding(BriefingTheme.SpacingLg),
-                            RowDimensions = new[]
+                            RelativeContentSize = Axes.Both,
+                            CornerSize = BriefingTheme.CornerLg,
+                            SpecularStrength = 0.18f,
+                            SpecularHeight = 80f,
+                            ShadowOpacity = 0.4f,
+                            ShadowRadius = 30,
+                            Child = new GridContainer
                             {
-                                new Dimension(GridSizeMode.AutoSize),
-                                new Dimension(GridSizeMode.Absolute, BriefingTheme.SpacingMd),
-                                new Dimension(),
-                            },
-                            Content = new[]
-                            {
-                                new Drawable[] { createHeader() },
-                                new Drawable[] { Empty() },
-                                new Drawable[] { createBody() },
+                                RelativeSizeAxes = Axes.Both,
+                                Padding = new MarginPadding(BriefingTheme.SpacingLg),
+                                RowDimensions = new[]
+                                {
+                                    new Dimension(GridSizeMode.AutoSize),
+                                    new Dimension(GridSizeMode.Absolute, BriefingTheme.SpacingMd),
+                                    new Dimension(),
+                                },
+                                Content = new[]
+                                {
+                                    new Drawable[] { createHeader() },
+                                    new Drawable[] { Empty() },
+                                    new Drawable[] { createBody() },
+                                },
                             },
                         },
+                        createCloseButton(),
                     },
                 },
             };
@@ -340,8 +354,8 @@ namespace osu.Game.Overlays.Cosmetics
                 }, true);
                 // Buy / equip only flip badges; refresh them in place instead of
                 // rebuilding the whole grid (35 trail previews) which lagged hard.
-                cosmetics.EquippedTrailId.BindValueChanged(_ => { refreshCards(); updateEquippedText(); });
-                cosmetics.EquippedNameColourId.BindValueChanged(_ => { refreshCards(); updateEquippedText(); });
+                cosmetics.EquippedTrailId.BindValueChanged(e => { refreshCards(); updateEquippedText(); playEquipSound(e.NewValue); });
+                cosmetics.EquippedNameColourId.BindValueChanged(e => { refreshCards(); updateEquippedText(); playEquipSound(e.NewValue); });
                 cosmetics.InventoryChanged += onInventoryChanged;
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
@@ -362,7 +376,25 @@ namespace osu.Game.Overlays.Cosmetics
         // Buying only flips an OWNED badge (the whole catalog is always shown in
         // Store, and you can't buy from Inventory), so just refresh badges. A
         // genuine add/remove only happens on a tab switch, which still rebuilds.
-        private void onInventoryChanged() => Schedule(refreshCards);
+        private void onInventoryChanged() => Schedule(() =>
+        {
+            refreshCards();
+            // A buy is the only thing that grows the inventory while the store is
+            // open, so play the purchase chime here (single chokepoint for trails,
+            // name colours and auras alike).
+            if (State.Value == Visibility.Visible)
+                buySample?.Play();
+        });
+
+        // Equip / unequip feedback. An empty value (the aura "none" sentinel is
+        // passed in as empty) means "cleared", so play the softer off sound.
+        private void playEquipSound(string newValue)
+        {
+            if (State.Value != Visibility.Visible)
+                return;
+
+            (string.IsNullOrEmpty(newValue) ? unequipSample : equipSample)?.Play();
+        }
 
         private void refreshCards()
         {
@@ -667,6 +699,7 @@ namespace osu.Game.Overlays.Cosmetics
             api.Queue(req);
 
             refreshCards();
+            playEquipSound(auraId == "none" ? string.Empty : auraId);
         }
 
         // "none" is the server sentinel for "no aura" — clears any equipped or
@@ -738,6 +771,27 @@ namespace osu.Game.Overlays.Cosmetics
             toast.Delay(1550).FadeOut(350, Easing.OutQuint).Expire();
         }
 
+        private Drawable createCloseButton() => new CloseButton
+        {
+            Anchor = Anchor.TopRight,
+            Origin = Anchor.TopRight,
+            Margin = new MarginPadding(12),
+            Action = Hide,
+        };
+
+        // Clicking anywhere outside the panel closes the store. Clicks that land
+        // on the panel (even empty areas) are left to its own children.
+        protected override bool OnClick(ClickEvent e)
+        {
+            if (mainPanel != null && !mainPanel.ReceivePositionalInputAt(e.ScreenSpaceMousePosition))
+            {
+                Hide();
+                return true;
+            }
+
+            return base.OnClick(e);
+        }
+
         protected override void PopIn()
         {
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
@@ -786,6 +840,53 @@ namespace osu.Game.Overlays.Cosmetics
         {
             Store,
             Inventory,
+        }
+
+        // Round corner "X" button on the panel; hover brightens to pink.
+        private partial class CloseButton : OsuClickableContainer
+        {
+            private Box bg;
+
+            public CloseButton()
+            {
+                Size = new Vector2(30);
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Child = new CircularContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Masking = true,
+                    Children = new Drawable[]
+                    {
+                        bg = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Black.Opacity(0.4f) },
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Icon = FontAwesome.Solid.Times,
+                            Size = new Vector2(13),
+                            Colour = Color4.White,
+                        },
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                bg.FadeColour(BriefingTheme.AccentPink, 150, Easing.OutQuint);
+                this.ScaleTo(1.1f, 150, Easing.OutQuint);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                bg.FadeColour(Color4.Black.Opacity(0.4f), 200, Easing.OutQuint);
+                this.ScaleTo(1f, 200, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
         }
     }
 }
