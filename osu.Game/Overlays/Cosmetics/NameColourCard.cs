@@ -49,7 +49,7 @@ namespace osu.Game.Overlays.Cosmetics
         [BackgroundDependencyLoader]
         private void load()
         {
-            bool owned = cosmetics?.IsOwned(colour.Id) ?? false;
+            bool owned = colour.Earned || (cosmetics?.IsOwned(colour.Id) ?? false);
             bool equipped = cosmetics != null && cosmetics.EquippedNameColourId.Value == colour.Id;
 
             Child = content = new Container
@@ -151,6 +151,7 @@ namespace osu.Game.Overlays.Cosmetics
         private Drawable createFooter(bool owned, bool equipped)
         {
             Color4 footerColour = equipped ? BriefingTheme.AccentGain
+                : colour.Earned ? BriefingTheme.AccentAmber
                 : owned ? BriefingTheme.AccentSky
                 : BriefingTheme.AccentAmber;
 
@@ -186,7 +187,7 @@ namespace osu.Game.Overlays.Cosmetics
                 {
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
-                    Text = equipped ? "EQUIPPED" : "OWNED",
+                    Text = equipped ? "EQUIPPED" : colour.Earned ? "EARNED" : "OWNED",
                     Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
                     Colour = footerColour,
                 });
@@ -227,12 +228,12 @@ namespace osu.Game.Overlays.Cosmetics
                 new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = (equipped ? BriefingTheme.AccentGain : BriefingTheme.AccentSky).Opacity(0.92f),
+                    Colour = (equipped ? BriefingTheme.AccentGain : colour.Earned ? BriefingTheme.AccentAmber : BriefingTheme.AccentSky).Opacity(0.92f),
                 },
                 new OsuSpriteText
                 {
                     Margin = new MarginPadding { Horizontal = 7, Vertical = 3 },
-                    Text = equipped ? "EQUIPPED" : "OWNED",
+                    Text = equipped ? "EQUIPPED" : colour.Earned ? "EARNED" : "OWNED",
                     Font = OsuFont.GetFont(size: 10, weight: FontWeight.Bold),
                     Colour = Color4.Black.Opacity(0.85f),
                 },
@@ -246,7 +247,7 @@ namespace osu.Game.Overlays.Cosmetics
             if (footerHolder == null)
                 return;
 
-            bool owned = cosmetics?.IsOwned(colour.Id) ?? false;
+            bool owned = colour.Earned || (cosmetics?.IsOwned(colour.Id) ?? false);
             bool equipped = cosmetics != null && cosmetics.EquippedNameColourId.Value == colour.Id;
 
             footerHolder.Child = createFooter(owned, equipped);

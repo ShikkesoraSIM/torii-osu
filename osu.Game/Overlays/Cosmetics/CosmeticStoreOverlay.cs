@@ -400,7 +400,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             // ── Name colours (second category) ──────────────────────────────
             var colours = (inventory
-                ? CosmeticNameColourCatalog.Colours.Where(c => cosmetics?.IsOwned(c.Id) ?? false)
+                ? CosmeticNameColourCatalog.Colours.Where(c => c.Earned || (cosmetics?.IsOwned(c.Id) ?? false))
                 : CosmeticNameColourCatalog.Colours).ToList();
 
             if (colours.Count > 0)

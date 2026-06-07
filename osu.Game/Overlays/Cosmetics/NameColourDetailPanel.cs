@@ -62,7 +62,7 @@ namespace osu.Game.Overlays.Cosmetics
         {
             flow.Clear();
 
-            bool owned = cosmetics?.IsOwned(colour.Id) ?? false;
+            bool owned = colour.Earned || (cosmetics?.IsOwned(colour.Id) ?? false);
             bool equipped = cosmetics != null && cosmetics.EquippedNameColourId.Value == colour.Id;
 
             flow.Add(new Container
@@ -90,9 +90,9 @@ namespace osu.Game.Overlays.Cosmetics
 
             flow.Add(new OsuSpriteText
             {
-                Text = $"{colour.Tier} · {colour.Price:N0} pts",
+                Text = colour.Earned ? $"{colour.Tier} · Earned (granted)" : $"{colour.Tier} · {colour.Price:N0} pts",
                 Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
-                Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                Colour = colour.Earned ? BriefingTheme.AccentAmber : Color4.White.Opacity(BriefingTheme.InkSecondary),
             });
 
             if (!owned)
