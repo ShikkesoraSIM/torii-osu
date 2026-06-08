@@ -372,7 +372,7 @@ namespace osu.Game.Overlays.Cosmetics
             // The admin cog only shows for admins (server-set IsAdmin). Bound so
             // it appears even if the local user payload arrives after load.
             if (api != null && adminGear != null)
-                api.LocalUser.BindValueChanged(u => adminGear.Alpha = (u.NewValue?.IsAdmin ?? false) ? 1 : 0, true);
+                api.LocalUser.BindValueChanged(u => adminGear.Alpha = localUserIsAdmin(u.NewValue) ? 1 : 0, true);
 
             tabs.Current.BindValueChanged(_ => rebuildCards(), true);
         }
@@ -793,14 +793,21 @@ namespace osu.Game.Overlays.Cosmetics
         };
 
         // Admin-only cog in the header that opens the store curation panel. Its
-        // visibility tracks the server-set IsAdmin flag (bound in LoadComplete).
+        // visibility tracks server-confirmed admin status (bound in LoadComplete).
         private Drawable createAdminGear() => new AdminGearButton
         {
             Anchor = Anchor.Centre,
             Origin = Anchor.Centre,
-            Alpha = (api?.LocalUser.Value?.IsAdmin ?? false) ? 1 : 0,
+            Alpha = localUserIsAdmin(api?.LocalUser.Value) ? 1 : 0,
             Action = () => adminOverlay?.ToggleVisibility(),
         };
+
+        // Server-confirmed admin: either the stock is_admin flag OR membership of
+        // the torii-admin group (how g0v0 actually marks staff — same identifier
+        // the role colours / auras key off). Either is set server-side, so it
+        // can't be spoofed from the client.
+        private static bool localUserIsAdmin(APIUser u) =>
+            u != null && (u.IsAdmin || (u.Groups?.Any(g => g.Identifier == "torii-admin") ?? false));
 
         // Clicking anywhere outside the panel closes the store. Clicks that land
         // on the panel (even empty areas) are left to its own children.
