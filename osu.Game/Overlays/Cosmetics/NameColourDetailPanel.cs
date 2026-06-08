@@ -30,6 +30,9 @@ namespace osu.Game.Overlays.Cosmetics
 
         private FillFlowContainer flow;
 
+        [Resolved(CanBeNull = true)]
+        private IDialogOverlay dialogOverlay { get; set; }
+
         public NameColourDetailPanel(CosmeticNameColour colour, ToriiCosmeticsManager cosmetics, Action<string> notify)
         {
             this.colour = colour;
@@ -106,14 +109,14 @@ namespace osu.Game.Overlays.Cosmetics
                     Text = $"Buy  ·  {colour.Price:N0} pts",
                     BackgroundColour = BriefingTheme.AccentPink,
                     Enabled = { Value = afford },
-                    Action = () =>
+                    Action = () => CosmeticPurchaseDialog.Prompt(dialogOverlay, colour.Name, colour.Price, () =>
                     {
                         if (cosmetics != null && cosmetics.Buy(colour.Id, colour.Price))
                         {
                             notify?.Invoke($"Purchased {colour.Name}");
                             rebuild();
                         }
-                    },
+                    }),
                 });
 
                 if (!afford)

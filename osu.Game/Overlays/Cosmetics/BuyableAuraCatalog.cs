@@ -38,10 +38,11 @@ namespace osu.Game.Overlays.Cosmetics
 
         public static readonly IReadOnlyList<Entry> All = new[]
         {
-            // Stardust — the single points-buyable aura for now. Priced above a
-            // gradient name colour (800) since it is a larger, animated effect,
-            // but well within reach so it feels like a goal, not a paywall.
-            new Entry(AuraRegistry.GetById(StardustAuraPreset.ID), 2500, CosmeticTier.Special),
+            // For now the store sells only the Summer aura. Stardust stays
+            // registered as a preset (previewable in the inventory gallery) but
+            // is not on sale yet. Summer is also earned via its event group;
+            // buying it is just an alternative path to the same aura.
+            new Entry(AuraRegistry.GetById(SummerAuraPreset.ID), 3000, CosmeticTier.Premium),
         };
 
         public static Entry GetById(string id) => All.FirstOrDefault(e => e.Id == id);

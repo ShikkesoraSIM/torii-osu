@@ -35,6 +35,9 @@ namespace osu.Game.Overlays.Cosmetics
         private FillFlowContainer flow;
         private CosmeticTrailPreview preview;
 
+        [Resolved(CanBeNull = true)]
+        private IDialogOverlay dialogOverlay { get; set; }
+
         // Current customisation (Length is a 0..1 scale, 1 = catalog default;
         // Density / Size are multipliers within the CosmeticEconomy ranges).
         private float curLen = 1f;
@@ -118,14 +121,14 @@ namespace osu.Game.Overlays.Cosmetics
                     Text = $"Buy  ·  {def.Price:N0} pts",
                     BackgroundColour = BriefingTheme.AccentPink,
                     Enabled = { Value = afford },
-                    Action = () =>
+                    Action = () => CosmeticPurchaseDialog.Prompt(dialogOverlay, def.Name, def.Price, () =>
                     {
                         if (cosmetics != null && cosmetics.Buy(def.Id, def.Price))
                         {
                             notify?.Invoke($"Purchased {def.Name}");
                             rebuild();
                         }
-                    },
+                    }),
                 });
 
                 if (!afford)

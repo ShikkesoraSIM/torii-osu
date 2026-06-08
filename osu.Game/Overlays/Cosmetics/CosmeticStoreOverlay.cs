@@ -24,7 +24,6 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserEffects;
-using osu.Game.Graphics.UserEffects.Presets;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
@@ -533,7 +532,9 @@ namespace osu.Game.Overlays.Cosmetics
 
                 foreach (var preset in AuraRegistry.AllPresets)
                 {
-                    if (preset.AuraId == StardustAuraPreset.ID)
+                    // Skip buyable auras here; they surface via the buyable path
+                    // (owned ones above, all of them in the Store tab).
+                    if (BuyableAuraCatalog.GetById(preset.AuraId) != null)
                         continue;
                     if (!seenAuras.Add(preset.AuraId))
                         continue;

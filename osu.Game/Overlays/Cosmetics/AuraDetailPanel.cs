@@ -41,6 +41,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private IAPIProvider api { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private IDialogOverlay dialogOverlay { get; set; }
+
         private FillFlowContainer flow;
 
         private bool earned => price == null;
@@ -149,7 +152,7 @@ namespace osu.Game.Overlays.Cosmetics
                     Text = $"Buy  ·  {price:N0} pts",
                     BackgroundColour = BriefingTheme.AccentPink,
                     Enabled = { Value = afford },
-                    Action = () =>
+                    Action = () => CosmeticPurchaseDialog.Prompt(dialogOverlay, title, price ?? 0, () =>
                     {
                         if (cosmetics != null && cosmetics.Buy(preset.AuraId, price ?? 0))
                         {
@@ -158,7 +161,7 @@ namespace osu.Game.Overlays.Cosmetics
                             equip?.Invoke(preset.AuraId);
                             rebuild();
                         }
-                    },
+                    }),
                 });
 
                 if (!afford)
