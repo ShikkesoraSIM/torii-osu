@@ -13,9 +13,6 @@ namespace osu.Game.Overlays.Cosmetics
     /// so a fat-finger doesn't drain a big points balance.</summary>
     public partial class CosmeticPurchaseDialog : PopupDialog
     {
-        /// <summary>Purchases at or above this many points ask for confirmation.</summary>
-        public const int ConfirmThreshold = 1500;
-
         public CosmeticPurchaseDialog(string itemName, int price, Action onConfirm)
         {
             HeaderText = $"Buy {itemName}?";
@@ -37,11 +34,11 @@ namespace osu.Game.Overlays.Cosmetics
             };
         }
 
-        /// <summary>Cheap items buy immediately; expensive ones confirm first
-        /// (when a dialog overlay is available — otherwise just buy).</summary>
+        /// <summary>Always confirm a purchase before spending (when a dialog
+        /// overlay is available — otherwise just buy).</summary>
         public static void Prompt(IDialogOverlay dialog, string itemName, int price, Action onConfirm)
         {
-            if (price >= ConfirmThreshold && dialog != null)
+            if (dialog != null)
                 dialog.Push(new CosmeticPurchaseDialog(itemName, price, onConfirm));
             else
                 onConfirm();

@@ -537,6 +537,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
             SetDefault(OsuSetting.CosmeticsReducedMotion, false);
             SetDefault(OsuSetting.CosmeticsHidden, false);
+            SetDefault(OsuSetting.CosmeticStoreDisabled, string.Empty);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -1041,5 +1042,11 @@ namespace osu.Game.Configuration
         /// <summary>Torii cosmetics: "ignore cosmetics" — render plain usernames
         /// with no colour, glow or particle aura (the vanilla look).</summary>
         CosmeticsHidden,
+
+        /// <summary>Torii cosmetics admin: comma-separated ids of catalog items
+        /// an admin has pulled OUT of the store pool (so they don't appear for
+        /// sale). Empty = everything in the catalog is sellable. Local stand-in
+        /// until the server owns the store config.</summary>
+        CosmeticStoreDisabled,
     }
 }

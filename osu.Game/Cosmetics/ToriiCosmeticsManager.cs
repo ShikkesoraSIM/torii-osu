@@ -107,6 +107,55 @@ namespace osu.Game.Cosmetics
             return true;
         }
 
+        // ── Store curation (admin) ──────────────────────────────────────────
+        // Which catalog items an admin has pulled OUT of the store pool. Local
+        // stand-in until the server owns the store config; persisted the same
+        // comma-separated way as ownership. Only affects what is offered FOR
+        // SALE — already-owned items still show in the inventory.
+
+        /// <summary>Fires when the admin store curation changes.</summary>
+        public event Action StoreCurationChanged;
+
+        /// <summary>True if this catalog id is currently sellable (an admin has
+        /// not pulled it from the store pool).</summary>
+        public bool IsStoreEnabled(string id) => !storeDisabledSet().Contains(id);
+
+        /// <summary>Admin: include / exclude a catalog id from the store pool.</summary>
+        public void SetStoreEnabled(string id, bool enabled)
+        {
+            var set = storeDisabledSet();
+            bool changed = enabled ? set.Remove(id) : set.Add(id);
+            if (!changed)
+                return;
+
+            config.SetValue(OsuSetting.CosmeticStoreDisabled, string.Join(",", set));
+            StoreCurationChanged?.Invoke();
+        }
+
+        /// <summary>Admin: include / exclude many ids at once, firing the change
+        /// event a single time (used by the "show / hide all" bulk actions).</summary>
+        public void SetStoreEnabledBatch(IEnumerable<string> ids, bool enabled)
+        {
+            var set = storeDisabledSet();
+            bool changed = false;
+            foreach (string id in ids)
+                changed |= enabled ? set.Remove(id) : set.Add(id);
+
+            if (!changed)
+                return;
+
+            config.SetValue(OsuSetting.CosmeticStoreDisabled, string.Join(",", set));
+            StoreCurationChanged?.Invoke();
+        }
+
+        private HashSet<string> storeDisabledSet()
+        {
+            var set = new HashSet<string>();
+            foreach (string s in config.Get<string>(OsuSetting.CosmeticStoreDisabled).Split(',', StringSplitOptions.RemoveEmptyEntries))
+                set.Add(s);
+            return set;
+        }
+
         // ── Equip ───────────────────────────────────────────────────────────
 
         public void Equip(string id) => EquippedTrailId.Value = id ?? string.Empty;
