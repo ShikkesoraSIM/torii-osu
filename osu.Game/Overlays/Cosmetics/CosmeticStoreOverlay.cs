@@ -70,8 +70,6 @@ namespace osu.Game.Overlays.Cosmetics
         private Sample unequipSample;
 
         private BriefingGlass mainPanel;
-        private CosmeticAdminOverlay adminOverlay;
-        private Drawable adminGear;
         private OsuTabControl<StoreTab> tabs;
         private OsuScrollContainer cardScroll;
         private FillFlowContainer cardFlow;
@@ -142,7 +140,6 @@ namespace osu.Game.Overlays.Cosmetics
                         createCloseButton(),
                     },
                 },
-                adminOverlay = new CosmeticAdminOverlay(),
             };
         }
 
@@ -195,7 +192,6 @@ namespace osu.Game.Overlays.Cosmetics
                                             Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
                                             Colour = BriefingTheme.AccentAmber,
                                         },
-                                        adminGear = createAdminGear(),
                                     },
                                 },
                             },
@@ -373,11 +369,6 @@ namespace osu.Game.Overlays.Cosmetics
                 rotationText.Text = $"Featured rotates in ~{hours}h";
                 updateEquippedText();
             }
-
-            // The admin cog only shows for admins (server-set IsAdmin). Bound so
-            // it appears even if the local user payload arrives after load.
-            if (api != null && adminGear != null)
-                api.LocalUser.BindValueChanged(u => adminGear.Alpha = localUserIsAdmin(u.NewValue) ? 1 : 0, true);
 
             tabs.Current.BindValueChanged(_ => rebuildCards(), true);
         }
@@ -797,16 +788,6 @@ namespace osu.Game.Overlays.Cosmetics
             Action = Hide,
         };
 
-        // Admin-only cog in the header that opens the store curation panel. Its
-        // visibility tracks server-confirmed admin status (bound in LoadComplete).
-        private Drawable createAdminGear() => new AdminGearButton
-        {
-            Anchor = Anchor.Centre,
-            Origin = Anchor.Centre,
-            Alpha = localUserIsAdmin(api?.LocalUser.Value) ? 1 : 0,
-            Action = () => adminOverlay?.ToggleVisibility(),
-        };
-
         // Server-confirmed admin: either the stock is_admin flag OR membership of
         // the torii-admin group (how g0v0 actually marks staff — same identifier
         // the role colours / auras key off). Either is set server-side, so it
@@ -899,44 +880,6 @@ namespace osu.Game.Overlays.Cosmetics
             }
 
             return base.OnPressed(e);
-        }
-
-        // Small cog button (admin only) that opens the store curation panel.
-        private partial class AdminGearButton : OsuClickableContainer
-        {
-            private SpriteIcon icon;
-
-            public AdminGearButton()
-            {
-                Size = new Vector2(26);
-            }
-
-            [BackgroundDependencyLoader]
-            private void load()
-            {
-                Child = icon = new SpriteIcon
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Icon = FontAwesome.Solid.Cog,
-                    Size = new Vector2(18),
-                    Colour = Color4.White.Opacity(0.75f),
-                };
-            }
-
-            protected override bool OnHover(HoverEvent e)
-            {
-                icon.FadeColour(BriefingTheme.AccentPink, 150, Easing.OutQuint);
-                this.ScaleTo(1.12f, 150, Easing.OutQuint);
-                return base.OnHover(e);
-            }
-
-            protected override void OnHoverLost(HoverLostEvent e)
-            {
-                icon.FadeColour(Color4.White.Opacity(0.75f), 200, Easing.OutQuint);
-                this.ScaleTo(1f, 200, Easing.OutQuint);
-                base.OnHoverLost(e);
-            }
         }
 
         public enum StoreTab
