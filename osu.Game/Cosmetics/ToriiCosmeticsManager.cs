@@ -156,6 +156,19 @@ namespace osu.Game.Cosmetics
             return set;
         }
 
+        /// <summary>The catalog ids currently pulled from the store pool.</summary>
+        public IReadOnlyCollection<string> StoreDisabledIds => storeDisabledSet();
+
+        /// <summary>Overwrite the local disabled-set cache with the server's
+        /// authoritative list. Does NOT fire <see cref="StoreCurationChanged"/>
+        /// (so it never echoes the value straight back to the server) — callers
+        /// refresh their UI directly after applying.</summary>
+        public void ApplyServerDisabled(IEnumerable<string> ids)
+        {
+            var set = new HashSet<string>(ids ?? Enumerable.Empty<string>());
+            config.SetValue(OsuSetting.CosmeticStoreDisabled, string.Join(",", set));
+        }
+
         // ── Equip ───────────────────────────────────────────────────────────
 
         public void Equip(string id) => EquippedTrailId.Value = id ?? string.Empty;

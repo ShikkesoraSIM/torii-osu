@@ -361,8 +361,13 @@ namespace osu.Game.Overlays.Cosmetics
                 cosmetics.EquippedNameColourId.BindValueChanged(e => { refreshCards(); updateEquippedText(); playEquipSound(e.NewValue); });
                 cosmetics.InventoryChanged += onInventoryChanged;
                 // Admin pulled an item in/out of the store pool: rebuild so the
-                // store list reflects it live.
-                cosmetics.StoreCurationChanged += () => Schedule(rebuildCards);
+                // store list reflects it live, and persist the change server-side
+                // so it applies for everyone (no-op / 403 for non-admins).
+                cosmetics.StoreCurationChanged += () => Schedule(() =>
+                {
+                    rebuildCards();
+                    pushStoreConfig();
+                });
 
                 int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
                 rotationText.Text = $"Featured rotates in ~{hours}h";
@@ -828,6 +833,7 @@ namespace osu.Game.Overlays.Cosmetics
             mainPanel.ScaleTo(0.94f).ScaleTo(1f, BriefingTheme.EntranceDuration, Easing.OutBack)
                      .MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
             fetchAuraCatalog();
+            fetchStoreConfig();
             rebuildCards();
         }
 
@@ -847,6 +853,35 @@ namespace osu.Game.Overlays.Cosmetics
                 rebuildCards();
             });
             api.Queue(req);
+        }
+
+        // Pull the admin-curated store pool config so the store hides items an
+        // admin pulled from sale. The server is the source of truth (shared
+        // across clients); falls back to the local cache if the request fails
+        // (e.g. a server that hasn't shipped the endpoint yet).
+        private void fetchStoreConfig()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var req = new GetStoreConfigRequest();
+            req.Success += cfg => Schedule(() =>
+            {
+                cosmetics?.ApplyServerDisabled(cfg.Disabled ?? System.Array.Empty<string>());
+                rebuildCards();
+            });
+            api.Queue(req);
+        }
+
+        // Persist the current disabled-id set server-side (admin only). The
+        // server re-validates admin, so a non-admin call simply 403s.
+        private void pushStoreConfig()
+        {
+            if (api?.IsLoggedIn != true || !localUserIsAdmin(api.LocalUser.Value))
+                return;
+
+            string[] ids = cosmetics?.StoreDisabledIds?.ToArray() ?? System.Array.Empty<string>();
+            api.Queue(new UpdateStoreConfigRequest(ids));
         }
 
         protected override void PopOut()
