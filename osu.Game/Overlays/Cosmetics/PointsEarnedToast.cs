@@ -279,6 +279,9 @@ namespace osu.Game.Overlays.Cosmetics
                 case "access_code":
                     return new PointsReasonInfo("Code redeemed!", null, FontAwesome.Solid.Award, BriefingTheme.AccentSky);
 
+                case "milestone":
+                    return new PointsReasonInfo("Milestone!", milestoneSubtitle(reasonRef), FontAwesome.Solid.Gem, BriefingTheme.AccentSky);
+
                 default:
                     return new PointsReasonInfo("Points earned!", null, FontAwesome.Solid.Star, BriefingTheme.AccentAmber);
             }
@@ -290,6 +293,15 @@ namespace osu.Game.Overlays.Cosmetics
                 return 0;
 
             return int.TryParse(reasonRef.Substring("streak:".Length), out int n) ? n : 0;
+        }
+
+        private static string milestoneSubtitle(string reasonRef)
+        {
+            if (!string.IsNullOrEmpty(reasonRef) && reasonRef.StartsWith("pp:", StringComparison.Ordinal)
+                && int.TryParse(reasonRef.Substring("pp:".Length), out int pp))
+                return $"{pp:N0}pp reached";
+
+            return null;
         }
     }
 }

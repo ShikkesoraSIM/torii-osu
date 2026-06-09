@@ -48,6 +48,7 @@ namespace osu.Game.Tests.Visual.UserInterface
             AddStep("daily streak x5 (+35)", () => push(35, "daily_play", "streak:5"));
             AddStep("gift (+500)", () => push(500, "gift"));
             AddStep("code redeemed (+1000)", () => push(1000, "access_code"));
+            AddStep("milestone 5000pp (+250)", () => push(250, "milestone", "pp:5000"));
             AddStep("unknown reason (+50)", () => push(50, "mystery"));
             AddStep("reduced motion (228)", () => push(228, "top_play", "score:5|b:100|v:50|pp:78", true));
             AddStep("burst: daily + top", () =>
