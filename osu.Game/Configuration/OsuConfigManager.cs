@@ -533,6 +533,9 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
             SetDefault(OsuSetting.ToriiPointsBalance, 90000);
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
+            // Cursor into the server points ledger: highest event id we've already
+            // celebrated with a "+N" toast, so each earn pops exactly once.
+            SetDefault(OsuSetting.ToriiPointsFeedCursor, 0);
             SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
             SetDefault(OsuSetting.CosmeticsReducedMotion, false);
@@ -945,6 +948,7 @@ namespace osu.Game.Configuration
         CursorTrailCustomisations,
         ToriiPointsBalance,
         ToriiPointsSeeded,
+        ToriiPointsFeedCursor,
 
         /// <summary>Store "Potato PC" mode: previews render a frozen snapshot
         /// instead of animating live, for weak hardware.</summary>

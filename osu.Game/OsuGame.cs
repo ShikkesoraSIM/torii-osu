@@ -227,6 +227,8 @@ namespace osu.Game
 
         private osu.Game.Overlays.Cosmetics.ToriiGiftWatcher toriiGiftWatcher;
 
+        private osu.Game.Overlays.Cosmetics.ToriiPointsWatcher toriiPointsWatcher;
+
         protected BackButton BackButton => screenStackFooter.BackButton;
         protected ScreenFooter ScreenFooter => screenStackFooter.Footer;
 
@@ -1380,6 +1382,7 @@ namespace osu.Game
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiGiftOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(toriiGiftWatcher = new osu.Game.Overlays.Cosmetics.ToriiGiftWatcher(), Add, true);
+            loadComponentSingleFile(toriiPointsWatcher = new osu.Game.Overlays.Cosmetics.ToriiPointsWatcher(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
@@ -2047,9 +2050,15 @@ namespace osu.Game
             // Torii gifts: a results screen means a map was just played; the main
             // menu is the calm moment to reveal a pending gift (never on login).
             if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
+            {
                 toriiGiftWatcher?.MarkPlayed();
+                toriiPointsWatcher?.MarkPlayed();
+            }
             else if (newScreen is osu.Game.Screens.Menu.MainMenu)
+            {
                 toriiGiftWatcher?.OnMenu();
+                toriiPointsWatcher?.OnMenu();
+            }
         }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)
