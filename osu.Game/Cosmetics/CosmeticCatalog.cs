@@ -74,7 +74,7 @@ namespace osu.Game.Cosmetics
         public static readonly IReadOnlyList<CosmeticTrailDefinition> Trails = new[]
         {
             // ── Smooth ribbons: solid colours (normal blend keeps colour true).
-            solid("trail-pearl", "Pearl", 150, pearl),
+            solid("trail-pearl", "Pearl", 300, pearl),
             solid("trail-crimson", "Crimson", 300, crimson),
             solid("trail-ocean", "Ocean", 300, ocean),
             solid("trail-mint", "Mint", 300, mint),

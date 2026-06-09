@@ -19,11 +19,11 @@ namespace osu.Game.Cosmetics
     {
         /// <summary>One-time, account-wide unlock: adjust trail LENGTH on owned
         /// trails.</summary>
-        public const int AdjustableLengthUnlock = 2500;
+        public const int AdjustableLengthUnlock = 250;
 
         /// <summary>One-time, account-wide unlock: adjust trail DENSITY /
         /// thickness on owned trails.</summary>
-        public const int AdjustableDensityUnlock = 2500;
+        public const int AdjustableDensityUnlock = 250;
 
         /// <summary>Range for the DENSITY slider (count per unit travel). Kept
         /// moderate so neither end looks broken (too sparse / too fat).</summary>
