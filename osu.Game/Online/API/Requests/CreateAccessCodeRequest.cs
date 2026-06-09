@@ -18,12 +18,14 @@ namespace osu.Game.Online.API.Requests
         private readonly int amount;
         private readonly int maxUses;
         private readonly string note;
+        private readonly string[] grantCosmetics;
 
-        public CreateAccessCodeRequest(int amount, int maxUses, string note)
+        public CreateAccessCodeRequest(int amount, int maxUses, string note, string[] grantCosmetics = null)
         {
             this.amount = amount;
             this.maxUses = maxUses;
             this.note = note;
+            this.grantCosmetics = grantCosmetics;
         }
 
         protected override WebRequest CreateWebRequest()
@@ -36,6 +38,7 @@ namespace osu.Game.Online.API.Requests
                 amount,
                 max_uses = maxUses,
                 note = string.IsNullOrWhiteSpace(note) ? null : note,
+                grant_cosmetics = grantCosmetics != null && grantCosmetics.Length > 0 ? grantCosmetics : null,
             }));
             return req;
         }

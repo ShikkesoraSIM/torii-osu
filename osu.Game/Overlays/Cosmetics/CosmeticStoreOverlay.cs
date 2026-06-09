@@ -808,6 +808,15 @@ namespace osu.Game.Overlays.Cosmetics
             return base.OnClick(e);
         }
 
+        /// <summary>Open the store straight to the Inventory tab (used by the
+        /// unlock celebration's "Go to inventory" shortcut).</summary>
+        public void OpenInventory()
+        {
+            Show();
+            if (tabs != null)
+                tabs.Current.Value = StoreTab.Inventory;
+        }
+
         protected override void PopIn()
         {
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);

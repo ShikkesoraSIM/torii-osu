@@ -95,6 +95,20 @@ namespace osu.Game.Cosmetics
             return true;
         }
 
+        /// <summary>Unlock a cosmetic for free (e.g. redeemed via an access code).
+        /// Marks it owned without spending points. Returns true if newly owned.</summary>
+        public bool Grant(string id)
+        {
+            if (string.IsNullOrEmpty(id) || IsOwned(id))
+                return false;
+
+            var set = ownedSet();
+            set.Add(id);
+            config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
+            InventoryChanged?.Invoke();
+            return true;
+        }
+
         /// <summary>Buy the account-wide length/density customisation unlock.</summary>
         public bool BuyAdjustUnlock(int price)
         {

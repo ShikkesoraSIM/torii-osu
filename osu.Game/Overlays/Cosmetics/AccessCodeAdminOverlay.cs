@@ -4,6 +4,7 @@
 #nullable disable
 
 using System;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
@@ -46,10 +47,14 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private Clipboard clipboard { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private CosmeticUnlockOverlay unlockPopup { get; set; }
+
         private BriefingGlass mainPanel;
         private OsuNumberBox amountBox;
         private OsuNumberBox usesBox;
         private OsuTextBox noteBox;
+        private CosmeticGrantPicker grantPicker;
         private RoundedButton generateButton;
         private OsuSpriteText errorText;
         private Container resultArea;
@@ -105,13 +110,14 @@ namespace osu.Game.Overlays.Cosmetics
                                         },
                                         new OsuSpriteText
                                         {
-                                            Text = "Mint a code players redeem for points. Cosmetic-granting codes come next.",
+                                            Text = "Mint a code players redeem for points and/or cosmetics.",
                                             Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                                             Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                                         },
                                         field("Points", amountBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, PlaceholderText = "e.g. 5000" }),
                                         field("Max uses", usesBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, Text = "1" }),
                                         field("Note (optional)", noteBox = new OsuTextBox { RelativeSizeAxes = Axes.X, PlaceholderText = "why this code exists" }),
+                                        field("Grant cosmetics (optional)", grantPicker = new CosmeticGrantPicker()),
                                         generateButton = new RoundedButton
                                         {
                                             RelativeSizeAxes = Axes.X,
@@ -119,6 +125,14 @@ namespace osu.Game.Overlays.Cosmetics
                                             Text = "Generate code",
                                             BackgroundColour = BriefingTheme.AccentPink,
                                             Action = generate,
+                                        },
+                                        new RoundedButton
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            Height = 38,
+                                            Text = "Preview unlock popup",
+                                            BackgroundColour = BriefingTheme.AccentSky,
+                                            Action = preview,
                                         },
                                         errorText = new OsuSpriteText
                                         {
@@ -165,6 +179,20 @@ namespace osu.Game.Overlays.Cosmetics
             },
         };
 
+        private void preview()
+        {
+            errorText.FadeOut(80);
+
+            string id = grantPicker?.Selected?.FirstOrDefault();
+            if (id == null)
+            {
+                setError("Pick a cosmetic to preview the unlock popup.");
+                return;
+            }
+
+            unlockPopup?.Display(id);
+        }
+
         private void generate()
         {
             errorText.FadeOut(80);
@@ -175,9 +203,15 @@ namespace osu.Game.Overlays.Cosmetics
                 return;
             }
 
-            if (!int.TryParse(amountBox.Current.Value, out int amount) || amount <= 0)
+            int.TryParse(amountBox.Current.Value, out int amount);
+            if (amount < 0)
+                amount = 0;
+
+            string[] grant = grantPicker?.Selected?.ToArray() ?? Array.Empty<string>();
+
+            if (amount <= 0 && grant.Length == 0)
             {
-                setError("Enter a points amount.");
+                setError("Set a points amount or pick a cosmetic to grant.");
                 return;
             }
 
@@ -187,7 +221,8 @@ namespace osu.Game.Overlays.Cosmetics
             generateButton.Enabled.Value = false;
             generateButton.Text = "Generating…";
 
-            var req = new CreateAccessCodeRequest(amount, uses, noteBox.Current.Value);
+            var req = new CreateAccessCodeRequest(amount, uses, noteBox.Current.Value,
+                grant.Length > 0 ? grant : null);
             req.Success += code => Schedule(() =>
             {
                 resetButton();

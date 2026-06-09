@@ -1373,6 +1373,7 @@ namespace osu.Game
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticStoreOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.AccessCodeAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
