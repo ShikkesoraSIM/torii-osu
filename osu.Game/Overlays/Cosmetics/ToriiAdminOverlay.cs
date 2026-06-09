@@ -56,6 +56,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private AccessCodeAdminOverlay accessCodes { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private GiftAdminOverlay gifts { get; set; }
+
         private BriefingGlass mainPanel;
         private Container toastHost;
 
@@ -186,8 +189,11 @@ namespace osu.Game.Overlays.Cosmetics
                     "Curate the store pool — show or hide trails, name colours and auras.", true,
                     openCosmetics),
                 new ToolCard(FontAwesome.Solid.TicketAlt, BriefingTheme.AccentAmber, "Access codes",
-                    "Mint codes players redeem for points (cosmetic grants coming next).", true,
+                    "Mint codes players redeem for points and/or cosmetics.", true,
                     openAccessCodes),
+                new ToolCard(FontAwesome.Solid.Gift, BriefingTheme.AccentPink, "Gifts",
+                    "Send points or cosmetics straight to a player — revealed after their next map.", true,
+                    openGifts),
                 new ToolCard(FontAwesome.Solid.Signature, BriefingTheme.AccentSky, "Name changes",
                     "Review and approve or reject pending username change requests.", false,
                     () => toast("Name changes — coming soon")),
@@ -200,6 +206,8 @@ namespace osu.Game.Overlays.Cosmetics
         private void openCosmetics() => openTool(cosmeticAdmin, "Cosmetics panel unavailable");
 
         private void openAccessCodes() => openTool(accessCodes, "Access codes panel unavailable");
+
+        private void openGifts() => openTool(gifts, "Gift panel unavailable");
 
         // Open a tool as a stacked step: hide the hub, show the tool, and bring
         // the hub back when the tool closes — so it reads as one navigation

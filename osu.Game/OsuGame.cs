@@ -225,6 +225,8 @@ namespace osu.Game
 
         protected OsuScreenStack ScreenStack;
 
+        private osu.Game.Overlays.Cosmetics.ToriiGiftWatcher toriiGiftWatcher;
+
         protected BackButton BackButton => screenStackFooter.BackButton;
         protected ScreenFooter ScreenFooter => screenStackFooter.Footer;
 
@@ -1374,7 +1376,10 @@ namespace osu.Game
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.AccessCodeAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.GiftAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiGiftOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(toriiGiftWatcher = new osu.Game.Overlays.Cosmetics.ToriiGiftWatcher(), Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
@@ -2038,6 +2043,13 @@ namespace osu.Game
             // No-op when the logger isn't running (zero per-call cost).
             osu.Game.Performance.HiccupBreadcrumbs.Add("screen.push", newScreen?.GetType().Name);
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+
+            // Torii gifts: a results screen means a map was just played; the main
+            // menu is the calm moment to reveal a pending gift (never on login).
+            if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
+                toriiGiftWatcher?.MarkPlayed();
+            else if (newScreen is osu.Game.Screens.Menu.MainMenu)
+                toriiGiftWatcher?.OnMenu();
         }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)

@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -9,10 +10,15 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
+using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
+using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Overlays.Cosmetics;
 using osuTK;
 using osuTK.Graphics;
 
@@ -31,6 +37,15 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         private Drawable alphaNavbarToggle = null!;
 
         private Bindable<bool> alphaToolbarEnabled = null!;
+
+        [Resolved(canBeNull: true)]
+        private IAPIProvider api { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager cosmetics { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private CosmeticUnlockOverlay unlockPopup { get; set; }
 
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
@@ -106,11 +121,11 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
         private void applyCode(string rawCode)
         {
-            string code = rawCode.Trim().ToLowerInvariant();
-            if (string.IsNullOrEmpty(code))
+            string raw = rawCode.Trim();
+            if (string.IsNullOrEmpty(raw))
                 return;
 
-            switch (code)
+            switch (raw.ToLowerInvariant())
             {
                 case "torii-nav":
                 case "toriibar":
@@ -128,16 +143,64 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                         statusText.Colour = new Color4(129, 242, 145, 255);
                         playCodeInputFeedback(true);
                     }
-                    break;
 
-                default:
-                    statusText.Text = "No active alpha feature for that code.";
-                    statusText.Colour = new Color4(255, 165, 120, 255);
-                    playCodeInputFeedback(false);
-                    break;
+                    codeBox.Current.Value = string.Empty;
+                    return;
             }
 
+            // Not an alpha-feature code — try it as a server access code
+            // (points and/or cosmetics).
+            redeemServerCode(raw);
+        }
+
+        private void redeemServerCode(string code)
+        {
+            if (api?.IsLoggedIn != true)
+            {
+                statusText.Text = "Log in to redeem a code.";
+                statusText.Colour = new Color4(255, 165, 120, 255);
+                playCodeInputFeedback(false);
+                return;
+            }
+
+            statusText.Text = "Redeeming…";
+            statusText.Colour = new Color4(180, 180, 180, 255);
+
+            var req = new RedeemCodeRequest(code);
+            req.Success += res => Schedule(() => onRedeemed(res));
+            req.Failure += e => Schedule(() =>
+            {
+                statusText.Text = e?.Message ?? "Couldn't redeem that code.";
+                statusText.Colour = new Color4(255, 165, 120, 255);
+                playCodeInputFeedback(false);
+            });
+            api.Queue(req);
+
             codeBox.Current.Value = string.Empty;
+        }
+
+        private void onRedeemed(APIRedeemResult res)
+        {
+            if (cosmetics != null)
+            {
+                cosmetics.PointsBalance.Value = res.Balance;
+                foreach (string id in res.GrantedCosmetics ?? Array.Empty<string>())
+                    cosmetics.Grant(id);
+            }
+
+            string[] granted = res.GrantedCosmetics ?? Array.Empty<string>();
+            if (granted.Length > 0 && unlockPopup != null)
+            {
+                unlockPopup.Display(granted[0]);
+                statusText.Text = granted.Length > 1 ? $"Unlocked {granted.Length} cosmetics!" : "Unlocked!";
+            }
+            else
+            {
+                statusText.Text = res.Awarded > 0 ? $"Redeemed {res.Awarded:N0} points!" : "Code redeemed!";
+            }
+
+            statusText.Colour = new Color4(129, 242, 145, 255);
+            playCodeInputFeedback(true);
         }
 
         private void playCodeInputFeedback(bool success)

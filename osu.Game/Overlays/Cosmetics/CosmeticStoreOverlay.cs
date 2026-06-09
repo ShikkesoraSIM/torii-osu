@@ -178,6 +178,8 @@ namespace osu.Game.Overlays.Cosmetics
                                     AutoSizeAxes = Axes.Both,
                                     Direction = FillDirection.Horizontal,
                                     Spacing = new Vector2(6, 0),
+                                    // Clear the top-right close button so it never overlaps.
+                                    Margin = new MarginPadding { Right = 40 },
                                     Children = new Drawable[]
                                     {
                                         createRedeemButton(),
@@ -784,11 +786,11 @@ namespace osu.Game.Overlays.Cosmetics
             toast.Delay(1550).FadeOut(350, Easing.OutQuint).Expire();
         }
 
-        private Drawable createCloseButton() => new CloseButton
+        private Drawable createCloseButton() => new ToriiCloseButton
         {
             Anchor = Anchor.TopRight,
             Origin = Anchor.TopRight,
-            Margin = new MarginPadding(12),
+            Margin = new MarginPadding(14),
             Action = Hide,
         };
 
@@ -968,51 +970,5 @@ namespace osu.Game.Overlays.Cosmetics
             Inventory,
         }
 
-        // Round corner "X" button on the panel; hover brightens to pink.
-        private partial class CloseButton : OsuClickableContainer
-        {
-            private Box bg;
-
-            public CloseButton()
-            {
-                Size = new Vector2(30);
-            }
-
-            [BackgroundDependencyLoader]
-            private void load()
-            {
-                Child = new CircularContainer
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Masking = true,
-                    Children = new Drawable[]
-                    {
-                        bg = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.Black.Opacity(0.4f) },
-                        new SpriteIcon
-                        {
-                            Anchor = Anchor.Centre,
-                            Origin = Anchor.Centre,
-                            Icon = FontAwesome.Solid.Times,
-                            Size = new Vector2(13),
-                            Colour = Color4.White,
-                        },
-                    },
-                };
-            }
-
-            protected override bool OnHover(HoverEvent e)
-            {
-                bg.FadeColour(BriefingTheme.AccentPink, 150, Easing.OutQuint);
-                this.ScaleTo(1.1f, 150, Easing.OutQuint);
-                return base.OnHover(e);
-            }
-
-            protected override void OnHoverLost(HoverLostEvent e)
-            {
-                bg.FadeColour(Color4.Black.Opacity(0.4f), 200, Easing.OutQuint);
-                this.ScaleTo(1f, 200, Easing.OutQuint);
-                base.OnHoverLost(e);
-            }
-        }
     }
 }
