@@ -83,7 +83,20 @@ namespace osu.Game.Overlays.Cosmetics
                 },
             };
 
-            if (!string.IsNullOrEmpty(info.Subtitle))
+            var breakdown = parseBreakdown(reasonRef);
+            if (breakdown != null)
+            {
+                foreach (string line in breakdown)
+                {
+                    textChildren.Add(new OsuSpriteText
+                    {
+                        Text = line,
+                        Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    });
+                }
+            }
+            else if (!string.IsNullOrEmpty(info.Subtitle))
             {
                 textChildren.Add(new OsuSpriteText
                 {
@@ -196,6 +209,37 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (p >= 1)
                 counting = false;
+        }
+
+        /// <summary>Parse the top-play breakdown packed in the ledger ref
+        /// (<c>score:ID|b:..|v:..|pp:..</c>) into display lines, or null if absent.</summary>
+        private static List<string> parseBreakdown(string reasonRef)
+        {
+            if (string.IsNullOrEmpty(reasonRef) || !reasonRef.Contains("b:", StringComparison.Ordinal))
+                return null;
+
+            int b = 0, v = 0, pp = 0;
+            foreach (string part in reasonRef.Split('|'))
+            {
+                string[] kv = part.Split(':');
+                if (kv.Length != 2 || !int.TryParse(kv[1], out int val))
+                    continue;
+
+                switch (kv[0])
+                {
+                    case "b": b = val; break;
+                    case "v": v = val; break;
+                    case "pp": pp = val; break;
+                }
+            }
+
+            if (b == 0 && v == 0 && pp == 0)
+                return null;
+
+            var lines = new List<string> { $"{b}  base" };
+            if (v > 0) lines.Add($"+{v}  veteran bonus");
+            if (pp > 0) lines.Add($"+{pp}  pp gained");
+            return lines;
         }
     }
 

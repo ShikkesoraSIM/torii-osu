@@ -40,18 +40,20 @@ namespace osu.Game.Tests.Visual.UserInterface
         [Test]
         public void TestReasons()
         {
-            AddStep("top play (+100)", () => push(100, "top_play"));
+            AddStep("top play veteran (228)", () => push(228, "top_play", "score:1|b:100|v:50|pp:78"));
+            AddStep("top play newbie (8)", () => push(8, "top_play", "score:2|b:8|v:0|pp:0"));
+            AddStep("top play developing (100)", () => push(100, "top_play", "score:3|b:40|v:0|pp:60"));
+            AddStep("top play big #1 (353)", () => push(353, "top_play", "score:4|b:100|v:75|pp:178"));
             AddStep("daily first (+15)", () => push(15, "daily_play", "streak:1"));
             AddStep("daily streak x5 (+35)", () => push(35, "daily_play", "streak:5"));
             AddStep("gift (+500)", () => push(500, "gift"));
             AddStep("code redeemed (+1000)", () => push(1000, "access_code"));
             AddStep("unknown reason (+50)", () => push(50, "mystery"));
-            AddStep("big number (+12,500)", () => push(12500, "top_play"));
-            AddStep("reduced motion (+100)", () => push(100, "top_play", null, true));
+            AddStep("reduced motion (228)", () => push(228, "top_play", "score:5|b:100|v:50|pp:78", true));
             AddStep("burst: daily + top", () =>
             {
                 push(15, "daily_play", "streak:3");
-                push(100, "top_play");
+                push(228, "top_play", "score:6|b:100|v:50|pp:78");
             });
         }
     }
