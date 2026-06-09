@@ -6,6 +6,8 @@
 using System;
 using System.Collections.Generic;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Audio.Sample;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -34,6 +36,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         private OsuSpriteText amountText;
         private SpriteIcon icon;
+        private Sample appearSample;
 
         private const double count_duration = 560;
         private const double hold = 2600;
@@ -56,8 +59,10 @@ namespace osu.Game.Overlays.Cosmetics
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(AudioManager audio)
         {
+            appearSample = audio.Samples.Get(@"SongSelect/confirm-selection");
+
             var info = PointsReasonInfo.Resolve(reason, reasonRef);
 
             amountText = new OsuSpriteText
@@ -144,6 +149,8 @@ namespace osu.Game.Overlays.Cosmetics
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            appearSample?.Play();
 
             double entrance = reducedMotion ? 160 : BriefingTheme.EntranceDuration;
 

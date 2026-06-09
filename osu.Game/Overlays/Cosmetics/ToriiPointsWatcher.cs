@@ -120,7 +120,9 @@ namespace osu.Game.Overlays.Cosmetics
             api.Queue(req);
         }
 
-        // Gifts and redeemed codes already get their own celebration popup.
-        private static bool shouldToast(string reason) => reason != "gift" && reason != "access_code";
+        // Gifts, redeemed codes and medals already get their own celebration
+        // popup / overlay, so don't double-toast (or double-sound) those.
+        private static bool shouldToast(string reason) =>
+            reason != "gift" && reason != "access_code" && reason != "medal";
     }
 }
