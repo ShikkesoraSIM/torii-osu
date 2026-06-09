@@ -9,6 +9,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
@@ -54,7 +55,7 @@ namespace osu.Game.Overlays.Cosmetics
         private Container revealView;
         private OsuClickableContainer giftBox;
         private SpriteIcon giftIcon;
-        private Box giftGlow;
+        private Container giftGlow;
         private OsuSpriteText fromText;
 
         private string sender = "Torii Halo";
@@ -164,24 +165,35 @@ namespace osu.Game.Overlays.Cosmetics
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        Size = new Vector2(150),
+                        Size = new Vector2(220),
                         Action = open,
                         Children = new Drawable[]
                         {
-                            giftGlow = new Box
+                            // Soft round halo (a circular glow), not a square box.
+                            giftGlow = new CircularContainer
                             {
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
-                                RelativeSizeAxes = Axes.Both,
-                                Colour = BriefingTheme.AccentPink.Opacity(0.18f),
-                                Blending = BlendingParameters.Additive,
+                                Size = new Vector2(100),
+                                Masking = true,
+                                EdgeEffect = new EdgeEffectParameters
+                                {
+                                    Type = EdgeEffectType.Glow,
+                                    Colour = BriefingTheme.AccentPink.Opacity(0.55f),
+                                    Radius = 85,
+                                },
+                                Child = new Box
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Colour = BriefingTheme.AccentPink.Opacity(0.22f),
+                                },
                             },
                             giftIcon = new SpriteIcon
                             {
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
                                 Icon = FontAwesome.Solid.Gift,
-                                Size = new Vector2(96),
+                                Size = new Vector2(132),
                                 Colour = BriefingTheme.AccentPink,
                             },
                         },
@@ -212,6 +224,7 @@ namespace osu.Game.Overlays.Cosmetics
         {
             // A present that can't sit still — gentle wiggle + breathing glow.
             giftIcon.ClearTransforms();
+            giftIcon.Alpha = 1;
             giftIcon.RotateTo(-6)
                     .Then().RotateTo(6, 480, Easing.InOutSine)
                     .Then().RotateTo(-6, 480, Easing.InOutSine)
@@ -222,8 +235,10 @@ namespace osu.Game.Overlays.Cosmetics
                     .Loop();
 
             giftGlow.ClearTransforms();
-            giftGlow.FadeTo(0.32f, 680, Easing.InOutSine)
-                    .Then().FadeTo(0.12f, 680, Easing.InOutSine)
+            giftGlow.Alpha = 1;
+            giftGlow.ScaleTo(1f)
+                    .Then().ScaleTo(1.15f, 680, Easing.InOutSine)
+                    .Then().ScaleTo(1f, 680, Easing.InOutSine)
                     .Loop();
         }
 
@@ -236,7 +251,8 @@ namespace osu.Game.Overlays.Cosmetics
             giftIcon.ScaleTo(1.35f, 180, Easing.OutBack).Then().ScaleTo(0.15f, 240, Easing.InQuad);
             giftIcon.RotateTo(35, 420, Easing.OutQuad);
             giftIcon.Delay(180).FadeOut(260, Easing.OutQuad);
-            giftGlow.FadeTo(0.6f, 180, Easing.OutQuad).Then().FadeOut(280, Easing.OutQuad);
+            giftGlow.ScaleTo(1.5f, 280, Easing.OutQuad);
+            giftGlow.FadeOut(300, Easing.OutQuad);
 
             closedView.Delay(220).FadeOut(160, Easing.OutQuint);
 
