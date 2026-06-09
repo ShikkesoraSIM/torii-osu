@@ -6,6 +6,7 @@
 using System;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
@@ -196,27 +197,34 @@ namespace osu.Game.Overlays.Cosmetics
             },
         };
 
-        private void openCosmetics()
+        private void openCosmetics() => openTool(cosmeticAdmin, "Cosmetics panel unavailable");
+
+        private void openAccessCodes() => openTool(accessCodes, "Access codes panel unavailable");
+
+        // Open a tool as a stacked step: hide the hub, show the tool, and bring
+        // the hub back when the tool closes — so it reads as one navigation
+        // rather than two overlays stacked on top of each other.
+        private void openTool(OsuFocusedOverlayContainer tool, string unavailable)
         {
-            if (cosmeticAdmin == null)
+            if (tool == null)
             {
-                toast("Cosmetics panel unavailable");
+                toast(unavailable);
                 return;
             }
 
-            // Open the cosmetics tool over the hub; closing it returns here.
-            cosmeticAdmin.Show();
-        }
+            Hide();
+            tool.Show();
 
-        private void openAccessCodes()
-        {
-            if (accessCodes == null)
+            void onState(ValueChangedEvent<Visibility> s)
             {
-                toast("Access codes panel unavailable");
-                return;
+                if (s.NewValue != Visibility.Hidden)
+                    return;
+
+                tool.State.ValueChanged -= onState;
+                Show();
             }
 
-            accessCodes.Show();
+            tool.State.ValueChanged += onState;
         }
 
         private void toast(string message)
