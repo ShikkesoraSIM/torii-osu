@@ -59,6 +59,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private GiftAdminOverlay gifts { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private PointsActivityAdminOverlay pointsActivity { get; set; }
+
         private BriefingGlass mainPanel;
         private Container toastHost;
 
@@ -194,6 +197,9 @@ namespace osu.Game.Overlays.Cosmetics
                 new ToolCard(FontAwesome.Solid.Gift, BriefingTheme.AccentPink, "Gifts",
                     "Send points or cosmetics straight to a player — revealed after their next map.", true,
                     openGifts),
+                new ToolCard(FontAwesome.Solid.ChartLine, BriefingTheme.AccentSky, "Points activity",
+                    "Top earners and recent large awards — spot anyone farming the economy.", true,
+                    openPointsActivity),
                 new ToolCard(FontAwesome.Solid.Signature, BriefingTheme.AccentSky, "Name changes",
                     "Review and approve or reject pending username change requests.", false,
                     () => toast("Name changes — coming soon")),
@@ -208,6 +214,8 @@ namespace osu.Game.Overlays.Cosmetics
         private void openAccessCodes() => openTool(accessCodes, "Access codes panel unavailable");
 
         private void openGifts() => openTool(gifts, "Gift panel unavailable");
+
+        private void openPointsActivity() => openTool(pointsActivity, "Points activity panel unavailable");
 
         // Open a tool as a stacked step: hide the hub, show the tool, and bring
         // the hub back when the tool closes — so it reads as one navigation

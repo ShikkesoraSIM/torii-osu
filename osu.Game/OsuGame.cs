@@ -1379,6 +1379,7 @@ namespace osu.Game
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.AccessCodeAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.GiftAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsActivityAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiGiftOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(toriiGiftWatcher = new osu.Game.Overlays.Cosmetics.ToriiGiftWatcher(), Add, true);
