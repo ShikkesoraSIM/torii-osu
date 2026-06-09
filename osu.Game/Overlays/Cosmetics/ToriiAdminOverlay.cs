@@ -52,6 +52,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private CosmeticAdminOverlay cosmeticAdmin { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private AccessCodeAdminOverlay accessCodes { get; set; }
+
         private BriefingGlass mainPanel;
         private Container toastHost;
 
@@ -182,8 +185,8 @@ namespace osu.Game.Overlays.Cosmetics
                     "Curate the store pool — show or hide trails, name colours and auras.", true,
                     openCosmetics),
                 new ToolCard(FontAwesome.Solid.TicketAlt, BriefingTheme.AccentAmber, "Access codes",
-                    "Mint codes that grant points or specific cosmetics to chosen players.", false,
-                    () => toast("Access codes — coming soon")),
+                    "Mint codes players redeem for points (cosmetic grants coming next).", true,
+                    openAccessCodes),
                 new ToolCard(FontAwesome.Solid.Signature, BriefingTheme.AccentSky, "Name changes",
                     "Review and approve or reject pending username change requests.", false,
                     () => toast("Name changes — coming soon")),
@@ -203,6 +206,17 @@ namespace osu.Game.Overlays.Cosmetics
 
             // Open the cosmetics tool over the hub; closing it returns here.
             cosmeticAdmin.Show();
+        }
+
+        private void openAccessCodes()
+        {
+            if (accessCodes == null)
+            {
+                toast("Access codes panel unavailable");
+                return;
+            }
+
+            accessCodes.Show();
         }
 
         private void toast(string message)
