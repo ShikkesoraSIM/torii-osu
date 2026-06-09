@@ -58,6 +58,9 @@ namespace osu.Game.Overlays.Cosmetics
         [Resolved(canBeNull: true)]
         private osu.Game.Online.API.IAPIProvider api { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private RedeemCodeOverlay redeemOverlay { get; set; }
+
         // Cached server aura catalog (authoritative list of the user's entitled
         // auras + their display names — includes auras granted by something
         // other than a group, e.g. Founder by id, which the local group-based
@@ -177,6 +180,7 @@ namespace osu.Game.Overlays.Cosmetics
                                     Spacing = new Vector2(6, 0),
                                     Children = new Drawable[]
                                     {
+                                        createRedeemButton(),
                                         new SpriteIcon
                                         {
                                             Anchor = Anchor.Centre,
@@ -788,6 +792,14 @@ namespace osu.Game.Overlays.Cosmetics
             Action = Hide,
         };
 
+        // "Redeem" pill in the header (all users) — opens the code prompt.
+        private Drawable createRedeemButton() => new RedeemPillButton
+        {
+            Anchor = Anchor.Centre,
+            Origin = Anchor.Centre,
+            Action = () => redeemOverlay?.Show(),
+        };
+
         // Server-confirmed admin: either the stock is_admin flag OR membership of
         // the torii-admin group (how g0v0 actually marks staff — same identifier
         // the role colours / auras key off). Either is set server-side, so it
@@ -889,6 +901,65 @@ namespace osu.Game.Overlays.Cosmetics
             }
 
             return base.OnPressed(e);
+        }
+
+        // Compact "Redeem" pill (ticket icon + label) for the store header.
+        private partial class RedeemPillButton : OsuClickableContainer
+        {
+            private Box bg;
+
+            public RedeemPillButton()
+            {
+                AutoSizeAxes = Axes.Both;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = 6f;
+                Children = new Drawable[]
+                {
+                    bg = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(5, 0),
+                        Margin = new MarginPadding { Horizontal = 10, Vertical = 6 },
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Icon = FontAwesome.Solid.TicketAlt,
+                                Size = new Vector2(13),
+                                Colour = BriefingTheme.AccentPink,
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Text = "Redeem",
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                bg.FadeColour(Color4.White.Opacity(0.2f), 120, Easing.OutQuint);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                bg.FadeColour(Color4.White.Opacity(0.1f), 160, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
         }
 
         public enum StoreTab
