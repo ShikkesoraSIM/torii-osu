@@ -90,60 +90,107 @@ namespace osu.Game.Overlays.Cosmetics
                             CornerSize = BriefingTheme.CornerLg,
                             ShadowOpacity = 0.4f,
                             ShadowRadius = 30,
-                            Child = new OsuScrollContainer
+                            Child = new GridContainer
                             {
                                 RelativeSizeAxes = Axes.Both,
-                                ScrollbarVisible = false,
-                                Child = new FillFlowContainer
+                                Padding = new MarginPadding(BriefingTheme.SpacingLg),
+                                RowDimensions = new[]
                                 {
-                                    RelativeSizeAxes = Axes.X,
-                                    AutoSizeAxes = Axes.Y,
-                                    Direction = FillDirection.Vertical,
-                                    Spacing = new Vector2(0, BriefingTheme.SpacingMd),
-                                    Padding = new MarginPadding(BriefingTheme.SpacingLg),
-                                    Children = new Drawable[]
+                                    new Dimension(GridSizeMode.AutoSize),
+                                    new Dimension(),
+                                    new Dimension(GridSizeMode.AutoSize),
+                                },
+                                Content = new[]
+                                {
+                                    // Header (fixed).
+                                    new Drawable[]
                                     {
-                                        new OsuSpriteText
-                                        {
-                                            Text = "Access codes",
-                                            Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.SemiBold),
-                                        },
-                                        new OsuSpriteText
-                                        {
-                                            Text = "Mint a code players redeem for points and/or cosmetics.",
-                                            Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
-                                            Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
-                                        },
-                                        field("Points", amountBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, PlaceholderText = "e.g. 5000" }),
-                                        field("Max uses", usesBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, Text = "1" }),
-                                        field("Note (optional)", noteBox = new OsuTextBox { RelativeSizeAxes = Axes.X, PlaceholderText = "why this code exists" }),
-                                        field("Grant cosmetics (optional)", grantPicker = new CosmeticGrantPicker()),
-                                        generateButton = new RoundedButton
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            Height = 42,
-                                            Text = "Generate code",
-                                            BackgroundColour = BriefingTheme.AccentPink,
-                                            Action = generate,
-                                        },
-                                        new RoundedButton
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            Height = 38,
-                                            Text = "Preview unlock popup",
-                                            BackgroundColour = BriefingTheme.AccentSky,
-                                            Action = preview,
-                                        },
-                                        errorText = new OsuSpriteText
-                                        {
-                                            Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
-                                            Colour = BriefingTheme.AccentLoss,
-                                            Alpha = 0,
-                                        },
-                                        resultArea = new Container
+                                        new FillFlowContainer
                                         {
                                             RelativeSizeAxes = Axes.X,
                                             AutoSizeAxes = Axes.Y,
+                                            Direction = FillDirection.Vertical,
+                                            Spacing = new Vector2(0, 2),
+                                            Margin = new MarginPadding { Bottom = BriefingTheme.SpacingMd },
+                                            Children = new Drawable[]
+                                            {
+                                                new OsuSpriteText
+                                                {
+                                                    Text = "Access codes",
+                                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.SemiBold),
+                                                },
+                                                new OsuSpriteText
+                                                {
+                                                    Text = "Mint a code players redeem for points and/or cosmetics.",
+                                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                                                    Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    // Fields (scroll).
+                                    new Drawable[]
+                                    {
+                                        new OsuScrollContainer
+                                        {
+                                            RelativeSizeAxes = Axes.Both,
+                                            ScrollbarVisible = false,
+                                            Child = new FillFlowContainer
+                                            {
+                                                RelativeSizeAxes = Axes.X,
+                                                AutoSizeAxes = Axes.Y,
+                                                Direction = FillDirection.Vertical,
+                                                Spacing = new Vector2(0, BriefingTheme.SpacingMd),
+                                                Children = new Drawable[]
+                                                {
+                                                    field("Points", amountBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, PlaceholderText = "e.g. 5000" }),
+                                                    field("Max uses", usesBox = new OsuNumberBox { RelativeSizeAxes = Axes.X, Text = "1" }),
+                                                    field("Note (optional)", noteBox = new OsuTextBox { RelativeSizeAxes = Axes.X, PlaceholderText = "why this code exists" }),
+                                                    field("Grant cosmetics (optional)", grantPicker = new CosmeticGrantPicker()),
+                                                },
+                                            },
+                                        },
+                                    },
+                                    // Actions + result (fixed at the bottom).
+                                    new Drawable[]
+                                    {
+                                        new FillFlowContainer
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            AutoSizeAxes = Axes.Y,
+                                            Direction = FillDirection.Vertical,
+                                            Spacing = new Vector2(0, BriefingTheme.SpacingSm),
+                                            Margin = new MarginPadding { Top = BriefingTheme.SpacingMd },
+                                            Children = new Drawable[]
+                                            {
+                                                errorText = new OsuSpriteText
+                                                {
+                                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                                                    Colour = BriefingTheme.AccentLoss,
+                                                    Alpha = 0,
+                                                },
+                                                resultArea = new Container
+                                                {
+                                                    RelativeSizeAxes = Axes.X,
+                                                    AutoSizeAxes = Axes.Y,
+                                                },
+                                                generateButton = new RoundedButton
+                                                {
+                                                    RelativeSizeAxes = Axes.X,
+                                                    Height = 42,
+                                                    Text = "Generate code",
+                                                    BackgroundColour = BriefingTheme.AccentPink,
+                                                    Action = generate,
+                                                },
+                                                new RoundedButton
+                                                {
+                                                    RelativeSizeAxes = Axes.X,
+                                                    Height = 38,
+                                                    Text = "Preview unlock popup",
+                                                    BackgroundColour = BriefingTheme.AccentSky,
+                                                    Action = preview,
+                                                },
+                                            },
                                         },
                                     },
                                 },
