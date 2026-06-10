@@ -68,7 +68,6 @@ namespace osu.Game.Overlays.Cosmetics
         // falls back to the local list meanwhile.
         private APIAuraCatalog auraCatalog;
 
-        private Sample buySample;
         private Sample equipSample;
         private Sample unequipSample;
 
@@ -94,7 +93,6 @@ namespace osu.Game.Overlays.Cosmetics
         [BackgroundDependencyLoader]
         private void load(AudioManager audio)
         {
-            buySample = audio.Samples.Get(@"SongSelect/confirm-selection");
             equipSample = audio.Samples.Get(@"UI/check-on");
             unequipSample = audio.Samples.Get(@"UI/check-off");
 
@@ -389,21 +387,17 @@ namespace osu.Game.Overlays.Cosmetics
         // Buying only flips an OWNED badge (the whole catalog is always shown in
         // Store, and you can't buy from Inventory), so just refresh badges. A
         // genuine add/remove only happens on a tab switch, which still rebuilds.
-        private void onInventoryChanged() => Schedule(() =>
-        {
-            refreshCards();
-            // A buy is the only thing that grows the inventory while the store is
-            // open, so play the purchase chime here (single chokepoint for trails,
-            // name colours and auras alike).
-            if (State.Value == Visibility.Visible)
-                buySample?.Play();
-        });
+        private void onInventoryChanged() => Schedule(refreshCards);
 
         // Equip / unequip feedback. An empty value (the aura "none" sentinel is
-        // passed in as empty) means "cleared", so play the softer off sound.
+        // passed in as empty) means "cleared", so play the softer off sound. Only
+        // for USER equips while the store is open — not the manager's own
+        // programmatic un-equips (server sync / rollback), which would chime
+        // unexpectedly. The purchase confirm dialog already provides the buy sound,
+        // so there's no separate buy chime here (that was the double you heard).
         private void playEquipSound(string newValue)
         {
-            if (State.Value != Visibility.Visible)
+            if (State.Value != Visibility.Visible || cosmetics?.SuppressEquipSound == true)
                 return;
 
             (string.IsNullOrEmpty(newValue) ? unequipSample : equipSample)?.Play();
@@ -907,8 +901,18 @@ namespace osu.Game.Overlays.Cosmetics
             if (api?.IsLoggedIn != true || string.IsNullOrEmpty(cosmeticId))
                 return;
 
+            // The Buy that triggered this already bumped the epoch + deducted
+            // optimistically. Capture it so a slow purchase response can't revert a
+            // NEWER optimistic balance (rapid buys) — only reconcile if nothing else
+            // mutated the balance meanwhile.
+            long epoch = cosmetics?.MutationEpoch ?? 0;
+
             var req = new PurchaseCosmeticRequest(cosmeticId, price);
-            req.Success += res => Schedule(() => cosmetics?.SyncBalance(res.Balance));
+            req.Success += res => Schedule(() =>
+            {
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                    cosmetics.SyncBalance(res.Balance);
+            });
             // Server rejected (insufficient / not for sale / error): undo the optimistic
             // local deduction + ownership so a failed buy doesn't leave a free cosmetic.
             req.Failure += _ => Schedule(() => cosmetics?.RollbackPurchase(cosmeticId, price));

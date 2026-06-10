@@ -82,6 +82,11 @@ namespace osu.Game.Cosmetics
 
         public bool IsOwned(string id) => ownedSet().Contains(id);
 
+        /// <summary>True while the manager changes the equipped trail/colour ITSELF
+        /// (server-sync un-equip, rollback) — the UI skips the equip/unequip chime
+        /// for a change the user didn't make.</summary>
+        public bool SuppressEquipSound { get; private set; }
+
         public IReadOnlyCollection<string> OwnedIds => ownedSet();
 
         /// <summary>Account-wide unlock that enables the length/density sliders.</summary>
@@ -142,15 +147,24 @@ namespace osu.Game.Cosmetics
             config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", server));
             config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, server.Contains(CustomisationUnlockId));
 
-            // Un-equip a trail / bought name colour you no longer own.
-            if (!string.IsNullOrEmpty(EquippedTrailId.Value) && !server.Contains(EquippedTrailId.Value))
-                EquippedTrailId.Value = string.Empty;
+            // Un-equip a trail / bought name colour you no longer own. This is not a
+            // user action, so suppress the equip/unequip chime around it.
+            SuppressEquipSound = true;
+            try
+            {
+                if (!string.IsNullOrEmpty(EquippedTrailId.Value) && !server.Contains(EquippedTrailId.Value))
+                    EquippedTrailId.Value = string.Empty;
 
-            string colour = EquippedNameColourId.Value;
-            if (!string.IsNullOrEmpty(colour)
-                && !colour.StartsWith("name-group-", StringComparison.Ordinal)
-                && !server.Contains(colour))
-                EquippedNameColourId.Value = string.Empty;
+                string colour = EquippedNameColourId.Value;
+                if (!string.IsNullOrEmpty(colour)
+                    && !colour.StartsWith("name-group-", StringComparison.Ordinal)
+                    && !server.Contains(colour))
+                    EquippedNameColourId.Value = string.Empty;
+            }
+            finally
+            {
+                SuppressEquipSound = false;
+            }
 
             InventoryChanged?.Invoke();
         }
