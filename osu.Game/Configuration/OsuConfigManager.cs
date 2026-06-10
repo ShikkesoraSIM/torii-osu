@@ -473,6 +473,14 @@ namespace osu.Game.Configuration
             // user choice from the dropdown.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
 
+            // Torii: anti-chatter key debounce (off by default). Drops a gameplay-key
+            // re-press that lands within the threshold of that key's last release —
+            // the spurious double-tap from rapid-trigger / worn switches. Threshold is
+            // in real milliseconds; kept well below the fastest legit tap gap (a 200 BPM
+            // single-key stream is ~75ms apart) or it would eat real inputs.
+            SetDefault(OsuSetting.ToriiKeyDebounceEnabled, false);
+            SetDefault(OsuSetting.ToriiKeyDebounceThresholdMs, 15.0, 1.0, 50.0);
+
             // Torii hiccup logger — captures frames slower than ~33 ms (sub-30
             // fps) into a JSONL file under <storage>/torii/hiccups/<timestamp>.jsonl
             // along with surrounding context (current screen, visible overlays,
@@ -901,6 +909,8 @@ namespace osu.Game.Configuration
         ShowOnlineExplicitContent,
         ToriiInputAudioHz,
         ToriiInputAudioHzAutoTuned,
+        ToriiKeyDebounceEnabled,
+        ToriiKeyDebounceThresholdMs,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,
