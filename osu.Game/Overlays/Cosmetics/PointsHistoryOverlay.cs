@@ -232,7 +232,9 @@ namespace osu.Game.Overlays.Cosmetics
                     {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
-                        Margin = new MarginPadding { Horizontal = 14, Vertical = 9 },
+                        // Padding (not Margin): Margin on a RelativeSizeAxes.X drawable overflows
+                        // the parent and clips the right-hand content.
+                        Padding = new MarginPadding { Horizontal = 14, Vertical = 9 },
                         ColumnDimensions = new[]
                         {
                             new Dimension(),

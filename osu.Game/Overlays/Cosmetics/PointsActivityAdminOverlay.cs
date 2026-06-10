@@ -201,7 +201,9 @@ namespace osu.Game.Overlays.Cosmetics
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
-                    Margin = new MarginPadding { Horizontal = 14, Vertical = 9 },
+                    // Padding (not Margin): a Margin on a RelativeSizeAxes.X drawable adds to its
+                    // footprint and pushes content past the parent's right edge, clipping it.
+                    Padding = new MarginPadding { Horizontal = 14, Vertical = 9 },
                     ColumnDimensions = new[] { new Dimension(), new Dimension(GridSizeMode.AutoSize) },
                     RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
                     Content = new[]
