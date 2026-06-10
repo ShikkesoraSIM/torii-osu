@@ -789,6 +789,10 @@ namespace osu.Game
         protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent) =>
             dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
 
+        // Held as a field (not a local in SetHost) so the GC doesn't collect it
+        // and silently break the value-changed chain to host.ToriiInputAudioHz.
+        private Bindable<ToriiInputAudioHzMode> inputAudioHzSetting = null!;
+
         public override void SetHost(GameHost host)
         {
             base.SetHost(host);
@@ -801,6 +805,14 @@ namespace osu.Game
                 : new OsuConfigManager(Storage);
 
             host.ExceptionThrown += onExceptionThrown;
+
+            // Torii: wire the in-game "Input/audio thread rate" setting to the
+            // host's bindable so the framework picks up the value and re-evaluates
+            // frame-sync rates whenever the user changes it. The enum's numeric
+            // value IS the Hz (see ToriiInputAudioHzMode), so the cast unwraps the
+            // int for the framework's BindableInt.
+            inputAudioHzSetting = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
+            inputAudioHzSetting.BindValueChanged(e => host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
         }
 
         /// <summary>

@@ -443,6 +443,11 @@ namespace osu.Game.Configuration
             // from the one-time briefing popup).
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
 
+            // Torii: input/audio/update thread rate (the in-game "Input/audio
+            // thread rate" dropdown). OsuGameBase wires this into the framework's
+            // GameHost.ToriiInputAudioHz. Default 2000 (historical competitive).
+            SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
+
             // One-shot: becomes true after the first-time skip briefing has
             // been shown + dismissed. Never reset.
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
@@ -983,6 +988,8 @@ namespace osu.Game.Configuration
         /// install across user logouts without leaking machine identity.
         /// </summary>
         ToriiHiccupDeviceHash,
+
+        ToriiInputAudioHz,
 
         CycleSkinsThroughFavoritesOnly,
 
