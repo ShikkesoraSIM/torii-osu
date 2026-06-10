@@ -52,6 +52,10 @@ namespace osu.Game.Overlays.Cosmetics
         private bool counting;
         private int displayed = -1;
 
+        // The breakdown rows, kept so they can reveal one-by-one after the card
+        // enters (each in its own reason colour).
+        private readonly List<Drawable> revealRows = new List<Drawable>();
+
         public PointsEarnedCard(IEnumerable<Line> lines, int balanceAfter, bool reducedMotion)
         {
             this.lines = lines.ToList();
@@ -71,7 +75,20 @@ namespace osu.Game.Overlays.Cosmetics
 
             var content = new List<Drawable> { header() };
             foreach (var row in summarise())
-                content.Add(breakdownRow(row.label, row.amount, row.icon, row.accent));
+            {
+                var d = breakdownRow(row.label, row.amount, row.icon, row.accent);
+
+                // Start hidden + AlwaysPresent (so layout is stable while they fade
+                // in) — LoadComplete reveals them staggered, each in its own colour.
+                if (!reducedMotion)
+                {
+                    d.Alpha = 0;
+                    d.AlwaysPresent = true;
+                }
+
+                revealRows.Add(d);
+                content.Add(d);
+            }
 
             // If a top play got soft-capped today, say so (the server only paid the
             // pp bonus on it, not the full rank reward).
@@ -200,7 +217,9 @@ namespace osu.Game.Overlays.Cosmetics
                     Origin = Anchor.CentreRight,
                     Text = $"+{amount:N0}",
                     Font = OsuFont.Torus.With(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
-                    Colour = BriefingTheme.AccentGain,
+                    // Amount in the reason's own colour (daily green, top play gold,
+                    // medal pink, ...) so each source reads distinct at a glance.
+                    Colour = accent,
                 },
             },
         };
@@ -318,6 +337,13 @@ namespace osu.Game.Overlays.Cosmetics
 
                 countStart = Time.Current + 140;
                 counting = true;
+
+                // Reveal each source line one-by-one (in its own colour) after the
+                // card lands, so you still get the "green daily, gold top play" beat
+                // even though it's a single card. Alpha-only (rows live in a flow
+                // that owns their position) + AlwaysPresent keeps the layout steady.
+                for (int i = 0; i < revealRows.Count; i++)
+                    revealRows[i].Delay(entrance + i * 150).FadeIn(260, Easing.OutQuint);
             }
 
             // Hold, then burst coins up toward the balance + fade out.
