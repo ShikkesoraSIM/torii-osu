@@ -83,6 +83,9 @@ namespace osu.Game.Overlays.Cosmetics
                     RelativeContentSize = Axes.None,
                     CornerSize = BriefingTheme.CornerLg,
                     SurfaceLift = 1.5f,
+                    // Near-solid so the summary reads cleanly over gameplay (no
+                    // backdrop blur in the framework; opacity is the readable win).
+                    SurfaceOpacity = 1.5f,
                     ShadowColor = BriefingTheme.AccentAmber,
                     ShadowOpacity = 0.4f,
                     ShadowRadius = 28f,

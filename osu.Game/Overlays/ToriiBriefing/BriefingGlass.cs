@@ -91,6 +91,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         private float specularStrength = 0f;
         private float specularHeight = 38f;
         private float surfaceLift = 1.0f;
+        private float surfaceOpacity = 1.0f;
 
         /// <summary>Corner radius. <see cref="BriefingTheme.CornerMd"/> for cards, <see cref="BriefingTheme.CornerLg"/> for the panel.</summary>
         public float CornerSize
@@ -223,6 +224,23 @@ namespace osu.Game.Overlays.ToriiBriefing
             }
         }
 
+        /// <summary>
+        /// Multiplies the surface fill opacity. Default 1.0 keeps the frosted-glass
+        /// look of the Briefing suite; a consumer over a busy background (the points
+        /// cards over gameplay) can push this up (~1.5) to make the surface near-solid
+        /// so text reads cleanly. Clamped to fully opaque.
+        /// </summary>
+        public float SurfaceOpacity
+        {
+            get => surfaceOpacity;
+            set
+            {
+                surfaceOpacity = value;
+                if (baseBox != null)
+                    applyBaseTone();
+            }
+        }
+
         private Box baseBox;
         private readonly Box specularRibbon;
         private Container specularContainer;
@@ -305,12 +323,15 @@ namespace osu.Game.Overlays.ToriiBriefing
         {
             float liftFactor = System.Math.Clamp(surfaceLift, 0.6f, 1.6f);
             // Slight brightening at the top stop only; bottom always anchors to the
-            // deep panel base so cards feel grounded.
-            float topOpacity = 0.45f * liftFactor;
+            // deep panel base so cards feel grounded. SurfaceOpacity (default 1)
+            // lets a consumer make the surface near-solid for readability over a busy
+            // background without changing the rest of the suite.
+            float topOpacity = System.Math.Clamp(0.45f * liftFactor * surfaceOpacity, 0f, 1f);
+            float bottomOpacity = System.Math.Clamp(0.92f * surfaceOpacity, 0f, 1f);
 
             baseBox.Colour = ColourInfo.GradientVertical(
                 BriefingTheme.SurfaceWarm.Opacity(topOpacity),
-                BriefingTheme.SurfaceBase.Opacity(0.92f));
+                BriefingTheme.SurfaceBase.Opacity(bottomOpacity));
         }
     }
 }

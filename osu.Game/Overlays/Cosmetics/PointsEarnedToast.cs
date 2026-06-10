@@ -126,6 +126,7 @@ namespace osu.Game.Overlays.Cosmetics
                 RelativeContentSize = Axes.None,
                 CornerSize = BriefingTheme.CornerMd,
                 SurfaceLift = 1.45f,
+                SurfaceOpacity = 1.5f,
                 ShadowColor = info.Accent,
                 ShadowOpacity = 0.4f,
                 ShadowRadius = 26f,
