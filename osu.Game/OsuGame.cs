@@ -2069,6 +2069,16 @@ namespace osu.Game
                 $"{lastScreen?.GetType().Name} → {newScreen?.GetType().Name}");
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
+            // Coming back to the menu after a play is an EXIT (results/song select pop
+            // off), not a push, so the gift reveal has to be kicked here too. MainMenu
+            // is only ever pushed once at startup, so the screenPushed branch never
+            // catches the post-play return and a pending gift would sit unclaimed.
+            if (newScreen is osu.Game.Screens.Menu.MainMenu)
+            {
+                toriiGiftWatcher?.OnMenu();
+                toriiPointsWatcher?.OnMenu();
+            }
+
             if (newScreen == null)
                 Exit();
         }
