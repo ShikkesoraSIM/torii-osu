@@ -530,6 +530,11 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.EquippedCursorTrail, string.Empty);
             SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
             SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
+            // One-time, account-wide unlock for the custom UI accent (second)
+            // hue. Replaces the old supporter gate: the accent is bought once
+            // with points in the cosmetic store now, not tied to a supporter
+            // tag. Local cache, reconciled server-side with the rest.
+            SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
             SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
             SetDefault(OsuSetting.ToriiPointsBalance, 0);
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
@@ -945,6 +950,7 @@ namespace osu.Game.Configuration
         EquippedCursorTrail,
         OwnedCursorTrails,
         CursorTrailAdjustUnlocked,
+        CustomUIAccentUnlocked,
         CursorTrailCustomisations,
         ToriiPointsBalance,
         ToriiPointsSeeded,

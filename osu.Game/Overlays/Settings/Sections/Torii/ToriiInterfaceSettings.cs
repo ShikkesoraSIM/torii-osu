@@ -21,6 +21,7 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Chat;
+using osu.Game.Overlays.Cosmetics;
 using osu.Game.Overlays.Notifications;
 
 namespace osu.Game.Overlays.Settings.Sections.Torii
@@ -35,24 +36,20 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         [Resolved(CanBeNull = true)]
         private INotificationOverlay? notifications { get; set; }
 
-        // Resolved so the locked-perk notification can route the user to
-        // Ko-fi when activated. Optional because this subsection also runs
-        // in test scenes where no OsuGame host is registered.
+        // Resolved so the lock can send the user to the cosmetic store, where
+        // the accent hue is bought with points. Optional because this
+        // subsection also runs in test scenes with no store registered.
         [Resolved(CanBeNull = true)]
-        private OsuGame? game { get; set; }
+        private CosmeticStoreOverlay? cosmeticStore { get; set; }
 
-        // Single point of truth for the Ko-fi page. Touched in two places:
-        // the locked-perk toast and (potentially) future supporter CTAs.
-        private const string supporter_kofi_url = @"https://ko-fi.com/toriiserver";
-
-        // The accent picker + its enable toggle are always rendered. When
-        // the local user isn't a supporter we keep them visible (so non-
-        // donators can SEE the feature exists) but lock them — clicking
-        // the lock-skin posts a notification telling the user how to
-        // unlock the feature instead of letting them mutate the setting.
+        // The accent picker + its enable toggle are always rendered. Until the
+        // accent unlock is bought in the store we keep them visible (so everyone
+        // can SEE the feature exists) but locked - clicking the lock opens the
+        // store at the accent unlock instead of mutating the setting. Gated on a
+        // points purchase now, NOT a supporter tier.
         private SupporterLockedSlot? accentEnableSlot;
         private SupporterLockedSlot? accentPickerSlot;
-        private IBindable<APIUser>? localUser;
+        private Bindable<bool>? accentUnlocked;
 
         // NSFW profile media toggle state. The value is authoritative
         // server-side (lives in UserPreference.profile_media_show_nsfw)
@@ -178,7 +175,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             })
             {
                 Keywords = new[] { @"colour", @"color", @"hue", @"accent", @"supporter", @"donator" },
-            }, () => onSupporterFeatureLockedClick());
+            }, () => onAccentLockedClick());
 
             accentPickerSlot = new SupporterLockedSlot(new SettingsItemV2(new FormHuePicker
             {
@@ -188,10 +185,14 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             })
             {
                 Keywords = new[] { @"colour", @"color", @"hue", @"accent", @"supporter", @"donator" },
-            }, () => onSupporterFeatureLockedClick());
+            }, () => onAccentLockedClick());
 
             Add(accentEnableSlot);
             Add(accentPickerSlot);
+
+            // Bindable that drives the lock: flips off the instant the accent
+            // unlock is bought in the store (or synced from the server).
+            accentUnlocked = config.GetBindable<bool>(OsuSetting.CustomUIAccentUnlocked);
 
             // Custom UI hue master → sub-toggle propagation. The three
             // ApplyHueTo* bindables (menu / overlays / settings panel)
@@ -238,14 +239,13 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         {
             base.LoadComplete();
 
-            if (api == null)
-            {
-                lockSlots();
-                return;
-            }
+            // Accent lock: gated on the points-store unlock now, not supporter.
+            // Fires immediately and whenever the unlock flips (e.g. right after
+            // buying it in the store) so the lock falls off live.
+            accentUnlocked?.BindValueChanged(_ => updateAccentLock(), true);
 
-            localUser = api.LocalUser.GetBoundCopy();
-            localUser.BindValueChanged(_ => updateSupporterLock(), true);
+            if (api == null)
+                return;
 
             // NSFW profile media wiring. Two halves:
             //
@@ -305,16 +305,9 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             });
         }
 
-        private void updateSupporterLock()
+        private void updateAccentLock()
         {
-            // "Donator" tier = current OR past supporter. The server exposes
-            // both via APIUser.IsSupporter (current tag) and HasSupported
-            // (true if they ever subscribed). Either grants access to the
-            // cosmetic accent picker.
-            var user = localUser?.Value;
-            bool donator = user != null && (user.IsSupporter || user.HasSupported);
-
-            if (donator)
+            if (accentUnlocked?.Value == true)
                 unlockSlots();
             else
                 lockSlots();
@@ -332,27 +325,20 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             accentPickerSlot?.SetLocked(true);
         }
 
-        // Click handler shared by both locked slots. Posts a SimpleNotification
-        // explaining why the control didn't respond AND making the toast
-        // itself the call-to-action: clicking the notification opens the
-        // Ko-fi page in the user's browser. Returning true from Activated
-        // dismisses the toast on click, which feels right because the user
-        // has now seen the message and acted on it.
-        private void onSupporterFeatureLockedClick()
+        // Click handler shared by both locked slots. The accent hue is a
+        // points-store unlock now, so clicking the lock takes the user straight
+        // to it in the cosmetic store (opening the store and scrolling to the
+        // unlock) instead of mutating the still-locked setting.
+        private void onAccentLockedClick()
         {
-            notifications?.Post(new SimpleNotification
-            {
-                Icon = FontAwesome.Solid.Heart,
-                Text = "Custom accent hue is a Torii Supporter perk. Click here to support and unlock!",
-                Activated = () =>
+            if (cosmeticStore != null)
+                cosmeticStore.ShowAndScrollToAccentUnlock();
+            else
+                notifications?.Post(new SimpleNotification
                 {
-                    // LinkWarnMode.NeverWarn skips the "you're about to leave
-                    // osu!" interstitial — appropriate here because the URL
-                    // is a constant we control, not user-supplied.
-                    game?.OpenUrlExternally(supporter_kofi_url, LinkWarnMode.NeverWarn);
-                    return true;
-                },
-            });
+                    Icon = FontAwesome.Solid.Lock,
+                    Text = "Unlock the custom accent hue in the cosmetic store.",
+                });
         }
 
         public override IEnumerable<LocalisableString> FilterTerms => base.FilterTerms;
@@ -426,12 +412,12 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             private readonly Container pill;
             private readonly Box pillBackground;
 
-            // Soft pink with low alpha — matches the "supporter" pink
-            // accent the donor badge already uses elsewhere, so the cue
-            // reads as "this belongs to the supporter feature family"
-            // without screaming for attention.
+            // Neutral grey, low alpha. The lock is no longer a "supporter" cue
+            // (the accent is bought with points in the store now), so it doesn't
+            // carry the supporter-pink branding any more - just a plain "locked"
+            // affordance that stays legible over the row.
             private static readonly osuTK.Graphics.Color4 pill_colour =
-                Color4Extensions.FromHex("#FF66B3");
+                Color4Extensions.FromHex("#9AA0AA");
 
             // Scrim alpha values are intentionally lower than the pill's so
             // the row content underneath stays legible — the goal is "you
@@ -494,7 +480,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                                     {
                                         Anchor = Anchor.CentreLeft,
                                         Origin = Anchor.CentreLeft,
-                                        Text = "TORII SUPPORTER",
+                                        Text = "LOCKED",
                                         Font = OsuFont.GetFont(size: 11, weight: FontWeight.Bold),
                                         Colour = pill_colour,
                                     },

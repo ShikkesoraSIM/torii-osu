@@ -26,6 +26,11 @@ namespace osu.Game.Cosmetics
         /// <summary>Kept equal to the single account-wide unlock above.</summary>
         public const int AdjustableDensityUnlock = 100;
 
+        /// <summary>One-time, account-wide unlock: the custom UI accent (second)
+        /// hue. Previously a supporter-only perk; now bought once with points
+        /// like any other unlock so it isn't tied to a paid supporter tier.</summary>
+        public const int CustomAccentHueUnlock = 5000;
+
         /// <summary>Range for the DENSITY slider (count per unit travel). Kept
         /// moderate so neither end looks broken (too sparse / too fat).</summary>
         public const float MinDensityMultiplier = 0.6f;
