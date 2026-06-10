@@ -79,6 +79,10 @@ namespace osu.Game.Cosmetics
         /// <summary>Account-wide unlock that enables the length/density sliders.</summary>
         public bool AdjustUnlocked => config.Get<bool>(OsuSetting.CursorTrailAdjustUnlocked);
 
+        /// <summary>Account-wide unlock that enables the custom UI accent (second)
+        /// hue. Replaces the old supporter gate.</summary>
+        public bool AccentUnlocked => config.Get<bool>(OsuSetting.CustomUIAccentUnlocked);
+
         public bool CanAfford(int price) => PointsBalance.Value >= price;
 
         /// <summary>Buy a trail. Returns true if the purchase went through.</summary>
@@ -103,6 +107,18 @@ namespace osu.Game.Cosmetics
 
             PointsBalance.Value -= price;
             config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, true);
+            InventoryChanged?.Invoke();
+            return true;
+        }
+
+        /// <summary>Buy the account-wide custom UI accent-hue unlock.</summary>
+        public bool BuyAccentUnlock(int price)
+        {
+            if (AccentUnlocked || !CanAfford(price))
+                return false;
+
+            PointsBalance.Value -= price;
+            config.SetValue(OsuSetting.CustomUIAccentUnlocked, true);
             InventoryChanged?.Invoke();
             return true;
         }

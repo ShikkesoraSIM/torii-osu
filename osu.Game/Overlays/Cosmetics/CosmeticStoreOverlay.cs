@@ -66,6 +66,11 @@ namespace osu.Game.Overlays.Cosmetics
         private IStoreCard selectedCard;
         private readonly List<IStoreCard> cards = new List<IStoreCard>();
 
+        // Tracked so the settings-panel accent lock can open the store and
+        // scroll straight to the custom-accent-hue unlock. Rebuilt with the
+        // card grid; null while on the Inventory tab.
+        private AccentHueUnlockCard accentUnlockCard;
+
         public CosmeticStoreOverlay()
         {
             RelativeSizeAxes = Axes.Both;
@@ -448,6 +453,24 @@ namespace osu.Game.Overlays.Cosmetics
                 }
             }
 
+            // ── Unlocks (account-wide capability buys, not previewable items) ──
+            // Store tab only; in Inventory it'd just read OWNED with nothing to
+            // do. Sits last so the settings-panel accent lock can open the store
+            // and scroll the user down to it.
+            accentUnlockCard = null;
+
+            if (!inventory)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Unlocks", FontAwesome.Solid.Lock));
+
+                accentUnlockCard = new AccentHueUnlockCard(cosmetics, showToast, selectedId == AccentHueUnlockCard.UNLOCK_ID);
+                if (selectedId == AccentHueUnlockCard.UNLOCK_ID)
+                    selectedCard = accentUnlockCard;
+                cards.Add(accentUnlockCard);
+                cardFlow.Add(accentUnlockCard);
+            }
+
             if (!anyContent)
             {
                 cardFlow.Add(new OsuSpriteText
@@ -457,6 +480,29 @@ namespace osu.Game.Overlays.Cosmetics
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 });
             }
+        }
+
+        /// <summary>Open the store and scroll straight to the custom-accent-hue
+        /// unlock. Used by the in-game settings panel's accent lock, which routes
+        /// here now instead of to a supporter page.</summary>
+        public void ShowAndScrollToAccentUnlock()
+        {
+            Show();
+
+            // Inventory doesn't list the unlock, so make sure we're on Store.
+            // Changing the tab rebuilds the grid via the bound handler; if we
+            // were already on Store, force a rebuild so the card exists.
+            if (tabs.Current.Value != StoreTab.Store)
+                tabs.Current.Value = StoreTab.Store;
+            else
+                rebuildCards();
+
+            // Let the flow lay out before scrolling to the freshly-added card.
+            Schedule(() => Schedule(() =>
+            {
+                if (accentUnlockCard != null)
+                    cardScroll?.ScrollIntoView(accentUnlockCard);
+            }));
         }
 
         /// <summary>A full-width section header that forces a new row in the
