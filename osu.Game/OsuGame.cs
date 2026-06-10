@@ -2049,18 +2049,17 @@ namespace osu.Game
             osu.Game.Performance.HiccupBreadcrumbs.Add("screen.push", newScreen?.GetType().Name);
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
-            // Torii gifts: a results screen means a map was just played; the main
-            // menu is the calm moment to reveal a pending gift (never on login).
+            // Torii gifts: a results screen means a map was just played; song select
+            // or the main menu is the calm moment to reveal a pending gift (never on
+            // login). After a play you drop back into song select, not the menu, so
+            // both count - see isCalmRevealScreen.
             if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
             {
                 toriiGiftWatcher?.MarkPlayed();
                 toriiPointsWatcher?.MarkPlayed();
             }
-            else if (newScreen is osu.Game.Screens.Menu.MainMenu)
-            {
-                toriiGiftWatcher?.OnMenu();
-                toriiPointsWatcher?.OnMenu();
-            }
+            else if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
         }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)
@@ -2069,18 +2068,31 @@ namespace osu.Game
                 $"{lastScreen?.GetType().Name} → {newScreen?.GetType().Name}");
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
-            // Coming back to the menu after a play is an EXIT (results/song select pop
-            // off), not a push, so the gift reveal has to be kicked here too. MainMenu
-            // is only ever pushed once at startup, so the screenPushed branch never
-            // catches the post-play return and a pending gift would sit unclaimed.
-            if (newScreen is osu.Game.Screens.Menu.MainMenu)
-            {
-                toriiGiftWatcher?.OnMenu();
-                toriiPointsWatcher?.OnMenu();
-            }
+            // Coming back from a play is an EXIT (results pops off, revealing the song
+            // select underneath), not a push, so the reveal has to be kicked here too
+            // or it never fires post-play - the screenPushed branch only catches the
+            // one-time startup push of the menu.
+            if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
 
             if (newScreen == null)
                 Exit();
+        }
+
+        // The calm, non-gameplay screens where a pending gift / missed points summary
+        // should surface after a play: the song select you drop back into when results
+        // closes (the usual case), or the main menu. Both V1 and V2 song select count.
+        // The watchers' own guards (gift: playedSinceCheck, points: cursor) make extra
+        // calls - e.g. song select AND then the menu - harmless no-ops.
+        private static bool isCalmRevealScreen(IScreen screen) =>
+            screen is osu.Game.Screens.Menu.MainMenu
+            || screen is osu.Game.Screens.Select.SongSelect
+            || screen is osu.Game.Screens.SelectV2.SongSelect;
+
+        private void revealOnCalmScreen()
+        {
+            toriiGiftWatcher?.OnMenu();
+            toriiPointsWatcher?.OnMenu();
         }
     }
 }
