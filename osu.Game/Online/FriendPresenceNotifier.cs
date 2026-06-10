@@ -71,7 +71,6 @@ namespace osu.Game.Online
 
             // Begin watching friend presence on the metadata client so we receive updates.
             userPresenceWatchToken = metadataClient.BeginWatchingUserPresence();
-            Logger.Log("FriendPresenceNotifier: BeginWatchingUserPresence called");
 
             friendPresences.BindTo(metadataClient.FriendPresences);
             friendPresences.BindCollectionChanged(onFriendPresenceChanged, true);
@@ -80,9 +79,6 @@ namespace osu.Game.Online
             // dictionaries. Some presence updates may be published to `UserPresences` instead of
             // `FriendPresences`; handle those similarly so runtime updates still produce notifications.
             metadataClient.UserPresences.BindCollectionChanged(onUserPresencesChanged, true);
-
-            metadataClient.IsConnected.BindValueChanged(c => Logger.Log($"FriendPresenceNotifier: MetadataClient IsConnected={c.NewValue}"), true);
-            Logger.Log("FriendPresenceNotifier: BeginWatchingUserPresence called");
 
             // Process initial friend statuses now: notify about currently online/offline friends
             // that already exist in the friends list at startup. Do not notify for friends
@@ -109,27 +105,19 @@ namespace osu.Game.Online
 
         private void onUserPresencesChanged(object? sender, NotifyDictionaryChangedEventArgs<int, UserPresence> e)
         {
-            Logger.Log($"FriendPresenceNotifier: UserPresences changed action={e.Action}; keys={string.Join(", ", metadataClient.UserPresences.Keys)}");
-
             switch (e.Action)
             {
                 case NotifyDictionaryChangedAction.Add:
                 case NotifyDictionaryChangedAction.Replace:
                     foreach ((int id, UserPresence presence) in e.NewItems!)
                     {
-                        Logger.Log($"FriendPresenceNotifier: user-presence event for id={id}");
                         APIRelation? friend = friends.FirstOrDefault(f => f.TargetID == id);
-                        Logger.Log($"FriendPresenceNotifier: friend lookup for id={id}: {(friend == null ? "null" : "found")} ");
 
                         if (friend?.TargetUser is APIUser user)
                         {
                             // Check if user is actually online based on Status, not just presence existence
                             bool isOnline = isUserOnline(presence);
                             updateUserOnlineState(user, id, isOnline);
-                        }
-                        else
-                        {
-                            Logger.Log($"FriendPresenceNotifier: no target user for user-presence id={id}");
                         }
                     }
 
@@ -138,17 +126,12 @@ namespace osu.Game.Online
                 case NotifyDictionaryChangedAction.Remove:
                     foreach ((int id, _) in e.OldItems!)
                     {
-                        Logger.Log($"FriendPresenceNotifier: user-presence removed for id={id}");
                         APIRelation? friend = friends.FirstOrDefault(f => f.TargetID == id);
 
                         if (friend?.TargetUser is APIUser user)
                         {
                             // When presence is removed, user is offline
                             updateUserOnlineState(user, id, false);
-                        }
-                        else
-                        {
-                            Logger.Log($"FriendPresenceNotifier: no target user for user-presence id={id} on remove");
                         }
                     }
 
@@ -191,28 +174,21 @@ namespace osu.Game.Online
 
         private void onFriendPresenceChanged(object? sender, NotifyDictionaryChangedEventArgs<int, UserPresence> e)
         {
-            Logger.Log($"FriendPresenceNotifier: onFriendPresenceChanged action={e.Action}");
             switch (e.Action)
             {
                 case NotifyDictionaryChangedAction.Add:
                 case NotifyDictionaryChangedAction.Replace:
                     foreach ((int friendId, UserPresence presence) in e.NewItems!)
                     {
-                        Logger.Log($"FriendPresenceNotifier: presence event for id={friendId}");
                         // Use canonical presence lookup to determine online state. This ensures
                         // consistency with the Dashboard and other consumers of presence data.
                         APIRelation? friend = friends.FirstOrDefault(f => f.TargetID == friendId);
-                        Logger.Log($"FriendPresenceNotifier: friend lookup for id={friendId}: {(friend == null ? "null" : "found")}");
 
                         if (friend?.TargetUser is APIUser user)
                         {
                             // Check if user is actually online based on Status, not just presence existence
                             bool isOnline = isUserOnline(presence);
                             updateUserOnlineState(user, friendId, isOnline);
-                        }
-                        else
-                        {
-                            Logger.Log($"FriendPresenceNotifier: no target user for friend id={friendId}");
                         }
                     }
 
@@ -221,7 +197,6 @@ namespace osu.Game.Online
                 case NotifyDictionaryChangedAction.Remove:
                     foreach ((int friendId, _) in e.OldItems!)
                     {
-                        Logger.Log($"FriendPresenceNotifier: presence removed for id={friendId}");
                         // Use canonical presence lookup to determine online state; removal events
                         // may indicate absence of presence across friend/user presences.
                         APIRelation? friend = friends.FirstOrDefault(f => f.TargetID == friendId);
@@ -232,10 +207,6 @@ namespace osu.Game.Online
                             var presence = metadataClient.GetPresence(friendId);
                             bool isOnline = presence.HasValue && isUserOnline(presence.Value);
                             updateUserOnlineState(user, friendId, isOnline);
-                        }
-                        else
-                        {
-                            Logger.Log($"FriendPresenceNotifier: no target user for friend id={friendId} on remove");
                         }
                     }
 

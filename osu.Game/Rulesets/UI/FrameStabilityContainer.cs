@@ -28,6 +28,14 @@ namespace osu.Game.Rulesets.UI
 
         private int invalidBassTimeLogCount;
 
+        // Session-total cap on the "invalid BASS time" log below. invalidBassTimeLogCount resets on
+        // every valid frame (it gates the recovery workaround), so on a machine whose audio clock
+        // glitches constantly (e.g. WASAPI underruns under disk/CPU pressure) it would otherwise
+        // re-log every burst — thousands of lines, each allocating strings + hitting log I/O on the
+        // update thread. Cap the logging to a handful per session; the workaround itself still runs.
+        private int totalInvalidBassTimeLogged;
+        private const int max_invalid_bass_time_logs = 5;
+
         /// <summary>
         /// The number of CPU milliseconds to spend at most during seek catch-up.
         /// </summary>
@@ -182,9 +190,16 @@ namespace osu.Game.Rulesets.UI
                 // fall through and let normal execution resume — better degraded gameplay than a permanent freeze.
                 if (++invalidBassTimeLogCount <= max_frames_to_ignore)
                 {
-                    Logger.Log($"Ignoring likely invalid time value provided by BASS during gameplay ({invalidBassTimeLogCount} / {max_frames_to_ignore} frames ignored)");
-                    Logger.Log($"- provided: {referenceClock.CurrentTime:N2}");
-                    Logger.Log($"- expected: {proposedTime:N2}");
+                    // Log sparingly: this can fire for a long stretch on a struggling machine and the
+                    // message is identical each time. One line, capped per session (the workaround below
+                    // — block then give up after max_frames_to_ignore — is unchanged and still runs).
+                    if (totalInvalidBassTimeLogged < max_invalid_bass_time_logs)
+                    {
+                        totalInvalidBassTimeLogged++;
+                        Logger.Log($"Ignoring likely invalid time value provided by BASS during gameplay (provided: {referenceClock.CurrentTime:N2}, expected: {proposedTime:N2})"
+                                   + (totalInvalidBassTimeLogged == max_invalid_bass_time_logs ? " — further occurrences this session suppressed." : string.Empty));
+                    }
+
                     state = PlaybackState.NotValid;
                     return;
                 }

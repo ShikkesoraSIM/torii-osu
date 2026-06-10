@@ -11,7 +11,6 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Development;
 using osu.Framework.Graphics;
-using osu.Framework.Logging;
 using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Online.Multiplayer;
@@ -237,10 +236,7 @@ namespace osu.Game.Online.Spectator
         public void HandleFrame(ReplayFrame frame) => Schedule(() =>
         {
             if (!isPlaying)
-            {
-                Logger.Log($"Frames arrived at {nameof(SpectatorClient)} outside of gameplay scope and will be ignored.");
                 return;
-            }
 
             if (frame is IConvertibleReplayFrame convertible)
             {
