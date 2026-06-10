@@ -62,7 +62,6 @@ namespace osu.Game.Overlays.Toolbar
         {
             AutoSizeAxes = Axes.X;
             Height = pill_height;
-            Alpha = 0;
             Action = () => history?.ToggleVisibility();
         }
 
@@ -163,16 +162,10 @@ namespace osu.Game.Overlays.Toolbar
 
         private void onStateChanged(ValueChangedEvent<APIState> e) => Schedule(() =>
         {
+            // Pill stays always-visible (like the server-pulse pill) so the balance
+            // is always in reach; just refresh it from the server once we're online.
             if (e.NewValue == APIState.Online)
-            {
-                this.FadeIn(180, Easing.OutQuint);
                 fetchBalance();
-            }
-            else
-            {
-                this.FadeOut(140, Easing.OutQuint);
-                history?.Hide();
-            }
         });
 
         /// <summary>Pull the authoritative balance on login so the pill is accurate before
