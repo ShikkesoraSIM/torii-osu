@@ -907,6 +907,9 @@ namespace osu.Game.Overlays.Cosmetics
 
             var req = new PurchaseCosmeticRequest(cosmeticId, price);
             req.Success += res => Schedule(() => cosmetics?.SyncBalance(res.Balance));
+            // Server rejected (insufficient / not for sale / error): undo the optimistic
+            // local deduction + ownership so a failed buy doesn't leave a free cosmetic.
+            req.Failure += _ => Schedule(() => cosmetics?.RollbackPurchase(cosmeticId, price));
             api.Queue(req);
         }
 
@@ -917,8 +920,16 @@ namespace osu.Game.Overlays.Cosmetics
             if (api?.IsLoggedIn != true)
                 return;
 
+            // Capture the mutation epoch: if the user optimistically buys something
+            // before this fetch returns, skip it so a stale balance can't clobber the
+            // fresh deduction.
+            long epoch = cosmetics?.MutationEpoch ?? 0;
             var bal = new GetMyPointsRequest();
-            bal.Success += res => Schedule(() => cosmetics?.SyncBalance(res.Balance));
+            bal.Success += res => Schedule(() =>
+            {
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                    cosmetics.SyncBalance(res.Balance);
+            });
             api.Queue(bal);
 
             var owned = new GetOwnedCosmeticsRequest();

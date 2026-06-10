@@ -59,6 +59,16 @@ namespace osu.Game.Cosmetics
         /// pre-server, in which case spending stays local only.</summary>
         public Action<string, int> ServerPurchase;
 
+        /// <summary>The cosmetic id used for the account-wide customisation unlock
+        /// purchase, so the server records the spend like any other item.</summary>
+        public const string CustomisationUnlockId = "customisation-unlock";
+
+        /// <summary>Bumped on every optimistic local balance change (buy / rollback).
+        /// A background balance sync captures this when it starts and only applies its
+        /// result if it hasn't changed since, so a stale fetch can't clobber a fresh
+        /// optimistic deduction.</summary>
+        public long MutationEpoch { get; private set; }
+
         public ToriiCosmeticsManager(OsuConfigManager config)
         {
             this.config = config;
@@ -86,6 +96,7 @@ namespace osu.Game.Cosmetics
                 return false;
 
             PointsBalance.Value -= price;
+            MutationEpoch++;
             var set = ownedSet();
             set.Add(id);
             config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
@@ -138,10 +149,31 @@ namespace osu.Game.Cosmetics
                 return false;
 
             PointsBalance.Value -= price;
+            MutationEpoch++;
             config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, true);
             InventoryChanged?.Invoke();
-            ServerPurchase?.Invoke("customisation-unlock", price);
+            ServerPurchase?.Invoke(CustomisationUnlockId, price);
             return true;
+        }
+
+        /// <summary>Undo an optimistic purchase whose server call failed: refund the
+        /// points and drop the local ownership / unlock, so a rejected buy doesn't
+        /// leave a free cosmetic or a wrong balance until the next sync.</summary>
+        public void RollbackPurchase(string id, int price)
+        {
+            PointsBalance.Value += price;
+            MutationEpoch++;
+
+            if (id == CustomisationUnlockId)
+                config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, false);
+            else
+            {
+                var set = ownedSet();
+                if (set.Remove(id))
+                    config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
+            }
+
+            InventoryChanged?.Invoke();
         }
 
         // ── Store curation (admin) ──────────────────────────────────────────
