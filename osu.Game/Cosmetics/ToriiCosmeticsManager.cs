@@ -122,24 +122,37 @@ namespace osu.Game.Cosmetics
         /// <summary>Overwrite the local balance cache with the server's authoritative value.</summary>
         public void SyncBalance(int serverBalance) => PointsBalance.Value = serverBalance;
 
-        /// <summary>Merge server-owned cosmetic ids into the local owned set (the server
-        /// is the source of truth; local extras are never removed).</summary>
+        /// <summary>Make the local owned set MATCH the server's authoritative set for
+        /// the logged-in account (the server is the source of truth). Adopts it
+        /// wholesale — so switching accounts on the same install no longer keeps the
+        /// previous account's trails — syncs the account-wide customisation unlock
+        /// from it, and UN-EQUIPS anything you don't actually own. Role name colours
+        /// (<c>name-group-*</c>) are group entitlements, not bought items, so they're
+        /// left equipped.</summary>
         public void SyncOwned(IEnumerable<string> serverOwned)
         {
             if (serverOwned == null)
                 return;
 
-            var set = ownedSet();
-            bool changed = false;
+            var server = new HashSet<string>();
             foreach (string id in serverOwned)
-                if (!string.IsNullOrEmpty(id) && set.Add(id))
-                    changed = true;
+                if (!string.IsNullOrEmpty(id))
+                    server.Add(id);
 
-            if (changed)
-            {
-                config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
-                InventoryChanged?.Invoke();
-            }
+            config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", server));
+            config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, server.Contains(CustomisationUnlockId));
+
+            // Un-equip a trail / bought name colour you no longer own.
+            if (!string.IsNullOrEmpty(EquippedTrailId.Value) && !server.Contains(EquippedTrailId.Value))
+                EquippedTrailId.Value = string.Empty;
+
+            string colour = EquippedNameColourId.Value;
+            if (!string.IsNullOrEmpty(colour)
+                && !colour.StartsWith("name-group-", StringComparison.Ordinal)
+                && !server.Contains(colour))
+                EquippedNameColourId.Value = string.Empty;
+
+            InventoryChanged?.Invoke();
         }
 
         /// <summary>Buy the account-wide length/density customisation unlock.</summary>

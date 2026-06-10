@@ -163,10 +163,31 @@ namespace osu.Game.Overlays.Toolbar
         private void onStateChanged(ValueChangedEvent<APIState> e) => Schedule(() =>
         {
             // Pill stays always-visible (like the server-pulse pill) so the balance
-            // is always in reach; just refresh it from the server once we're online.
+            // is always in reach; on login refresh the balance AND the owned set so
+            // the account's real cosmetics apply (and anything you don't own gets
+            // un-equipped — important when switching accounts on one install).
             if (e.NewValue == APIState.Online)
+            {
                 fetchBalance();
+                fetchOwned();
+            }
         });
+
+        /// <summary>Pull the authoritative owned set on login so cosmetics are
+        /// server-truth per account (the manager un-equips anything not owned).</summary>
+        private void fetchOwned()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var req = new GetOwnedCosmeticsRequest();
+            req.Success += res => Schedule(() =>
+            {
+                if (cosmetics != null && res != null)
+                    cosmetics.SyncOwned(res.Owned ?? System.Array.Empty<string>());
+            });
+            api.Queue(req);
+        }
 
         /// <summary>Pull the authoritative balance on login so the pill is accurate before
         /// the first play (the points watcher only syncs after a play / at the menu).</summary>

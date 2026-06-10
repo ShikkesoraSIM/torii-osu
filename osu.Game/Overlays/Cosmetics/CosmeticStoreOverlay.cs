@@ -937,8 +937,14 @@ namespace osu.Game.Overlays.Cosmetics
             var owned = new GetOwnedCosmeticsRequest();
             owned.Success += res => Schedule(() =>
             {
-                cosmetics?.SyncOwned(res.Owned ?? System.Array.Empty<string>());
-                rebuildCards();
+                // Same epoch guard as the balance: SyncOwned now REPLACES the local
+                // set (server-authoritative), so skip if the user just bought
+                // something mid-fetch, or the optimistic purchase would be wiped.
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                {
+                    cosmetics.SyncOwned(res.Owned ?? System.Array.Empty<string>());
+                    rebuildCards();
+                }
             });
             api.Queue(owned);
         }
