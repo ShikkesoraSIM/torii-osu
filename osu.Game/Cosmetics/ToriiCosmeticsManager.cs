@@ -63,6 +63,8 @@ namespace osu.Game.Cosmetics
         /// purchase, so the server records the spend like any other item.</summary>
         public const string CustomisationUnlockId = "customisation-unlock";
 
+        public const string AccentUnlockId = "accent-hue-unlock";
+
         /// <summary>Bumped on every optimistic local balance change (buy / rollback).
         /// A background balance sync captures this when it starts and only applies its
         /// result if it hasn't changed since, so a stale fetch can't clobber a fresh
@@ -150,6 +152,7 @@ namespace osu.Game.Cosmetics
 
             config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", server));
             config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, server.Contains(CustomisationUnlockId));
+            config.SetValue(OsuSetting.CustomUIAccentUnlocked, server.Contains(AccentUnlockId));
 
             // Un-equip a trail / bought name colour you no longer own. This is not a
             // user action, so suppress the equip/unequip chime around it.
@@ -197,6 +200,8 @@ namespace osu.Game.Cosmetics
 
             if (id == CustomisationUnlockId)
                 config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, false);
+            else if (id == AccentUnlockId)
+                config.SetValue(OsuSetting.CustomUIAccentUnlocked, false);
             else
             {
                 var set = ownedSet();
@@ -276,8 +281,10 @@ namespace osu.Game.Cosmetics
                 return false;
 
             PointsBalance.Value -= price;
+            MutationEpoch++;
             config.SetValue(OsuSetting.CustomUIAccentUnlocked, true);
             InventoryChanged?.Invoke();
+            ServerPurchase?.Invoke(AccentUnlockId, price);
             return true;
         }
 
