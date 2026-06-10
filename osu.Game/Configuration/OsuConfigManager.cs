@@ -531,7 +531,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
             SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
             SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
-            SetDefault(OsuSetting.ToriiPointsBalance, 90000);
+            SetDefault(OsuSetting.ToriiPointsBalance, 0);
             SetDefault(OsuSetting.ToriiPointsSeeded, false);
             // Cursor into the server points ledger: highest event id we've already
             // celebrated with a "+N" toast, so each earn pops exactly once.

@@ -50,9 +50,14 @@ namespace osu.Game.Cosmetics
         /// instead of only picking it up on the next equip.</summary>
         public event Action<string> CustomisationChanged;
 
-        /// <summary>Local starter balance, granted once per profile (placeholder
-        /// until the server economy is wired).</summary>
-        public const int StartingPoints = 90000;
+        /// <summary>Starter balance. The economy is server-authoritative now, so this
+        /// is 0; the real balance is fetched from g0v0 and cached in <see cref="PointsBalance"/>.</summary>
+        public const int StartingPoints = 0;
+
+        /// <summary>Set by the store overlay (which has API access): records a purchase
+        /// server-side and reconciles the balance from the response. Null = offline /
+        /// pre-server, in which case spending stays local only.</summary>
+        public Action<string, int> ServerPurchase;
 
         public ToriiCosmeticsManager(OsuConfigManager config)
         {
@@ -61,13 +66,6 @@ namespace osu.Game.Cosmetics
             EquippedNameColourId = config.GetBindable<string>(OsuSetting.EquippedNameColour);
             PointsBalance = config.GetBindable<int>(OsuSetting.ToriiPointsBalance);
             StorePotatoMode = config.GetBindable<bool>(OsuSetting.CosmeticStorePotatoMode);
-
-            // Grant the starter balance once (covers profiles created before this).
-            if (!config.Get<bool>(OsuSetting.ToriiPointsSeeded))
-            {
-                PointsBalance.Value = StartingPoints;
-                config.SetValue(OsuSetting.ToriiPointsSeeded, true);
-            }
         }
 
         // ── Ownership ───────────────────────────────────────────────────────
@@ -92,6 +90,7 @@ namespace osu.Game.Cosmetics
             set.Add(id);
             config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
             InventoryChanged?.Invoke();
+            ServerPurchase?.Invoke(id, price);
             return true;
         }
 
@@ -109,6 +108,29 @@ namespace osu.Game.Cosmetics
             return true;
         }
 
+        /// <summary>Overwrite the local balance cache with the server's authoritative value.</summary>
+        public void SyncBalance(int serverBalance) => PointsBalance.Value = serverBalance;
+
+        /// <summary>Merge server-owned cosmetic ids into the local owned set (the server
+        /// is the source of truth; local extras are never removed).</summary>
+        public void SyncOwned(IEnumerable<string> serverOwned)
+        {
+            if (serverOwned == null)
+                return;
+
+            var set = ownedSet();
+            bool changed = false;
+            foreach (string id in serverOwned)
+                if (!string.IsNullOrEmpty(id) && set.Add(id))
+                    changed = true;
+
+            if (changed)
+            {
+                config.SetValue(OsuSetting.OwnedCursorTrails, string.Join(",", set));
+                InventoryChanged?.Invoke();
+            }
+        }
+
         /// <summary>Buy the account-wide length/density customisation unlock.</summary>
         public bool BuyAdjustUnlock(int price)
         {
@@ -118,6 +140,7 @@ namespace osu.Game.Cosmetics
             PointsBalance.Value -= price;
             config.SetValue(OsuSetting.CursorTrailAdjustUnlocked, true);
             InventoryChanged?.Invoke();
+            ServerPurchase?.Invoke("customisation-unlock", price);
             return true;
         }
 

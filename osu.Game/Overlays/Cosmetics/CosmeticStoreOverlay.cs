@@ -836,8 +836,10 @@ namespace osu.Game.Overlays.Cosmetics
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
             mainPanel.ScaleTo(0.94f).ScaleTo(1f, BriefingTheme.EntranceDuration, Easing.OutBack)
                      .MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
+            wireServerPurchase();
             fetchAuraCatalog();
             fetchStoreConfig();
+            syncFromServer();
             rebuildCards();
         }
 
@@ -886,6 +888,46 @@ namespace osu.Game.Overlays.Cosmetics
 
             string[] ids = cosmetics?.StoreDisabledIds?.ToArray() ?? System.Array.Empty<string>();
             api.Queue(new UpdateStoreConfigRequest(ids));
+        }
+
+        // Route store purchases through g0v0. Buy() already deducted optimistically;
+        // this records the spend + ownership server-side and reconciles the balance
+        // from the authoritative response. The cosmetics manager calls it via its
+        // ServerPurchase hook so every Buy() flows through here.
+        private void wireServerPurchase()
+        {
+            if (cosmetics != null)
+                cosmetics.ServerPurchase = serverPurchase;
+        }
+
+        private void serverPurchase(string cosmeticId, int price)
+        {
+            if (api?.IsLoggedIn != true || string.IsNullOrEmpty(cosmeticId))
+                return;
+
+            var req = new PurchaseCosmeticRequest(cosmeticId, price);
+            req.Success += res => Schedule(() => cosmetics?.SyncBalance(res.Balance));
+            api.Queue(req);
+        }
+
+        // Pull the authoritative balance + owned set from g0v0 so the store reflects
+        // the real economy rather than the old local cache. Non-fatal on failure.
+        private void syncFromServer()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var bal = new GetMyPointsRequest();
+            bal.Success += res => Schedule(() => cosmetics?.SyncBalance(res.Balance));
+            api.Queue(bal);
+
+            var owned = new GetOwnedCosmeticsRequest();
+            owned.Success += res => Schedule(() =>
+            {
+                cosmetics?.SyncOwned(res.Owned ?? System.Array.Empty<string>());
+                rebuildCards();
+            });
+            api.Queue(owned);
         }
 
         protected override void PopOut()
