@@ -40,11 +40,33 @@ namespace osu.Game.Graphics.UserEffects
             new DevAuraPreset(),
             new ModAuraPreset(),
             new QatAuraPreset(),
+            // Per-ruleset Consul auras. All four match the same client-side
+            // identifier "torii-advisor" and rely on RequiredPlaymodes to
+            // discriminate which one renders for an osu! / taiko / catch /
+            // mania advisor. Sit before Supporter / Goof in priority so a
+            // mode-advisor's default visual is the specialised Consul aura
+            // (instead of a generic supporter pink) when they own both.
+            new OsuConsulAuraPreset(),
+            new TaikoConsulAuraPreset(),
+            new CatchConsulAuraPreset(),
+            new ManiaConsulAuraPreset(),
+            // Feature Architect (May 2026 Cohort) — manually granted to
+            // community members whose feature requests landed between
+            // 4 May and 4 June 2026. Cohort-stamped in the AuraId so a
+            // future second cohort can ship as a separate preset.
+            new FeatureArchitectAuraPreset(),
             // Single supporter aura (pink hearts) — granted only while the
             // user is currently in the active supporter window. Past donors
             // get the permanent "torii-donator" badge instead, which has
             // no aura attached.
             new SupporterAuraPreset(),
+            // Founder (user.id <= 100) — torii-themed permanent aura for
+            // the early-adopter cohort. Vermillion embers + occasional
+            // torii-gate silhouette. Default priority sits between the
+            // elite-tier auras and the recognition tier, so a Founder who
+            // is also an admin still defaults to admin, but a Founder
+            // who is just a regular player gets the Founder aura.
+            new FounderAuraPreset(),
             new GoofAuraPreset(),
             // Bug-finder aura (mint bugs crawling along the baseline) —
             // recognition tier for community members who reported real
@@ -52,6 +74,32 @@ namespace osu.Game.Graphics.UserEffects
             // it never wins the tiebreak against any "elite" group the
             // same user happens to own (admin/dev/mod/qat/supporter/goof).
             new BugFinderAuraPreset(),
+            // Summer 2026 seasonal aura — earned via the summer event group,
+            // explicit-equip only (high DefaultPriority so it never auto-wins
+            // the group fallback). Earned, never bought, like every aura.
+            new SummerAuraPreset(),
+            // Stardust — the ONLY points-purchasable aura. No owning group, so
+            // it never appears in the entitled list or group fallback; it only
+            // renders when a user explicitly equips it after buying. Deliberately
+            // subtle so a bought aura never outshines an earned one.
+            new StardustAuraPreset(),
+            // Founder aura design VARIANTS — registered so the visual
+            // test scene (TestSceneFounderVariants + AllSurfaces
+            // personas in TestSceneAurasInRealUI) can resolve them by
+            // AuraId via the normal UserAuraContainer pipeline.
+            // DefaultPriority is intentionally 200 on every variant
+            // so they never win the group-fallback against the real
+            // FounderAuraPreset (priority 70) — real Founder users
+            // without an explicit equipped pick get the baseline; the
+            // variants only render when an APIUser explicitly equips
+            // them by AuraId. After we ship the chosen variant as the
+            // canonical FounderAuraPreset, the remaining variant
+            // classes + these entries can be deleted.
+            new FounderImperialGoldPreset(),
+            new FounderSakuraGardenPreset(),
+            new FounderLacqueredBoxPreset(),
+            new FounderSunrisePillarPreset(),
+            new FounderCrestOfHonorPreset(),
         };
 
         // Indexed by AuraId for O(1) lookup. Built once at static init.
@@ -112,13 +160,9 @@ namespace osu.Game.Graphics.UserEffects
             if (user?.Groups == null || user.Groups.Length == 0)
                 yield break;
 
-            var groupIds = new HashSet<string>(user.Groups
-                .Where(g => g.Identifier != null)
-                .Select(g => g.Identifier!));
-
             foreach (var preset in all_presets.OrderBy(p => p.DefaultPriority))
             {
-                if (preset.OwningGroupIdentifiers.Any(id => groupIds.Contains(id)))
+                if (isPresetEligibleForUser(preset, user))
                     yield return preset;
             }
         }
@@ -130,19 +174,57 @@ namespace osu.Game.Graphics.UserEffects
             if (user.Groups == null || user.Groups.Length == 0)
                 return null;
 
-            var groupIds = new HashSet<string>(user.Groups
-                .Where(g => g.Identifier != null)
-                .Select(g => g.Identifier!));
-
             AuraPreset? best = null;
             foreach (var preset in all_presets)
             {
-                if (!preset.OwningGroupIdentifiers.Any(id => groupIds.Contains(id)))
+                if (!isPresetEligibleForUser(preset, user))
                     continue;
                 if (best == null || preset.DefaultPriority < best.DefaultPriority)
                     best = preset;
             }
             return best;
+        }
+
+        // Centralises the "is this user allowed to wear this preset?" check
+        // so both the picker (GetEntitledAuras) and the fallback resolver
+        // (resolveDefaultForGroups) agree. Honours both the identifier
+        // intersect AND the optional per-preset RequiredPlaymodes filter.
+        //
+        // When RequiredPlaymodes is set, we require at least one of the
+        // user's matching groups to ALSO carry one of the required
+        // playmodes — used by the per-mode Consul auras to distinguish
+        // an osu! Advisor from a Taiko Advisor (both groups share the
+        // identifier "torii-advisor"; they differ only in Playmodes).
+        private static bool isPresetEligibleForUser(AuraPreset preset, APIUser user)
+        {
+            if (user.Groups == null || user.Groups.Length == 0)
+                return false;
+
+            foreach (var group in user.Groups)
+            {
+                if (group.Identifier == null)
+                    continue;
+                if (!preset.OwningGroupIdentifiers.Contains(group.Identifier))
+                    continue;
+
+                // No playmode constraint — identifier match alone is enough.
+                if (preset.RequiredPlaymodes == null || preset.RequiredPlaymodes.Count == 0)
+                    return true;
+
+                // Playmode constraint set — the matching group must carry
+                // at least one of the required playmodes in its payload.
+                // Groups without a Playmodes array can never satisfy a
+                // playmode-filtered preset (no information to match on).
+                if (group.Playmodes == null || group.Playmodes.Length == 0)
+                    continue;
+
+                foreach (var pm in group.Playmodes)
+                {
+                    if (preset.RequiredPlaymodes.Contains(pm))
+                        return true;
+                }
+            }
+            return false;
         }
     }
 }

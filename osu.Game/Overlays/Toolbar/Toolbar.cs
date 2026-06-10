@@ -287,6 +287,8 @@ namespace osu.Game.Overlays.Toolbar
                                     {
                                         //new ToolbarNewsButton(),
                                         new ToolbarChangelogButton(),
+                                        new ToolbarCosmeticStoreButton(),
+                                        new ToolbarAdminButton(),
                                         //new ToolbarWikiButton(),
                                         new ToolbarRankingsButton(),
                                         new ToolbarBeatmapListingButton(),
@@ -312,6 +314,16 @@ namespace osu.Game.Overlays.Toolbar
                                         // 32px tall vs the toolbar's 40px, so a Margin.Top = 4
                                         // visually centres it without breaking the anchor contract.
                                         new ToriiServerPulseButton
+                                        {
+                                            Margin = new MarginPadding { Top = 4, Horizontal = 4 },
+                                        },
+                                        // Currency pill — sits immediately left of
+                                        // the user chip so the balance reads as a
+                                        // "you" stat. Same 32px height + Top=4
+                                        // centring as the pulse pill so it slots
+                                        // into the 40px toolbar cleanly. Collapses
+                                        // out of the FillFlow when signed out.
+                                        new ToolbarPointsButton
                                         {
                                             Margin = new MarginPadding { Top = 4, Horizontal = 4 },
                                         },

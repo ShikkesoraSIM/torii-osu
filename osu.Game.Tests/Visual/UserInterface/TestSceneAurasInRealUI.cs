@@ -10,11 +10,15 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
+using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Utils;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
+using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserEffects;
+using osu.Game.Graphics.UserEffects.Presets;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Chat;
 using osu.Game.Overlays;
@@ -69,13 +73,45 @@ namespace osu.Game.Tests.Visual.UserInterface
             public readonly string? GroupName;       // tooltip text on the group badge
             public readonly string? GroupShortName;  // text rendered IN the badge (e.g. "ADM")
             public readonly string? GroupColourHex;
-            public Persona(string username, string? groupKey, string? groupName, string? groupShortName, string? groupColourHex)
+            // Optional playmode payload on the synthesised APIUserGroup.
+            // Only set for personas representing the per-mode Consul auras
+            // (advisor-osu / advisor-taiko / …) where multiple keys share
+            // the same client identifier "torii-advisor" and the matching
+            // ConsulAuraPreset uses RequiredPlaymodes to discriminate
+            // which of the four renders. Defaults to null so adding this
+            // field doesn't disturb the existing baseline personas.
+            public readonly string[]? GroupPlaymodes;
+            // Optional UserId override for personas that exercise
+            // server-side auto-detected entitlement (currently: Founder
+            // for user.id <= 100). When null, the test scene's per-row
+            // synthetic id is used. We set this to a small int (e.g. 7)
+            // for the Founder persona so the local resolver receives a
+            // user payload that would be eligible if the server ran the
+            // same check — the actual eligibility on the client side
+            // still flows through the group (torii-founder), this is
+            // just an honest-looking value.
+            public readonly int? IdOverride;
+            // Optional explicit AuraId. When set, the makeFakeUser
+            // helper sets APIUser.EquippedAura to this string so the
+            // registry's Path 1 resolution (explicit equipped pick)
+            // returns the matching preset instead of the group-fallback
+            // default. Used by the Founder-variant personas to force
+            // each variant's preset to render even though they all
+            // share the same "torii-founder" group and would otherwise
+            // tie in the fallback resolver.
+            public readonly string? EquippedAura;
+
+            public Persona(string username, string? groupKey, string? groupName, string? groupShortName, string? groupColourHex,
+                           string[]? groupPlaymodes = null, int? idOverride = null, string? equippedAura = null)
             {
                 Username = username;
                 GroupKey = groupKey;
                 GroupName = groupName;
                 GroupShortName = groupShortName;
                 GroupColourHex = groupColourHex;
+                GroupPlaymodes = groupPlaymodes;
+                IdOverride = idOverride;
+                EquippedAura = equippedAura;
             }
         }
 
@@ -92,6 +128,49 @@ namespace osu.Game.Tests.Visual.UserInterface
             new Persona("Mash39",         "torii-qat",       "Beatmap Nominator",  "QAT",   "5AE0C0"),
             new Persona("NahuelSupports", "torii-supporter", "Torii Supporter",    "SUP",   "FF7FC8"),
             new Persona("GoofGuy",        "torii-goof",      "Goofball",           "GOOF",  "9CE5A0"),
+            // ---- Phase 1 additions -------------------------------------------
+            // Bug Finder — already in production but no persona was here. Add
+            // for full coverage of the existing aura roster.
+            new Persona("BugReporter",    "torii-bug-finder", "Bug Finder",        "BUG",   "8CE0C5"),
+            // Founder — torii-themed, vermillion + gold. Server side this
+            // would be granted via user.id <= 100; here we synthesise the
+            // group directly + give the persona a low IdOverride so the
+            // full surface visually matches a real founder user.
+            new Persona("OGOne",          "torii-founder",   "Founder",           "FND",   "FF6B5A",
+                        idOverride: 7),
+            // Feature Architect (May 2026 Cohort) — blueprint cyan + gold.
+            // Granted manually in production; persona here just shows what
+            // it looks like in the UI.
+            new Persona("FeatureCrafter", "torii-feature-architect-2026-06",
+                                          "Feature Architect (May 2026 Cohort)",   "FA26",  "4DD0E1"),
+            // Per-mode Consuls — all share identifier "torii-advisor"; the
+            // GroupPlaymodes field is what makes each ConsulAuraPreset's
+            // RequiredPlaymodes filter pick the right one of the four.
+            new Persona("OsuConsulPersona",   "torii-advisor", "osu! Advisor",     "ADV",   "FF66AA",
+                        groupPlaymodes: new[] { "osu" }),
+            new Persona("TaikoConsulPersona", "torii-advisor", "Taiko Advisor",    "ADV",   "FF6B35",
+                        groupPlaymodes: new[] { "taiko" }),
+            new Persona("CatchConsulPersona", "torii-advisor", "Catch Advisor",    "ADV",   "26C6A6",
+                        groupPlaymodes: new[] { "fruits" }),
+            new Persona("ManiaConsulPersona", "torii-advisor", "Mania Advisor",    "ADV",   "E91E8C",
+                        groupPlaymodes: new[] { "mania" }),
+            // ---- Founder design variants ------------------------------------
+            // Each variant persona reuses the torii-founder group so
+            // production entitlement logic accepts the aura, then
+            // pins EquippedAura to that variant's specific AuraId so
+            // the registry's Path-1 resolver returns the right preset.
+            // Cycle through these in the AllSurfaces context to see
+            // each variant in every UI side-by-side with the others.
+            new Persona("V1_ImperialGold",  "torii-founder", "Founder", "FND", "FFCE66",
+                        idOverride: 1,  equippedAura: FounderImperialGoldPreset.ID),
+            new Persona("V2_SakuraGarden",  "torii-founder", "Founder", "FND", "FF9EC3",
+                        idOverride: 2,  equippedAura: FounderSakuraGardenPreset.ID),
+            new Persona("V3_LacqueredBox",  "torii-founder", "Founder", "FND", "DCAA50",
+                        idOverride: 3,  equippedAura: FounderLacqueredBoxPreset.ID),
+            new Persona("V4_SunrisePillar", "torii-founder", "Founder", "FND", "FFBC64",
+                        idOverride: 4,  equippedAura: FounderSunrisePillarPreset.ID),
+            new Persona("V5_CrestOfHonor",  "torii-founder", "Founder", "FND", "FFD26E",
+                        idOverride: 5,  equippedAura: FounderCrestOfHonorPreset.ID),
         };
 
         // Extra non-staff people used ONLY in the chat view to give the
@@ -114,6 +193,13 @@ namespace osu.Game.Tests.Visual.UserInterface
             Chat,
             UserPanels,
             ProfileHeader,
+            // "All surfaces for a single persona" — stacks every UI that
+            // can host a username (chat, leaderboard, gameplay strip,
+            // user panels) into one scrollable view, so you can verify
+            // at a glance that ONE aura reads correctly across EVERY
+            // place it might appear. Cycle which persona is being
+            // displayed with the per-context "next persona" step.
+            AllSurfaces,
         }
 
         private Ctx currentCtx = Ctx.SlantedLeaderboard;
@@ -132,6 +218,7 @@ namespace osu.Game.Tests.Visual.UserInterface
             AddStep("Chat (mixed staff + regular players)",          () => set(Ctx.Chat));
             AddStep("User panels (Brick / Grid / List / Rank)",      () => set(Ctx.UserPanels));
             AddStep("Profile header (per-preset cycle)",             () => set(Ctx.ProfileHeader));
+            AddStep("» All surfaces (single persona, per-preset cycle)", () => set(Ctx.AllSurfaces));
 
             // Width slider rebuilds the active context so the change is
             // visible immediately — handy for verifying the aura survives
@@ -163,6 +250,7 @@ namespace osu.Game.Tests.Visual.UserInterface
                 case Ctx.Chat:               buildChat(); break;
                 case Ctx.UserPanels:         buildUserPanels(); break;
                 case Ctx.ProfileHeader:      buildProfileHeader(); break;
+                case Ctx.AllSurfaces:        buildAllSurfaces(); break;
             }
         }
 
@@ -170,8 +258,18 @@ namespace osu.Game.Tests.Visual.UserInterface
 
         private static APIUser makeFakeUser(Persona p, int id) => new APIUser
         {
-            Id = id,
+            // Honour the persona's IdOverride when provided so personas
+            // representing id-gated entitlements (Founder = id <= 100)
+            // present a believable id to anything that reads it. Default
+            // path uses the test-scene's per-row synthetic id for stable
+            // diffability across runs.
+            Id = p.IdOverride ?? id,
             Username = p.Username,
+            // Explicit equipped aura, when set, makes the registry's
+            // Path 1 resolver return THIS preset for the user. Used
+            // by the Founder-variant personas to disambiguate between
+            // the five variant presets that all match the same group.
+            EquippedAura = p.EquippedAura,
             CountryCode = CountryCode.AR,
             // Chat name colour (and many other places) reads `Colour`
             // directly when there is no group; setting it here so plain
@@ -199,6 +297,13 @@ namespace osu.Game.Tests.Visual.UserInterface
                         // chat name. Distinct hex per preset so the chat view
                         // also visually surfaces "which staff group".
                         Colour = "#" + p.GroupColourHex,
+                        // Per-mode advisor entries carry a Playmodes array
+                        // that's what the ConsulAuraPreset.RequiredPlaymodes
+                        // filter matches against. HasPlaymodes mirrors the
+                        // server-side field so the badge UI uses the right
+                        // layout for groups with mode tags.
+                        Playmodes = p.GroupPlaymodes,
+                        HasPlaymodes = p.GroupPlaymodes != null && p.GroupPlaymodes.Length > 0,
                     },
                 },
             // Statistics so UserRankPanel / similar render numbers instead
@@ -364,11 +469,27 @@ namespace osu.Game.Tests.Visual.UserInterface
 
         private void buildUserPanels()
         {
+            // Sizing: RelativeSizeAxes.X (NOT AutoSize.X) plus
+            // AutoSizeAxes.Y. The list-row child below is
+            // RelativeSizeAxes.X because UserListPanel stretches to its
+            // parent's width — that creates a circular dependency if the
+            // outer flow is AutoSize.X (parent waits on child, child
+            // waits on parent), which the framework silently collapses
+            // to zero width, hiding the list row entirely and breaking
+            // the height measurement so the scroll never extends past
+            // the viewport. Pinning the outer flow's X to its parent
+            // column breaks the cycle while still letting the brick /
+            // grid / rank rows auto-size their own X within it.
+            //
+            // TopCentre anchor + origin keeps content top-aligned so the
+            // parent's AutoSize.Y measurement matches the flow's actual
+            // bottom edge instead of mis-measuring from a centred origin.
             var flow = new FillFlowContainer
             {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                AutoSizeAxes = Axes.Both,
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
                 Spacing = new Vector2(0, 12),
                 Direction = FillDirection.Vertical,
             };
@@ -457,6 +578,299 @@ namespace osu.Game.Tests.Visual.UserInterface
                 profilePersonaIndex = (profilePersonaIndex + 1) % personas.Length;
                 rebuild();
             });
+        }
+
+        // Separate persona index for the AllSurfaces context so cycling
+        // here doesn't interfere with the ProfileHeader cycle. Defaults
+        // to the first Founder VARIANT persona (V1 Imperial Gold)
+        // because that's the current active design-review target —
+        // cycling "next" walks through V1 → V2 → V3 → V4 → V5 →
+        // wraps back to PlainPlayer. Adjust the starting index when
+        // a different family of personas becomes the review focus.
+        private int allSurfacesPersonaIndex = 14; // V1_ImperialGold
+
+        // Renders ONE persona across EVERY UI surface that can host a
+        // username, stacked vertically inside a scroll container. The
+        // point of this view is "verify a single aura reads correctly
+        // in every place it'll ever appear" without having to switch
+        // between contexts (which resets particle state and breaks
+        // continuity). The other per-context views still exist for
+        // zoom-in debugging of one surface in isolation.
+        private void buildAllSurfaces()
+        {
+            var hero = personas[allSurfacesPersonaIndex];
+
+            // A short list of filler plain personas so leaderboard /
+            // chat sections don't read as "one person alone" — the hero
+            // persona always sits at position 1 (top of leaderboards,
+            // first chat line) so the reviewer's eye lands on the aura
+            // first.
+            var filler = new[] { extraChatPlayers[0], extraChatPlayers[1], extraChatPlayers[2] };
+
+            var flow = new FillFlowContainer
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                AutoSizeAxes = Axes.Y,
+                RelativeSizeAxes = Axes.X,
+                Width = widthFactor,
+                Padding = new MarginPadding { Top = 14, Bottom = 24, Horizontal = 12 },
+                Spacing = new Vector2(0, 18),
+                Direction = FillDirection.Vertical,
+                Children = new Drawable[]
+                {
+                    // Hero label so the reviewer knows whose aura they're
+                    // currently inspecting. Uses the persona's group
+                    // colour so the label visually previews the aura's
+                    // palette before the surfaces even render.
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Vertical,
+                        Spacing = new Vector2(0, 2),
+                        Children = new Drawable[]
+                        {
+                            new OsuSpriteText
+                            {
+                                Text = "Showing: " + hero.Username,
+                                Font = OsuFont.GetFont(size: 18, weight: FontWeight.Bold),
+                                Colour = Colour4.White,
+                            },
+                            new OsuSpriteText
+                            {
+                                Text = hero.GroupKey == null
+                                    ? "(no group, baseline plain user)"
+                                    : "group: " + hero.GroupKey
+                                      + (hero.GroupPlaymodes != null && hero.GroupPlaymodes.Length > 0
+                                          ? "  •  playmode: " + string.Join(",", hero.GroupPlaymodes)
+                                          : string.Empty),
+                                Font = OsuFont.GetFont(size: 11),
+                                Colour = Colour4.White.Opacity(0.55f),
+                            },
+                        },
+                    },
+
+                    sectionHeader("Chat — three lines from the persona, mixed with regulars"),
+                    buildAllSurfacesChat(hero, filler),
+
+                    sectionHeader("Song-select leaderboard — hero at position 1, sheared variant"),
+                    buildAllSurfacesLeaderboard(hero, filler, sheared: true),
+
+                    sectionHeader("Song-select leaderboard — hero at position 1, plain variant"),
+                    buildAllSurfacesLeaderboard(hero, filler, sheared: false),
+
+                    sectionHeader("In-game gameplay leaderboard — hero at top"),
+                    buildAllSurfacesGameplayLeaderboard(hero, filler),
+
+                    sectionHeader("User panels — Brick / Grid / List / Rank (dashboard placements)"),
+                    buildAllSurfacesUserPanels(hero),
+
+                    sectionHeader("Profile header — the full-page hero card"),
+                    buildAllSurfacesProfileHeader(hero),
+                },
+            };
+
+            Add(new BasicScrollContainer
+            {
+                RelativeSizeAxes = Axes.Both,
+                Child = flow,
+            });
+
+            // Cycle step — bound here so it's only added in this
+            // context (avoids cluttering the step list when the
+            // reviewer is in other views).
+            AddStep("» next persona across surfaces", () =>
+            {
+                allSurfacesPersonaIndex = (allSurfacesPersonaIndex + 1) % personas.Length;
+                rebuild();
+            });
+        }
+
+        // Small section divider with a label. Used between each
+        // surface-block in the AllSurfaces view so the reviewer can
+        // tell at a glance which UI a particular row belongs to.
+        private static Drawable sectionHeader(string label) => new FillFlowContainer
+        {
+            AutoSizeAxes = Axes.Y,
+            RelativeSizeAxes = Axes.X,
+            Direction = FillDirection.Vertical,
+            Spacing = new Vector2(0, 4),
+            Children = new Drawable[]
+            {
+                new OsuSpriteText
+                {
+                    Text = label,
+                    Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
+                    Colour = Colour4.White.Opacity(0.55f),
+                },
+                new Box
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Height = 1,
+                    Colour = Colour4.White.Opacity(0.10f),
+                },
+            },
+        };
+
+        private static Drawable buildAllSurfacesChat(Persona hero, Persona[] filler)
+        {
+            // Three lines: hero, filler, hero — gives two looks at the
+            // aura in chat density and verifies it doesn't visually
+            // bleed into adjacent rows.
+            string[] heroLines = { "yo, just landed a clean play", "anyone wanna multi after this map" };
+            string[] fillerLines = { "gg, that one was rough", "lmao what was that miss" };
+
+            (Persona persona, string text)[] order =
+            {
+                (hero, heroLines[0]),
+                (filler[0], fillerLines[0]),
+                (hero, heroLines[1]),
+                (filler[1], fillerLines[1]),
+            };
+
+            return new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Y,
+                RelativeSizeAxes = Axes.X,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 3),
+                Children = order.Select((entry, idx) =>
+                {
+                    var sender = makeFakeUser(entry.persona, 6000 + idx);
+                    var message = new Message(idx + 1)
+                    {
+                        Content = entry.text,
+                        Sender = sender,
+                        Timestamp = DateTimeOffset.Now.AddSeconds(-idx),
+                    };
+                    return (Drawable)new ChatLine(message);
+                }).ToArray(),
+            };
+        }
+
+        private static Drawable buildAllSurfacesLeaderboard(Persona hero, Persona[] filler, bool sheared)
+        {
+            // Four rows: hero on top, then three filler rows. Ensures
+            // the hero's aura has neighbours so the reviewer can spot
+            // any visual bleed between adjacent rows AND see how the
+            // aura compares to plain users in the same view.
+            (Persona persona, int rank)[] rows =
+            {
+                (hero, 1),
+                (filler[0], 2),
+                (filler[1], 3),
+                (filler[2], 4),
+            };
+
+            return new FillFlowContainer
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Spacing = new Vector2(0, 2),
+                Shear = sheared ? OsuGame.SHEAR : Vector2.Zero,
+                Children = rows.Select(r =>
+                {
+                    var score = makeFakeScore(r.persona, 6100 + r.rank, r.rank);
+                    return (Drawable)new BeatmapLeaderboardScore(score, sheared)
+                    {
+                        Rank = score.Position,
+                        Shear = Vector2.Zero,
+                    };
+                }).ToArray(),
+            };
+        }
+
+        private static Drawable buildAllSurfacesGameplayLeaderboard(Persona hero, Persona[] filler)
+        {
+            // Four-row strip with the hero "tracked" (marked as the
+            // local player) so the gameplay leaderboard's
+            // highlight-the-local-row visual treatment applies too.
+            (Persona persona, bool tracked, int rank)[] rows =
+            {
+                (hero, true, 1),
+                (filler[0], false, 2),
+                (filler[1], false, 3),
+                (filler[2], false, 4),
+            };
+
+            return new FillFlowContainer
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                AutoSizeAxes = Axes.Y,
+                Width = 250,
+                Spacing = new Vector2(0, 6),
+                Direction = FillDirection.Vertical,
+                Children = rows.Select(r =>
+                {
+                    var user = makeFakeUser(r.persona, 6200 + r.rank);
+                    var displayScore = new BindableLong(2_000_000 - r.rank * 100_000);
+                    var glScore = new GameplayLeaderboardScore(user, r.tracked, displayScore)
+                    {
+                        Position = { Value = r.rank },
+                    };
+                    return (Drawable)new DrawableGameplayLeaderboardScore(glScore)
+                    {
+                        Expanded = { Value = true },
+                        RelativeSizeAxes = Axes.X,
+                    };
+                }).ToArray(),
+            };
+        }
+
+        private static Drawable buildAllSurfacesUserPanels(Persona hero)
+        {
+            // One of each panel variant so the reviewer can confirm the
+            // aura renders correctly across all dashboard placements
+            // (Brick = compact pill, Grid = square card, List = wide
+            // row, Rank = trophy-style panel). Same persona on all four
+            // so the eye can cross-reference how the aura adapts to
+            // each layout's name size + position.
+            var user = makeFakeUser(hero, 6300);
+
+            return new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Y,
+                RelativeSizeAxes = Axes.X,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 10),
+                Children = new Drawable[]
+                {
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Spacing = new Vector2(8),
+                        Direction = FillDirection.Horizontal,
+                        Children = new Drawable[]
+                        {
+                            new UserBrickPanel(user),
+                            new UserGridPanel(user) { Width = 220 },
+                        },
+                    },
+                    new UserListPanel(user),
+                    new UserRankPanel(user) { Width = 280 },
+                },
+            };
+        }
+
+        private static Drawable buildAllSurfacesProfileHeader(Persona hero)
+        {
+            // Profile header takes care of its own internal sizing; just
+            // wrap it in a fixed-height container so the surrounding
+            // FillFlow doesn't try to render the header at zero height.
+            var header = new ProfileHeader();
+            header.User.Value = new UserProfileData(makeFakeUser(hero, 6400), new OsuRuleset().RulesetInfo);
+
+            return new Container
+            {
+                RelativeSizeAxes = Axes.X,
+                // Tall enough to show the cover image + the header band
+                // without scrolling inside the header itself.
+                Height = 320,
+                Child = header,
+            };
         }
     }
 }

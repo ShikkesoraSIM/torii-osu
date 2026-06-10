@@ -232,15 +232,15 @@ namespace osu.Game.Screens.Footer
             var accentHue = config.GetBindable<float>(OsuSetting.CustomUIAccentHue);
             var hueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
             var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
+            var accentUnlocked = config.GetBindable<bool>(OsuSetting.CustomUIAccentUnlocked);
             var localUser = api?.LocalUser.GetBoundCopy();
 
             void apply()
             {
-                // Mirror the central CustomUiHueHelper.ResolveAccentHue gate
-                // so the footer's accent obeys the same supporter check as
-                // every other surface (chrome / overlays / settings panel).
-                bool donator = CustomUiHueHelper.IsDonatorTier(localUser?.Value);
-                bool active = hueEnabled.Value && applyToMenu.Value && accentEnabled.Value && donator;
+                // Mirror the central CustomUiHueHelper.ResolveAccentHue gate so
+                // the footer's accent obeys the same store-unlock check as every
+                // other surface (chrome / overlays / settings panel).
+                bool active = hueEnabled.Value && applyToMenu.Value && accentEnabled.Value && accentUnlocked.Value;
 
                 if (active)
                     colourProvider.ChangeAccentColourScheme((int)accentHue.Value);
@@ -252,6 +252,7 @@ namespace osu.Game.Screens.Footer
             accentHue.BindValueChanged(_ => apply());
             hueEnabled.BindValueChanged(_ => apply());
             applyToMenu.BindValueChanged(_ => apply());
+            accentUnlocked.BindValueChanged(_ => apply());
             localUser?.BindValueChanged(_ => apply(), true);
 
             // If api wasn't available (test scenes etc.), fall back to
@@ -265,6 +266,7 @@ namespace osu.Game.Screens.Footer
                 accentHue.UnbindAll();
                 hueEnabled.UnbindAll();
                 applyToMenu.UnbindAll();
+                accentUnlocked.UnbindAll();
                 localUser?.UnbindAll();
             });
         }

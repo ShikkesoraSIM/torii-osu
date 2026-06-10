@@ -225,6 +225,10 @@ namespace osu.Game
 
         protected OsuScreenStack ScreenStack;
 
+        private osu.Game.Overlays.Cosmetics.ToriiGiftWatcher toriiGiftWatcher;
+
+        private osu.Game.Overlays.Cosmetics.ToriiPointsWatcher toriiPointsWatcher;
+
         protected BackButton BackButton => screenStackFooter.BackButton;
         protected ScreenFooter ScreenFooter => screenStackFooter.Footer;
 
@@ -1370,6 +1374,18 @@ namespace osu.Game
             loadComponentSingleFile(new MessageNotifier(), Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);
             loadComponentSingleFile(changelogOverlay = new ChangelogOverlay(), overlayContent.Add, false);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticStoreOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.AccessCodeAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.GiftAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsActivityAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsHistoryOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiGiftOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(toriiGiftWatcher = new osu.Game.Overlays.Cosmetics.ToriiGiftWatcher(), Add, true);
+            loadComponentSingleFile(toriiPointsWatcher = new osu.Game.Overlays.Cosmetics.ToriiPointsWatcher(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiAdminOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(beatmapSetOverlay = new BeatmapSetOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(wikiOverlay = new WikiOverlay(), overlayContent.Add, false);
@@ -1390,6 +1406,7 @@ namespace osu.Game
             loadComponentSingleFile(new AccountCreationOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile<IDialogOverlay>(new DialogOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new NewAudioMigrationOverlay(), topMostOverlayContent.Add);
+            loadComponentSingleFile(new ToriiRestrictionOverlay(), topMostOverlayContent.Add);
             loadComponentSingleFile(new MedalOverlay(), topMostOverlayContent.Add);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);
@@ -2031,6 +2048,18 @@ namespace osu.Game
             // No-op when the logger isn't running (zero per-call cost).
             osu.Game.Performance.HiccupBreadcrumbs.Add("screen.push", newScreen?.GetType().Name);
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+
+            // Torii gifts: a results screen means a map was just played; song select
+            // or the main menu is the calm moment to reveal a pending gift (never on
+            // login). After a play you drop back into song select, not the menu, so
+            // both count - see isCalmRevealScreen.
+            if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
+            {
+                toriiGiftWatcher?.MarkPlayed();
+                toriiPointsWatcher?.MarkPlayed();
+            }
+            else if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
         }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)
@@ -2039,8 +2068,31 @@ namespace osu.Game
                 $"{lastScreen?.GetType().Name} → {newScreen?.GetType().Name}");
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
+            // Coming back from a play is an EXIT (results pops off, revealing the song
+            // select underneath), not a push, so the reveal has to be kicked here too
+            // or it never fires post-play - the screenPushed branch only catches the
+            // one-time startup push of the menu.
+            if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
+
             if (newScreen == null)
                 Exit();
+        }
+
+        // The calm, non-gameplay screens where a pending gift / missed points summary
+        // should surface after a play: the song select you drop back into when results
+        // closes (the usual case), or the main menu. Both V1 and V2 song select count.
+        // The watchers' own guards (gift: playedSinceCheck, points: cursor) make extra
+        // calls - e.g. song select AND then the menu - harmless no-ops.
+        private static bool isCalmRevealScreen(IScreen screen) =>
+            screen is osu.Game.Screens.Menu.MainMenu
+            || screen is osu.Game.Screens.Select.SongSelect
+            || screen is osu.Game.Screens.SelectV2.SongSelect;
+
+        private void revealOnCalmScreen()
+        {
+            toriiGiftWatcher?.OnMenu();
+            toriiPointsWatcher?.OnMenu();
         }
     }
 }

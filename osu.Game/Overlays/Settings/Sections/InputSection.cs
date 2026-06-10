@@ -34,6 +34,7 @@ namespace osu.Game.Overlays.Settings.Sections
             Children = new Drawable[]
             {
                 new BindingSettings(keyConfig),
+                new Input.KeyDebounceSettings(),
             };
 
             foreach (var handler in host.AvailableInputHandlers)

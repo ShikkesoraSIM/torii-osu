@@ -29,13 +29,30 @@ namespace osu.Game.Graphics.UserEffects
     {
         private readonly AuraPreset preset;
         private readonly Random random = new Random();
+        private readonly bool includeBackground;
 
         private double nextSpawnTime;
         private Drawable? background;
 
-        public ParticleAuraEmitter(AuraPreset preset)
+        /// <param name="preset">The aura preset driving particle behaviour.</param>
+        /// <param name="includeBackground">
+        /// When <c>true</c> (default), the emitter's <c>load()</c> calls
+        /// <see cref="AuraPreset.CreateBackground"/> and parents the
+        /// returned drawable underneath the particles. Pass <c>false</c>
+        /// when the calling wrapper has arranged for the same visual
+        /// content to render through a different layout path —
+        /// currently used by <see cref="UserAuraContainer"/> when it
+        /// places <see cref="AuraPreset.CreateLeadingOrnament"/> /
+        /// <see cref="AuraPreset.CreateTrailingOrnament"/> inline
+        /// alongside the username; without this skip, a variant that
+        /// provides both ornament hooks AND a CreateBackground (as the
+        /// Founder design variants do, so they have a fallback for
+        /// TruncatingSpriteText surfaces) would paint its seals twice.
+        /// </param>
+        public ParticleAuraEmitter(AuraPreset preset, bool includeBackground = true)
         {
             this.preset = preset;
+            this.includeBackground = includeBackground;
 
             // Particles glow into each other and into the underlying name. Saves
             // every preset from needing its own BufferedContainer-with-blur.
@@ -50,6 +67,9 @@ namespace osu.Game.Graphics.UserEffects
         [BackgroundDependencyLoader]
         private void load()
         {
+            if (!includeBackground)
+                return;
+
             background = preset.CreateBackground();
             if (background != null)
             {

@@ -40,6 +40,10 @@ namespace osu.Game.Overlays.Settings.Sections
                 // section for "make the game feel a bit more careful" prefs
                 // expect both kinds of toggles together.
                 new ToriiGameplaySettings(),
+                // Anti-chatter key debounce. Mirrors the copy in Settings → Input
+                // (shared config binding, so flipping either updates the other live),
+                // surfaced here next to the gameplay tweaks where Torii users look.
+                new Input.KeyDebounceSettings(),
                 // User-aura cosmetics (toggle + equipped picker + live preview).
                 // Placed between Interface and Server so users find it next to
                 // the visual prefs rather than buried after networking stuff.
