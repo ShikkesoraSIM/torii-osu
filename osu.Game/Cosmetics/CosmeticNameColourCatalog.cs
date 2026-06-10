@@ -101,6 +101,12 @@ namespace osu.Game.Cosmetics
             return null;
         }
 
+        /// <summary>True if this id is one of the buyable (points-bought) name colours,
+        /// as opposed to a role colour (<c>name-group-*</c>) or nothing. Only buyable
+        /// colours are broadcast server-side; role colours resolve from API groups.</summary>
+        public static bool IsBuyable(string id) =>
+            !string.IsNullOrEmpty(id) && Buyable.Any(c => c.Id == id);
+
         private static CosmeticNameColour solid(string id, string name, int price, Color4 colour)
             => new CosmeticNameColour(id, name, CosmeticTier.Basic, price, NameColourStyle.Solid, colour);
 

@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Game.Cosmetics;
 using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Users;
@@ -57,7 +58,29 @@ namespace osu.Game.Online
                 return topGroupColour(local);
             }
 
-            return topGroupColour(user as APIUser);
+            // Other users: their broadcast bought name colour wins (mirrors the
+            // local "equipped beats role" rule), else their highest role colour.
+            var api = user as APIUser;
+            return boughtNameColour(api) ?? topGroupColour(api);
+        }
+
+        /// <summary>The flat colour of a user's equipped BOUGHT name colour, read
+        /// from the broadcast <see cref="APIUser.EquippedNameColour"/>, or null when
+        /// none is equipped or the id can't be resolved. Role colours are NOT handled
+        /// here — they come through <see cref="topGroupColour"/> from the user's
+        /// groups.</summary>
+        private static Colour4? boughtNameColour(APIUser? user)
+        {
+            string? id = user?.EquippedNameColour;
+            if (string.IsNullOrEmpty(id))
+                return null;
+
+            var resolved = CosmeticNameColourCatalog.GetById(id, user);
+            if (resolved == null)
+                return null;
+
+            var c = resolved.Primary;
+            return new Colour4(c.R, c.G, c.B, c.A);
         }
 
         /// <summary>Overload for call sites that already hold an <see cref="APIUser"/>.</summary>

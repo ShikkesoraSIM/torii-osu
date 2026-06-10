@@ -461,6 +461,23 @@ namespace osu.Game
                     : new Colour4(resolved.Primary.R, resolved.Primary.G, resolved.Primary.B, resolved.Primary.A);
             };
 
+            // Broadcast: when the local user equips/unequips a BOUGHT name colour,
+            // tell the server so every other client paints their username with it
+            // (mirrors the aura broadcast). Role colours (name-group-*) and "none"
+            // clear the stored value, so others fall back to the group/role colour
+            // resolved from API groups. Central bind so every equip surface (store,
+            // settings, inventory) broadcasts without each having to wire it. Fires
+            // only on change, never on the initial config load.
+            toriiCosmetics.EquippedNameColourId.BindValueChanged(e =>
+            {
+                if (API?.IsLoggedIn != true)
+                    return;
+
+                string id = e.NewValue;
+                bool buyable = osu.Game.Cosmetics.CosmeticNameColourCatalog.IsBuyable(id);
+                API.Queue(new osu.Game.Online.API.Requests.UpdateEquippedNameColourRequest(buyable ? id : null));
+            });
+
             // Torii: side-car JSON store backing the "[NEW]" pill on
             // settings + menus. Cached here (rather than living inside
             // SkinManager like PinnedSkinsStore) because the badge is

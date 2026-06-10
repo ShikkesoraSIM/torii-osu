@@ -316,6 +316,14 @@ namespace osu.Game.Online.API.Requests.Responses
         [CanBeNull]
         public string EquippedAura { get; set; }
 
+        /// <summary>Bought name-colour cosmetic id this user has equipped (e.g.
+        /// "name-crimson"), broadcast so every client paints their username with
+        /// it. Null when none is equipped (fall back to the role colour). Resolved
+        /// into a colour via <see cref="osu.Game.Cosmetics.CosmeticNameColourCatalog"/>.</summary>
+        [JsonProperty("equipped_name_colour")]
+        [CanBeNull]
+        public string EquippedNameColour { get; set; }
+
         [JsonProperty("daily_challenge_user_stats")]
         public APIUserDailyChallengeStatistics DailyChallengeStatistics = new APIUserDailyChallengeStatistics();
 
