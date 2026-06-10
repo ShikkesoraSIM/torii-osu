@@ -113,7 +113,12 @@ namespace osu.Game.Overlays.Cosmetics
             if (!owned)
             {
                 bool afford = cosmetics?.CanAfford(def.Price) ?? false;
+                bool unlockOwned = cosmetics?.AdjustUnlocked ?? false;
+                int unlockPrice = CosmeticEconomy.AdjustableLengthUnlock;
+                int comboPrice = def.Price + unlockPrice;
+                bool affordCombo = cosmetics?.CanAfford(comboPrice) ?? false;
 
+                // Trail only.
                 flow.Add(new RoundedButton
                 {
                     RelativeSizeAxes = Axes.X,
@@ -131,6 +136,53 @@ namespace osu.Game.Overlays.Cosmetics
                     }),
                 });
 
+                if (!unlockOwned)
+                {
+                    // Combo: trail + the one-time customisation unlock together.
+                    flow.Add(new RoundedButton
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        Height = 38,
+                        Text = $"Buy + customise  ·  {comboPrice:N0} pts",
+                        BackgroundColour = BriefingTheme.AccentSky,
+                        Enabled = { Value = affordCombo },
+                        Action = () => CosmeticPurchaseDialog.Prompt(dialogOverlay, $"{def.Name} + customisation", comboPrice, () =>
+                        {
+                            if (cosmetics == null)
+                                return;
+
+                            bool boughtTrail = cosmetics.Buy(def.Id, def.Price);
+                            bool boughtUnlock = cosmetics.BuyAdjustUnlock(unlockPrice);
+                            if (boughtTrail || boughtUnlock)
+                            {
+                                notify?.Invoke(boughtTrail && boughtUnlock
+                                    ? $"Purchased {def.Name} + customisation"
+                                    : $"Purchased {def.Name}");
+                                rebuild();
+                            }
+                        }),
+                    });
+
+                    // Spell out that the plain trail does NOT include the sliders.
+                    flow.Add(new OsuSpriteText
+                    {
+                        Text = $"The trail alone does NOT include length / size / density — that's a separate one-time unlock ({unlockPrice:N0} pts, applies to every trail). \"Buy + customise\" gets both.",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    });
+                }
+                else
+                {
+                    // They already own the account-wide unlock, so this trail is
+                    // customisable straight away — say so, don't leave it ambiguous.
+                    flow.Add(new OsuSpriteText
+                    {
+                        Text = "Customisable straight away — you already own the length / size / density unlock.",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        Colour = BriefingTheme.AccentGain,
+                    });
+                }
+
                 if (!afford)
                 {
                     flow.Add(new OsuSpriteText
@@ -138,19 +190,6 @@ namespace osu.Game.Overlays.Cosmetics
                         Text = "Not enough points yet.",
                         Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                         Colour = BriefingTheme.AccentLoss,
-                    });
-                }
-
-                // Make it clear UP FRONT that the trail does NOT include the
-                // length / size / density customisation — that's a separate,
-                // cheap, account-wide unlock the player buys once.
-                if (cosmetics?.AdjustUnlocked != true)
-                {
-                    flow.Add(new OsuSpriteText
-                    {
-                        Text = $"Trail only. Customising length / size / density is a separate one-time unlock ({CosmeticEconomy.AdjustableLengthUnlock:N0} pts) that applies to every trail.",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
-                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                     });
                 }
 
