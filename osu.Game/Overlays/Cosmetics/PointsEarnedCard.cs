@@ -72,6 +72,12 @@ namespace osu.Game.Overlays.Cosmetics
             var content = new List<Drawable> { header() };
             foreach (var row in summarise())
                 content.Add(breakdownRow(row.label, row.amount, row.icon, row.accent));
+
+            // If a top play got soft-capped today, say so (the server only paid the
+            // pp bonus on it, not the full rank reward).
+            if (lines.Any(l => l.Reason == "top_play" && parseTagInt(l.Ref, "capped:") == 1))
+                content.Add(capNote());
+
             if (balanceAfter > 0)
                 content.Add(balanceFooter());
 
@@ -222,6 +228,16 @@ namespace osu.Game.Overlays.Cosmetics
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 },
             },
+        };
+
+        private Drawable capNote() => new OsuSpriteText
+        {
+            Anchor = Anchor.CentreLeft,
+            Origin = Anchor.CentreLeft,
+            Text = "Daily top-play limit reached — pp bonus only",
+            Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption, italics: true),
+            Colour = BriefingTheme.AccentAmber.Opacity(0.85f),
+            Margin = new MarginPadding { Top = 2 },
         };
 
         /// <summary>Fold the raw ledger lines into display rows: medals aggregate
