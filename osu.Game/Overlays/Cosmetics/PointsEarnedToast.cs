@@ -33,6 +33,7 @@ namespace osu.Game.Overlays.Cosmetics
         private readonly string reason;
         private readonly string reasonRef;
         private readonly bool reducedMotion;
+        private readonly int balanceAfter;
 
         private OsuSpriteText amountText;
         private SpriteIcon icon;
@@ -46,12 +47,13 @@ namespace osu.Game.Overlays.Cosmetics
         private bool counting;
         private int displayed = -1;
 
-        public PointsEarnedToast(int amount, string reason, string reasonRef, bool reducedMotion)
+        public PointsEarnedToast(int amount, string reason, string reasonRef, bool reducedMotion, int balanceAfter = 0)
         {
             this.amount = amount;
             this.reason = reason ?? string.Empty;
             this.reasonRef = reasonRef;
             this.reducedMotion = reducedMotion;
+            this.balanceAfter = balanceAfter;
 
             AutoSizeAxes = Axes.Both;
             Anchor = Anchor.TopCentre;
@@ -103,6 +105,18 @@ namespace osu.Game.Overlays.Cosmetics
                     Text = info.Subtitle,
                     Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption),
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                });
+            }
+
+            // Running total so the toast doubles as a glance at your balance.
+            if (balanceAfter > 0)
+            {
+                textChildren.Add(new OsuSpriteText
+                {
+                    Text = $"Balance  {balanceAfter:N0}",
+                    Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                    Colour = Color4.White.Opacity(BriefingTheme.InkSecondary * 0.85f),
+                    Margin = new MarginPadding { Top = 2 },
                 });
             }
 

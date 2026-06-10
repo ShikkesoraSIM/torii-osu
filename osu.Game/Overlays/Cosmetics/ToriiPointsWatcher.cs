@@ -107,7 +107,7 @@ namespace osu.Game.Overlays.Cosmetics
                 foreach (var ev in res.Events.OrderBy(e => e.Id))
                 {
                     if (shouldToast(ev.Reason))
-                        flow.Add(new PointsEarnedToast(ev.Amount, ev.Reason, ev.Ref, reducedMotion.Value));
+                        flow.Add(new PointsEarnedToast(ev.Amount, ev.Reason, ev.Ref, reducedMotion.Value, ev.BalanceAfter));
 
                     if (ev.Id > cursor.Value)
                         cursor.Value = ev.Id;

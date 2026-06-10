@@ -317,6 +317,16 @@ namespace osu.Game.Overlays.Toolbar
                                         {
                                             Margin = new MarginPadding { Top = 4, Horizontal = 4 },
                                         },
+                                        // Currency pill — sits immediately left of
+                                        // the user chip so the balance reads as a
+                                        // "you" stat. Same 32px height + Top=4
+                                        // centring as the pulse pill so it slots
+                                        // into the 40px toolbar cleanly. Collapses
+                                        // out of the FillFlow when signed out.
+                                        new ToolbarPointsButton
+                                        {
+                                            Margin = new MarginPadding { Top = 4, Horizontal = 4 },
+                                        },
                                         userButton = new ToolbarUserButton(),
                                         new ToolbarClock(),
                                         new ToolbarNotificationButton(),
