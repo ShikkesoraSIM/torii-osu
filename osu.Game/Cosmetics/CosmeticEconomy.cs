@@ -17,13 +17,14 @@ namespace osu.Game.Cosmetics
     /// </summary>
     public static class CosmeticEconomy
     {
-        /// <summary>One-time, account-wide unlock: adjust trail LENGTH on owned
-        /// trails.</summary>
-        public const int AdjustableLengthUnlock = 250;
+        /// <summary>One-time, account-wide unlock for the length / size / density
+        /// sliders on every owned trail. Cheap on purpose (a light grind sink) — it
+        /// is a tweak feature, not a cosmetic, and the trail it customises already
+        /// cost points. Keep in sync with the server price for "customisation-unlock".</summary>
+        public const int AdjustableLengthUnlock = 100;
 
-        /// <summary>One-time, account-wide unlock: adjust trail DENSITY /
-        /// thickness on owned trails.</summary>
-        public const int AdjustableDensityUnlock = 250;
+        /// <summary>Kept equal to the single account-wide unlock above.</summary>
+        public const int AdjustableDensityUnlock = 100;
 
         /// <summary>Range for the DENSITY slider (count per unit travel). Kept
         /// moderate so neither end looks broken (too sparse / too fat).</summary>

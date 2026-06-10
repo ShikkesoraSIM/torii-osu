@@ -141,6 +141,19 @@ namespace osu.Game.Overlays.Cosmetics
                     });
                 }
 
+                // Make it clear UP FRONT that the trail does NOT include the
+                // length / size / density customisation — that's a separate,
+                // cheap, account-wide unlock the player buys once.
+                if (cosmetics?.AdjustUnlocked != true)
+                {
+                    flow.Add(new OsuSpriteText
+                    {
+                        Text = $"Trail only. Customising length / size / density is a separate one-time unlock ({CosmeticEconomy.AdjustableLengthUnlock:N0} pts) that applies to every trail.",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    });
+                }
+
                 return;
             }
 
