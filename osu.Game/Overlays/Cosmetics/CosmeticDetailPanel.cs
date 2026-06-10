@@ -164,22 +164,26 @@ namespace osu.Game.Overlays.Cosmetics
                     });
 
                     // Spell out that the plain trail does NOT include the sliders.
-                    flow.Add(new OsuSpriteText
+                    // Text FLOW (not a sprite) so it wraps to the panel width instead
+                    // of running off the right edge.
+                    flow.Add(new OsuTextFlowContainer(t => t.Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption))
                     {
-                        Text = $"The trail alone does NOT include length / size / density — that's a separate one-time unlock ({unlockPrice:N0} pts, applies to every trail). \"Buy + customise\" gets both.",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
                         Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                        Text = $"The trail alone does NOT include length / size / density. That's a separate one-time unlock ({unlockPrice:N0} pts, applies to every trail). \"Buy + customise\" gets both.",
                     });
                 }
                 else
                 {
                     // They already own the account-wide unlock, so this trail is
                     // customisable straight away — say so, don't leave it ambiguous.
-                    flow.Add(new OsuSpriteText
+                    flow.Add(new OsuTextFlowContainer(t => t.Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption))
                     {
-                        Text = "Customisable straight away — you already own the length / size / density unlock.",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
                         Colour = BriefingTheme.AccentGain,
+                        Text = "Customisable straight away. You already own the length / size / density unlock.",
                     });
                 }
 
