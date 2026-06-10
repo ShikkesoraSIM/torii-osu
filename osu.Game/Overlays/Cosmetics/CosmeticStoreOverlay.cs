@@ -1,0 +1,1085 @@
+// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+// See the LICENCE file in the repository root for full licence text.
+
+#nullable disable
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Audio.Sample;
+using osu.Framework.Bindables;
+using osu.Framework.Extensions.Color4Extensions;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Bindings;
+using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
+using osu.Game.Cosmetics;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API.Requests;
+using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Input.Bindings;
+using osu.Game.Overlays.ToriiBriefing;
+using osuTK;
+using osuTK.Graphics;
+
+namespace osu.Game.Overlays.Cosmetics
+{
+    /// <summary>
+    /// The Torii cosmetic store: a Fortnite-style shop for cursor-trail
+    /// cosmetics. A daily-rotating Store tab to buy with points, an Inventory
+    /// tab for fast equipping, and a detail panel with a live preview, price /
+    /// buy / equip, and (once unlocked) length + density sliders.
+    /// Styled with the Torii BriefingGlass material.
+    /// </summary>
+    public partial class CosmeticStoreOverlay : OsuFocusedOverlayContainer, INamedOverlayComponent
+    {
+        public IconUsage Icon => FontAwesome.Solid.Store;
+        public LocalisableString Title => "cosmetic store";
+        public LocalisableString Description => "buy and equip cursor trails";
+
+        protected override string PopInSampleName => @"UI/overlay-big-pop-in";
+        protected override string PopOutSampleName => @"UI/overlay-big-pop-out";
+        public override bool BlockScreenWideMouse => true;
+
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager cosmetics { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private osu.Game.Online.API.IAPIProvider api { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private RedeemCodeOverlay redeemOverlay { get; set; }
+
+        // Cached server aura catalog (authoritative list of the user's entitled
+        // auras + their display names — includes auras granted by something
+        // other than a group, e.g. Founder by id, which the local group-based
+        // resolver can't see). Null until the first fetch lands; rebuildCards
+        // falls back to the local list meanwhile.
+        private APIAuraCatalog auraCatalog;
+
+        private Sample equipSample;
+        private Sample unequipSample;
+
+        private BriefingGlass mainPanel;
+        private OsuTabControl<StoreTab> tabs;
+        private OsuScrollContainer cardScroll;
+        private FillFlowContainer cardFlow;
+        private Container detailContainer;
+        private OsuSpriteText pointsText;
+        private OsuSpriteText rotationText;
+        private OsuSpriteText equippedText;
+
+        private string selectedId = string.Empty;
+        private IStoreCard selectedCard;
+        private readonly List<IStoreCard> cards = new List<IStoreCard>();
+
+        // Tracked so the settings-panel accent lock can open the store and
+        // scroll straight to the custom-accent-hue unlock. Rebuilt with the
+        // card grid; null while on the Inventory tab.
+        private AccentHueUnlockCard accentUnlockCard;
+
+        public CosmeticStoreOverlay()
+        {
+            RelativeSizeAxes = Axes.Both;
+            Alpha = 0;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(AudioManager audio)
+        {
+            equipSample = audio.Samples.Get(@"UI/check-on");
+            unequipSample = audio.Samples.Get(@"UI/check-off");
+
+            InternalChildren = new Drawable[]
+            {
+                new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.62f), Color4.Black.Opacity(0.74f)),
+                },
+                new Container
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    RelativeSizeAxes = Axes.Both,
+                    Size = new Vector2(0.9f, 0.86f),
+                    Children = new Drawable[]
+                    {
+                        mainPanel = new BriefingGlass
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            RelativeContentSize = Axes.Both,
+                            CornerSize = BriefingTheme.CornerLg,
+                            SpecularStrength = 0.18f,
+                            SpecularHeight = 80f,
+                            ShadowOpacity = 0.4f,
+                            ShadowRadius = 30,
+                            Child = new GridContainer
+                            {
+                                RelativeSizeAxes = Axes.Both,
+                                Padding = new MarginPadding(BriefingTheme.SpacingLg),
+                                RowDimensions = new[]
+                                {
+                                    new Dimension(GridSizeMode.AutoSize),
+                                    new Dimension(GridSizeMode.Absolute, BriefingTheme.SpacingMd),
+                                    new Dimension(),
+                                },
+                                Content = new[]
+                                {
+                                    new Drawable[] { createHeader() },
+                                    new Drawable[] { Empty() },
+                                    new Drawable[] { createBody() },
+                                },
+                            },
+                        },
+                        createCloseButton(),
+                    },
+                },
+            };
+        }
+
+        private Drawable createHeader()
+        {
+            return new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, BriefingTheme.SpacingSm),
+                Children = new Drawable[]
+                {
+                    new GridContainer
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        ColumnDimensions = new[] { new Dimension(), new Dimension(GridSizeMode.AutoSize) },
+                        RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
+                        Content = new[]
+                        {
+                            new[]
+                            {
+                                new OsuSpriteText
+                                {
+                                    Text = "Cosmetic Store",
+                                    Font = OsuFont.GetFont(size: BriefingTheme.TypeDisplay, weight: FontWeight.SemiBold),
+                                },
+                                (Drawable)new FillFlowContainer
+                                {
+                                    Anchor = Anchor.CentreRight,
+                                    Origin = Anchor.CentreRight,
+                                    AutoSizeAxes = Axes.Both,
+                                    Direction = FillDirection.Horizontal,
+                                    Spacing = new Vector2(6, 0),
+                                    // Clear the top-right close button so it never overlaps.
+                                    Margin = new MarginPadding { Right = 40 },
+                                    Children = new Drawable[]
+                                    {
+                                        createRedeemButton(),
+                                        new SpriteIcon
+                                        {
+                                            Anchor = Anchor.Centre,
+                                            Origin = Anchor.Centre,
+                                            Icon = FontAwesome.Solid.Coins,
+                                            Size = new Vector2(18),
+                                            Colour = BriefingTheme.AccentAmber,
+                                        },
+                                        pointsText = new OsuSpriteText
+                                        {
+                                            Anchor = Anchor.Centre,
+                                            Origin = Anchor.Centre,
+                                            Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
+                                            Colour = BriefingTheme.AccentAmber,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    tabs = new OsuTabControl<StoreTab>
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        Height = 30,
+                        AccentColour = BriefingTheme.AccentPink,
+                    },
+                    new Container
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Children = new Drawable[]
+                        {
+                            rotationText = new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                                Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                            },
+                            createPotatoToggle(),
+                        },
+                    },
+                    equippedText = new OsuSpriteText
+                    {
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    },
+                },
+            };
+        }
+
+        /// <summary>A small toggle pill for "Potato PC" mode (frozen-snapshot
+        /// previews). Bound to the shared setting so previews react instantly.</summary>
+        private Drawable createPotatoToggle()
+        {
+            if (cosmetics == null)
+                return Empty();
+
+            Box bg;
+            SpriteIcon icon;
+            OsuSpriteText label;
+
+            var toggle = new OsuClickableContainer
+            {
+                Anchor = Anchor.CentreRight,
+                Origin = Anchor.CentreRight,
+                AutoSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = 6f,
+                Action = () => cosmetics.StorePotatoMode.Value = !cosmetics.StorePotatoMode.Value,
+                Children = new Drawable[]
+                {
+                    bg = new Box { RelativeSizeAxes = Axes.Both },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(6, 0),
+                        Padding = new MarginPadding { Horizontal = 10, Vertical = 5 },
+                        Children = new Drawable[]
+                        {
+                            icon = new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Icon = FontAwesome.Solid.Bolt,
+                                Size = new Vector2(11),
+                            },
+                            label = new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Text = "Potato PC mode",
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                },
+            };
+
+            cosmetics.StorePotatoMode.BindValueChanged(v =>
+            {
+                bool on = v.NewValue;
+                bg.Colour = on ? BriefingTheme.AccentGain : Color4.White.Opacity(0.10f);
+                Color4 fg = on ? Color4.Black.Opacity(0.85f) : Color4.White.Opacity(BriefingTheme.InkSecondary);
+                icon.Colour = fg;
+                label.Colour = fg;
+            }, true);
+
+            return toggle;
+        }
+
+        private Drawable createBody()
+        {
+            return new GridContainer
+            {
+                RelativeSizeAxes = Axes.Both,
+                ColumnDimensions = new[]
+                {
+                    new Dimension(),
+                    new Dimension(GridSizeMode.Absolute, BriefingTheme.SpacingMd),
+                    new Dimension(GridSizeMode.Absolute, 320),
+                },
+                Content = new[]
+                {
+                    new[]
+                    {
+                        // Rounded mask so partially-scrolled cards clip to the
+                        // panel's shape instead of poking over its border, with
+                        // a little bottom clearance so the last row isn't flush.
+                        (Drawable)new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Masking = true,
+                            CornerRadius = BriefingTheme.CornerMd,
+                            Child = cardScroll = new OsuScrollContainer
+                            {
+                                RelativeSizeAxes = Axes.Both,
+                                ScrollbarVisible = false,
+                                Child = cardFlow = new FillFlowContainer
+                                {
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
+                                    Direction = FillDirection.Full,
+                                    Spacing = new Vector2(BriefingTheme.SpacingSm),
+                                    Padding = new MarginPadding { Top = 2, Bottom = BriefingTheme.SpacingMd },
+                                },
+                            },
+                        },
+                        Empty(),
+                        new BriefingGlass
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            RelativeContentSize = Axes.Both,
+                            CornerSize = BriefingTheme.CornerMd,
+                            SurfaceLift = 1.3f,
+                            Child = detailContainer = new Container { RelativeSizeAxes = Axes.Both },
+                        },
+                    },
+                },
+            };
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            if (cosmetics != null)
+            {
+                cosmetics.PointsBalance.BindValueChanged(v =>
+                {
+                    pointsText.Text = $"{v.NewValue:N0}";
+                    pointsText.ScaleTo(1.3f).ScaleTo(1f, 450, Easing.OutBack);
+                }, true);
+                // Buy / equip only flip badges; refresh them in place instead of
+                // rebuilding the whole grid (35 trail previews) which lagged hard.
+                cosmetics.EquippedTrailId.BindValueChanged(e => { refreshCards(); updateEquippedText(); playEquipSound(e.NewValue); });
+                cosmetics.EquippedNameColourId.BindValueChanged(e => { refreshCards(); updateEquippedText(); playEquipSound(e.NewValue); });
+                cosmetics.InventoryChanged += onInventoryChanged;
+                // Admin pulled an item in/out of the store pool: rebuild so the
+                // store list reflects it live, and persist the change server-side
+                // so it applies for everyone (no-op / 403 for non-admins).
+                cosmetics.StoreCurationChanged += () => Schedule(() =>
+                {
+                    rebuildCards();
+                    pushStoreConfig();
+                });
+
+                int hours = (int)(cosmetics.SecondsUntilRotation() / 3600);
+                rotationText.Text = $"Featured rotates in ~{hours}h";
+                updateEquippedText();
+            }
+
+            tabs.Current.BindValueChanged(_ => rebuildCards(), true);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (cosmetics != null)
+                cosmetics.InventoryChanged -= onInventoryChanged;
+            base.Dispose(isDisposing);
+        }
+
+        // Buying only flips an OWNED badge (the whole catalog is always shown in
+        // Store, and you can't buy from Inventory), so just refresh badges. A
+        // genuine add/remove only happens on a tab switch, which still rebuilds.
+        private void onInventoryChanged() => Schedule(refreshCards);
+
+        // Equip / unequip feedback. An empty value (the aura "none" sentinel is
+        // passed in as empty) means "cleared", so play the softer off sound. Only
+        // for USER equips while the store is open — not the manager's own
+        // programmatic un-equips (server sync / rollback), which would chime
+        // unexpectedly. The purchase confirm dialog already provides the buy sound,
+        // so there's no separate buy chime here (that was the double you heard).
+        private void playEquipSound(string newValue)
+        {
+            if (State.Value != Visibility.Visible || cosmetics?.SuppressEquipSound == true)
+                return;
+
+            (string.IsNullOrEmpty(newValue) ? unequipSample : equipSample)?.Play();
+        }
+
+        private void refreshCards()
+        {
+            foreach (var card in cards)
+                card.RefreshState();
+        }
+
+        private void updateEquippedText()
+        {
+            if (equippedText == null || cosmetics == null)
+                return;
+
+            var trail = CosmeticCatalog.Trails.FirstOrDefault(t => t.Id == cosmetics.EquippedTrailId.Value);
+            var colour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, api?.LocalUser.Value);
+
+            equippedText.Text = $"Equipped trail: {trail?.Name ?? "none"}   ·   name colour: {colour?.Name ?? "none"}";
+        }
+
+        private void rebuildCards()
+        {
+            if (cardFlow == null)
+                return;
+
+            cardFlow.Clear();
+            cards.Clear();
+            selectedCard = null;
+
+            bool inventory = tabs.Current.Value == StoreTab.Inventory;
+
+            // Store tab shows ONLY today's rarity-balanced featured rotation;
+            // Inventory shows everything owned. No per-card "featured" badge now —
+            // the whole Store tab IS the rotation (the header counts down to the next).
+            HashSet<string> featured = new HashSet<string>();
+
+            IEnumerable<CosmeticTrailDefinition> trails = inventory
+                ? CosmeticCatalog.Trails.Where(t => cosmetics?.IsOwned(t.Id) ?? false)
+                : (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>());
+
+            // Category groups. Only a category that actually has items gets a
+            // header (no empty "Name Colours:" rows). New cosmetic kinds (name
+            // colours, user auras, ...) slot in here as additional groups.
+            var groups = new (string title, IconUsage icon, List<CosmeticTrailDefinition> items)[]
+            {
+                ("Cursor Trails", FontAwesome.Solid.PaintBrush, trails.ToList()),
+            };
+
+            bool anyContent = false;
+
+            foreach (var (title, icon, list) in groups)
+            {
+                if (list.Count == 0)
+                    continue;
+
+                anyContent = true;
+                cardFlow.Add(categoryHeader(title, icon));
+
+                if (inventory && title == "Cursor Trails")
+                    addNoneCard("trail", "No Cursor Trail", FontAwesome.Solid.Ban,
+                        () => string.IsNullOrEmpty(cosmetics?.EquippedTrailId.Value),
+                        () => cosmetics?.Unequip());
+
+                foreach (var def in list)
+                {
+                    bool isSelected = def.Id == selectedId;
+                    var card = new StoreItemCard(def, cosmetics, featured.Contains(def.Id), isSelected, cardScroll);
+                    card.Action = () => onCardClicked(def, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cards.Add(card);
+                    cardFlow.Add(card);
+                }
+            }
+
+            // ── Name colours (second category) ──────────────────────────────
+            var localUser = api?.LocalUser.Value;
+            var colours = new List<CosmeticNameColour>();
+            // Featured-only in Store (today's rarity-balanced rotation), owned-only in Inventory.
+            if (inventory)
+                colours.AddRange(CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsOwned(c.Id) ?? false));
+            else
+                colours.AddRange(cosmetics?.GetDailyNameColours() ?? Enumerable.Empty<CosmeticNameColour>());
+            // Role (earned) colours are NEVER sold: Inventory only, where you
+            // already have them by role.
+            if (inventory)
+                colours.AddRange(CosmeticNameColourCatalog.GetEntitledEarned(localUser));
+
+            if (colours.Count > 0)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Name Colours", FontAwesome.Solid.Palette));
+
+                if (inventory)
+                    addNoneCard("namecolour", "No Name Colour", FontAwesome.Solid.Ban,
+                        () => string.IsNullOrEmpty(cosmetics?.EquippedNameColourId.Value),
+                        () => cosmetics?.UnequipNameColour());
+
+                foreach (var c in colours)
+                {
+                    bool isSelected = c.Id == selectedId;
+                    var card = new NameColourCard(c, cosmetics, isSelected);
+                    card.Action = () => onNameColourClicked(c, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cards.Add(card);
+                    cardFlow.Add(card);
+                }
+            }
+
+            // ── Auras (third category) ──────────────────────────────────────
+            // Earned auras come from a role/group (price null). Stardust is the
+            // one points-buyable aura. Store shows the buyable one; Inventory
+            // shows earned auras plus any buyable aura you already own.
+            // Equipping any applies it everywhere your name shows.
+            var auraEntries = new List<(AuraPreset preset, int? price, CosmeticTier tier, string name)>();
+            var seenAuras = new HashSet<string>();
+
+            if (inventory)
+            {
+                // Client-owned buyable auras first, so a bought aura always
+                // shows as OWNED/buyable even if the server later lists it too.
+                foreach (var e in BuyableAuraCatalog.All)
+                {
+                    if (e.Preset != null && (cosmetics?.IsOwned(e.Id) ?? false) && seenAuras.Add(e.Id))
+                        auraEntries.Add((e.Preset, e.Price, e.Tier, null));
+                }
+
+                // TESTING: list EVERY registered aura (minus the buyable one) so
+                // they can all be previewed in one place and we can pick which
+                // to sell. Names come from the server catalog where known, else
+                // derived from the id. (For shipping, swap this back to listing
+                // catalog.Available only — the auras the user is entitled to.)
+                var catalogNames = new Dictionary<string, string>();
+                if (auraCatalog?.Available != null)
+                {
+                    foreach (var entry in auraCatalog.Available)
+                        catalogNames[entry.Id] = entry.DisplayName;
+                }
+
+                foreach (var preset in AuraRegistry.AllPresets)
+                {
+                    // Skip buyable auras here; they surface via the buyable path
+                    // (owned ones above, all of them in the Store tab).
+                    if (BuyableAuraCatalog.GetById(preset.AuraId) != null)
+                        continue;
+                    if (!seenAuras.Add(preset.AuraId))
+                        continue;
+
+                    string nm = catalogNames.TryGetValue(preset.AuraId, out var dn) ? dn : null;
+                    auraEntries.Add((preset, null, CosmeticTier.Premium, nm));
+                }
+            }
+            else
+            {
+                foreach (var e in BuyableAuraCatalog.All)
+                {
+                    if (e.Preset != null && (cosmetics?.IsStoreEnabled(e.Id) ?? true) && seenAuras.Add(e.Id))
+                        auraEntries.Add((e.Preset, e.Price, e.Tier, null));
+                }
+            }
+
+            if (auraEntries.Count > 0)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Auras", FontAwesome.Solid.Sun));
+
+                if (inventory)
+                    addNoneCard("aura", "No Aura", FontAwesome.Solid.Ban,
+                        () => api?.LocalUser.Value == null || AuraRegistry.ResolveForUser(api.LocalUser.Value) == null,
+                        unequipAura);
+
+                foreach (var (preset, price, tier, name) in auraEntries)
+                {
+                    bool isSelected = preset.AuraId == selectedId;
+                    var card = new AuraCard(preset, price, tier, cosmetics, name, isSelected);
+                    card.Action = () => onAuraClicked(preset, price, tier, name, card);
+                    if (isSelected)
+                        selectedCard = card;
+                    cards.Add(card);
+                    cardFlow.Add(card);
+                }
+            }
+
+            // ── Unlocks (account-wide capability buys, not previewable items) ──
+            // Store tab only; in Inventory it'd just read OWNED with nothing to
+            // do. Sits last so the settings-panel accent lock can open the store
+            // and scroll the user down to it.
+            accentUnlockCard = null;
+
+            if (!inventory)
+            {
+                anyContent = true;
+                cardFlow.Add(categoryHeader("Unlocks", FontAwesome.Solid.Lock));
+
+                accentUnlockCard = new AccentHueUnlockCard(cosmetics, showToast, selectedId == AccentHueUnlockCard.UNLOCK_ID);
+                if (selectedId == AccentHueUnlockCard.UNLOCK_ID)
+                    selectedCard = accentUnlockCard;
+                cards.Add(accentUnlockCard);
+                cardFlow.Add(accentUnlockCard);
+            }
+
+            if (!anyContent)
+            {
+                cardFlow.Add(new OsuSpriteText
+                {
+                    Text = "Nothing owned yet. Buy a trail in the Store tab!",
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
+                    Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                });
+            }
+        }
+
+        /// <summary>Open the store and scroll straight to the custom-accent-hue
+        /// unlock. Used by the in-game settings panel's accent lock, which routes
+        /// here now instead of to a supporter page.</summary>
+        public void ShowAndScrollToAccentUnlock()
+        {
+            Show();
+
+            // Inventory doesn't list the unlock, so make sure we're on Store.
+            // Changing the tab rebuilds the grid via the bound handler; if we
+            // were already on Store, force a rebuild so the card exists.
+            if (tabs.Current.Value != StoreTab.Store)
+                tabs.Current.Value = StoreTab.Store;
+            else
+                rebuildCards();
+
+            // Let the flow lay out before scrolling to the freshly-added card.
+            Schedule(() => Schedule(() =>
+            {
+                if (accentUnlockCard != null)
+                    cardScroll?.ScrollIntoView(accentUnlockCard);
+            }));
+        }
+
+        /// <summary>A full-width section header that forces a new row in the
+        /// card flow, so cards group visually under their category.</summary>
+        private Drawable categoryHeader(string title, IconUsage icon) => new FillFlowContainer
+        {
+            RelativeSizeAxes = Axes.X,
+            AutoSizeAxes = Axes.Y,
+            Direction = FillDirection.Horizontal,
+            Spacing = new Vector2(8, 0),
+            Margin = new MarginPadding { Top = 2, Bottom = 2, Left = 2 },
+            Children = new Drawable[]
+            {
+                new SpriteIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Icon = icon,
+                    Size = new Vector2(14),
+                    Colour = BriefingTheme.AccentPink,
+                },
+                new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = title,
+                    Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
+                },
+            },
+        };
+
+        // A "clear / none" tile, placed first in an Inventory category. Click
+        // unequips whatever is active in that category and selects the tile.
+        private void addNoneCard(string key, string label, IconUsage icon, Func<bool> isActive, Action unequip)
+        {
+            string id = "none:" + key;
+            bool isSelected = id == selectedId;
+
+            var card = new NoneCard(key, label, icon, isActive, isSelected);
+            card.Action = () =>
+            {
+                unequip?.Invoke();
+                setSelectedCard(card, id);
+                detailContainer.Clear();
+                refreshCards();
+                showToast($"Cleared: {label}");
+            };
+
+            if (isSelected)
+                selectedCard = card;
+
+            cards.Add(card);
+            cardFlow.Add(card);
+        }
+
+        private void onCardClicked(CosmeticTrailDefinition def, StoreItemCard card)
+        {
+            // Inventory: a single click equips (fast skin-swap-style flow).
+            if (tabs.Current.Value == StoreTab.Inventory && (cosmetics?.IsOwned(def.Id) ?? false))
+            {
+                cosmetics.Equip(def.Id);
+                showToast($"Equipped {def.Name}");
+            }
+
+            setSelectedCard(card, def.Id);
+            detailContainer.Clear();
+            detailContainer.Add(new CosmeticDetailPanel(def, cosmetics, showToast));
+        }
+
+        private void onNameColourClicked(CosmeticNameColour colour, NameColourCard card)
+        {
+            if (tabs.Current.Value == StoreTab.Inventory && (cosmetics?.IsOwned(colour.Id) ?? false))
+            {
+                cosmetics.EquipNameColour(colour.Id);
+                showToast($"Equipped {colour.Name}");
+            }
+
+            setSelectedCard(card, colour.Id);
+            detailContainer.Clear();
+            detailContainer.Add(new NameColourDetailPanel(colour, cosmetics, showToast));
+        }
+
+        private void onAuraClicked(AuraPreset preset, int? price, CosmeticTier tier, string name, AuraCard card)
+        {
+            bool owned = price == null || (cosmetics?.IsOwned(preset.AuraId) ?? false);
+            string display = string.IsNullOrEmpty(name) ? AuraCard.DisplayNameFor(preset.AuraId) : name;
+
+            // Inventory + owned/earned: single click equips (fast skin-swap flow,
+            // same as trails / name colours). Buyable + unowned: just open the
+            // detail panel so the user can buy it there.
+            if (tabs.Current.Value == StoreTab.Inventory && owned)
+            {
+                equipAura(preset.AuraId);
+                showToast($"Equipped {display} aura");
+            }
+
+            setSelectedCard(card, preset.AuraId);
+            detailContainer.Clear();
+            detailContainer.Add(new AuraDetailPanel(preset, price, tier, name, cosmetics, equipAura, unequipAura, showToast));
+        }
+
+        // Equip an aura the same way the settings dropdown does: update the
+        // in-memory local user + fire the aura-changed channel (so every
+        // surface re-resolves in place), then persist server-side. Finally
+        // refresh card badges so the EQUIPPED state moves to the new aura.
+        private void equipAura(string auraId)
+        {
+            if (api?.LocalUser.Value == null)
+                return;
+
+            api.LocalUser.Value.EquippedAura = auraId;
+            UserAuraEvents.NotifyUserAuraChanged(api.LocalUser.Value.Id, auraId);
+
+            var req = new UpdateEquippedAuraRequest(auraId);
+            api.Queue(req);
+
+            refreshCards();
+            playEquipSound(auraId == "none" ? string.Empty : auraId);
+        }
+
+        // "none" is the server sentinel for "no aura" — clears any equipped or
+        // group-default aura so the local user renders plain.
+        private void unequipAura() => equipAura("none");
+
+        private void setSelectedCard(IStoreCard card, string id)
+        {
+            selectedId = id;
+
+            if (selectedCard != null && !ReferenceEquals(selectedCard, card))
+                selectedCard.SetSelected(false);
+            selectedCard = card;
+            card?.SetSelected(true);
+        }
+
+        private void showToast(string message)
+        {
+            var toast = new Container
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                Y = 80,
+                AutoSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = BriefingTheme.CornerSm,
+                EdgeEffect = new osu.Framework.Graphics.Effects.EdgeEffectParameters
+                {
+                    Type = osu.Framework.Graphics.Effects.EdgeEffectType.Shadow,
+                    Colour = Color4.Black.Opacity(0.4f),
+                    Radius = 14,
+                },
+                Alpha = 0,
+                Children = new Drawable[]
+                {
+                    new Box { RelativeSizeAxes = Axes.Both, Colour = new Color4(18, 20, 32, 240) },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(8, 0),
+                        Padding = new MarginPadding { Horizontal = 18, Vertical = 11 },
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Icon = FontAwesome.Solid.Check,
+                                Size = new Vector2(15),
+                                Colour = BriefingTheme.AccentGain,
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Text = message,
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                },
+            };
+
+            AddInternal(toast);
+
+            toast.FadeInFromZero(150, Easing.OutQuint);
+            toast.ScaleTo(0.85f).ScaleTo(1f, 380, Easing.OutBack);
+            toast.Delay(1550).FadeOut(350, Easing.OutQuint).Expire();
+        }
+
+        private Drawable createCloseButton() => new ToriiCloseButton
+        {
+            Anchor = Anchor.TopRight,
+            Origin = Anchor.TopRight,
+            Margin = new MarginPadding(14),
+            Action = Hide,
+        };
+
+        // "Redeem" pill in the header (all users) — opens the code prompt.
+        private Drawable createRedeemButton() => new RedeemPillButton
+        {
+            Anchor = Anchor.Centre,
+            Origin = Anchor.Centre,
+            Action = () => redeemOverlay?.Show(),
+        };
+
+        // Server-confirmed admin: either the stock is_admin flag OR membership of
+        // the torii-admin group (how g0v0 actually marks staff — same identifier
+        // the role colours / auras key off). Either is set server-side, so it
+        // can't be spoofed from the client.
+        private static bool localUserIsAdmin(APIUser u) =>
+            u != null && (u.IsAdmin || (u.Groups?.Any(g => g.Identifier == "torii-admin") ?? false));
+
+        // Clicking anywhere outside the panel closes the store. Clicks that land
+        // on the panel (even empty areas) are left to its own children.
+        protected override bool OnClick(ClickEvent e)
+        {
+            if (mainPanel != null && !mainPanel.ReceivePositionalInputAt(e.ScreenSpaceMousePosition))
+            {
+                Hide();
+                return true;
+            }
+
+            return base.OnClick(e);
+        }
+
+        /// <summary>Open the store straight to the Inventory tab (used by the
+        /// unlock celebration's "Go to inventory" shortcut).</summary>
+        public void OpenInventory()
+        {
+            Show();
+            if (tabs != null)
+                tabs.Current.Value = StoreTab.Inventory;
+        }
+
+        protected override void PopIn()
+        {
+            this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
+            mainPanel.ScaleTo(0.94f).ScaleTo(1f, BriefingTheme.EntranceDuration, Easing.OutBack)
+                     .MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
+            wireServerPurchase();
+            fetchAuraCatalog();
+            fetchStoreConfig();
+            syncFromServer();
+            rebuildCards();
+        }
+
+        // Pull the authoritative aura list from the server (same source the
+        // settings picker uses) so the Inventory shows every aura the user can
+        // equip — including ones not derived from a group. Non-fatal on
+        // failure: rebuildCards falls back to the local group-based list.
+        private void fetchAuraCatalog()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var req = new GetAuraCatalogRequest();
+            req.Success += catalog => Schedule(() =>
+            {
+                auraCatalog = catalog;
+                rebuildCards();
+            });
+            api.Queue(req);
+        }
+
+        // Pull the admin-curated store pool config so the store hides items an
+        // admin pulled from sale. The server is the source of truth (shared
+        // across clients); falls back to the local cache if the request fails
+        // (e.g. a server that hasn't shipped the endpoint yet).
+        private void fetchStoreConfig()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            var req = new GetStoreConfigRequest();
+            req.Success += cfg => Schedule(() =>
+            {
+                cosmetics?.ApplyServerDisabled(cfg.Disabled ?? System.Array.Empty<string>());
+                rebuildCards();
+            });
+            api.Queue(req);
+        }
+
+        // Persist the current disabled-id set server-side (admin only). The
+        // server re-validates admin, so a non-admin call simply 403s.
+        private void pushStoreConfig()
+        {
+            if (api?.IsLoggedIn != true || !localUserIsAdmin(api.LocalUser.Value))
+                return;
+
+            string[] ids = cosmetics?.StoreDisabledIds?.ToArray() ?? System.Array.Empty<string>();
+            api.Queue(new UpdateStoreConfigRequest(ids));
+        }
+
+        // Route store purchases through g0v0. Buy() already deducted optimistically;
+        // this records the spend + ownership server-side and reconciles the balance
+        // from the authoritative response. The cosmetics manager calls it via its
+        // ServerPurchase hook so every Buy() flows through here.
+        private void wireServerPurchase()
+        {
+            if (cosmetics != null)
+                cosmetics.ServerPurchase = serverPurchase;
+        }
+
+        private void serverPurchase(string cosmeticId, int price)
+        {
+            if (api?.IsLoggedIn != true || string.IsNullOrEmpty(cosmeticId))
+                return;
+
+            // The Buy that triggered this already bumped the epoch + deducted
+            // optimistically. Capture it so a slow purchase response can't revert a
+            // NEWER optimistic balance (rapid buys) — only reconcile if nothing else
+            // mutated the balance meanwhile.
+            long epoch = cosmetics?.MutationEpoch ?? 0;
+
+            var req = new PurchaseCosmeticRequest(cosmeticId, price);
+            req.Success += res => Schedule(() =>
+            {
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                    cosmetics.SyncBalance(res.Balance);
+            });
+            // Server rejected (insufficient / not for sale / error): undo the optimistic
+            // local deduction + ownership so a failed buy doesn't leave a free cosmetic.
+            req.Failure += _ => Schedule(() => cosmetics?.RollbackPurchase(cosmeticId, price));
+            api.Queue(req);
+        }
+
+        // Pull the authoritative balance + owned set from g0v0 so the store reflects
+        // the real economy rather than the old local cache. Non-fatal on failure.
+        private void syncFromServer()
+        {
+            if (api?.IsLoggedIn != true)
+                return;
+
+            // Capture the mutation epoch: if the user optimistically buys something
+            // before this fetch returns, skip it so a stale balance can't clobber the
+            // fresh deduction.
+            long epoch = cosmetics?.MutationEpoch ?? 0;
+            var bal = new GetMyPointsRequest();
+            bal.Success += res => Schedule(() =>
+            {
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                    cosmetics.SyncBalance(res.Balance);
+            });
+            api.Queue(bal);
+
+            var owned = new GetOwnedCosmeticsRequest();
+            owned.Success += res => Schedule(() =>
+            {
+                // Same epoch guard as the balance: SyncOwned now REPLACES the local
+                // set (server-authoritative), so skip if the user just bought
+                // something mid-fetch, or the optimistic purchase would be wiped.
+                if (cosmetics != null && cosmetics.MutationEpoch == epoch)
+                {
+                    cosmetics.SyncOwned(res.Owned ?? System.Array.Empty<string>());
+                    rebuildCards();
+                }
+            });
+            api.Queue(owned);
+        }
+
+        protected override void PopOut()
+        {
+            this.FadeOut(BriefingTheme.DismissDuration, Easing.OutQuint);
+            mainPanel.ScaleTo(0.97f, BriefingTheme.DismissDuration, Easing.OutQuint);
+        }
+
+        public override bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+        {
+            if (!e.Repeat && e.Action == GlobalAction.Back && State.Value == Visibility.Visible)
+            {
+                Hide();
+                return true;
+            }
+
+            return base.OnPressed(e);
+        }
+
+        // Compact "Redeem" pill (ticket icon + label) for the store header.
+        private partial class RedeemPillButton : OsuClickableContainer
+        {
+            private Box bg;
+
+            public RedeemPillButton()
+            {
+                AutoSizeAxes = Axes.Both;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = 6f;
+                Children = new Drawable[]
+                {
+                    bg = new Box { RelativeSizeAxes = Axes.Both, Colour = Color4.White.Opacity(0.1f) },
+                    new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(5, 0),
+                        Margin = new MarginPadding { Horizontal = 10, Vertical = 6 },
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Icon = FontAwesome.Solid.TicketAlt,
+                                Size = new Vector2(13),
+                                Colour = BriefingTheme.AccentPink,
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                                Text = "Redeem",
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
+                            },
+                        },
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                bg.FadeColour(Color4.White.Opacity(0.2f), 120, Easing.OutQuint);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                bg.FadeColour(Color4.White.Opacity(0.1f), 160, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
+        }
+
+        public enum StoreTab
+        {
+            Store,
+            Inventory,
+        }
+
+    }
+}

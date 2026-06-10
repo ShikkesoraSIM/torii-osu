@@ -9,6 +9,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Sprites;
+using osu.Game.Cosmetics;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -33,7 +34,13 @@ namespace osu.Game.Overlays.Toolbar
 
         private IBindable<APIState> apiState = null!;
 
-        private OsuSpriteText usernameText = null!;
+        private GlowingFreeWidthSpriteText usernameText = null!;
+
+        // Torii: equipped username-colour cosmetic, painted onto the name below.
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager? cosmetics { get; set; }
+
+        private CosmeticNameColour? currentNameColour;
 
         public ToolbarUserButton()
         {
@@ -45,7 +52,7 @@ namespace osu.Game.Overlays.Toolbar
         {
             Flow.AddRange(new Drawable[]
             {
-                usernameText = new OsuSpriteText
+                usernameText = new GlowingFreeWidthSpriteText
                 {
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
@@ -102,12 +109,44 @@ namespace osu.Game.Overlays.Toolbar
             localUser.BindValueChanged(userChanged, true);
 
             StateContainer = login;
+
+            // Re-resolve the equipped name colour on change (Update paints it).
+            if (cosmetics != null)
+                cosmetics.EquippedNameColourId.BindValueChanged(_ => updateNameColour(), true);
+        }
+
+        private void updateNameColour()
+        {
+            currentNameColour = cosmetics == null
+                ? null
+                : CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, localUser.Value);
+
+            // Apply once on change. Static colours (incl. the role glow) only need a
+            // single paint; the per-frame path below covers the animated styles.
+            if (currentNameColour != null)
+                currentNameColour.Apply(usernameText, Time.Current);
+            else
+                CosmeticNameColour.Clear(usernameText);
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            // Animated styles AND the pulsing role glow repaint per frame; plain
+            // solids/gradients are painted once on change.
+            if (currentNameColour != null
+                && (currentNameColour.Style == NameColourStyle.Rainbow
+                    || currentNameColour.Style == NameColourStyle.Pulse
+                    || currentNameColour.Style == NameColourStyle.Halo))
+                currentNameColour.Apply(usernameText, Time.Current);
         }
 
         private void userChanged(ValueChangedEvent<APIUser> user) => Schedule(() =>
         {
             usernameText.Text = user.NewValue.Username;
             avatar.User = user.NewValue;
+            updateNameColour(); // role colours depend on the user's groups
         });
 
         private void onlineStateChanged(ValueChangedEvent<APIState> state) => Schedule(() =>

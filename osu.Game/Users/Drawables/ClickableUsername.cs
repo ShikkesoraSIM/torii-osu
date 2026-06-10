@@ -7,6 +7,7 @@ using osu.Framework.Graphics.Cursor;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 
@@ -29,11 +30,13 @@ namespace osu.Game.Users.Drawables
 
             AutoSizeAxes = Axes.Both;
 
-            Child = new OsuSpriteText
+            // Torii: wrap so the user's aura + (local) equipped name colour show
+            // on the results screen username (and anywhere else this is used) too.
+            Child = UserAuraContainer.Wrap(this.user, new OsuSpriteText
             {
                 Text = user!.Username,
                 Font = OsuFont.Torus.With(size: 16, weight: FontWeight.SemiBold),
-            };
+            });
 
             if (user.Id != APIUser.SYSTEM_USER_ID)
                 Action = openProfile;

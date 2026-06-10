@@ -372,6 +372,17 @@ namespace osu.Game
         private IBindable<LocalisationParameters> localisationParameters = null!;
 
         /// <summary>
+        /// Held as a field (not a local in <see cref="SetHost"/>) so the
+        /// bound copy survives past SetHost's stack frame. Osu-framework
+        /// bindables keep child references via a weak list, so a local
+        /// gets silently dropped on the next GC and the value-changed
+        /// chain to <c>host.ToriiInputAudioHz</c> stops firing. That was
+        /// the "el dropdown no hace NADA" bug — the wiring was correct
+        /// for the first paint, then GC nuked it.
+        /// </summary>
+        private Bindable<ToriiInputAudioHzMode> inputAudioHzSetting = null!;
+
+        /// <summary>
         /// Number of unhandled exceptions to allow before aborting execution.
         /// </summary>
         /// <remarks>
@@ -423,6 +434,60 @@ namespace osu.Game
             dependencies.CacheAs(LocalConfig);
             dependencies.CacheAs<IGameplaySettings>(LocalConfig);
             ToriiPpVariantState.Initialise(LocalConfig);
+
+            // Torii cosmetics (cursor-trail store): app-wide owned/equipped/
+            // points state, shared by the cursor containers + the store overlay.
+            var toriiCosmetics = new osu.Game.Cosmetics.ToriiCosmeticsManager(LocalConfig);
+            dependencies.Cache(toriiCosmetics);
+
+            // Torii: let the username decorator (UserAuraContainer) resolve the
+            // FULL local user on surfaces that only carry a stripped user object
+            // (a leaderboard score's user has no groups), so the local player's
+            // aura + equipped name colour show up everywhere their name appears,
+            // not just on their profile. Lambdas read live state when invoked.
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserProvider = () => API?.LocalUser.Value;
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserHasNameColour =
+                () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value);
+
+            // Accessibility / perf toggles: "reduced motion" calms the glow +
+            // hides particles; "ignore cosmetics" renders plain usernames.
+            osu.Game.Graphics.UserEffects.UserAuraContainer.ReducedMotion =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsReducedMotion);
+            osu.Game.Graphics.UserEffects.UserAuraContainer.CosmeticsSuppressed =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden);
+
+            // ...and the same colour through ToriiColourHelper, which is the
+            // username-colour authority the leaderboards already read (they set
+            // the name colour via a transform, so they have to pull it from here
+            // rather than have it painted on top).
+            osu.Game.Online.ToriiColourHelper.LocalEquippedNameColourProvider = () =>
+            {
+                string colourId = toriiCosmetics.EquippedNameColourId.Value;
+                if (string.IsNullOrEmpty(colourId))
+                    return null;
+
+                var resolved = osu.Game.Cosmetics.CosmeticNameColourCatalog.GetById(colourId, API?.LocalUser.Value);
+                return resolved == null
+                    ? (Colour4?)null
+                    : new Colour4(resolved.Primary.R, resolved.Primary.G, resolved.Primary.B, resolved.Primary.A);
+            };
+
+            // Broadcast: when the local user equips/unequips a BOUGHT name colour,
+            // tell the server so every other client paints their username with it
+            // (mirrors the aura broadcast). Role colours (name-group-*) and "none"
+            // clear the stored value, so others fall back to the group/role colour
+            // resolved from API groups. Central bind so every equip surface (store,
+            // settings, inventory) broadcasts without each having to wire it. Fires
+            // only on change, never on the initial config load.
+            toriiCosmetics.EquippedNameColourId.BindValueChanged(e =>
+            {
+                if (API?.IsLoggedIn != true)
+                    return;
+
+                string id = e.NewValue;
+                bool buyable = osu.Game.Cosmetics.CosmeticNameColourCatalog.IsBuyable(id);
+                API.Queue(new osu.Game.Online.API.Requests.UpdateEquippedNameColourRequest(buyable ? id : null));
+            });
 
             // Torii: side-car JSON store backing the "[NEW]" pill on
             // settings + menus. Cached here (rather than living inside
@@ -801,6 +866,33 @@ namespace osu.Game
                 : new OsuConfigManager(Storage);
 
             host.ExceptionThrown += onExceptionThrown;
+
+            // Torii: wire the user-facing input/audio thread Hz setting to
+            // the host's bindable so the framework picks up the value and
+            // re-evaluates frame-sync rates whenever the user changes it.
+            // The Hz enum's numeric value IS the actual Hz (see
+            // ToriiInputAudioHzMode), so the cast back to int just unwraps
+            // the underlying integer for the framework's BindableInt.
+            //
+            // Initial assignment happens via the immediate-fire flag on
+            // BindValueChanged — eq sense as the framework's other config
+            // bindings — so a fresh start picks up the saved preference on
+            // the first updateFrameSyncMode pass rather than the framework's
+            // own default of 2000.
+            // Torii: on the very first launch, seed the Hz default from the machine's
+            // rough capability so a weak/old PC doesn't open at the 2000 competitive
+            // default and hiccup. One-shot (guarded by ToriiInputAudioHzAutoTuned); the
+            // user's dropdown choice wins on every launch after this.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiInputAudioHzAutoTuned))
+            {
+                var tunedHz = ToriiInputAudioHzDefaults.ForThisMachine();
+                Logger.Log($"Torii: first-launch input/audio Hz auto-tuned to {(int)tunedHz} ({Environment.ProcessorCount} cores).");
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHz, tunedHz);
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzAutoTuned, true);
+            }
+
+            inputAudioHzSetting = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
+            inputAudioHzSetting.BindValueChanged(e => host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
         }
 
         /// <summary>

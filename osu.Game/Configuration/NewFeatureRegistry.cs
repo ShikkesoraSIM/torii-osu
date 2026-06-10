@@ -130,6 +130,12 @@ namespace osu.Game.Configuration
         public const string SkipBreaksSingleConfirmation = "v2026.602.0:skip-breaks-confirm";
 
         /// <summary>
+        /// Marks the anti-chatter key-debounce toggle in Settings → Input.
+        /// Filters the spurious double-taps from rapid-trigger / worn switches.
+        /// </summary>
+        public const string KeyDebounce = "v2026.610.0:key-debounce";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -144,6 +150,7 @@ namespace osu.Game.Configuration
             InputAudioHz,
             SkipBreaks,
             SkipBreaksSingleConfirmation,
+            KeyDebounce,
         };
 
         /// <summary>

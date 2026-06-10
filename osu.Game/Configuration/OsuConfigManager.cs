@@ -455,6 +455,32 @@ namespace osu.Game.Configuration
             // flips to false).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
+            // Torii: input + audio thread rate (Hz). Plumbed into
+            // GameHost.ToriiInputAudioHz on startup so updateFrameSyncMode
+            // picks up the value when the frame sync mode bindable is
+            // evaluated. 2000 Hz is the historical Torii competitive default
+            // — high enough that the input/audio loop has tight latency on
+            // capable hardware, low enough that mainstream desktops don't
+            // get thermally cooked. Users on weak machines can drop to 500 /
+            // 1000; users with capable CPUs (or just curiosity) can push 4000
+            // / 8000. Note that "I am stupid" mode (UnlimitedNoCap +
+            // AllowDangerousUnlimitedNoCap) still bypasses this and runs
+            // fully uncapped — this setting is the *capped* rate.
+            SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
+
+            // Torii: one-shot marker — the first launch seeds the Hz default from the
+            // machine's capability (see OsuGameBase) without ever overriding a later
+            // user choice from the dropdown.
+            SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
+
+            // Torii: anti-chatter key debounce (off by default). Drops a gameplay-key
+            // re-press that lands within the threshold of that key's last release —
+            // the spurious double-tap from rapid-trigger / worn switches. Threshold is
+            // in real milliseconds; kept well below the fastest legit tap gap (a 200 BPM
+            // single-key stream is ~75ms apart) or it would eat real inputs.
+            SetDefault(OsuSetting.ToriiKeyDebounceEnabled, false);
+            SetDefault(OsuSetting.ToriiKeyDebounceThresholdMs, 15.0, 1.0, 50.0);
+
             // Torii hiccup logger — captures frames slower than ~33 ms (sub-30
             // fps) into a JSONL file under <storage>/torii/hiccups/<timestamp>.jsonl
             // along with surrounding context (current screen, visible overlays,
@@ -523,6 +549,29 @@ namespace osu.Game.Configuration
             // (rendered behind elite-group usernames everywhere their name shows).
             // Defaults on; users on weaker hardware can disable it from Graphics.
             SetDefault(OsuSetting.UserAuraEnabled, true);
+
+            // Torii cosmetics (cursor-trail store). Owned/equipped/customisation
+            // cached client-side; ToriiPointsBalance here is a LOCAL cache (the
+            // authoritative balance lives server-side in g0v0).
+            SetDefault(OsuSetting.EquippedCursorTrail, string.Empty);
+            SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
+            SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
+            // One-time, account-wide unlock for the custom UI accent (second)
+            // hue. Replaces the old supporter gate: the accent is bought once
+            // with points in the cosmetic store now, not tied to a supporter
+            // tag. Local cache, reconciled server-side with the rest.
+            SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
+            SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
+            SetDefault(OsuSetting.ToriiPointsBalance, 0);
+            SetDefault(OsuSetting.ToriiPointsSeeded, false);
+            // Cursor into the server points ledger: highest event id we've already
+            // celebrated with a "+N" toast, so each earn pops exactly once.
+            SetDefault(OsuSetting.ToriiPointsFeedCursor, 0);
+            SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
+            SetDefault(OsuSetting.EquippedNameColour, string.Empty);
+            SetDefault(OsuSetting.CosmeticsReducedMotion, false);
+            SetDefault(OsuSetting.CosmeticsHidden, false);
+            SetDefault(OsuSetting.CosmeticStoreDisabled, string.Empty);
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
@@ -858,6 +907,10 @@ namespace osu.Game.Configuration
         DiscordRichPresence,
 
         ShowOnlineExplicitContent,
+        ToriiInputAudioHz,
+        ToriiInputAudioHzAutoTuned,
+        ToriiKeyDebounceEnabled,
+        ToriiKeyDebounceThresholdMs,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,
@@ -922,6 +975,23 @@ namespace osu.Game.Configuration
         /// the username appears (chat, profile, leaderboards, multi).
         /// </summary>
         UserAuraEnabled,
+
+        // Torii cosmetics (cursor-trail store).
+        EquippedCursorTrail,
+        OwnedCursorTrails,
+        CursorTrailAdjustUnlocked,
+        CustomUIAccentUnlocked,
+        CursorTrailCustomisations,
+        ToriiPointsBalance,
+        ToriiPointsSeeded,
+        ToriiPointsFeedCursor,
+
+        /// <summary>Store "Potato PC" mode: previews render a frozen snapshot
+        /// instead of animating live, for weak hardware.</summary>
+        CosmeticStorePotatoMode,
+
+        /// <summary>Equipped username-colour cosmetic id ("" = default white).</summary>
+        EquippedNameColour,
 
         /// <summary>
         /// Torii: when on, MenuCursorContainer renders the user's
@@ -1003,5 +1073,20 @@ namespace osu.Game.Configuration
         /// AAudio, etc.). Toggle changes require an app restart.
         /// </summary>
         EnableOboeAudio,
+
+        /// <summary>Torii cosmetics: "reduced motion" — the role-colour glow holds
+        /// steady (no pulse) and particle auras are hidden, while the colours
+        /// themselves still apply. For motion sensitivity / weaker hardware.</summary>
+        CosmeticsReducedMotion,
+
+        /// <summary>Torii cosmetics: "ignore cosmetics" — render plain usernames
+        /// with no colour, glow or particle aura (the vanilla look).</summary>
+        CosmeticsHidden,
+
+        /// <summary>Torii cosmetics admin: comma-separated ids of catalog items
+        /// an admin has pulled OUT of the store pool (so they don't appear for
+        /// sale). Empty = everything in the catalog is sellable. Local stand-in
+        /// until the server owns the store config.</summary>
+        CosmeticStoreDisabled,
     }
 }

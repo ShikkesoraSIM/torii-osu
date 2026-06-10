@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
@@ -138,7 +137,12 @@ namespace osu.Game.Overlays
             if (!notification.IsInToastTray)
                 return;
 
-            Debug.Assert(notification.Parent == toastFlow);
+            // Dragging a toast away can fire this forward path after the
+            // notification has already been reparented out of the flow; the
+            // debug ThrowingTraceListener would turn the old assert into a hard
+            // crash. Just skip in that case (harmless: nothing to forward).
+            if (notification.Parent != toastFlow)
+                return;
 
             // Temporarily remove from flow so we can animate the position off to the right.
             toastFlow.Remove(notification, false);

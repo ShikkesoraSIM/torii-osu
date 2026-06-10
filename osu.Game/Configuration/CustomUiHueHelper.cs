@@ -86,8 +86,11 @@ namespace osu.Game.Configuration
         {
             bool baseEnabled = config.Get<bool>(OsuSetting.CustomUIHueEnabled);
             bool accentEnabled = config.Get<bool>(OsuSetting.CustomUIAccentEnabled);
+            bool unlocked = config.Get<bool>(OsuSetting.CustomUIAccentUnlocked);
 
-            if (!baseEnabled || !accentEnabled || !IsDonatorTier(currentUser))
+            // Gate on the store unlock now, not supporter status. currentUser
+            // stays in the signature for callers but no longer decides access.
+            if (!baseEnabled || !accentEnabled || !unlocked)
                 return (normaliseHue(fallbackHue), false);
 
             bool scopeEnabled = scope switch
@@ -200,6 +203,7 @@ namespace osu.Game.Configuration
             private readonly Bindable<float> customHue;
             private readonly Bindable<bool> customAccentEnabled;
             private readonly Bindable<float> customAccentHue;
+            private readonly Bindable<bool> customAccentUnlocked;
             private readonly Bindable<bool> applyToMenu;
             private readonly Bindable<bool> applyToOverlays;
             private readonly Bindable<bool> applyToSettingsPanel;
@@ -217,6 +221,7 @@ namespace osu.Game.Configuration
                 customHue = config.GetBindable<float>(OsuSetting.CustomUIHue);
                 customAccentEnabled = config.GetBindable<bool>(OsuSetting.CustomUIAccentEnabled);
                 customAccentHue = config.GetBindable<float>(OsuSetting.CustomUIAccentHue);
+                customAccentUnlocked = config.GetBindable<bool>(OsuSetting.CustomUIAccentUnlocked);
                 applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
                 applyToOverlays = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays);
                 applyToSettingsPanel = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel);
@@ -225,6 +230,7 @@ namespace osu.Game.Configuration
                 customHue.BindValueChanged(_ => update());
                 customAccentEnabled.BindValueChanged(_ => update());
                 customAccentHue.BindValueChanged(_ => update());
+                customAccentUnlocked.BindValueChanged(_ => update());
                 applyToMenu.BindValueChanged(_ => update());
                 applyToOverlays.BindValueChanged(_ => update());
 
@@ -262,6 +268,7 @@ namespace osu.Game.Configuration
                 customHue.UnbindAll();
                 customAccentEnabled.UnbindAll();
                 customAccentHue.UnbindAll();
+                customAccentUnlocked.UnbindAll();
                 applyToMenu.UnbindAll();
                 applyToOverlays.UnbindAll();
                 applyToSettingsPanel.UnbindAll();
