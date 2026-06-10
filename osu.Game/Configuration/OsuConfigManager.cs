@@ -468,6 +468,11 @@ namespace osu.Game.Configuration
             // fully uncapped — this setting is the *capped* rate.
             SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
 
+            // Torii: one-shot marker — the first launch seeds the Hz default from the
+            // machine's capability (see OsuGameBase) without ever overriding a later
+            // user choice from the dropdown.
+            SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
+
             // Torii hiccup logger — captures frames slower than ~33 ms (sub-30
             // fps) into a JSONL file under <storage>/torii/hiccups/<timestamp>.jsonl
             // along with surrounding context (current screen, visible overlays,
@@ -895,6 +900,7 @@ namespace osu.Game.Configuration
 
         ShowOnlineExplicitContent,
         ToriiInputAudioHz,
+        ToriiInputAudioHzAutoTuned,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,

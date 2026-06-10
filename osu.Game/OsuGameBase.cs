@@ -879,6 +879,18 @@ namespace osu.Game
             // bindings — so a fresh start picks up the saved preference on
             // the first updateFrameSyncMode pass rather than the framework's
             // own default of 2000.
+            // Torii: on the very first launch, seed the Hz default from the machine's
+            // rough capability so a weak/old PC doesn't open at the 2000 competitive
+            // default and hiccup. One-shot (guarded by ToriiInputAudioHzAutoTuned); the
+            // user's dropdown choice wins on every launch after this.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiInputAudioHzAutoTuned))
+            {
+                var tunedHz = ToriiInputAudioHzDefaults.ForThisMachine();
+                Logger.Log($"Torii: first-launch input/audio Hz auto-tuned to {(int)tunedHz} ({Environment.ProcessorCount} cores).");
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHz, tunedHz);
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzAutoTuned, true);
+            }
+
             inputAudioHzSetting = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
             inputAudioHzSetting.BindValueChanged(e => host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
         }
