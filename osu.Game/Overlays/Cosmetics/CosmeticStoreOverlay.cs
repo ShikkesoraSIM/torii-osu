@@ -437,13 +437,14 @@ namespace osu.Game.Overlays.Cosmetics
 
             bool inventory = tabs.Current.Value == StoreTab.Inventory;
 
-            HashSet<string> featured = inventory
-                ? new HashSet<string>()
-                : (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>()).Select(d => d.Id).ToHashSet();
+            // Store tab shows ONLY today's rarity-balanced featured rotation;
+            // Inventory shows everything owned. No per-card "featured" badge now —
+            // the whole Store tab IS the rotation (the header counts down to the next).
+            HashSet<string> featured = new HashSet<string>();
 
             IEnumerable<CosmeticTrailDefinition> trails = inventory
                 ? CosmeticCatalog.Trails.Where(t => cosmetics?.IsOwned(t.Id) ?? false)
-                : CosmeticCatalog.Trails.Where(t => cosmetics?.IsStoreEnabled(t.Id) ?? true);
+                : (cosmetics?.GetDailyStore() ?? new List<CosmeticTrailDefinition>());
 
             // Category groups. Only a category that actually has items gets a
             // header (no empty "Name Colours:" rows). New cosmetic kinds (name
@@ -483,10 +484,11 @@ namespace osu.Game.Overlays.Cosmetics
             // ── Name colours (second category) ──────────────────────────────
             var localUser = api?.LocalUser.Value;
             var colours = new List<CosmeticNameColour>();
-            // Buyable: all in Store, owned-only in Inventory.
-            colours.AddRange(inventory
-                ? CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsOwned(c.Id) ?? false)
-                : CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsStoreEnabled(c.Id) ?? true));
+            // Featured-only in Store (today's rarity-balanced rotation), owned-only in Inventory.
+            if (inventory)
+                colours.AddRange(CosmeticNameColourCatalog.Buyable.Where(c => cosmetics?.IsOwned(c.Id) ?? false));
+            else
+                colours.AddRange(cosmetics?.GetDailyNameColours() ?? Enumerable.Empty<CosmeticNameColour>());
             // Role (earned) colours are NEVER sold: Inventory only, where you
             // already have them by role.
             if (inventory)

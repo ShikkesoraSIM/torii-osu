@@ -170,7 +170,7 @@ namespace osu.Game.Overlays.Cosmetics
                 },
                 new OsuSpriteText
                 {
-                    Text = "Choose which items can appear in the store. Local only for now.",
+                    Text = "Pick which items are eligible for the daily store rotation. Grouped by rarity.",
                     Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 },
@@ -193,11 +193,21 @@ namespace osu.Game.Overlays.Cosmetics
             sections.Clear();
             sectionsFlow.Clear();
 
-            addSection("Cursor Trails", FontAwesome.Solid.PaintBrush, BriefingTheme.AccentPink,
-                CosmeticCatalog.Trails.Select(t => (t.Id, t.Name)));
+            // Grouped by rarity so the rarity split is visible at a glance and each
+            // bucket gets its own count + show/hide-all. Order is cheapest first.
+            foreach (var rarity in CosmeticRarities.Order)
+            {
+                addSection($"Cursor Trails · {CosmeticRarities.DisplayName(rarity)}", FontAwesome.Solid.PaintBrush,
+                    CosmeticRarities.ColourOf(rarity),
+                    CosmeticCatalog.Trails.Where(t => CosmeticRarities.Of(t.Id) == rarity).Select(t => (t.Id, t.Name)));
+            }
 
-            addSection("Name Colours", FontAwesome.Solid.Palette, BriefingTheme.AccentSky,
-                CosmeticNameColourCatalog.Buyable.Select(c => (c.Id, c.Name)));
+            foreach (var rarity in CosmeticRarities.Order)
+            {
+                addSection($"Name Colours · {CosmeticRarities.DisplayName(rarity)}", FontAwesome.Solid.Palette,
+                    CosmeticRarities.ColourOf(rarity),
+                    CosmeticNameColourCatalog.Buyable.Where(c => CosmeticRarities.Of(c.Id) == rarity).Select(c => (c.Id, c.Name)));
+            }
 
             addSection("Auras", FontAwesome.Solid.Sun, BriefingTheme.AccentAmber,
                 BuyableAuraCatalog.All.Where(e => e.Preset != null).Select(e => (e.Id, AuraCard.DisplayNameFor(e.Id))));

@@ -340,15 +340,61 @@ namespace osu.Game.Cosmetics
             return drawable;
         }
 
-        // ── Daily store rotation (Fortnite-style) ───────────────────────────
+        // ── Daily store rotation (rarity-balanced) ──────────────────────────
+        //
+        // The store shows ONLY a curated featured set, composed by RARITY: a fixed
+        // number of each rarity, picked deterministically from the eligible
+        // (admin-enabled) pool via a date seed so every client shows the same
+        // rotation. Retune the mix here + the buckets in CosmeticRarities.
 
-        /// <summary>The featured trails for today (UTC), rotating every 24h. A
-        /// date-seeded shuffle so every client shows the same daily selection.</summary>
-        public IReadOnlyList<CosmeticTrailDefinition> GetDailyStore(int count = 6)
+        private static readonly (CosmeticRarity rarity, int count)[] trail_recipe =
         {
-            int seed = (int)(DateTime.UtcNow.Date.Ticks / TimeSpan.TicksPerDay);
-            var rng = new Random(seed);
-            return CosmeticCatalog.Trails.OrderBy(_ => rng.Next()).Take(count).ToList();
+            (CosmeticRarity.Common, 3),
+            (CosmeticRarity.Uncommon, 2),
+            (CosmeticRarity.Rare, 2),
+            (CosmeticRarity.Epic, 1),
+            (CosmeticRarity.Legendary, 1),
+        };
+
+        private static readonly (CosmeticRarity rarity, int count)[] name_colour_recipe =
+        {
+            (CosmeticRarity.Common, 2),
+            (CosmeticRarity.Rare, 1),
+        };
+
+        private static int dailySeed() => (int)(DateTime.UtcNow.Date.Ticks / TimeSpan.TicksPerDay);
+
+        /// <summary>Today's featured trails (UTC), rotating every 24h: a
+        /// rarity-balanced selection from the eligible pool, date-seeded so every
+        /// client shows the same set.</summary>
+        public IReadOnlyList<CosmeticTrailDefinition> GetDailyStore()
+            => composeFeatured(CosmeticCatalog.Trails.Where(t => IsStoreEnabled(t.Id)), t => t.Id, trail_recipe, dailySeed());
+
+        /// <summary>Today's featured buyable name colours, same rarity-balanced
+        /// rotation (a different seed stream so they don't move in lockstep with the
+        /// trails).</summary>
+        public IReadOnlyList<CosmeticNameColour> GetDailyNameColours()
+            => composeFeatured(CosmeticNameColourCatalog.Buyable.Where(c => IsStoreEnabled(c.Id)), c => c.Id, name_colour_recipe, dailySeed() ^ 0x5f3759df);
+
+        /// <summary>Pick <c>count</c> of each rarity from <paramref name="pool"/>,
+        /// deterministically by <paramref name="seed"/> (plus a per-rarity offset).
+        /// A rarity with fewer eligible items than asked just contributes what it
+        /// has, so the store never breaks if an admin disables most of a tier.</summary>
+        private static List<T> composeFeatured<T>(IEnumerable<T> pool, Func<T, string> idOf, (CosmeticRarity rarity, int count)[] recipe, int seed)
+        {
+            var byRarity = pool.GroupBy(x => CosmeticRarities.Of(idOf(x))).ToDictionary(g => g.Key, g => g.ToList());
+            var result = new List<T>();
+
+            foreach (var (rarity, count) in recipe)
+            {
+                if (count <= 0 || !byRarity.TryGetValue(rarity, out var items) || items.Count == 0)
+                    continue;
+
+                var rng = new Random(seed ^ ((int)rarity * 7919));
+                result.AddRange(items.OrderBy(_ => rng.Next()).Take(count));
+            }
+
+            return result;
         }
 
         /// <summary>Seconds until the daily store rotates (next UTC midnight).</summary>
