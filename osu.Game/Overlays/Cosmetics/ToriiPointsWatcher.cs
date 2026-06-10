@@ -3,6 +3,7 @@
 
 #nullable disable
 
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -12,19 +13,19 @@ using osu.Game.Configuration;
 using osu.Game.Cosmetics;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
-using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.ToriiBriefing;
 using osuTK;
 
 namespace osu.Game.Overlays.Cosmetics
 {
     /// <summary>
-    /// Watches the server points ledger and pops a "+N points" toast after a play,
-    /// explaining why it was earned. Modeled on <see cref="ToriiGiftWatcher"/>: it
-    /// checks at calm moments (a play just finished / back at the menu) and advances
-    /// a persisted cursor so each earn is celebrated exactly once. Reasons that have
-    /// their own popup (gifts, redeemed codes) are consumed silently here to avoid a
-    /// double celebration. Hosts the toast layer itself.
+    /// Watches the server points ledger and, after a play, pops ONE aggregated
+    /// "points earned" summary — top play + daily + pp milestone + medals folded
+    /// into a single card with the grand total, the breakdown and the new balance.
+    /// Checks at calm moments (a play just finished / back at the menu) and advances
+    /// a persisted cursor so each earn is celebrated exactly once. Gifts and
+    /// redeemed codes have their own reveal overlays, so they're consumed silently.
+    /// Hosts the card layer itself.
     /// </summary>
     public partial class ToriiPointsWatcher : Container
     {
@@ -39,7 +40,7 @@ namespace osu.Game.Overlays.Cosmetics
 
         private Bindable<int> cursor;
         private Bindable<bool> reducedMotion;
-        private FillFlowContainer<PointsEarnedToast> flow;
+        private FillFlowContainer<PointsEarnedCard> flow;
         private bool busy;
 
         public ToriiPointsWatcher()
@@ -53,7 +54,7 @@ namespace osu.Game.Overlays.Cosmetics
             cursor = config?.GetBindable<int>(OsuSetting.ToriiPointsFeedCursor) ?? new Bindable<int>(0);
             reducedMotion = config?.GetBindable<bool>(OsuSetting.CosmeticsReducedMotion) ?? new Bindable<bool>(false);
 
-            Child = flow = new FillFlowContainer<PointsEarnedToast>
+            Child = flow = new FillFlowContainer<PointsEarnedCard>
             {
                 Anchor = Anchor.TopCentre,
                 Origin = Anchor.TopCentre,
@@ -64,8 +65,11 @@ namespace osu.Game.Overlays.Cosmetics
             };
         }
 
-        /// <summary>A play just finished — check shortly after so points have committed server-side.</summary>
-        public void MarkPlayed() => Scheduler.AddDelayed(check, 1200);
+        /// <summary>A play just finished. Wait a beat longer than a snappy toast so
+        /// the medal pop + every award (top play is committed in the stats pass)
+        /// have settled — then the summary appears once, as its own clear moment,
+        /// instead of racing the medals.</summary>
+        public void MarkPlayed() => Scheduler.AddDelayed(check, 2800);
 
         /// <summary>Back at the menu — a calm moment to catch anything missed.</summary>
         public void OnMenu() => check();
@@ -96,18 +100,21 @@ namespace osu.Game.Overlays.Cosmetics
                     return;
                 }
 
-                // First sync on a fresh client (cursor 0): adopt the latest id without
-                // replaying the whole history as a wall of toasts.
+                // First sync on a fresh client (cursor 0): adopt the latest id
+                // without replaying the whole history as a wall of cards.
                 if (since == 0)
                 {
                     cursor.Value = res.LastId;
                     return;
                 }
 
+                // Fold this batch's celebratable earns into ONE summary card.
+                var cardLines = new List<PointsEarnedCard.Line>();
+
                 foreach (var ev in res.Events.OrderBy(e => e.Id))
                 {
-                    if (shouldToast(ev.Reason))
-                        flow.Add(new PointsEarnedToast(ev.Amount, ev.Reason, ev.Ref, reducedMotion.Value, ev.BalanceAfter));
+                    if (shouldInclude(ev.Reason))
+                        cardLines.Add(new PointsEarnedCard.Line(ev.Amount, ev.Reason, ev.Ref));
 
                     if (ev.Id > cursor.Value)
                         cursor.Value = ev.Id;
@@ -115,14 +122,18 @@ namespace osu.Game.Overlays.Cosmetics
 
                 if (res.LastId > cursor.Value)
                     cursor.Value = res.LastId;
+
+                if (cardLines.Count > 0)
+                    flow.Add(new PointsEarnedCard(cardLines, res.Balance, reducedMotion.Value));
             });
             req.Failure += _ => Schedule(() => busy = false);
             api.Queue(req);
         }
 
-        // Gifts, redeemed codes and medals already get their own celebration
-        // popup / overlay, so don't double-toast (or double-sound) those.
-        private static bool shouldToast(string reason) =>
-            reason != "gift" && reason != "access_code" && reason != "medal";
+        // Gifts + redeemed codes get their own full reveal overlay, so don't fold
+        // them into the play summary. Medals ARE included now — their points count
+        // toward the total even though the medal unlock has its own animation.
+        private static bool shouldInclude(string reason) =>
+            reason != "gift" && reason != "access_code";
     }
 }

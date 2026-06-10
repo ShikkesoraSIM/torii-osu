@@ -296,6 +296,9 @@ namespace osu.Game.Overlays.Cosmetics
                 case "milestone":
                     return new PointsReasonInfo("Milestone!", milestoneSubtitle(reasonRef), FontAwesome.Solid.Gem, BriefingTheme.AccentSky);
 
+                case "medal":
+                    return new PointsReasonInfo("Medal!", null, FontAwesome.Solid.Medal, BriefingTheme.AccentPink);
+
                 default:
                     return new PointsReasonInfo("Points earned!", null, FontAwesome.Solid.Star, BriefingTheme.AccentAmber);
             }
