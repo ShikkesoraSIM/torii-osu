@@ -57,6 +57,11 @@ namespace osu.Game.Overlays.Profile.Sections.Medals
             { 100, new Medal { Name = "Gear Shift", Description = "Tailor your experience to your perfect fit.", InternalName = "all-intro-conversion" } },
             { 101, new Medal { Name = "Game Night", Description = "Mum said it's my turn with the beatmap!", InternalName = "all-intro-fun" } },
 
+            // Daily Challenge (streak medals)
+            { 102, new Medal { Name = "Daily Sprout", Description = "Ready for anything.", InternalName = "all-skill-dc-1" } },
+            { 103, new Medal { Name = "Weekly Sapling", Description = "Circadian rhythm calibrated.", InternalName = "all-skill-dc-7" } },
+            { 104, new Medal { Name = "Monthly Shrub", Description = "In for the grind.", InternalName = "all-skill-dc-30" } },
+
             // Secret achievements (Hush-Hush)
             { 105, new Medal { Name = "Jackpot", Description = "Lucky sevens is a mild understatement.", InternalName = "all-secret-jackpot" } },
             { 106, new Medal { Name = "Nonstop", Description = "Breaks? What are those?", InternalName = "all-secret-nonstop" } },
@@ -103,6 +108,9 @@ namespace osu.Game.Overlays.Profile.Sections.Medals
             { 89, "Mod Introduction" }, { 90, "Mod Introduction" }, { 91, "Mod Introduction" }, { 92, "Mod Introduction" }, { 93, "Mod Introduction" },
             { 94, "Mod Introduction" }, { 95, "Mod Introduction" }, { 96, "Mod Introduction" }, { 97, "Mod Introduction" }, { 98, "Mod Introduction" },
             { 99, "Mod Introduction" }, { 100, "Mod Introduction" }, { 101, "Mod Introduction" },
+
+            // Daily Challenge (102-104)
+            { 102, "Daily Challenge" }, { 103, "Daily Challenge" }, { 104, "Daily Challenge" },
 
             // Hush-Hush (105-134)
             { 105, "Hush-Hush" }, { 106, "Hush-Hush" }, { 107, "Hush-Hush" }, { 108, "Hush-Hush" }, { 109, "Hush-Hush" },
