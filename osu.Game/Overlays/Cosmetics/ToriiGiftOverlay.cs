@@ -56,7 +56,7 @@ namespace osu.Game.Overlays.Cosmetics
         private OsuClickableContainer giftBox;
         private SpriteIcon giftIcon;
         private Container giftGlow;
-        private OsuSpriteText fromText;
+        private TextFlowContainer fromText;
 
         private string sender = "Torii Halo";
         private string message;
@@ -154,12 +154,14 @@ namespace osu.Game.Overlays.Cosmetics
                 Spacing = new Vector2(0, BriefingTheme.SpacingMd),
                 Children = new Drawable[]
                 {
-                    fromText = new OsuSpriteText
+                    fromText = new TextFlowContainer(t => t.Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold))
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        TextAnchor = Anchor.TopCentre,
                         Text = "You received a gift from Torii Halo!",
-                        Font = OsuFont.GetFont(size: BriefingTheme.TypeTitle, weight: FontWeight.SemiBold),
                     },
                     giftBox = new OsuClickableContainer
                     {
@@ -376,13 +378,15 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (!string.IsNullOrWhiteSpace(message))
             {
-                flow.Add(new OsuSpriteText
+                flow.Add(new TextFlowContainer(t => t.Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, italics: true))
                 {
                     Anchor = Anchor.TopCentre,
                     Origin = Anchor.TopCentre,
-                    Text = $"“{message}”",
-                    Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, italics: true),
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    TextAnchor = Anchor.TopCentre,
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    Text = $"“{message}”",
                 });
             }
 
