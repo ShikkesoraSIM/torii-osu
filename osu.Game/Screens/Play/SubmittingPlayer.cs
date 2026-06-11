@@ -290,20 +290,11 @@ namespace osu.Game.Screens.Play
             bool exiting = base.OnExiting(e);
             submitFromFailOrQuit(Score);
 
-            // Avoid deep-cloning score data on the update thread while the player screen is exiting.
-            // Quits do not need to keep a cloned "last local score" around, which avoids a large allocation
-            // right as we're transitioning back to menu.
-            var scoreInfo = Score?.ScoreInfo;
-            if (scoreInfo != null && !GameplayState.HasQuit)
-            {
-                Task.Run(() =>
-                {
-                    var scoreInfoCopy = scoreInfo.DeepClone();
-                    Schedule(() => statics.SetValue(Static.LastLocalUserScore, scoreInfoCopy));
-                }).FireAndForget();
-            }
-            else
-                statics.SetValue<ScoreInfo?>(Static.LastLocalUserScore, null);
+            // Store the last local score so offset auto-calibration can read it on the next attempt.
+            // This must run synchronously: a retry/quit removes this screen immediately, so a deferred
+            // (Task.Run + Schedule) store gets dropped before it runs. That deferral is what previously
+            // broke "calibrate using last play" / auto-adjust after a retry. Matches upstream.
+            statics.SetValue(Static.LastLocalUserScore, Score?.ScoreInfo.DeepClone());
 
             return exiting;
         }
