@@ -265,7 +265,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                         dangerousUnlimitedCheckbox.Current.Disabled = true;
 
                     dangerousUnlimitedNote.Value = new SettingsNote.Data(
-                        "Disabled on the Deferred renderer — uncapped update + Deferred = unbounded memory growth + crash. Switch to a non-deferred renderer (or edit framework.ini to opt out of Deferred) if you really want this.",
+                        "Disabled on the Deferred renderer: uncapped update + Deferred = unbounded memory growth + crash. Switch to a non-deferred renderer (or edit framework.ini to opt out of Deferred) if you really want this.",
                         SettingsNote.Type.Warning);
                 }
                 else

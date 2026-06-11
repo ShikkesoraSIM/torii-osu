@@ -320,34 +320,30 @@ namespace osu.Game.Graphics.UserEffects
                 textGlow = null;
             }
 
-            // Detach target from its current parent (the wrapper
-            // directly, the inline FillFlow, or the padded constrained-
-            // mode container). Keep the target drawable ALIVE so we
-            // can re-attach it under the new preset's layout — calling
-            // code may hold references to the target and dispose-on-
-            // remove would yank it from under them.
+            // Detach target from WHATEVER currently parents it, reading the live
+            // Parent rather than trusting the cached field. A stale field (pointing at
+            // a container the target already left, e.g. after a rapid SetUser + aura
+            // change) would otherwise leave it double-parented and crash the re-add
+            // below ("Removed a drawable whose parent was not this"). Keep the target
+            // ALIVE (disposeImmediately:false) so callers holding a reference to it
+            // don't get it yanked out from under them.
+            if (target.Parent is Container currentTargetParent)
+                currentTargetParent.Remove(target, disposeImmediately: false);
+
             if (targetFlow != null)
             {
-                targetFlow.Remove(target, disposeImmediately: false);
                 Remove(targetFlow, disposeImmediately: true);
                 targetFlow = null;
             }
-            else if (ornamentPaddedTarget != null)
+
+            if (ornamentPaddedTarget != null)
             {
-                // Leading + trailing ornaments now live INSIDE the
-                // padded container (so they auto-centre vertically on
-                // the target). Removing the container disposes them
-                // along with itself — we just need to detach the
-                // target first to keep it alive for re-attachment.
-                ornamentPaddedTarget.Remove(target, disposeImmediately: false);
+                // Leading + trailing ornaments live INSIDE the padded container, so
+                // disposing it disposes them too (the target is already detached above).
                 Remove(ornamentPaddedTarget, disposeImmediately: true);
                 ornamentPaddedTarget = null;
                 leadingOrnament = null;
                 trailingOrnament = null;
-            }
-            else if (target.Parent == this)
-            {
-                Remove(target, disposeImmediately: false);
             }
 
             // Future "ignore cosmetics" toggle: render the bare username (vanilla

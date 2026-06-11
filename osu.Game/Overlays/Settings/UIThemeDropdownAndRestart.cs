@@ -75,7 +75,7 @@ namespace osu.Game.Overlays.Settings
                            + "every UI accent for the monochrome look and mounts a stable-style "
                            + "user-stats panel in song select. The Midnight family keeps that "
                            + "structural reskin (sharp corners, mounted stats panel) but reuses the "
-                           + "default slanted chrome, with three hue variants — Mauve (violet), "
+                           + "default slanted chrome, with three hue variants: Mauve (violet), "
                            + "Crimson (deep red), and Cerulean (deep cyan). For end-to-end skin "
                            + "matching (including gameplay), drop any stable-era .osk into your "
                            + "Skins folder and pick it from the skin dropdown above. Changing this "
