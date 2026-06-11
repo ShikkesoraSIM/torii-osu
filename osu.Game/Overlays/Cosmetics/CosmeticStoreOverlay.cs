@@ -533,29 +533,46 @@ namespace osu.Game.Overlays.Cosmetics
                         auraEntries.Add((e.Preset, e.Price, e.Tier, null));
                 }
 
-                // TESTING: list EVERY registered aura (minus the buyable one) so
-                // they can all be previewed in one place and we can pick which
-                // to sell. Names come from the server catalog where known, else
-                // derived from the id. (For shipping, swap this back to listing
-                // catalog.Available only — the auras the user is entitled to.)
-                var catalogNames = new Dictionary<string, string>();
+                // Earned auras: ONLY the ones this user is actually entitled to.
+                // The server catalog (/me/aura-catalog, built server-side from
+                // available_auras_for_user) is authoritative. If it hasn't
+                // loaded yet, fall back to the client-side group entitlement
+                // (AuraRegistry.GetEntitledAuras) so we still never list an aura
+                // the user can't wear.
+                //
+                // NOTE: this previously iterated AuraRegistry.AllPresets for
+                // testing, which listed EVERY role aura (admin / dev / qat /
+                // founder / supporter / ...) as EARNED to every player. That
+                // shipped by accident — a cosmetic entitlement leak. Do not
+                // re-introduce AllPresets here.
                 if (auraCatalog?.Available != null)
                 {
                     foreach (var entry in auraCatalog.Available)
-                        catalogNames[entry.Id] = entry.DisplayName;
+                    {
+                        // Buyable auras surface via the buyable path above.
+                        if (BuyableAuraCatalog.GetById(entry.Id) != null)
+                            continue;
+
+                        var preset = AuraRegistry.GetById(entry.Id);
+                        if (preset == null || !seenAuras.Add(entry.Id))
+                            continue;
+
+                        auraEntries.Add((preset, null, CosmeticTier.Premium, entry.DisplayName));
+                    }
                 }
-
-                foreach (var preset in AuraRegistry.AllPresets)
+                else
                 {
-                    // Skip buyable auras here; they surface via the buyable path
-                    // (owned ones above, all of them in the Store tab).
-                    if (BuyableAuraCatalog.GetById(preset.AuraId) != null)
-                        continue;
-                    if (!seenAuras.Add(preset.AuraId))
-                        continue;
+                    // Catalog not loaded yet — fall back to the local group
+                    // entitlement, which gates by the user's actual groups.
+                    foreach (var preset in AuraRegistry.GetEntitledAuras(api?.LocalUser.Value))
+                    {
+                        if (BuyableAuraCatalog.GetById(preset.AuraId) != null)
+                            continue;
+                        if (!seenAuras.Add(preset.AuraId))
+                            continue;
 
-                    string nm = catalogNames.TryGetValue(preset.AuraId, out var dn) ? dn : null;
-                    auraEntries.Add((preset, null, CosmeticTier.Premium, nm));
+                        auraEntries.Add((preset, null, CosmeticTier.Premium, null));
+                    }
                 }
             }
             else
