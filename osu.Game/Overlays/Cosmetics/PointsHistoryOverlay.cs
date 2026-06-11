@@ -356,7 +356,7 @@ namespace osu.Game.Overlays.Cosmetics
 
             if (!append && rows.Length == 0)
             {
-                statusText.Text = "No points activity yet — play a map to start earning.";
+                statusText.Text = "No points activity yet. Play a map to start earning.";
                 return;
             }
 
