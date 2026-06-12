@@ -52,6 +52,8 @@ namespace osu.Game.Storyboards.Drawables
 
         private DependencyContainer dependencies = null!;
 
+        private TextureStore textureStore = null!;
+
         private BindableNumber<double> health = null!;
         private readonly BindableBool passing = new BindableBool(true);
 
@@ -87,7 +89,7 @@ namespace osu.Game.Storyboards.Drawables
                 Clock = clock;
 
             dependencies.CacheAs(typeof(TextureStore),
-                new TextureStore(host.Renderer, host.CreateTextureLoaderStore(
+                textureStore = new TextureStore(host.Renderer, host.CreateTextureLoaderStore(
                     CreateResourceLookupStore()
                 ), false, scaleAdjust: 1));
 
@@ -125,6 +127,18 @@ namespace osu.Game.Storyboards.Drawables
         {
             foreach (var layer in Children)
                 layer.Enabled = passing.Value ? layer.Layer.VisibleWhenPassing : layer.Layer.VisibleWhenFailing;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            base.Dispose(isDisposing);
+
+            // The storyboard owns this texture store exclusively (only its own child
+            // sprites resolve it). Dispose it so storyboard textures are freed at map
+            // teardown instead of lingering on the managed heap until a gen2 collection
+            // finalizes them. Mirrors DrawableRulesetDependencies, which disposes its
+            // own cached TextureStore the same way.
+            textureStore?.Dispose();
         }
 
         private class StoryboardResourceLookupStore : IResourceStore<byte[]>

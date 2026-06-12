@@ -30,8 +30,6 @@ namespace osu.Game.Screens.SelectV2
         [Resolved]
         private RealmAccess realm { get; set; } = null!;
 
-        private Live<BeatmapInfo> beatmap = null!;
-
         [BackgroundDependencyLoader]
         private void load(OsuColour colour)
         {
@@ -53,14 +51,21 @@ namespace osu.Game.Screens.SelectV2
         {
             this.HidePopover();
             Enabled.Value = !workingBeatmap.IsDefault;
-            if (!workingBeatmap.IsDefault)
-                beatmap = realm.Run(r => r.Find<BeatmapInfo>(workingBeatmap.Value.BeatmapInfo.ID)!.ToLive(realm));
         }
 
-        public Framework.Graphics.UserInterface.Popover GetPopover() => new Popover(this, beatmap.Value.Detach())
+        public Framework.Graphics.UserInterface.Popover GetPopover()
         {
-            ColourProvider = colourProvider,
-            SongSelect = songSelect
-        };
+            // Resolve the live beatmap only when the options popover actually opens,
+            // instead of on every carousel selection. This is a realm query on the
+            // update thread, and selections fire far more often than the popover is
+            // opened, so doing it eagerly was a measured song-select stall source.
+            var beatmap = realm.Run(r => r.Find<BeatmapInfo>(workingBeatmap.Value.BeatmapInfo.ID)!.ToLive(realm));
+
+            return new Popover(this, beatmap.Value.Detach())
+            {
+                ColourProvider = colourProvider,
+                SongSelect = songSelect
+            };
+        }
     }
 }
