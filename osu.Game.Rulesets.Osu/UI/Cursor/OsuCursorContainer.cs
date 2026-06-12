@@ -39,6 +39,11 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         [Resolved(canBeNull: true)]
         private ToriiCosmeticsManager cosmetics { get; set; }
 
+        // Stored bound copy so the framework auto-unbinds the EquippedTrailId
+        // subscription on dispose. Subscribing on the global bindable directly
+        // leaked this per-map container into its subscriber list forever.
+        private IBindable<string> equippedTrailId;
+
         private Drawable cosmeticTrail;
 
         public OsuCursorContainer()
@@ -69,7 +74,8 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
 
             if (cosmetics != null)
             {
-                cosmetics.EquippedTrailId.BindValueChanged(_ => Schedule(rebuildCosmeticTrail), true);
+                equippedTrailId = cosmetics.EquippedTrailId.GetBoundCopy();
+                equippedTrailId.BindValueChanged(_ => Schedule(rebuildCosmeticTrail), true);
                 cosmetics.CustomisationChanged += onCustomisationChanged;
             }
             else
