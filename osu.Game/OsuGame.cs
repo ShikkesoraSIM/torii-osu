@@ -1180,8 +1180,13 @@ namespace osu.Game
             loadComponentSingleFile(new UserStatisticsWatcher(statisticsProvider), Add, true);
 
             // Torii: live server-pulse provider (powers the toolbar ToriiServerPulseButton + popover).
-            // Cached so the toolbar widget can [Resolved] it.
-            loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
+            // Read the enabled flag ONCE here; when off the provider is never loaded (and the toolbar
+            // button removes itself), so the pulse is fully gone — no polling, no subscriptions, no
+            // per-frame work. The settings toggle prompts for a restart to apply a change.
+            osu.Game.Online.Server.ToriiServerPulse.SetFromConfig(LocalConfig.Get<bool>(OsuSetting.ToriiServerPulseEnabled));
+
+            if (osu.Game.Online.Server.ToriiServerPulse.Enabled)
+                loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
 
             loadComponentSingleFile(Toolbar = new Toolbar
             {

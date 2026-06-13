@@ -35,6 +35,7 @@ namespace osu.Game.Overlays
             {
                 // This list should be kept in sync with ScreenBehaviour.
                 new GeneralSection(),
+                new ToriiSection(),
                 new SkinSection(),
                 new InputSection(createSubPanel(new KeyBindingPanel())),
                 new UserInterfaceSection(),

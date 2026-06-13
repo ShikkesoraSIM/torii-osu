@@ -112,6 +112,14 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader]
         private void load()
         {
+            // Pulse disabled at startup: remove the button entirely (the provider isn't
+            // loaded either), so the widget is fully gone rather than just hidden.
+            if (!ToriiServerPulse.Enabled)
+            {
+                Expire();
+                return;
+            }
+
             Child = pillContainer = new Container
             {
                 AutoSizeAxes = Axes.X,
