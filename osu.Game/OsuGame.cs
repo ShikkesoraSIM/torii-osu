@@ -1236,6 +1236,8 @@ namespace osu.Game
 
             // Torii cosmetics store overlay (points shop: cursor trails, auras, name colours).
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticStoreOverlay(), overlayContent.Add, true);
+            // Points history overlay (toggled by the toolbar points/coins button).
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsHistoryOverlay(), overlayContent.Add, true);
 
             loadComponentSingleFile(beatmapListing = new BeatmapListingOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(dashboard = new DashboardOverlay(), overlayContent.Add, true);
