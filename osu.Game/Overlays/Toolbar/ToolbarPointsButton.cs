@@ -63,6 +63,10 @@ namespace osu.Game.Overlays.Toolbar
         {
             AutoSizeAxes = Axes.X;
             Height = pill_height;
+            // Centre the pill vertically in the toolbar (a fixed-height button otherwise
+            // top-aligns in the flow, leaving all the empty space below it).
+            Anchor = Anchor.CentreLeft;
+            Origin = Anchor.CentreLeft;
             Action = () => history?.ToggleVisibility();
         }
 

@@ -106,6 +106,8 @@ namespace osu.Game.Overlays.Toolbar
         {
             AutoSizeAxes = Axes.X;
             Height = pill_height;
+            Anchor = Anchor.CentreLeft;
+            Origin = Anchor.CentreLeft;
             Action = togglePopover;
         }
 
