@@ -174,8 +174,6 @@ namespace osu.Game.Overlays.ToriiBriefing
                 },
                 new FillFlowContainer
                 {
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.TopCentre,
                     AutoSizeAxes = Axes.Y,
                     RelativeSizeAxes = Axes.X,
                     Direction = FillDirection.Horizontal,
