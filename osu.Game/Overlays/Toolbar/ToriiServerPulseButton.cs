@@ -22,6 +22,7 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.Server;
+using osu.Game.Performance;
 using osuTK;
 using osuTK.Graphics;
 
@@ -209,7 +210,8 @@ namespace osu.Game.Overlays.Toolbar
             if (config != null)
             {
                 config.BindWith(OsuSetting.ToriiServerPulseEnabled, enabled);
-                enabled.BindValueChanged(e => updateEnabledVisibility(e.NewValue), true);
+                // Potato mode hides the widget entirely (no polling happens either).
+                enabled.BindValueChanged(e => updateEnabledVisibility(e.NewValue && !PotatoMode.Active), true);
             }
         }
 

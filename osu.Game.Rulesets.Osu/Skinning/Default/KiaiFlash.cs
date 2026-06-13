@@ -7,6 +7,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Graphics.Containers;
+using osu.Game.Performance;
 using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Osu.Skinning.Default
@@ -32,6 +33,10 @@ namespace osu.Game.Rulesets.Osu.Skinning.Default
 
         protected override void OnNewBeat(int beatIndex, TimingControlPoint timingPoint, EffectControlPoint effectPoint, ChannelAmplitudes amplitudes)
         {
+            // Potato mode: no full-screen additive kiai flash.
+            if (PotatoMode.Active)
+                return;
+
             if (!effectPoint.KiaiMode)
                 return;
 

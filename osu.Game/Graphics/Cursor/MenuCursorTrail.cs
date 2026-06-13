@@ -21,6 +21,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Framework.Timing;
 using osu.Game.Configuration;
+using osu.Game.Performance;
 using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
@@ -184,6 +185,10 @@ namespace osu.Game.Graphics.Cursor
         {
             base.Update();
 
+            // Potato mode: no menu cursor trail (no parts added, no per-frame redraw).
+            if (PotatoMode.Active)
+                return;
+
             Invalidate(Invalidation.DrawNode);
 
             const int fade_clock_reset_threshold = 1000000;
@@ -222,7 +227,9 @@ namespace osu.Game.Graphics.Cursor
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
-            AddTrail(e.ScreenSpaceMousePosition);
+            if (!PotatoMode.Active)
+                AddTrail(e.ScreenSpaceMousePosition);
+
             return base.OnMouseMove(e);
         }
 
