@@ -4,6 +4,7 @@
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Game.Configuration;
+using osu.Game.Performance;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
@@ -72,7 +73,7 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
 
         protected override void ApplyHitAnimations()
         {
-            bool hitLightingEnabled = config.Get<bool>(OsuSetting.HitLighting);
+            bool hitLightingEnabled = config.Get<bool>(OsuSetting.HitLighting) && !PotatoMode.Active;
 
             Lighting.Alpha = 0;
 

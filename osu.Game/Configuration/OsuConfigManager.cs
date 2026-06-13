@@ -473,8 +473,9 @@ namespace osu.Game.Configuration
             // user choice from the dropdown.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
 
-            // Torii: Potato Mode — extreme-performance preset for weak PCs. Off by default;
-            // PotatoModeApplier forces the heavy graphics settings cheap while it is on.
+            // Torii: Potato Mode — extreme-performance preset for weak PCs. Off by default.
+            // Read once at startup (see PotatoMode + OsuGameBase); heavy-visual subsystems
+            // short-circuit on it at their read sites. Restart-gated via the settings toggle.
             SetDefault(OsuSetting.ToriiPotatoMode, false);
 
             // Torii: anti-chatter key debounce (off by default). Drops a gameplay-key

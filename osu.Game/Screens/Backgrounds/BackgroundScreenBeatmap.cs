@@ -12,6 +12,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
+using osu.Game.Performance;
 using osu.Game.Screens.Play;
 using osuTK;
 
@@ -165,7 +166,9 @@ namespace osu.Game.Screens.Backgrounds
             /// <summary>
             /// As an optimisation, we add the two blur portions to be applied rather than actually applying two separate blurs.
             /// </summary>
-            private Vector2 blurTarget => !IgnoreUserSettings.Value
+            // Potato mode: drop the user-blur term (the always-on, expensive
+            // one) and keep only the screen's own transient BlurAmount.
+            private Vector2 blurTarget => !IgnoreUserSettings.Value && !PotatoMode.Active
                 ? new Vector2(BlurAmount.Value + (float)userBlurLevel.Value * USER_BLUR_FACTOR)
                 : new Vector2(BlurAmount.Value);
 

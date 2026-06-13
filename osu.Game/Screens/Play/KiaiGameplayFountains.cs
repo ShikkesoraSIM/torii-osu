@@ -8,6 +8,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
+using osu.Game.Performance;
 using osu.Game.Screens.Menu;
 
 namespace osu.Game.Screens.Play
@@ -52,7 +53,7 @@ namespace osu.Game.Screens.Play
         {
             base.Update();
 
-            if (!kiaiStarFountains.Value)
+            if (!kiaiStarFountains.Value || PotatoMode.Active)
                 return;
 
             if (EffectPoint.KiaiMode && !isTriggered)

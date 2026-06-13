@@ -7,6 +7,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Configuration;
+using osu.Game.Performance;
 using osu.Game.Screens.Play;
 
 namespace osu.Game.Graphics.Containers
@@ -55,7 +56,21 @@ namespace osu.Game.Graphics.Containers
 
         private float breakLightening => LightenDuringBreaks.Value && IsBreakTime.Value ? BREAK_LIGHTEN_AMOUNT : 0;
 
-        protected virtual float DimLevel => Math.Max(!IgnoreUserSettings.Value ? (float)UserDimLevel.Value - breakLightening : DimWhenUserSettingsIgnored.Value, 0);
+        protected virtual float DimLevel
+        {
+            get
+            {
+                // Potato mode: fully dim user-controlled backgrounds. Hides
+                // the busy beatmap background behind a flat black fill so the
+                // GPU isn't compositing a bright, high-detail texture under
+                // gameplay. Screens that manage their own dim
+                // (IgnoreUserSettings) are left to their own logic.
+                if (PotatoMode.Active && !IgnoreUserSettings.Value)
+                    return 1;
+
+                return Math.Max(!IgnoreUserSettings.Value ? (float)UserDimLevel.Value - breakLightening : DimWhenUserSettingsIgnored.Value, 0);
+            }
+        }
 
         protected override Container<Drawable> Content => dimContent;
 
