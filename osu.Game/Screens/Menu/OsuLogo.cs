@@ -22,6 +22,7 @@ using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
 using osu.Game.Overlays;
+using osu.Game.Performance;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Input;
@@ -364,6 +365,14 @@ namespace osu.Game.Screens.Menu
         protected override void Update()
         {
             base.Update();
+
+            // Potato mode: keep the logo at a fixed scale (no per-frame amplitude breathing,
+            // and triangle velocity is irrelevant since triangles are disabled).
+            if (PotatoMode.Active)
+            {
+                logoAmplitudeContainer.Scale = Vector2.One;
+                return;
+            }
 
             const float scale_adjust_cutoff = 0.4f;
 

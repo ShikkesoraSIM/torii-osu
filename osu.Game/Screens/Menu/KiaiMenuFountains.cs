@@ -7,6 +7,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Platform;
 using osu.Framework.Utils;
 using osu.Game.Graphics.Containers;
+using osu.Game.Performance;
 
 namespace osu.Game.Screens.Menu
 {
@@ -48,6 +49,11 @@ namespace osu.Game.Screens.Menu
         protected override void Update()
         {
             base.Update();
+
+            // Potato mode: no menu kiai star fountains (this reads EffectPoint in its
+            // own Update, so the BeatSyncedContainer OnNewBeat gate doesn't cover it).
+            if (PotatoMode.Active)
+                return;
 
             if (EffectPoint.KiaiMode && !isTriggered)
             {
