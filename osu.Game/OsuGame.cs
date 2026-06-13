@@ -1178,6 +1178,11 @@ namespace osu.Game
             loadComponentSingleFile(statisticsProvider = new LocalUserStatisticsProvider(), Add, true);
             loadComponentSingleFile(difficultyRecommender = new DifficultyRecommender(statisticsProvider), Add, true);
             loadComponentSingleFile(new UserStatisticsWatcher(statisticsProvider), Add, true);
+
+            // Torii: live server-pulse provider (powers the toolbar ToriiServerPulseButton + popover).
+            // Cached so the toolbar widget can [Resolved] it.
+            loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
+
             loadComponentSingleFile(Toolbar = new Toolbar
             {
                 OnHome = delegate

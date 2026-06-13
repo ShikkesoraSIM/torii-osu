@@ -167,6 +167,9 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.Version, string.Empty);
 
+            // Torii: server pulse toolbar widget (live "currently playing" stats).
+            SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
+
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
 
@@ -467,5 +470,8 @@ namespace osu.Game.Configuration
 
         DashboardSortMode,
         DashboardDisplayStyle,
+
+        // Torii
+        ToriiServerPulseEnabled,
     }
 }
