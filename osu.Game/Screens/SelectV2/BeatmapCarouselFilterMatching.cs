@@ -116,7 +116,7 @@ namespace osu.Game.Screens.SelectV2
             match &= !criteria.DifficultyName.HasFilter || criteria.DifficultyName.Matches(beatmap.DifficultyName);
             match &= !criteria.Source.HasFilter || criteria.Source.Matches(beatmap.Metadata.Source);
 
-            if (criteria.UserTags.Any())
+            if (criteria.UserTags.Count > 0)
             {
                 foreach (var tagFilter in criteria.UserTags)
                 {

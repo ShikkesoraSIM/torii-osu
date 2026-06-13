@@ -1004,7 +1004,16 @@ namespace osu.Game.Graphics.Carousel
                     continue;
                 }
 
-                var existing = toDisplay.FirstOrDefault(i => CheckModelEquality(i.Model, carouselPanel.Item!.Model));
+                CarouselItem? existing = null;
+
+                foreach (var candidate in toDisplay)
+                {
+                    if (CheckModelEquality(candidate.Model, carouselPanel.Item!.Model))
+                    {
+                        existing = candidate;
+                        break;
+                    }
+                }
 
                 if (existing != null)
                 {
@@ -1097,7 +1106,7 @@ namespace osu.Game.Graphics.Carousel
         /// <param name="Index">The index of the selection as of the last run of <see cref="Carousel{T}.refreshAfterSelection"/>. May be null if selection is not present as an item, or if <see cref="Carousel{T}.refreshAfterSelection"/> has not been run yet.</param>
         protected record Selection(object? Model = null, CarouselItem? CarouselItem = null, double? YPosition = null, int? Index = null);
 
-        private record DisplayRange(int First, int Last)
+        private readonly record struct DisplayRange(int First, int Last)
         {
             public static readonly DisplayRange EMPTY = new DisplayRange(-1, -1);
         }

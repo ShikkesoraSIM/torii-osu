@@ -141,17 +141,32 @@ namespace osu.Game.Screens.SelectV2
 
         private static int compareUsingAggregateMax(BeatmapInfo a, BeatmapInfo b, Func<BeatmapInfo, double> func)
         {
-            var aMatchedBeatmaps = a.BeatmapSet!.Beatmaps.Where(bb => !bb.Hidden);
-            var bMatchedBeatmaps = b.BeatmapSet!.Beatmaps.Where(bb => !bb.Hidden);
+            bool aAny = false, bAny = false;
+            double aMax = double.MinValue, bMax = double.MinValue;
 
-            bool aAny = aMatchedBeatmaps.Any();
-            bool bAny = bMatchedBeatmaps.Any();
+            foreach (var bb in a.BeatmapSet!.Beatmaps)
+            {
+                if (bb.Hidden) continue;
+
+                double v = func(bb);
+                if (!aAny || v > aMax) aMax = v;
+                aAny = true;
+            }
+
+            foreach (var bb in b.BeatmapSet!.Beatmaps)
+            {
+                if (bb.Hidden) continue;
+
+                double v = func(bb);
+                if (!bAny || v > bMax) bMax = v;
+                bAny = true;
+            }
 
             if (!aAny && !bAny) return 0;
             if (!aAny) return -1;
             if (!bAny) return 1;
 
-            return aMatchedBeatmaps.Max(func).CompareTo(bMatchedBeatmaps.Max(func));
+            return aMax.CompareTo(bMax);
         }
     }
 }

@@ -155,12 +155,12 @@ namespace osu.Game.Screens.SelectV2
                 preceding.Clear();
                 succeeding.Clear();
 
-                var otherStarDifficulties = Beatmap.Value.BeatmapSet!.Beatmaps
-                                                   .Except([Beatmap.Value])
-                                                   .Where(b => b.AllowGameplayWithRuleset(ruleset.Value, showConvertedBeatmaps.Value))
-                                                   .OrderBy(b => b.StarRating)
-                                                   .Select(b => b.StarRating)
-                                                   .ToList();
+                var selected = Beatmap.Value!;
+                var otherStarDifficulties = selected.BeatmapSet!.Beatmaps
+                                                    .Where(b => b.ID != selected.ID && b.AllowGameplayWithRuleset(ruleset.Value, showConvertedBeatmaps.Value))
+                                                    .OrderBy(b => b.StarRating)
+                                                    .Select(b => b.StarRating)
+                                                    .ToList();
                 this.FadeTo(otherStarDifficulties.Count > 0 ? 1 : 0, transition_duration, Easing.OutQuint);
 
                 if (otherStarDifficulties.Count == 0)
