@@ -35,6 +35,7 @@ namespace osu.Game.Online.Leaderboards
         public LeaderboardCriteria? CurrentCriteria { get; private set; }
 
         private IDisposable? localScoreSubscription;
+        private IDisposable? beatmapUpdateSubscription;
         private GetScoresRequest? inFlightOnlineRequest;
 
         [Resolved]
@@ -60,6 +61,8 @@ namespace osu.Game.Online.Leaderboards
 
             CurrentCriteria = newCriteria;
             localScoreSubscription?.Dispose();
+            beatmapUpdateSubscription?.Dispose();
+            beatmapUpdateSubscription = null;
             inFlightOnlineRequest?.Cancel();
             scores.Value = null;
 
@@ -104,9 +107,24 @@ namespace osu.Game.Online.Leaderboards
                             return;
                         }
 
-                        if (newCriteria.Beatmap.OnlineID <= 0 || newCriteria.Beatmap.Status <= BeatmapOnlineStatus.Pending)
+                        int onlineID = newCriteria.Beatmap.OnlineID;
+                        BeatmapOnlineStatus status = newCriteria.Beatmap.Status;
+
+                        // Only touch realm when the snapshot we were handed already looks unavailable. For an
+                        // eligible (ranked/loved/...) map -- the common case while browsing song select -- this
+                        // stays a pure in-memory check, so switching songs costs no realm read. A freshly
+                        // downloaded map shows up here as Status = None / OnlineID = 0 because its online
+                        // metadata lookup finishes AFTER the working beatmap was resolved; only then do we
+                        // re-read the live values from realm (and heal the stale snapshot) so we don't wrongly
+                        // report "not available". If the lookup is still in flight, watch realm and refetch the
+                        // moment it lands, instead of only resolving after switching maps and back.
+                        if (onlineID <= 0 || status <= BeatmapOnlineStatus.Pending)
+                            (onlineID, status) = resolveLiveBeatmapStatus(newCriteria.Beatmap);
+
+                        if (onlineID <= 0 || status <= BeatmapOnlineStatus.Pending)
                         {
                             scores.Value = LeaderboardScores.Failure(LeaderboardFailState.BeatmapUnavailable);
+                            watchForBeatmapStatusUpdate(newCriteria);
                             return;
                         }
                     }
@@ -204,11 +222,75 @@ namespace osu.Game.Online.Leaderboards
             scores.Value = LeaderboardScores.Success(newScoresArray, scoresRequested: newScoresArray.Length, totalScores: newScoresArray.Length, null);
         }
 
+        private (int onlineID, BeatmapOnlineStatus status) resolveLiveBeatmapStatus(BeatmapInfo beatmapInfo)
+        {
+            int onlineID = beatmapInfo.OnlineID;
+            BeatmapOnlineStatus status = beatmapInfo.Status;
+
+            try
+            {
+                realm.Run(r =>
+                {
+                    BeatmapInfo? live = beatmapInfo.ID != Guid.Empty ? r.Find<BeatmapInfo>(beatmapInfo.ID) : null;
+
+                    if (live == null && onlineID > 0)
+                        live = r.All<BeatmapInfo>().FirstOrDefault(b => b.OnlineID == onlineID);
+
+                    if (live == null)
+                        return;
+
+                    onlineID = live.OnlineID;
+                    status = live.Status;
+
+                    // Heal the detached snapshot in place so the score request and any other consumer of this
+                    // BeatmapInfo see the resolved status. Managed (live) instances already reflect realm.
+                    if (!beatmapInfo.IsManaged)
+                    {
+                        beatmapInfo.OnlineID = onlineID;
+                        beatmapInfo.Status = status;
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Logger.Log($@"Failed to refresh beatmap status from realm for leaderboard: {e}", LoggingTarget.Database);
+            }
+
+            return (onlineID, status);
+        }
+
+        private void watchForBeatmapStatusUpdate(LeaderboardCriteria criteria)
+        {
+            beatmapUpdateSubscription?.Dispose();
+            beatmapUpdateSubscription = null;
+
+            var beatmapInfo = criteria.Beatmap;
+            if (beatmapInfo == null || beatmapInfo.ID == Guid.Empty)
+                return;
+
+            Guid id = beatmapInfo.ID;
+            beatmapUpdateSubscription = realm.RegisterForNotifications(r => r.All<BeatmapInfo>().Where(b => b.ID == id), (sender, changes) =>
+            {
+                // Ignore the initial population callback; only react when the async metadata lookup actually
+                // modifies the beatmap (online id / status landing after a fresh download).
+                if (changes == null)
+                    return;
+
+                var live = sender.FirstOrDefault();
+                if (live == null || live.OnlineID <= 0 || live.Status <= BeatmapOnlineStatus.Pending)
+                    return;
+
+                if (CurrentCriteria?.Equals(criteria) == true)
+                    FetchWithCriteria(criteria, forceRefresh: true);
+            });
+        }
+
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
 
             localScoreSubscription?.Dispose();
+            beatmapUpdateSubscription?.Dispose();
         }
     }
 
