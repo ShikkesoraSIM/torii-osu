@@ -249,11 +249,15 @@ namespace osu.Game.Overlays.Cosmetics
             },
         };
 
+        // NOTE: must stay Top-anchored to match its siblings in the vertical
+        // content flow. A Centre anchor here mixes RelativeAnchorPosition.Y
+        // (0 vs 0.5) and the framework throws on every layout pass, which only
+        // shows up once a top play hits the daily cap (i.e. while farming).
         private Drawable capNote() => new OsuSpriteText
         {
-            Anchor = Anchor.CentreLeft,
-            Origin = Anchor.CentreLeft,
-            Text = "Daily top-play limit reached — pp bonus only",
+            Anchor = Anchor.TopLeft,
+            Origin = Anchor.TopLeft,
+            Text = "Daily top-play limit reached, pp bonus only",
             Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption, italics: true),
             Colour = BriefingTheme.AccentAmber.Opacity(0.85f),
             Margin = new MarginPadding { Top = 2 },
