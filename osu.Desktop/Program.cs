@@ -23,7 +23,10 @@ namespace osu.Desktop
 #if DEBUG
         private const string base_game_name = @"osu-development";
 #else
-        private const string base_game_name = @"osu";
+        // toriirefresh: isolated data directory so this fork never touches the
+        // stock osu!lazer library (%APPDATA%/osu). Will become the Torii data
+        // dir as the project matures.
+        private const string base_game_name = @"osu-toriirefresh";
 #endif
 
         private static LegacyTcpIpcProvider? legacyIpc;

@@ -106,8 +106,10 @@ namespace osu.Game
 
         public virtual bool UseDevelopmentServer => DebugUtils.IsDebugBuild;
 
-        public virtual EndpointConfiguration CreateEndpoints() =>
-            UseDevelopmentServer ? new DevelopmentEndpointConfiguration() : new ProductionEndpointConfiguration();
+        // toriirefresh: hard-locked to the Torii server. The official osu.ppy.sh
+        // production / development endpoints are intentionally unreachable so the
+        // client can only ever connect to Torii's API + hubs.
+        public virtual EndpointConfiguration CreateEndpoints() => new ToriiEndpointConfiguration();
 
         protected override OnlineStore CreateOnlineStore() => new TrustedDomainOnlineStore();
 
