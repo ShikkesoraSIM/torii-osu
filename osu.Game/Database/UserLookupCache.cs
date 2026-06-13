@@ -12,6 +12,11 @@ namespace osu.Game.Database
 {
     public partial class UserLookupCache : OnlineLookupCache<int, APIUser, LookupUsersRequest>
     {
+        // Bound the cache: one entry accumulates per distinct user seen across chat,
+        // leaderboards, profiles and online lists over a session. A miss just re-issues
+        // the batched API lookup, so eviction is a pure refetch with no behaviour change.
+        protected override int? MaxCacheSize => 4096;
+
         /// <summary>
         /// Perform an API lookup on the specified user, populating a <see cref="APIUser"/> model.
         /// </summary>

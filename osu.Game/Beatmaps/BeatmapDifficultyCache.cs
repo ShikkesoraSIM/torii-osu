@@ -198,6 +198,13 @@ namespace osu.Game.Beatmaps
 
         protected override bool CacheNullValues => false;
 
+        // Bound the cache: every distinct beatmap x ruleset x mod-combination is a separate
+        // entry, so trying many rate-changing mods across a big library grows this without
+        // limit over a session. The cap is generous so the live working set (tracked
+        // bindables, recently viewed maps) is never evicted; a miss only recomputes the
+        // (deterministic) star/pp value.
+        protected override int? MaxCacheSize => 2048;
+
         public Task<List<TimedDifficultyAttributes>> GetTimedDifficultyAttributesAsync(IWorkingBeatmap beatmap, Ruleset ruleset, Mod[] mods, CancellationToken cancellationToken = default)
         {
             bool usePpDevVariant = ToriiPpVariantState.UsePpDevVariant;

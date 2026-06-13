@@ -12,6 +12,11 @@ namespace osu.Game.Database
 {
     public partial class BeatmapLookupCache : OnlineLookupCache<int, APIBeatmap, GetBeatmapsRequest>
     {
+        // Bound the cache: one entry accumulates per distinct online beatmap id resolved
+        // over a session. A miss just re-issues the batched API lookup, so eviction is a
+        // pure refetch with no behaviour change.
+        protected override int? MaxCacheSize => 4096;
+
         /// <summary>
         /// Perform an API lookup on the specified beatmap, populating a <see cref="APIBeatmap"/> model.
         /// </summary>

@@ -3,7 +3,9 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Extensions.TypeExtensions;
@@ -24,6 +26,21 @@ namespace osu.Game.Database
         private readonly GlobalStatistic<MemoryCachingStatistics> statistics;
 
         protected virtual bool CacheNullValues => true;
+
+        // Parallel last-access tracking + a monotonic clock for approximate-LRU eviction.
+        // Only populated/consulted when MaxCacheSize is non-null, so unbounded subclasses
+        // (the default) pay nothing.
+        private readonly ConcurrentDictionary<TLookup, long> lastAccess = new ConcurrentDictionary<TLookup, long>();
+        private long accessClock;
+        private readonly object evictionLock = new object();
+
+        /// <summary>
+        /// When non-null, the cache is bounded to roughly this many entries via
+        /// approximate-LRU eviction. Null (the default) keeps the original unbounded
+        /// behaviour. Eviction only ever costs a recompute on a later miss; it never
+        /// changes a value that gets returned.
+        /// </summary>
+        protected virtual int? MaxCacheSize => null;
 
         protected MemoryCachingComponent()
         {
@@ -55,7 +72,9 @@ namespace osu.Game.Database
             if (computed != null || CacheNullValues)
             {
                 cache[lookup] = computed;
+                touch(lookup);
                 statistics.Value.Usage = cache.Count;
+                trimIfRequired();
             }
 
             return computed;
@@ -70,7 +89,10 @@ namespace osu.Game.Database
             foreach (var kvp in cache)
             {
                 if (matchKeyPredicate(kvp.Key))
+                {
                     cache.TryRemove(kvp.Key, out _);
+                    lastAccess.TryRemove(kvp.Key, out _);
+                }
             }
 
             statistics.Value.Usage = cache.Count;
@@ -82,11 +104,73 @@ namespace osu.Game.Database
         public virtual void Clear()
         {
             cache.Clear();
+            lastAccess.Clear();
             statistics.Value.Usage = 0;
         }
 
-        protected bool CheckExists(TLookup lookup, [MaybeNullWhen(false)] out TValue value) =>
-            cache.TryGetValue(lookup, out value);
+        protected bool CheckExists(TLookup lookup, [MaybeNullWhen(false)] out TValue value)
+        {
+            if (cache.TryGetValue(lookup, out value))
+            {
+                // Record the access so frequently-used keys (the active working set) stay
+                // hot and survive eviction. Only costs anything when bounding is enabled.
+                if (MaxCacheSize != null)
+                    touch(lookup);
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private void touch(TLookup lookup)
+        {
+            if (MaxCacheSize == null)
+                return;
+
+            // Only stamp keys actually present so we never resurrect an evicted key's metadata.
+            if (cache.ContainsKey(lookup))
+                lastAccess[lookup] = Interlocked.Increment(ref accessClock);
+        }
+
+        private void trimIfRequired()
+        {
+            int? max = MaxCacheSize;
+
+            if (max == null || cache.Count <= max.Value)
+                return;
+
+            // Serialise eviction so two concurrent misses cannot both trim and over-evict.
+            lock (evictionLock)
+            {
+                int cap = max.Value;
+
+                if (cache.Count <= cap)
+                    return;
+
+                int target = Math.Max(1, (int)(cap * 0.9));
+                int toRemove = cache.Count - target;
+
+                if (toRemove <= 0)
+                    return;
+
+                // Approximate LRU: evict the oldest-accessed keys (missing stamp sorts oldest).
+                // A later lookup of an evicted key simply recomputes/refetches, so this only
+                // ever costs work on a future miss, never changing a returned value.
+                var victims = cache.Keys
+                                   .OrderBy(k => lastAccess.TryGetValue(k, out long t) ? t : 0L)
+                                   .Take(toRemove)
+                                   .ToList();
+
+                foreach (var key in victims)
+                {
+                    cache.TryRemove(key, out _);
+                    lastAccess.TryRemove(key, out _);
+                }
+
+                statistics.Value.Usage = cache.Count;
+            }
+        }
 
         /// <summary>
         /// Called on cache miss to compute the value for the specified lookup.
