@@ -473,6 +473,10 @@ namespace osu.Game.Configuration
             // user choice from the dropdown.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
 
+            // Torii: Potato Mode — extreme-performance preset for weak PCs. Off by default;
+            // PotatoModeApplier forces the heavy graphics settings cheap while it is on.
+            SetDefault(OsuSetting.ToriiPotatoMode, false);
+
             // Torii: anti-chatter key debounce (off by default). Drops a gameplay-key
             // re-press that lands within the threshold of that key's last release —
             // the spurious double-tap from rapid-trigger / worn switches. Threshold is
@@ -911,6 +915,7 @@ namespace osu.Game.Configuration
         ToriiInputAudioHzAutoTuned,
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,
+        ToriiPotatoMode,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,
