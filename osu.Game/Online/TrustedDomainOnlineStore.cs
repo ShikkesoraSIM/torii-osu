@@ -11,7 +11,10 @@ namespace osu.Game.Online
     {
         protected override string GetLookupUrl(string url)
         {
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || !uri.Host.EndsWith(@".ppy.sh", StringComparison.OrdinalIgnoreCase))
+            // Trust the Torii server's file host (avatars, team flags, etc.) alongside ppy.sh.
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+                || !(uri.Host.EndsWith(@".ppy.sh", StringComparison.OrdinalIgnoreCase)
+                     || uri.Host.EndsWith(@".shikkesora.com", StringComparison.OrdinalIgnoreCase)))
             {
                 Logger.Log($@"Blocking resource lookup from external website: {url}", LoggingTarget.Network, LogLevel.Important);
                 return string.Empty;
