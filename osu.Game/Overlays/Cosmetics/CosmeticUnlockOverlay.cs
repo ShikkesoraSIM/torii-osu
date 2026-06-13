@@ -148,6 +148,8 @@ namespace osu.Game.Overlays.Cosmetics
                                     },
                                     new Container
                                     {
+                                        Anchor = Anchor.TopCentre,
+                                        Origin = Anchor.TopCentre,
                                         RelativeSizeAxes = Axes.X,
                                         Height = 150,
                                         Masking = true,
@@ -165,6 +167,8 @@ namespace osu.Game.Overlays.Cosmetics
                                     },
                                     equipButton = new RoundedButton
                                     {
+                                        Anchor = Anchor.TopCentre,
+                                        Origin = Anchor.TopCentre,
                                         RelativeSizeAxes = Axes.X,
                                         Height = 44,
                                         Text = "Equip",
@@ -173,6 +177,8 @@ namespace osu.Game.Overlays.Cosmetics
                                     },
                                     new RoundedButton
                                     {
+                                        Anchor = Anchor.TopCentre,
+                                        Origin = Anchor.TopCentre,
                                         RelativeSizeAxes = Axes.X,
                                         Height = 40,
                                         Text = "Go to inventory",

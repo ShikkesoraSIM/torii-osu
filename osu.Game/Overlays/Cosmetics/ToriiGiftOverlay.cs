@@ -333,6 +333,8 @@ namespace osu.Game.Overlays.Cosmetics
 
                 flow.Add(new RoundedButton
                 {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
                     RelativeSizeAxes = Axes.X,
                     Height = 44,
                     Text = "Equip",
@@ -341,6 +343,8 @@ namespace osu.Game.Overlays.Cosmetics
                 });
                 flow.Add(new RoundedButton
                 {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
                     RelativeSizeAxes = Axes.X,
                     Height = 40,
                     Text = "Go to inventory",
@@ -368,6 +372,8 @@ namespace osu.Game.Overlays.Cosmetics
                 });
                 flow.Add(new RoundedButton
                 {
+                    Anchor = Anchor.TopCentre,
+                    Origin = Anchor.TopCentre,
                     RelativeSizeAxes = Axes.X,
                     Height = 44,
                     Text = "Nice!",
