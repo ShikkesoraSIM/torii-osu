@@ -134,6 +134,8 @@ namespace osu.Game.Screens.SelectV2
         private SkinnableContainer skinnableContent = null!;
 
         private GridContainer mainGridContainer = null!;
+        private Dimension[]? cachedColumnDimensions;
+        private float lastWidescreenBonusWidth = float.NegativeInfinity;
 
         private NoResultsPlaceholder noResultsPlaceholder = null!;
 
@@ -551,12 +553,17 @@ namespace osu.Game.Screens.SelectV2
             // ve cortita"). PickAll lets each theme pick its own value
             // independently: grayscale stays compact, midnight tracks
             // torii.
-            mainGridContainer.ColumnDimensions = new[]
+            if (cachedColumnDimensions == null || widescreenBonusWidth != lastWidescreenBonusWidth)
             {
-                new Dimension(GridSizeMode.Relative, 0.5f, maxSize: ThemeAware.PickAll(700f, 580f, 700f) + widescreenBonusWidth * 100),
-                new Dimension(),
-                new Dimension(GridSizeMode.Relative, 0.5f, minSize: 500, maxSize: 700 + widescreenBonusWidth * 300),
-            };
+                cachedColumnDimensions = new[]
+                {
+                    new Dimension(GridSizeMode.Relative, 0.5f, maxSize: ThemeAware.PickAll(700f, 580f, 700f) + widescreenBonusWidth * 100),
+                    new Dimension(),
+                    new Dimension(GridSizeMode.Relative, 0.5f, minSize: 500, maxSize: 700 + widescreenBonusWidth * 300),
+                };
+                lastWidescreenBonusWidth = widescreenBonusWidth;
+                mainGridContainer.ColumnDimensions = cachedColumnDimensions;
+            }
 
             if (this.IsCurrentScreen())
                 updateDebounce();
