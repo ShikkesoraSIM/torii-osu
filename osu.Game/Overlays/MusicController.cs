@@ -495,7 +495,23 @@ namespace osu.Game.Overlays
             current = newWorking;
 
             if (lastWorking == null || !lastWorking.TryTransferTrack(current))
+            {
                 changeTrack();
+
+                // The outgoing beatmap's track was NOT transferred to the new one, so it is now orphaned.
+                // Free its native audio + skin samples deterministically instead of waiting on GC/finalizers,
+                // which can't run while the framework's track/sample stores still strongly reference them.
+                // This is the fix for unbounded unmanaged-memory growth while browsing/spectating many maps.
+                // Guards: never recycle the incoming current, the live global beatmap, or the shared default
+                // (whose track is a dummy device, which RecycleTrack skips anyway).
+                if (lastWorking != null
+                    && lastWorking != current
+                    && lastWorking != beatmaps.DefaultBeatmap
+                    && lastWorking != beatmap.Value)
+                {
+                    lastWorking.RecycleTrack();
+                }
+            }
 
             TrackChanged?.Invoke(current, direction);
 

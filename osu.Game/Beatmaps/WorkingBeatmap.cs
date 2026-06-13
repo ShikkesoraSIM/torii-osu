@@ -43,7 +43,7 @@ namespace osu.Game.Beatmaps
         private readonly object beatmapFetchLock = new object();
 
         private readonly Lazy<Storyboard> storyboard;
-        private readonly Lazy<ISkin> skin;
+        private Lazy<ISkin> skin;
 
         private Track track; // track is not Lazy as we allow transferring and loading multiple times.
         private Waveform waveform; // waveform is also not Lazy as the track may change.
@@ -149,6 +149,34 @@ namespace osu.Game.Beatmaps
 
             target.track = Track;
             return true;
+        }
+
+        /// <summary>
+        /// Frees this beatmap's loaded native resources (audio track, waveform, and realised skin samples/textures).
+        /// Safe to call on a beatmap that is no longer active: everything lazily reloads on next access
+        /// (<see cref="LoadTrack"/>, the <see cref="Track"/> getter, and the skin lazy), so re-selection is transparent.
+        /// MUST NOT be called on the active (global) beatmap, on one a live screen still reads via <see cref="Track"/>,
+        /// or on one whose track was transferred away via <see cref="TryTransferTrack"/>.
+        /// </summary>
+        public virtual void RecycleTrack()
+        {
+            // Never dispose a transferred / dummy-device track. A real BASS track reports IsDummyDevice == false
+            // (matching TryTransferTrack's predicate). TrackBass.Dispose() is idempotent, so a later disposal of the
+            // same handle by the expiring DrawableTrack in MusicController.changeTrack() is a harmless no-op.
+            if (track != null && !track.IsDummyDevice)
+                track.Dispose();
+            track = null;
+
+            waveform?.Dispose();
+            waveform = null;
+
+            // Free the per-beatmap skin (its hitsound SampleStore + textures) only if it was actually realised.
+            // Skin.Dispose() releases the native BASS samples pinned in the framework's global sample store.
+            if (skin.IsValueCreated && skin.Value is IDisposable disposableSkin)
+                disposableSkin.Dispose();
+
+            // Reset the lazy so the next skin access re-creates it transparently.
+            skin = new Lazy<ISkin>(GetSkin);
         }
 
         /// <summary>
