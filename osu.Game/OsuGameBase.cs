@@ -594,6 +594,13 @@ namespace osu.Game
             // change so this single read at startup is sufficient.
             OsuColour.SetThemeFromConfig(LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme));
 
+            // Torii: pin Potato Mode (extreme-perf preset for weak PCs)
+            // alongside the theme. Like the theme it's a read-once flag
+            // that heavy subsystems check at construction, so it has to be
+            // known before the visual tree builds. Restart-gated via the
+            // settings toggle for the same reason the theme is.
+            Performance.PotatoMode.SetFromConfig(LocalConfig.Get<bool>(OsuSetting.ToriiPotatoMode));
+
             dependencies.Cache(Colours = new OsuColour());
 
             RegisterImportHandler(BeatmapManager);
