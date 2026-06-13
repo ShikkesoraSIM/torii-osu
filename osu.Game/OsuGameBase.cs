@@ -330,6 +330,20 @@ namespace osu.Game
             dependencies.Cache(BeatmapManager = new BeatmapManager(Storage, realm, API, Audio, Resources, Host, defaultBeatmap, difficultyCache, performOnlineLookups: true));
             dependencies.CacheAs<IWorkingBeatmapCache>(BeatmapManager);
 
+            // Torii cosmetics / economy: app-wide owned/equipped/points state, shared by the
+            // cursor containers, the username decorator (auras + name colours) and the store.
+            var toriiCosmetics = new osu.Game.Cosmetics.ToriiCosmeticsManager(LocalConfig);
+            dependencies.Cache(toriiCosmetics);
+
+            // Static hooks the UserAuraContainer reads to decorate the local user's name everywhere.
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserProvider = () => API?.LocalUser.Value;
+            osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserHasNameColour =
+                () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value);
+            osu.Game.Graphics.UserEffects.UserAuraContainer.ReducedMotion =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsReducedMotion);
+            osu.Game.Graphics.UserEffects.UserAuraContainer.CosmeticsSuppressed =
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden);
+
             dependencies.Cache(BeatmapDownloader = new BeatmapModelDownloader(BeatmapManager, API));
             dependencies.Cache(ScoreDownloader = new ScoreModelDownloader(ScoreManager, API));
 

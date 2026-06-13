@@ -22,6 +22,12 @@ namespace osu.Game.Online.Metadata
         Task UserPresenceUpdated(int userId, UserPresence? status);
 
         /// <summary>
+        /// Torii: notifies that the user with the supplied <paramref name="userId"/> updated their
+        /// cosmetic payload (aura / name colour / owned items), so visible surfaces can refresh.
+        /// </summary>
+        Task UserUpdated(int userId);
+
+        /// <summary>
         /// Delivers and update of the <see cref="UserPresence"/> of a friend with the supplied <paramref name="userId"/>.
         /// </summary>
         Task FriendPresenceUpdated(int userId, UserPresence? presence);

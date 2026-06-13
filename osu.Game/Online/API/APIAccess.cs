@@ -41,6 +41,12 @@ namespace osu.Game.Online.API
 
         public EndpointConfiguration Endpoints { get; }
 
+        // Torii: this client is hard-locked to the Torii server (see ToriiEndpointConfiguration),
+        // so it's always a Torii endpoint and never the official osu.ppy.sh one. Kept as properties
+        // so feature code that branches on endpoint trust reads naturally.
+        internal bool IsLikelyToriiEndpoint => true;
+        internal bool IsUnsafeOfficialEndpoint => false;
+
         /// <summary>
         /// The API response version.
         /// See: https://osu.ppy.sh/docs/index.html#api-versions

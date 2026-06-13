@@ -132,6 +132,20 @@ namespace osu.Game.Online.Metadata
 
         public abstract Task FriendPresenceUpdated(int userId, UserPresence? presence);
 
+        /// <summary>
+        /// Torii: raised when a user's cosmetic payload changes server-side. Explicit interface
+        /// implementation so the public event of the same name doesn't clash; consumers subscribe
+        /// to the <see cref="UserUpdated"/> event.
+        /// </summary>
+        public event Action<int>? UserUpdated;
+
+        Task IMetadataClient.UserUpdated(int userId)
+        {
+            if (UserUpdated != null)
+                Schedule(UserUpdated, userId);
+            return Task.CompletedTask;
+        }
+
         private class UserPresenceWatchToken : IDisposable
         {
             private readonly IMetadataServer server;

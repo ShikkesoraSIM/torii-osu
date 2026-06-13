@@ -170,6 +170,35 @@ namespace osu.Game.Configuration
             // Torii: server pulse toolbar widget (live "currently playing" stats).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
+            // Torii cosmetics / economy / UI
+            SetDefault(OsuSetting.UserAuraEnabled, true);
+            SetDefault(OsuSetting.EquippedNameColour, string.Empty);
+            SetDefault(OsuSetting.EquippedCursorTrail, string.Empty);
+            SetDefault(OsuSetting.OwnedCursorTrails, string.Empty);
+            SetDefault(OsuSetting.CursorTrailCustomisations, string.Empty);
+            SetDefault(OsuSetting.CursorTrailAdjustUnlocked, false);
+            SetDefault(OsuSetting.CosmeticStoreDisabled, string.Empty);
+            SetDefault(OsuSetting.CosmeticStorePotatoMode, false);
+            SetDefault(OsuSetting.CosmeticsReducedMotion, false);
+            SetDefault(OsuSetting.CosmeticsHidden, false);
+            SetDefault(OsuSetting.ToriiPointsBalance, 0);
+            SetDefault(OsuSetting.ToriiPointsFeedCursor, 0);
+            SetDefault(OsuSetting.CustomUIHue, osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+            SetDefault(OsuSetting.CustomUIHueEnabled, false);
+            SetDefault(OsuSetting.CustomUIHueApplyToMenu, false);
+            SetDefault(OsuSetting.CustomUIHueApplyToOverlays, true);
+            SetDefault(OsuSetting.CustomUIHueApplyToSettingsPanel, true);
+            SetDefault(OsuSetting.CustomUIAccentEnabled, false);
+            SetDefault(OsuSetting.CustomUIAccentHue, osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+            SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
+            SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
+            SetDefault(OsuSetting.UseGameplayCursorInMenus, false);
+            SetDefault(OsuSetting.AlphaToolbarEnabled, false);
+            SetDefault(OsuSetting.AlphaToolbarUse, false);
+            SetDefault(OsuSetting.AlphaStableSongSelectEnabled, false);
+            SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
+            SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
+
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
 
@@ -473,5 +502,34 @@ namespace osu.Game.Configuration
 
         // Torii
         ToriiServerPulseEnabled,
+
+        // Torii cosmetics / economy / UI
+        UserAuraEnabled,
+        EquippedNameColour,
+        EquippedCursorTrail,
+        OwnedCursorTrails,
+        CursorTrailCustomisations,
+        CursorTrailAdjustUnlocked,
+        CosmeticStoreDisabled,
+        CosmeticStorePotatoMode,
+        CosmeticsReducedMotion,
+        CosmeticsHidden,
+        ToriiPointsBalance,
+        ToriiPointsFeedCursor,
+        CustomUIHue,
+        CustomUIHueEnabled,
+        CustomUIHueApplyToMenu,
+        CustomUIHueApplyToOverlays,
+        CustomUIHueApplyToSettingsPanel,
+        CustomUIAccentEnabled,
+        CustomUIAccentHue,
+        CustomUIAccentUnlocked,
+        MenuCursorStyle,
+        UseGameplayCursorInMenus,
+        AlphaToolbarEnabled,
+        AlphaToolbarUse,
+        AlphaStableSongSelectEnabled,
+        AlphaPpDevModeEnabled,
+        ToriiConfirmDangerousButtonsOnLongAttempts,
     }
 }

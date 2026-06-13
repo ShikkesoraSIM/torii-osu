@@ -32,6 +32,13 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"username")]
         public string Username { get; set; } = string.Empty;
 
+        // Torii cosmetics: the user's currently equipped aura + name colour ids (served by g0v0).
+        [JsonProperty(@"equipped_aura")]
+        public string? EquippedAura { get; set; }
+
+        [JsonProperty(@"equipped_name_colour")]
+        public string? EquippedNameColour { get; set; }
+
         [JsonProperty(@"previous_usernames")]
         public string[] PreviousUsernames;
 
