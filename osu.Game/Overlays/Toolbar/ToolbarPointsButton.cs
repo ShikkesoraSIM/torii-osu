@@ -19,6 +19,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Overlays.Cosmetics;
+using osu.Game.Performance;
 using osuTK;
 using osuTK.Graphics;
 
@@ -153,6 +154,13 @@ namespace osu.Game.Overlays.Toolbar
         private void updateBalance(ValueChangedEvent<int> e) => Schedule(() =>
         {
             countText.Text = e.NewValue.ToString("N0");
+
+            // Potato mode: no pop animation on the points counter (keep it dead still).
+            if (PotatoMode.Active)
+            {
+                countText.Scale = Vector2.One;
+                return;
+            }
 
             // Tiny pop when the number changes so an earn/spend registers visually.
             countText.ScaleTo(1.16f, 80, Easing.OutQuint)

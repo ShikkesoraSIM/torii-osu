@@ -15,6 +15,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
 using osu.Game.Cosmetics;
+using osu.Game.Performance;
 using osu.Game.Skinning;
 using osuTK;
 
@@ -180,6 +181,10 @@ namespace osu.Game.Graphics.Cursor
                 Remove(cosmeticTrail, true);
                 cosmeticTrail = null;
             }
+
+            // Potato mode: no cursor trail at all (cosmetic store trail or the skin/menu trail).
+            if (PotatoMode.Active)
+                return;
 
             // An equipped store cosmetic replaces the skin trail and shows for
             // ANY cursor style (so it's visible in menus, not only gameplay).
