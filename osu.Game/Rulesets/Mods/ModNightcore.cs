@@ -96,6 +96,9 @@ namespace osu.Game.Rulesets.Mods
                 Divisor = 2;
             }
 
+            // Functional: plays the nightcore mod's added beat samples, must keep firing in Potato mode.
+            protected override bool SuppressedByPotatoMode => false;
+
             [BackgroundDependencyLoader]
             private void load()
             {

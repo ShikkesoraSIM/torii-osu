@@ -39,6 +39,9 @@ namespace osu.Game.Screens.Edit.Timing
 
         private readonly MetronomeTick metronomeTick = new MetronomeTick();
 
+        // Functional editor metronome: keep the swing/tick driven even in Potato mode.
+        protected override bool SuppressedByPotatoMode => false;
+
         [Resolved]
         private OverlayColourProvider overlayColourProvider { get; set; } = null!;
 
@@ -399,6 +402,9 @@ namespace osu.Game.Screens.Edit.Timing
             {
                 AllowMistimedEventFiring = false;
             }
+
+            // Functional: plays the editor metronome tick sound, must keep firing in Potato mode.
+            protected override bool SuppressedByPotatoMode => false;
 
             [BackgroundDependencyLoader]
             private void load(AudioManager audio)
