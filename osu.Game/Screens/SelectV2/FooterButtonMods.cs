@@ -22,7 +22,10 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Localisation;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
+using osu.Game.Beatmaps;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Screens.Footer;
 using osu.Game.Screens.Play.HUD;
 using osu.Game.Utils;
@@ -68,6 +71,12 @@ namespace osu.Game.Screens.SelectV2
 
         [Resolved]
         private OsuGameBase game { get; set; } = null!;
+
+        [Resolved]
+        private IBindable<WorkingBeatmap> beatmap { get; set; } = null!;
+
+        [Resolved]
+        private IBindable<RulesetInfo> ruleset { get; set; } = null!;
 
         private IBindable<Language> currentLanguage = null!;
 
@@ -178,6 +187,9 @@ namespace osu.Game.Screens.SelectV2
                 }
             }, true);
 
+            // the multiplier now depends on the beatmap's difficulty (difficulty adjust / combination mods).
+            beatmap.BindValueChanged(_ => updateDisplay());
+
             FinishTransforms(true);
         }
 
@@ -234,7 +246,8 @@ namespace osu.Game.Screens.SelectV2
                 modDisplay.FadeIn(duration, easing);
             }
 
-            double multiplier = Current.Value?.Aggregate(1.0, (current, mod) => current * mod.ScoreMultiplier) ?? 1;
+            var scoreMultiplierCalculator = ruleset.Value?.CreateInstance().CreateScoreMultiplierCalculator(new ScoreMultiplierContext(beatmap.Value.BeatmapInfo.Difficulty));
+            double multiplier = scoreMultiplierCalculator?.CalculateFor(Current.Value ?? Enumerable.Empty<Mod>()) ?? 1;
             multiplierText.Text = ModUtils.FormatScoreMultiplier(multiplier);
 
             if (multiplier > 1)
