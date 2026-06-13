@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Game.Configuration;
 using osu.Game.Cosmetics;
 using osu.Game.Online.API;
+using osu.Game.Performance;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Metadata;
@@ -348,7 +349,9 @@ namespace osu.Game.Graphics.UserEffects
 
             // Future "ignore cosmetics" toggle: render the bare username (vanilla
             // look) with no colour, glow or particles.
-            if (CosmeticsSuppressed?.Invoke() ?? false)
+            // Potato mode does the same: no aura particle emitter, no pulsing glow,
+            // no animated name colour anywhere (toolbar chip, profile, chat, leaderboard).
+            if ((CosmeticsSuppressed?.Invoke() ?? false) || PotatoMode.Active)
             {
                 Add(target);
                 return;
