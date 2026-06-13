@@ -136,6 +136,12 @@ namespace osu.Game.Configuration
         public const string KeyDebounce = "v2026.610.0:key-debounce";
 
         /// <summary>
+        /// Marks the Potato Mode toggle in Settings → Torii — an extreme
+        /// performance preset that disables expensive visuals for weak PCs.
+        /// </summary>
+        public const string PotatoMode = "v2026.613.0:potato-mode";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -151,6 +157,7 @@ namespace osu.Game.Configuration
             SkipBreaks,
             SkipBreaksSingleConfirmation,
             KeyDebounce,
+            PotatoMode,
         };
 
         /// <summary>

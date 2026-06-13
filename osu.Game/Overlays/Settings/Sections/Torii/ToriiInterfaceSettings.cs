@@ -162,6 +162,19 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 {
                     Keywords = new[] { @"pulse", @"toolbar", @"server", @"activity", @"online", @"live", @"torii", @"playing", @"heartbeat" },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Potato mode (extreme performance)",
+                    HintText = "For weak PCs: turns off the heaviest visuals (storyboards, background blur, hit "
+                               + "lighting, star fountains, menu parallax, seasonal backgrounds, the in-game "
+                               + "leaderboard) and fully dims gameplay backgrounds, freeing GPU + memory for max FPS. "
+                               + "Your individual graphics settings are restored when you turn it back off.",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiPotatoMode),
+                    NewFeatureId = NewFeatureRegistry.PotatoMode,
+                })
+                {
+                    Keywords = new[] { @"potato", @"performance", @"fps", @"low end", @"weak", @"lag", @"stutter", @"perf", @"quality", @"battery" },
+                },
             };
 
             // Donator-only accent picker — built ALWAYS, optionally locked.

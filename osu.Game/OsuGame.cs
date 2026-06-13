@@ -1321,6 +1321,10 @@ namespace osu.Game
             // so the toolbar widget can [Resolved] it without an explicit
             // wiring path.
             loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
+
+            // Applies Potato Mode (extreme-performance preset) by forcing heavy graphics
+            // settings cheap while OsuSetting.ToriiPotatoMode is on.
+            loadComponentSingleFile(new osu.Game.Performance.PotatoModeApplier(), Add, true);
             loadComponentSingleFile(Toolbar = new Toolbar
             {
                 OnHome = delegate
