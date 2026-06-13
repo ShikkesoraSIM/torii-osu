@@ -215,17 +215,6 @@ namespace osu.Game.Overlays.Toolbar
                                         {
                                             Action = () => OnHome?.Invoke()
                                         },
-                                        new Container
-                                        {
-                                            RelativeSizeAxes = Axes.Y,
-                                            AutoSizeAxes = Axes.X,
-                                            Child = new ToriiPpDevIndicator
-                                            {
-                                                Anchor = Anchor.CentreLeft,
-                                                Origin = Anchor.CentreLeft,
-                                                Y = 2,
-                                            }
-                                        },
                                     },
                                 },
                             }
