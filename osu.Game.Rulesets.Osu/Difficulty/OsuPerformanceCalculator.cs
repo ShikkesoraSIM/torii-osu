@@ -160,6 +160,18 @@ namespace osu.Game.Rulesets.Osu.Difficulty
 
             double totalValue = DifficultyCalculationUtils.Norm(PERFORMANCE_NORM_EXPONENT, aimValue, speedValue, accuracyValue, cognitionValue) * multiplier;
 
+            // Torii: mirror the server's low effective CS/OD pp penalty (osu! standard, Easy excluded) so
+            // client-side pp estimates (song select predictions, local/offline scores, the pp breakdown)
+            // agree with the pp the server actually awards. `difficulty` here is post-mod (HR/DA applied),
+            // matching the effective CS/OD the server penalises on. Keep in sync with the server module
+            // g0v0 app/calculators/low_stat_pp.py (csFactor 0.524..1 over CS/2.5, odFactor over OD/4.0).
+            if (!score.Mods.Any(m => m is OsuModEasy))
+            {
+                double csFactor = 0.524 + 0.476 * Math.Clamp(difficulty.CircleSize / 2.5, 0.0, 1.0);
+                double odFactor = 0.524 + 0.476 * Math.Clamp(difficulty.OverallDifficulty / 4.0, 0.0, 1.0);
+                totalValue *= csFactor * odFactor;
+            }
+
             return new OsuPerformanceAttributes
             {
                 Aim = aimValue,
