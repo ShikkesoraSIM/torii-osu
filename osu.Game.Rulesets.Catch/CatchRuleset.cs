@@ -45,6 +45,8 @@ namespace osu.Game.Rulesets.Catch
     {
         public override DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod>? mods = null) => new DrawableCatchRuleset(this, beatmap, mods);
 
+        public override ScoreMultiplierCalculator CreateScoreMultiplierCalculator(ScoreMultiplierContext context) => new CatchScoreMultiplierCalculator(context);
+
         public override ScoreProcessor CreateScoreProcessor() => new CatchScoreProcessor();
 
         public override HealthProcessor CreateHealthProcessor(double drainStartTime) => new CatchHealthProcessor(drainStartTime);

@@ -239,6 +239,11 @@ namespace osu.Game.Rulesets
         public abstract DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod>? mods = null);
 
         /// <summary>
+        /// Creates a <see cref="ScoreMultiplierCalculator"/> relevant to this ruleset.
+        /// </summary>
+        public virtual ScoreMultiplierCalculator CreateScoreMultiplierCalculator(ScoreMultiplierContext context) => new ScoreMultiplierCalculator(context);
+
+        /// <summary>
         /// Creates a <see cref="ScoreProcessor"/> for this <see cref="Ruleset"/>.
         /// </summary>
         /// <returns>The score processor.</returns>

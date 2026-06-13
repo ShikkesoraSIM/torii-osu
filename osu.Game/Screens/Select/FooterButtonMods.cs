@@ -4,7 +4,10 @@
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Game.Screens.Play.HUD;
+using osu.Game.Beatmaps;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Scoring;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
@@ -41,6 +44,12 @@ namespace osu.Game.Screens.Select
 
         private Color4 lowMultiplierColour;
         private Color4 highMultiplierColour;
+
+        [Resolved]
+        private IBindable<WorkingBeatmap> beatmap { get; set; } = null!;
+
+        [Resolved]
+        private IBindable<RulesetInfo> ruleset { get; set; } = null!;
 
         public FooterButtonMods()
         {
@@ -117,11 +126,16 @@ namespace osu.Game.Screens.Select
                     modSettingChangeTracker.SettingChanged += _ => updateMultiplierText();
                 }
             }, true);
+
+            // the multiplier now depends on the beatmap's difficulty (difficulty adjust / combination mods),
+            // so refresh it whenever the working beatmap changes too.
+            beatmap.BindValueChanged(_ => updateMultiplierText());
         }
 
         private void updateMultiplierText() => Schedule(() =>
         {
-            double multiplier = Current.Value?.Aggregate(1.0, (current, mod) => current * mod.ScoreMultiplier) ?? 1;
+            var scoreMultiplierCalculator = ruleset.Value?.CreateInstance().CreateScoreMultiplierCalculator(new ScoreMultiplierContext(beatmap.Value.BeatmapInfo.Difficulty));
+            double multiplier = scoreMultiplierCalculator?.CalculateFor(Current.Value ?? Enumerable.Empty<Mod>()) ?? 1;
             MultiplierText.Text = multiplier == 1 ? string.Empty : ModUtils.FormatScoreMultiplier(multiplier);
 
             if (multiplier > 1)

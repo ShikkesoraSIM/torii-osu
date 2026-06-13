@@ -53,6 +53,14 @@ namespace osu.Game.Rulesets.Osu
     {
         public override DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod>? mods = null) => new DrawableOsuRuleset(this, beatmap, mods);
 
+        public override ScoreMultiplierCalculator CreateScoreMultiplierCalculator(ScoreMultiplierContext context)
+        {
+            if (context.Score != null && context.Score.TotalScoreVersion < 30000017)
+                return new OsuScoreMultiplierCalculatorV1(context);
+
+            return new OsuScoreMultiplierCalculatorV2(context);
+        }
+
         public override ScoreProcessor CreateScoreProcessor() => new OsuScoreProcessor();
 
         public override HealthProcessor CreateHealthProcessor(double drainStartTime) => new OsuHealthProcessor(drainStartTime);
