@@ -601,6 +601,15 @@ namespace osu.Game
             // settings toggle for the same reason the theme is.
             Performance.PotatoMode.SetFromConfig(LocalConfig.Get<bool>(OsuSetting.ToriiPotatoMode));
 
+            // Torii: Potato Mode forces the legacy (BASS) audio path instead of the
+            // experimental low-latency WASAPI output. WASAPI's tiny buffer gets starved
+            // by GC pauses on weak machines (audible stutter); legacy BASS keeps a larger
+            // buffer that rides over those hitches. Applied in-memory at startup. Not
+            // auto-restored on disable, so a weak PC stays on the safe backend; the user
+            // can re-enable WASAPI any time in Settings -> Audio.
+            if (Performance.PotatoMode.Active)
+                frameworkConfig.SetValue(FrameworkSetting.AudioUseExperimentalWasapi, false);
+
             dependencies.Cache(Colours = new OsuColour());
 
             RegisterImportHandler(BeatmapManager);

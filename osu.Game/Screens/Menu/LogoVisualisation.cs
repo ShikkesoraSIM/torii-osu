@@ -15,6 +15,7 @@ using osu.Framework.Graphics.Rendering.Vertices;
 using osu.Framework.Graphics.Shaders;
 using osu.Framework.Graphics.Textures;
 using osu.Game.Beatmaps;
+using osu.Game.Performance;
 using osuTK;
 using osuTK.Graphics;
 
@@ -123,6 +124,11 @@ namespace osu.Game.Screens.Menu
         {
             base.LoadComplete();
 
+            // Potato mode: never feed the visualiser, so the bars stay at zero
+            // length (invisible) with no audio-amplitude polling running.
+            if (PotatoMode.Active)
+                return;
+
             var delayed = Scheduler.AddDelayed(updateAmplitudes, time_between_updates, true);
             delayed.PerformRepeatCatchUpExecutions = false;
         }
@@ -130,6 +136,10 @@ namespace osu.Game.Screens.Menu
         protected override void Update()
         {
             base.Update();
+
+            // Potato mode: no per-frame decay or draw-node invalidation.
+            if (PotatoMode.Active)
+                return;
 
             float decayFactor = (float)Time.Elapsed * decay_per_millisecond;
 

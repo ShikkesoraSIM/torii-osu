@@ -12,6 +12,7 @@ using osu.Game.Configuration;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Performance;
 using osu.Game.Screens.Play;
 
 namespace osu.Game.Online.Server
@@ -391,6 +392,10 @@ namespace osu.Game.Online.Server
         // need to be silent indefinitely.
         private bool IsPollable =>
             enabledBindable.Value
+            // Potato mode: never poll the server-pulse endpoint (no background
+            // network churn or per-snapshot UI work). The toolbar widget also
+            // hides itself in potato, so there's nothing to feed.
+            && !PotatoMode.Active
             && api.State.Value == APIState.Online
             && localPlayingState?.Value != LocalUserPlayingState.Playing
             && !inSettleWindow;

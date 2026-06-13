@@ -42,11 +42,13 @@ namespace osu.Game.Overlays.Settings
             InternalChild = new SettingsItemV2(new FormCheckBox
             {
                 Caption = "Potato mode (extreme performance)",
-                HintText = "For weak PCs. Turns off the heaviest visuals (storyboards, background "
-                           + "blur, hit lighting, star fountains, menu parallax, seasonal backgrounds) "
-                           + "and fully dims gameplay backgrounds, freeing up GPU and memory for max "
-                           + "FPS. Your own graphics settings are left untouched. Changing this option "
-                           + "restarts the game.",
+                HintText = "For weak PCs. Cuts as much as possible: no animated triangles, no logo "
+                           + "visualiser, no storyboards, no background blur, no hit lighting, no kiai "
+                           + "flashes, no star fountains, no menu parallax, no cursor trail and no "
+                           + "seasonal backgrounds. Also fully dims gameplay backgrounds, hides the "
+                           + "server pulse widget, and switches to the legacy audio engine to avoid "
+                           + "stutters. Frees up GPU, CPU and memory for max FPS. Your own graphics "
+                           + "settings are left untouched. Changing this option restarts the game.",
                 Current = potatoBindable,
                 NewFeatureId = NewFeatureRegistry.PotatoMode,
             })
