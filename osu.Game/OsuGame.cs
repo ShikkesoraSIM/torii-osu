@@ -22,6 +22,7 @@ using osu.Framework.Extensions.TypeExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
+using osu.Framework.Graphics.Rendering;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
@@ -1052,6 +1053,14 @@ namespace osu.Game
                 { FrameworkSetting.VolumeMusic, 0.6 },
                 { FrameworkSetting.VolumeEffect, 0.6 },
                 { FrameworkSetting.AudioUseExperimentalWasapi, true },
+                // Torii Nova emulation: default to the Deferred renderer (Direct3D11 on Windows,
+                // Metal on macOS, Automatic elsewhere), matching the Nova stream.
+                {
+                    FrameworkSetting.Renderer,
+                    RuntimeInfo.OS == RuntimeInfo.Platform.Windows ? RendererType.Deferred_Direct3D11
+                    : RuntimeInfo.OS == RuntimeInfo.Platform.macOS ? RendererType.Deferred_Metal
+                    : RendererType.Automatic
+                },
             };
         }
 
