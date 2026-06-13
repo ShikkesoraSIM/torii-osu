@@ -574,10 +574,34 @@ namespace osu.Game.Screens.SelectV2
         private BeatmapInfo? debounceQueuedSelection;
         private double debounceElapsedTime;
 
+        // Off-thread pre-resolved working beatmap for the pending debounce selection.
+        // beatmaps.GetWorkingBeatmap does a realm refetch + detach for the carousel's
+        // file-less detached beatmaps; that realm hit on the update thread is the
+        // "synchronous DB query" stall seen while browsing song select. While the
+        // selection settles we resolve it on a background thread and stash the result
+        // here; the (still synchronous) performDebounceSelection uses it instead of
+        // hitting realm. If it isn't ready, or the selection changed, we fall back to
+        // the original sync path, so behaviour is unchanged either way.
+        private sealed class PrewarmedWorkingBeatmap
+        {
+            public readonly BeatmapInfo Target;
+            public readonly WorkingBeatmap Working;
+
+            public PrewarmedWorkingBeatmap(BeatmapInfo target, WorkingBeatmap working)
+            {
+                Target = target;
+                Working = working;
+            }
+        }
+
+        private volatile PrewarmedWorkingBeatmap? prewarmedSelection;
+        private bool prewarmDispatched;
+
         private void debounceQueueSelection(BeatmapInfo beatmap)
         {
             debounceQueuedSelection = beatmap;
             debounceElapsedTime = 0;
+            prewarmDispatched = false;
         }
 
         private void updateDebounce()
@@ -596,6 +620,28 @@ namespace osu.Game.Screens.SelectV2
 
             debounceElapsedTime += elapsed;
 
+            // Once the selection has been stable for half the debounce window, resolve the
+            // working beatmap (realm refetch + detach) on a background thread, so the sync
+            // resolve below becomes a cheap handoff instead of a realm stall on the update thread.
+            if (!prewarmDispatched && debounceElapsedTime >= debounceInterval / 2)
+            {
+                prewarmDispatched = true;
+                var target = debounceQueuedSelection;
+
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        var working = beatmaps.GetWorkingBeatmap(target);
+                        prewarmedSelection = new PrewarmedWorkingBeatmap(target!, working);
+                    }
+                    catch
+                    {
+                        // Best-effort; performDebounceSelection falls back to the sync resolve.
+                    }
+                });
+            }
+
             if (debounceElapsedTime >= debounceInterval)
                 performDebounceSelection();
         }
@@ -609,7 +655,12 @@ namespace osu.Game.Screens.SelectV2
                 if (Beatmap.Value.BeatmapInfo.Equals(debounceQueuedSelection))
                     return;
 
-                Beatmap.Value = beatmaps.GetWorkingBeatmap(debounceQueuedSelection);
+                var pre = prewarmedSelection;
+
+                if (pre != null && pre.Target.Equals(debounceQueuedSelection))
+                    Beatmap.Value = pre.Working;
+                else
+                    Beatmap.Value = beatmaps.GetWorkingBeatmap(debounceQueuedSelection);
             }
             finally
             {
