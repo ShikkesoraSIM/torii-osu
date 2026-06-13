@@ -118,6 +118,7 @@ namespace osu.Game.Online.Metadata
                 {
                     userPresences.Clear();
                     friendPresences.Clear();
+                    ClearVerifiedClientNames();
                     dailyChallengeInfo.Value = null;
                     localUserPresence = default;
                 });
@@ -230,7 +231,11 @@ namespace osu.Game.Online.Metadata
             Logger.Log($@"{nameof(OnlineMetadataClient)} stopped watching user presence", LoggingTarget.Network);
 
             // must be scheduled before any remote calls to avoid mis-ordering.
-            Schedule(() => userPresences.Clear());
+            Schedule(() =>
+            {
+                userPresences.Clear();
+                ClearVerifiedClientNames();
+            });
 
             Debug.Assert(connection != null);
             return connection.InvokeAsync(nameof(IMetadataServer.EndWatchingUserPresence));
@@ -251,6 +256,7 @@ namespace osu.Game.Online.Metadata
                     if (userId == api.LocalUser.Value.OnlineID)
                         localUserPresence = default;
                     userPresences.Remove(userId);
+                    RemoveVerifiedClientName(userId);
                 }
             });
 

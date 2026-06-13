@@ -117,6 +117,19 @@ namespace osu.Game.Online.Metadata
                 VerifiedClientNames[userId] = clientName;
         }
 
+        /// <summary>
+        /// Drop the verified client name for a user that has left the tracked presence set.
+        /// The value re-arrives when the user next comes online, so this is a pure refetch.
+        /// Stops the dictionary growing unboundedly over a session.
+        /// </summary>
+        protected void RemoveVerifiedClientName(int userId) => VerifiedClientNames.TryRemove(userId, out _);
+
+        /// <summary>
+        /// Clear all verified client names (presence set wiped on disconnect / stop-watching).
+        /// Re-populated on demand as presence re-streams.
+        /// </summary>
+        protected void ClearVerifiedClientNames() => VerifiedClientNames.Clear();
+
         public abstract Task UpdateActivity(UserActivity? activity);
 
         public abstract Task UpdateStatus(UserStatus? status);
