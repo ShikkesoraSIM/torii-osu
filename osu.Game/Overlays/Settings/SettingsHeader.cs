@@ -4,6 +4,7 @@
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -14,6 +15,8 @@ namespace osu.Game.Overlays.Settings
     {
         private readonly LocalisableString heading;
         private readonly LocalisableString subheading;
+        private SpriteText subheaderText = null!;
+        private OverlayColourProvider colourProvider = null!;
 
         public SettingsHeader(LocalisableString heading, LocalisableString subheading)
         {
@@ -24,6 +27,8 @@ namespace osu.Game.Overlays.Settings
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
+            this.colourProvider = colourProvider;
+
             RelativeSizeAxes = Axes.X;
             AutoSizeAxes = Axes.Y;
 
@@ -45,11 +50,28 @@ namespace osu.Game.Overlays.Settings
                     flow.NewLine();
                     flow.AddText(subheading, subheader =>
                     {
+                        subheaderText = subheader;
                         subheader.Colour = colourProvider.Content2;
                         subheader.Font = OsuFont.GetFont(size: 18);
                     });
                 })
             };
+
+            colourProvider.ColoursChanged += updateTheme;
+        }
+
+        private void updateTheme()
+        {
+            if (subheaderText != null)
+                subheaderText.Colour = colourProvider.Content2;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && colourProvider != null)
+                colourProvider.ColoursChanged -= updateTheme;
+
+            base.Dispose(isDisposing);
         }
     }
 }

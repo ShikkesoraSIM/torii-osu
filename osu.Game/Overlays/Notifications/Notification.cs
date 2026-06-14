@@ -218,6 +218,19 @@ namespace osu.Game.Overlays.Notifications
                 Colour = colourProvider.Background3,
                 Depth = float.MaxValue
             });
+
+            // Live re-tint when CustomUIHue changes; respects current hover
+            // state so we don't snap a hovered notification to the resting
+            // colour mid-animation.
+            colourProvider.ColoursChanged += retintBackground;
+        }
+
+        private void retintBackground()
+        {
+            if (background == null!)
+                return;
+
+            background.FadeColour(IsHovered ? colourProvider.Background2 : colourProvider.Background3, 200, Easing.OutQuint);
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -264,6 +277,13 @@ namespace osu.Game.Overlays.Notifications
             MainContent.MoveToX(0, 500, Easing.OutQuint);
 
             initialFlash.FadeOutFromOne(2000, Easing.OutQuart);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (colourProvider != null)
+                colourProvider.ColoursChanged -= retintBackground;
+            base.Dispose(isDisposing);
         }
 
         public virtual void Close(bool runFlingAnimation)

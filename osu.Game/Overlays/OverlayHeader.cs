@@ -1,6 +1,7 @@
 ﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -89,10 +90,15 @@ namespace osu.Game.Overlays
             ContentSidePadding = WaveOverlayContainer.HORIZONTAL_PADDING;
         }
 
+        // Live binding for the title strip — without it the header (Dashboard,
+        // Beatmap listing, Profile, etc.) stays on the original Dark5 even
+        // after the rest of the overlay re-tints from a CustomUIHue change.
+        private IDisposable? titleBackgroundThemeBinding;
+
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
-            titleBackground.Colour = colourProvider.Dark5;
+            titleBackgroundThemeBinding = titleBackground.BindThemeColour(colourProvider, p => p.Dark5);
         }
 
         protected virtual Drawable CreateContent() => Empty();
@@ -100,5 +106,12 @@ namespace osu.Game.Overlays
         protected virtual Drawable CreateBackground() => Empty();
 
         protected abstract OverlayTitle CreateTitle();
+
+        protected override void Dispose(bool isDisposing)
+        {
+            titleBackgroundThemeBinding?.Dispose();
+            titleBackgroundThemeBinding = null;
+            base.Dispose(isDisposing);
+        }
     }
 }

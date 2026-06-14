@@ -82,6 +82,8 @@ namespace osu.Game.Screens.Select
         private OsuSpriteText personalBestText = null!;
         private LoadingLayer loading = null!;
 
+        private IDisposable? personalBestTextThemeBinding;
+
         private CancellationTokenSource? cancellationTokenSource;
 
         private readonly IBindable<LeaderboardScores?> fetchedScores = new Bindable<LeaderboardScores?>();
@@ -164,7 +166,6 @@ namespace osu.Game.Screens.Select
                                     {
                                         personalBestText = new OsuSpriteText
                                         {
-                                            Colour = colourProvider.Content2,
                                             Font = OsuFont.Style.Caption1.With(weight: FontWeight.SemiBold),
                                         },
                                         personalBestScoreContainer = new Container<BeatmapLeaderboardScore>
@@ -189,6 +190,8 @@ namespace osu.Game.Screens.Select
             };
 
             swishSample = audio.Samples.Get(@"SongSelect/leaderboard-score");
+
+            personalBestTextThemeBinding = personalBestText.BindThemeColour(colourProvider, p => p.Content2);
         }
 
         protected override void LoadComplete()
@@ -544,6 +547,13 @@ namespace osu.Game.Screens.Select
                 default:
                     throw new ArgumentOutOfRangeException(nameof(state));
             }
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            personalBestTextThemeBinding?.Dispose();
+            personalBestTextThemeBinding = null;
+            base.Dispose(isDisposing);
         }
     }
 }

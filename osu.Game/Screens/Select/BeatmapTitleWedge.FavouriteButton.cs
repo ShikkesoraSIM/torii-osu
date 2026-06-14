@@ -149,6 +149,24 @@ namespace osu.Game.Screens.Select
                 Action = toggleFavourite;
             }
 
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                // updateFavouriteState() re-reads colourProvider.Content2 (idle) / colours.Pink1 (favourited),
+                // so re-running it on hue change keeps the value text and background tint live.
+                colourProvider.ColoursChanged += onColoursChanged;
+            }
+
+            private void onColoursChanged() => updateFavouriteState();
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= onColoursChanged;
+                base.Dispose(isDisposing);
+            }
+
             protected override bool OnHover(HoverEvent e)
             {
                 hoverLayer.FadeIn(500, Easing.OutQuint);
@@ -275,6 +293,28 @@ namespace osu.Game.Screens.Select
                         RelativeSizeAxes = Axes.Both,
                     },
                 };
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                // The inactive heart holds colourProvider.Content2; re-fade it to the new tint on hue change
+                // (the active/Pink1 state is a fixed palette colour and doesn't need re-applying).
+                colourProvider.ColoursChanged += onColoursChanged;
+            }
+
+            private void onColoursChanged()
+            {
+                if (!active)
+                    icon.FadeColour(colourProvider.Content2, 300, Easing.OutQuint);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= onColoursChanged;
+                base.Dispose(isDisposing);
             }
 
             private const double pop_out_duration = 100;

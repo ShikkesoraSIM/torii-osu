@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -27,6 +28,10 @@ namespace osu.Game.Screens.Select
             private Box flashLayer = null!;
             private Container content = null!;
             private OsuTextFlowContainer text = null!;
+            private Box background = null!;
+
+            private IDisposable? backgroundColourBinding;
+            private IDisposable? textColourBinding;
 
             private const float transition_duration = 300;
 
@@ -46,7 +51,7 @@ namespace osu.Game.Screens.Select
 
                 AddRange(new Drawable[]
                 {
-                    new Box
+                    background = new Box
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = colourProvider.Highlight1,
@@ -94,6 +99,9 @@ namespace osu.Game.Screens.Select
                     },
                 });
                 Action = () => songSelect?.UnscopeBeatmapSet();
+
+                backgroundColourBinding = background.BindThemeColour(colourProvider, p => p.Highlight1);
+                textColourBinding = text.BindThemeColour(colourProvider, p => p.Background6);
             }
 
             protected override void LoadComplete()
@@ -101,6 +109,13 @@ namespace osu.Game.Screens.Select
                 base.LoadComplete();
 
                 ScopedBeatmapSet.BindValueChanged(_ => updateState(), true);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                backgroundColourBinding?.Dispose();
+                textColourBinding?.Dispose();
             }
 
             private void updateState()

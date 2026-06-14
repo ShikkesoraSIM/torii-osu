@@ -40,6 +40,14 @@ namespace osu.Game.Overlays.Chat.ChannelList
         private OsuSpriteText text = null!;
         private ChannelListItemCloseButton? close;
 
+        // Live-binding handles. updateState() handles the text colour fade
+        // (which is selection-state-dependent), so the text-colour binding
+        // would conflict with the FadeColour transitions. We instead hook
+        // ColoursChanged directly and re-trigger updateState() to refresh
+        // both the static and animated colour state in one go.
+        private IDisposable? hoverBoxThemeBinding;
+        private IDisposable? selectBoxThemeBinding;
+
         [Resolved]
         private Bindable<Channel> selectedChannel { get; set; } = null!;
 
@@ -62,13 +70,11 @@ namespace osu.Game.Overlays.Chat.ChannelList
                 hoverBox = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background3,
                     Alpha = 0f,
                 },
                 selectBox = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background4,
                     Alpha = 0f,
                 },
                 new GridContainer
@@ -93,7 +99,6 @@ namespace osu.Game.Overlays.Chat.ChannelList
                                 Origin = Anchor.CentreLeft,
                                 Text = Channel.Name,
                                 Font = OsuFont.Torus.With(size: 14, weight: FontWeight.SemiBold),
-                                Colour = colourProvider.Light3,
                                 Margin = new MarginPadding { Bottom = 2 },
                                 RelativeSizeAxes = Axes.X,
                             },
@@ -113,6 +118,12 @@ namespace osu.Game.Overlays.Chat.ChannelList
 
             selectedChannel.BindValueChanged(_ => updateState(), true);
             Unread.BindValueChanged(_ => updateState(), true);
+
+            // Live re-tint the static boxes (hover/select) and re-trigger
+            // updateState() so the text colour fade picks up the new theme.
+            hoverBoxThemeBinding = hoverBox.BindThemeColour(colourProvider, p => p.Background3);
+            selectBoxThemeBinding = selectBox.BindThemeColour(colourProvider, p => p.Background4);
+            colourProvider.ColoursChanged += updateState;
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -225,5 +236,16 @@ namespace osu.Game.Overlays.Chat.ChannelList
         public bool FilteringActive { get; set; }
 
         #endregion
+
+        protected override void Dispose(bool isDisposing)
+        {
+            hoverBoxThemeBinding?.Dispose();
+            hoverBoxThemeBinding = null;
+            selectBoxThemeBinding?.Dispose();
+            selectBoxThemeBinding = null;
+            if (colourProvider != null)
+                colourProvider.ColoursChanged -= updateState;
+            base.Dispose(isDisposing);
+        }
     }
 }

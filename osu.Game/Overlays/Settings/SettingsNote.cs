@@ -66,6 +66,7 @@ namespace osu.Game.Overlays.Settings
         {
             base.LoadComplete();
 
+            colourProvider.ColoursChanged += updateDisplay;
             Current.BindValueChanged(_ => updateDisplay(), true);
             FinishTransforms(true);
         }
@@ -116,6 +117,14 @@ namespace osu.Game.Overlays.Settings
             Informational,
             Warning,
             Critical,
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= updateDisplay;
+
+            base.Dispose(isDisposing);
         }
     }
 }

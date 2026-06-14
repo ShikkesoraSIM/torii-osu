@@ -114,8 +114,19 @@ namespace osu.Game.Screens.Select
                 localisationParameters = localisations.CurrentParameters.GetBoundCopy();
                 localisationParameters.BindValueChanged(_ => updateStatisticsSizing());
 
+                // The tiny statistics grid bakes colourProvider.Content1/Content2 into freshly created
+                // sprite texts, so rebuild it on hue change to keep those tints live.
+                colourProvider.ColoursChanged += updateTinyStatistics;
+
                 updateStatistics();
                 updateTinyStatistics();
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= updateTinyStatistics;
+                base.Dispose(isDisposing);
             }
 
             protected override void Update()

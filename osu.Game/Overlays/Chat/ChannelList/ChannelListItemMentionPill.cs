@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
@@ -20,6 +21,12 @@ namespace osu.Game.Overlays.Chat.ChannelList
         private OsuSpriteText countText = null!;
 
         private Box box = null!;
+
+        // The text colour matches the chat sidebar's deepest background so
+        // it reads as "punched out" against the orange pill. When the user
+        // changes their hue the pill text needs to follow, otherwise the
+        // mention count visually detaches from the rest of the chat chrome.
+        private IDisposable? countTextThemeBinding;
 
         [BackgroundDependencyLoader]
         private void load(OsuColour osuColour, OverlayColourProvider colourProvider)
@@ -41,9 +48,10 @@ namespace osu.Game.Overlays.Chat.ChannelList
                     Origin = Anchor.Centre,
                     Font = OsuFont.Torus.With(size: 11, weight: FontWeight.Bold),
                     Margin = new MarginPadding { Bottom = 1 },
-                    Colour = colourProvider.Background5,
                 },
             };
+
+            countTextThemeBinding = countText.BindThemeColour(colourProvider, p => p.Background5);
         }
 
         protected override void LoadComplete()
@@ -64,6 +72,13 @@ namespace osu.Game.Overlays.Chat.ChannelList
                 else
                     this.FadeOut(100, Easing.OutQuint);
             }, true);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            countTextThemeBinding?.Dispose();
+            countTextThemeBinding = null;
+            base.Dispose(isDisposing);
         }
     }
 }

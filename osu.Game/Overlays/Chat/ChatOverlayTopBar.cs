@@ -19,13 +19,17 @@ namespace osu.Game.Overlays.Chat
     public partial class ChatOverlayTopBar : Container
     {
         public Drawable DragBar { get; private set; } = null!;
+        private OverlayColourProvider colourProvider = null!;
+        private Box background = null!;
 
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider, TextureStore textures)
         {
+            this.colourProvider = colourProvider;
+
             Children = new[]
             {
-                new Box
+                background = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
                     Colour = colourProvider.Background3,
@@ -69,6 +73,8 @@ namespace osu.Game.Overlays.Chat
                     Colour = colourProvider.Background4,
                 }
             };
+
+            colourProvider.ColoursChanged += updateTheme;
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -83,6 +89,23 @@ namespace osu.Game.Overlays.Chat
             if (!RuntimeInfo.IsMobile)
                 DragBar.FadeOut(100);
             base.OnHoverLost(e);
+        }
+
+        private void updateTheme()
+        {
+            if (background != null)
+                background.Colour = colourProvider.Background3;
+
+            if (DragBar != null)
+                DragBar.Colour = colourProvider.Background4;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && colourProvider != null)
+                colourProvider.ColoursChanged -= updateTheme;
+
+            base.Dispose(isDisposing);
         }
 
         private partial class DragArea : CompositeDrawable

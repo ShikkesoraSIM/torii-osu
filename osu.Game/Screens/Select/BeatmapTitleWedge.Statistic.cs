@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -27,7 +28,11 @@ namespace osu.Game.Screens.Select
             private readonly float? minSize;
 
             private OsuSpriteText valueText = null!;
+            private SpriteIcon iconSprite = null!;
             private LoadingSpinner loading = null!;
+
+            private IDisposable? iconThemeBinding;
+            private IDisposable? valueTextThemeBinding;
 
             private LocalisableString? text;
 
@@ -79,13 +84,12 @@ namespace osu.Game.Screens.Select
                         Shear = background ? -OsuGame.SHEAR : Vector2.Zero,
                         Children = new Drawable[]
                         {
-                            new SpriteIcon
+                            iconSprite = new SpriteIcon
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
                                 Icon = icon,
                                 Size = new Vector2(OsuFont.Style.Heading2.Size),
-                                Colour = colourProvider.Content2,
                             },
                             new Container
                             {
@@ -121,7 +125,6 @@ namespace osu.Game.Screens.Select
                                                     Anchor = Anchor.Centre,
                                                     Origin = Anchor.Centre,
                                                     Font = OsuFont.Style.Heading2,
-                                                    Colour = colourProvider.Content2,
                                                     Margin = new MarginPadding { Bottom = 2f },
                                                     AlwaysPresent = true,
                                                 },
@@ -133,12 +136,24 @@ namespace osu.Game.Screens.Select
                         },
                     }
                 };
+
+                iconThemeBinding = iconSprite.BindThemeColour(colourProvider, p => p.Content2);
+                valueTextThemeBinding = valueText.BindThemeColour(colourProvider, p => p.Content2);
             }
 
             protected override void LoadComplete()
             {
                 base.LoadComplete();
                 Scheduler.AddOnce(updateDisplay);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                iconThemeBinding?.Dispose();
+                iconThemeBinding = null;
+                valueTextThemeBinding?.Dispose();
+                valueTextThemeBinding = null;
+                base.Dispose(isDisposing);
             }
 
             private void updateDisplay()

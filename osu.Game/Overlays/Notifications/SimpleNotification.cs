@@ -88,11 +88,21 @@ namespace osu.Game.Overlays.Notifications
             });
         }
 
+        // Stored so the icon background re-tints when CustomUIHue changes.
+        private System.IDisposable? iconBackgroundThemeBinding;
+
         [BackgroundDependencyLoader]
         private void load(OsuColour colours, OverlayColourProvider colourProvider)
         {
             Light.Colour = colours.Green;
-            iconBackground.Colour = colourProvider.Background5;
+            iconBackgroundThemeBinding = iconBackground.BindThemeColour(colourProvider, p => p.Background5);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            iconBackgroundThemeBinding?.Dispose();
+            iconBackgroundThemeBinding = null;
+            base.Dispose(isDisposing);
         }
     }
 }

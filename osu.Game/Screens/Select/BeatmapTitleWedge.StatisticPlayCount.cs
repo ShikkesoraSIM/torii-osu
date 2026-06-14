@@ -56,8 +56,17 @@ namespace osu.Game.Screens.Select
             {
                 private readonly OverlayColourProvider colourProvider;
 
+                private Box background = null!;
+                private OsuSpriteText totalPlaysLabel = null!;
+                private OsuSpriteText personalPlaysLabel = null!;
                 private OsuSpriteText totalPlaysText = null!;
                 private OsuSpriteText personalPlaysText = null!;
+
+                private IDisposable? backgroundThemeBinding;
+                private IDisposable? totalPlaysLabelThemeBinding;
+                private IDisposable? personalPlaysLabelThemeBinding;
+                private IDisposable? totalPlaysTextThemeBinding;
+                private IDisposable? personalPlaysTextThemeBinding;
 
                 public PlayCountTooltip(OverlayColourProvider colourProvider)
                 {
@@ -80,10 +89,9 @@ namespace osu.Game.Screens.Select
 
                     InternalChildren = new Drawable[]
                     {
-                        new Box
+                        background = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Colour = colourProvider.Background4,
                         },
                         new FillFlowContainer
                         {
@@ -99,15 +107,13 @@ namespace osu.Game.Screens.Select
                                     Direction = FillDirection.Vertical,
                                     Children = new[]
                                     {
-                                        new OsuSpriteText
+                                        totalPlaysLabel = new OsuSpriteText
                                         {
-                                            Colour = colourProvider.Content2,
                                             Font = OsuFont.Style.Caption1.With(weight: FontWeight.SemiBold),
                                             Text = SongSelectStrings.TotalPlays,
                                         },
                                         totalPlaysText = new OsuSpriteText
                                         {
-                                            Colour = colourProvider.Content1,
                                             Font = OsuFont.Style.Heading1.With(weight: FontWeight.Regular),
                                         },
                                     }
@@ -118,15 +124,13 @@ namespace osu.Game.Screens.Select
                                     Direction = FillDirection.Vertical,
                                     Children = new[]
                                     {
-                                        new OsuSpriteText
+                                        personalPlaysLabel = new OsuSpriteText
                                         {
-                                            Colour = colourProvider.Content2,
                                             Font = OsuFont.Style.Caption1.With(weight: FontWeight.SemiBold),
                                             Text = SongSelectStrings.PersonalPlays,
                                         },
                                         personalPlaysText = new OsuSpriteText
                                         {
-                                            Colour = colourProvider.Content1,
                                             Font = OsuFont.Style.Heading1.With(weight: FontWeight.Regular),
                                         },
                                     }
@@ -134,6 +138,27 @@ namespace osu.Game.Screens.Select
                             }
                         },
                     };
+
+                    backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
+                    totalPlaysLabelThemeBinding = totalPlaysLabel.BindThemeColour(colourProvider, p => p.Content2);
+                    personalPlaysLabelThemeBinding = personalPlaysLabel.BindThemeColour(colourProvider, p => p.Content2);
+                    totalPlaysTextThemeBinding = totalPlaysText.BindThemeColour(colourProvider, p => p.Content1);
+                    personalPlaysTextThemeBinding = personalPlaysText.BindThemeColour(colourProvider, p => p.Content1);
+                }
+
+                protected override void Dispose(bool isDisposing)
+                {
+                    backgroundThemeBinding?.Dispose();
+                    backgroundThemeBinding = null;
+                    totalPlaysLabelThemeBinding?.Dispose();
+                    totalPlaysLabelThemeBinding = null;
+                    personalPlaysLabelThemeBinding?.Dispose();
+                    personalPlaysLabelThemeBinding = null;
+                    totalPlaysTextThemeBinding?.Dispose();
+                    totalPlaysTextThemeBinding = null;
+                    personalPlaysTextThemeBinding?.Dispose();
+                    personalPlaysTextThemeBinding = null;
+                    base.Dispose(isDisposing);
                 }
 
                 public void SetContent(Data content)

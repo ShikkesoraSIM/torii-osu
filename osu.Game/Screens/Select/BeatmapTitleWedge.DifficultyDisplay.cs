@@ -59,6 +59,9 @@ namespace osu.Game.Screens.Select
             private DifficultyStatisticsDisplay countStatisticsDisplay = null!;
             private DifficultyStatisticsDisplay difficultyStatisticsDisplay = null!;
 
+            private Box statisticsBackground = null!;
+            private IDisposable? statisticsBackgroundThemeBinding;
+
             private CancellationTokenSource? cancellationSource;
 
             public DifficultyDisplay()
@@ -163,10 +166,9 @@ namespace osu.Game.Screens.Select
                                     Shear = OsuGame.SHEAR,
                                     Children = new Drawable[]
                                     {
-                                        new Box
+                                        statisticsBackground = new Box
                                         {
                                             RelativeSizeAxes = Axes.Both,
-                                            Colour = colourProvider.Background5.Opacity(0.8f),
                                         },
                                         new GridContainer
                                         {
@@ -200,6 +202,8 @@ namespace osu.Game.Screens.Select
                         }
                     },
                 };
+
+                statisticsBackgroundThemeBinding = statisticsBackground.BindThemeColour(colourProvider, p => p.Background5.Opacity(0.8f));
             }
 
             protected override void LoadComplete()
@@ -314,13 +318,41 @@ namespace osu.Game.Screens.Select
                 difficultyStatisticsDisplay.AccentColour = col;
             }
 
+            protected override void Dispose(bool isDisposing)
+            {
+                statisticsBackgroundThemeBinding?.Dispose();
+                statisticsBackgroundThemeBinding = null;
+                base.Dispose(isDisposing);
+            }
+
             private partial class MapperLinkContainer : OsuHoverContainer
             {
+                private OverlayColourProvider? overlayColourProvider;
+
                 [BackgroundDependencyLoader]
                 private void load(OverlayColourProvider? overlayColourProvider, OsuColour colours)
                 {
+                    this.overlayColourProvider = overlayColourProvider;
+
                     TooltipText = ContextMenuStrings.ViewProfile;
                     IdleColour = overlayColourProvider?.Light2 ?? colours.Blue;
+                }
+
+                protected override void LoadComplete()
+                {
+                    base.LoadComplete();
+
+                    if (overlayColourProvider != null)
+                        overlayColourProvider.ColoursChanged += onColoursChanged;
+                }
+
+                private void onColoursChanged() => IdleColour = overlayColourProvider!.Light2;
+
+                protected override void Dispose(bool isDisposing)
+                {
+                    if (overlayColourProvider != null)
+                        overlayColourProvider.ColoursChanged -= onColoursChanged;
+                    base.Dispose(isDisposing);
                 }
             }
         }

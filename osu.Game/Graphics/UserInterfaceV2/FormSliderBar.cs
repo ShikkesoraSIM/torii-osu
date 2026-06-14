@@ -278,6 +278,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
             captionText.Caption = caption;
 
             focusManager = GetContainingFocusManager()!;
+            colourProvider.ColoursChanged += updateState;
 
             textBox.Focused.BindValueChanged(_ => updateState());
             textBox.OnCommit += textCommitted;
@@ -424,6 +425,14 @@ namespace osu.Game.Graphics.UserInterfaceV2
 
         private LocalisableString defaultLabelFormat(T value) => currentNumberInstantaneous.Value.ToStandardFormattedString(OsuSliderBar<T>.MAX_DECIMAL_DIGITS, DisplayAsPercentage);
 
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= updateState;
+
+            base.Dispose(isDisposing);
+        }
+
         public partial class InnerSlider : OsuSliderBar<T>
         {
             public BindableBool Focused { get; } = new BindableBool();
@@ -492,6 +501,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
             {
                 base.LoadComplete();
 
+                colourProvider.ColoursChanged += updateState;
                 Current.BindDisabledChanged(_ => updateState(), true);
                 FinishTransforms(true);
             }
@@ -582,6 +592,14 @@ namespace osu.Game.Graphics.UserInterfaceV2
             }
 
             protected sealed override LocalisableString GetTooltipText(T value) => TooltipFormat(value);
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (isDisposing)
+                    colourProvider.ColoursChanged -= updateState;
+
+                base.Dispose(isDisposing);
+            }
         }
 
         public partial class InnerSliderNub : Circle

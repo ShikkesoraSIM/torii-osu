@@ -27,6 +27,8 @@ namespace osu.Game.Screens.Select
         {
             private Circle strip = null!;
 
+            private IDisposable? stripThemeBinding;
+
             private Bindable<Language> currentLanguage = null!;
 
             protected override Dropdown<T>? CreateDropdown() => null;
@@ -48,13 +50,21 @@ namespace osu.Game.Screens.Select
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
                     Height = 2,
-                    Colour = colourProvider.Highlight1,
                 });
+
+                stripThemeBinding = strip.BindThemeColour(colourProvider, p => p.Highlight1);
 
                 foreach (var type in Enum.GetValues<T>())
                     AddItem(type);
 
                 currentLanguage = game.CurrentLanguage.GetBoundCopy();
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                stripThemeBinding?.Dispose();
+                stripThemeBinding = null;
+                base.Dispose(isDisposing);
             }
 
             protected override void LoadComplete()
@@ -115,7 +125,15 @@ namespace osu.Game.Screens.Select
                 protected override void LoadComplete()
                 {
                     base.LoadComplete();
+                    colourProvider.ColoursChanged += updateDisplay;
                     updateDisplay();
+                }
+
+                protected override void Dispose(bool isDisposing)
+                {
+                    if (colourProvider != null)
+                        colourProvider.ColoursChanged -= updateDisplay;
+                    base.Dispose(isDisposing);
                 }
 
                 protected override void OnActivatedByUser() => selectSample?.Play();

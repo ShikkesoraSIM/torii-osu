@@ -23,13 +23,13 @@ namespace osu.Game.Overlays.Settings
         [BackgroundDependencyLoader]
         private void load()
         {
-            BackgroundColour = ColourProvider.Background5;
-            Hover.Colour = ColourProvider.Light4;
+            updateTheme();
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
+            ColourProvider.ColoursChanged += updateTheme;
             UpdateState();
             FinishTransforms(true);
         }
@@ -44,7 +44,29 @@ namespace osu.Game.Overlays.Settings
 
         protected virtual void UpdateState()
         {
-            Hover.FadeTo(IsHovered ? 0.1f : 0, FADE_DURATION, Easing.OutQuint);
+            float targetAlpha = IsHovered ? 0.1f : 0;
+
+            if (IsLoaded)
+                Hover.FadeTo(targetAlpha, FADE_DURATION, Easing.OutQuint);
+            else
+                Hover.Alpha = targetAlpha;
+        }
+
+        private void updateTheme()
+        {
+            BackgroundColour = ColourProvider.Background5;
+            Hover.Colour = ColourProvider.Light4;
+
+            if (IsLoaded)
+                UpdateState();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                ColourProvider.ColoursChanged -= updateTheme;
+
+            base.Dispose(isDisposing);
         }
     }
 }

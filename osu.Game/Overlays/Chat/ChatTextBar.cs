@@ -39,6 +39,11 @@ namespace osu.Game.Overlays.Chat
         private Container searchIconContainer = null!;
         private ChatTextBox chatTextBox = null!;
 
+        // Live-binding handles for the two coloured leaves we own. Stored
+        // so we can dispose the subscriptions when the bar is dropped.
+        private IDisposable? backgroundThemeBinding;
+        private IDisposable? chattingTextThemeBinding;
+
         private const float chatting_text_width = 220;
         private const float search_icon_width = 40;
         private const float padding = 5;
@@ -49,12 +54,12 @@ namespace osu.Game.Overlays.Chat
             RelativeSizeAxes = Axes.X;
             Height = HEIGHT;
 
+            Box background;
             Children = new Drawable[]
             {
-                new Box
+                background = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background5,
                 },
                 new GridContainer
                 {
@@ -79,7 +84,6 @@ namespace osu.Game.Overlays.Chat
                                 {
                                     MaxWidth = chatting_text_width - padding * 2,
                                     Font = OsuFont.Torus,
-                                    Colour = colourProvider.Background1,
                                     Anchor = Anchor.CentreRight,
                                     Origin = Anchor.CentreRight,
                                 },
@@ -116,6 +120,20 @@ namespace osu.Game.Overlays.Chat
                     },
                 },
             };
+
+            // Live-bind the two leaves we own to the active overlay theme so
+            // they re-tint without requiring the chat overlay to be reopened.
+            backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background5);
+            chattingTextThemeBinding = chattingText.BindThemeColour(colourProvider, p => p.Background1);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            backgroundThemeBinding?.Dispose();
+            backgroundThemeBinding = null;
+            chattingTextThemeBinding?.Dispose();
+            chattingTextThemeBinding = null;
+            base.Dispose(isDisposing);
         }
 
         protected override void LoadComplete()

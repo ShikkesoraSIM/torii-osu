@@ -27,6 +27,8 @@ namespace osu.Game.Overlays.Settings
         protected override bool ExpandOnHover => false;
 
         private readonly bool showBackButton;
+        private Box background = null!;
+        private OverlayColourProvider colourProvider = null!;
 
         public SettingsSidebar(bool showBackButton)
             : base(CONTRACTED_WIDTH, EXPANDED_WIDTH)
@@ -38,7 +40,9 @@ namespace osu.Game.Overlays.Settings
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
-            AddInternal(new Box
+            this.colourProvider = colourProvider;
+
+            AddInternal(background = new Box
             {
                 Colour = colourProvider.Background5,
                 RelativeSizeAxes = Axes.Both,
@@ -54,6 +58,22 @@ namespace osu.Game.Overlays.Settings
                     Action = () => BackButtonAction?.Invoke(),
                 });
             }
+
+            colourProvider.ColoursChanged += updateTheme;
+        }
+
+        private void updateTheme()
+        {
+            if (background != null)
+                background.Colour = colourProvider.Background5;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && colourProvider != null)
+                colourProvider.ColoursChanged -= updateTheme;
+
+            base.Dispose(isDisposing);
         }
 
         public partial class BackButton : SidebarButton
@@ -107,7 +127,12 @@ namespace osu.Game.Overlays.Settings
             {
                 base.UpdateState();
 
-                content.FadeColour(IsHovered ? ColourProvider.Light1 : ColourProvider.Light3, FADE_DURATION, Easing.OutQuint);
+                var targetColour = IsHovered ? ColourProvider.Light1 : ColourProvider.Light3;
+
+                if (IsLoaded)
+                    content.FadeColour(targetColour, FADE_DURATION, Easing.OutQuint);
+                else
+                    content.Colour = targetColour;
             }
         }
     }

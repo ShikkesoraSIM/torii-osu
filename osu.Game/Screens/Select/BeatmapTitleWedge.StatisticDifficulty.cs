@@ -57,6 +57,8 @@ namespace osu.Game.Screens.Select
             [Resolved]
             private OsuColour colours { get; set; } = null!;
 
+            private IDisposable? labelTextThemeBinding;
+
             public StatisticDifficulty()
             {
                 AutoSizeAxes = Axes.Y;
@@ -139,7 +141,11 @@ namespace osu.Game.Screens.Select
             [BackgroundDependencyLoader]
             private void load(OverlayColourProvider colourProvider)
             {
-                labelText.Colour = colourProvider.Content2;
+                labelTextThemeBinding = labelText.BindThemeColour(colourProvider, p => p.Content2);
+
+                // valueText's colour is owned by updateDisplay() (White / Red1 / Lime1 based on the
+                // difficulty delta) immediately after load, so it is left as a one-off initial paint
+                // rather than a live provider binding to avoid stomping that state on hue change.
                 valueText.Colour = colourProvider.Content1;
             }
 
@@ -147,6 +153,13 @@ namespace osu.Game.Screens.Select
             {
                 base.LoadComplete();
                 updateDisplay();
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                labelTextThemeBinding?.Dispose();
+                labelTextThemeBinding = null;
+                base.Dispose(isDisposing);
             }
 
             private void updateDisplay()

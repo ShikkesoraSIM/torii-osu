@@ -100,12 +100,24 @@ namespace osu.Game.Screens.Select
                 };
             }
 
+            private IDisposable? backgroundBarThemeBinding;
+            private IDisposable? valueTextThemeBinding;
+
             [BackgroundDependencyLoader]
             private void load(OsuColour colours, OverlayColourProvider colourProvider)
             {
-                backgroundBar.Colour = colourProvider.Background6;
+                backgroundBarThemeBinding = backgroundBar.BindThemeColour(colourProvider, p => p.Background6);
                 valueBar.Colour = colours.Lime1;
-                valueText.Colour = colourProvider.Content2;
+                valueTextThemeBinding = valueText.BindThemeColour(colourProvider, p => p.Content2);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                backgroundBarThemeBinding?.Dispose();
+                backgroundBarThemeBinding = null;
+                valueTextThemeBinding?.Dispose();
+                valueTextThemeBinding = null;
+                base.Dispose(isDisposing);
             }
         }
     }

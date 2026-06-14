@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.LocalisationExtensions;
@@ -117,13 +118,25 @@ namespace osu.Game.Screens.Select
                 };
             }
 
+            private IDisposable? negativeTextThemeBinding;
+            private IDisposable? positiveTextThemeBinding;
+
             [BackgroundDependencyLoader]
             private void load(OsuColour colours, OverlayColourProvider colourProvider)
             {
                 backgroundBar.Colour = colours.DarkOrange2;
                 positiveBar.Colour = colours.Lime1;
-                negativeText.Colour = colourProvider.Content2;
-                positiveText.Colour = colourProvider.Content2;
+                negativeTextThemeBinding = negativeText.BindThemeColour(colourProvider, p => p.Content2);
+                positiveTextThemeBinding = positiveText.BindThemeColour(colourProvider, p => p.Content2);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                negativeTextThemeBinding?.Dispose();
+                negativeTextThemeBinding = null;
+                positiveTextThemeBinding?.Dispose();
+                positiveTextThemeBinding = null;
+                base.Dispose(isDisposing);
             }
         }
     }

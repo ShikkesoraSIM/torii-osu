@@ -62,6 +62,7 @@ namespace osu.Game.Overlays.Settings
         protected override void LoadComplete()
         {
             base.LoadComplete();
+            colourProvider.ColoursChanged += updateDisplay;
             Enabled.BindValueChanged(_ => updateDisplay(), true);
         }
 
@@ -93,6 +94,14 @@ namespace osu.Game.Overlays.Settings
         {
             spriteIcon.FadeColour(IsHovered ? colourProvider.Content2 : colourProvider.Light1, 300, Easing.OutQuint);
             background.FadeColour(IsHovered ? colourProvider.Background2 : colourProvider.Background3, 300, Easing.OutQuint);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= updateDisplay;
+
+            base.Dispose(isDisposing);
         }
     }
 }

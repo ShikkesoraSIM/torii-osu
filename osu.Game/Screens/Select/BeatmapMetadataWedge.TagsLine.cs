@@ -61,6 +61,23 @@ namespace osu.Game.Screens.Select
                 AddLayout(drawSizeLayout);
             }
 
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+                colourProvider.ColoursChanged += updateTagColours;
+            }
+
+            private void updateTagColours()
+            {
+                // Tag links are created on demand in updateTags(); re-push the idle tint onto each
+                // so existing tags re-tint when the hue changes rather than holding a frozen snapshot.
+                foreach (var child in Children)
+                {
+                    if (child is OsuHoverContainer hover)
+                        hover.IdleColour = colourProvider.Light2;
+                }
+            }
+
             protected override void UpdateAfterChildren()
             {
                 base.UpdateAfterChildren();
@@ -133,12 +150,21 @@ namespace osu.Game.Screens.Select
                 drawSizeLayout.Invalidate();
             }
 
+            protected override void Dispose(bool isDisposing)
+            {
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= updateTagColours;
+                base.Dispose(isDisposing);
+            }
+
             private partial class TagsOverflowButton : CompositeDrawable, IHasPopover, IHasLineBaseHeight
             {
                 private readonly string[] tags;
 
                 private Box box = null!;
                 private OsuSpriteText text = null!;
+
+                private IDisposable? textThemeBinding;
 
                 [Resolved]
                 private OverlayColourProvider colourProvider { get; set; } = null!;
@@ -174,11 +200,23 @@ namespace osu.Game.Screens.Select
                             Anchor = Anchor.TopCentre,
                             Origin = Anchor.TopCentre,
                             Text = "...",
-                            Colour = colourProvider.Background4,
                             Font = OsuFont.Style.Caption1.With(weight: FontWeight.Bold),
                         },
                         new HoverClickSounds(),
                     };
+
+                    textThemeBinding = text.BindThemeColour(colourProvider, p => p.Background4);
+
+                    // The box cross-fades between Light1 (idle), Content2 (hover) and Content1 (flash)
+                    // via the hover handlers; re-apply the idle tint live, but only while not hovered
+                    // so we don't stomp the hover colour mid-interaction.
+                    colourProvider.ColoursChanged += updateBoxIdleColour;
+                }
+
+                private void updateBoxIdleColour()
+                {
+                    if (!IsHovered)
+                        box.FadeColour(colourProvider.Light1, 300, Easing.OutQuint);
                 }
 
                 protected override bool OnHover(HoverEvent e)
@@ -204,6 +242,15 @@ namespace osu.Game.Screens.Select
                 {
                     TagsShownCount = { BindTarget = TagsShownCount },
                 };
+
+                protected override void Dispose(bool isDisposing)
+                {
+                    textThemeBinding?.Dispose();
+                    textThemeBinding = null;
+                    if (colourProvider != null)
+                        colourProvider.ColoursChanged -= updateBoxIdleColour;
+                    base.Dispose(isDisposing);
+                }
             }
 
             public partial class TagsOverflowPopover : OsuPopover

@@ -28,6 +28,8 @@ namespace osu.Game.Screens.Select
         public partial class DifficultyRangeSlider : ShearedRangeSlider
         {
             private Container borderContainer = null!;
+            private Container borderBox = null!;
+            private IDisposable? borderColourBinding;
 
             private readonly LayoutValue drawSizeLayout = new LayoutValue(Invalidation.DrawSize);
 
@@ -71,7 +73,7 @@ namespace osu.Game.Screens.Select
                         Depth = -1,
                         RelativePositionAxes = Axes.X,
                         RelativeSizeAxes = Axes.Both,
-                        Child = new Container
+                        Child = borderBox = new Container
                         {
                             RelativeSizeAxes = Axes.Both,
                             BorderColour = colourProvider.Highlight1,
@@ -87,6 +89,14 @@ namespace osu.Game.Screens.Select
                         },
                     }
                 });
+
+                borderColourBinding = borderBox.BindThemeColour(colourProvider, (d, p) => d.BorderColour = p.Highlight1);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                borderColourBinding?.Dispose();
             }
 
             protected override void LoadComplete()

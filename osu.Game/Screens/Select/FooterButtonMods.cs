@@ -70,6 +70,12 @@ namespace osu.Game.Screens.Select
 
         private ModCountText overflowModCountDisplay = null!;
 
+        private Box modDisplayBarBackground = null!;
+        private Box modContainerBackground = null!;
+
+        private IDisposable? modDisplayBarBackgroundBinding;
+        private IDisposable? modContainerBackgroundBinding;
+
         [Resolved]
         private OsuColour colours { get; set; } = null!;
 
@@ -118,7 +124,7 @@ namespace osu.Game.Screens.Select
                     },
                     Children = new Drawable[]
                     {
-                        new Box
+                        modDisplayBarBackground = new Box
                         {
                             Colour = colourProvider.Background4,
                             RelativeSizeAxes = Axes.Both,
@@ -147,7 +153,7 @@ namespace osu.Game.Screens.Select
                             Masking = true,
                             Children = new Drawable[]
                             {
-                                new Box
+                                modContainerBackground = new Box
                                 {
                                     Colour = colourProvider.Background3,
                                     RelativeSizeAxes = Axes.Both,
@@ -167,6 +173,9 @@ namespace osu.Game.Screens.Select
                     }
                 },
             });
+
+            modDisplayBarBackgroundBinding = modDisplayBarBackground.BindThemeColour(colourProvider, p => p.Background4);
+            modContainerBackgroundBinding = modContainerBackground.BindThemeColour(colourProvider, p => p.Background3);
         }
 
         private ModSettingChangeTracker? modSettingChangeTracker;
@@ -194,6 +203,13 @@ namespace osu.Game.Screens.Select
             }, true);
 
             FinishTransforms(true);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            base.Dispose(isDisposing);
+            modDisplayBarBackgroundBinding?.Dispose();
+            modContainerBackgroundBinding?.Dispose();
         }
 
         protected override bool OnMouseDown(MouseDownEvent e)
@@ -296,6 +312,10 @@ namespace osu.Game.Screens.Select
 
             private OsuSpriteText text = null!;
 
+            private Box background = null!;
+
+            private IDisposable? backgroundColourBinding;
+
             [Resolved]
             private OverlayColourProvider colourProvider { get; set; } = null!;
 
@@ -307,7 +327,7 @@ namespace osu.Game.Screens.Select
 
                 InternalChildren = new Drawable[]
                 {
-                    new Box
+                    background = new Box
                     {
                         Colour = colourProvider.Background3,
                         Alpha = 0.8f,
@@ -322,7 +342,15 @@ namespace osu.Game.Screens.Select
                     }
                 };
 
+                backgroundColourBinding = background.BindThemeColour(colourProvider, p => p.Background3);
+
                 Mods.BindValueChanged(_ => updateText(), true);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                backgroundColourBinding?.Dispose();
             }
 
             public ITooltip<IReadOnlyList<Mod>> GetCustomTooltip() => new ModOverflowTooltip(colourProvider);
@@ -344,6 +372,10 @@ namespace osu.Game.Screens.Select
             {
                 private ModFlowDisplay extendedModDisplay = null!;
 
+                private Box background = null!;
+
+                private IDisposable? backgroundColourBinding;
+
                 [Cached]
                 private OverlayColourProvider colourProvider;
 
@@ -361,7 +393,7 @@ namespace osu.Game.Screens.Select
 
                     InternalChildren = new Drawable[]
                     {
-                        new Box
+                        background = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
                             Colour = colourProvider.Background5,
@@ -374,6 +406,14 @@ namespace osu.Game.Screens.Select
                             Scale = new Vector2(0.6f),
                         },
                     };
+
+                    backgroundColourBinding = background.BindThemeColour(colourProvider, p => p.Background5);
+                }
+
+                protected override void Dispose(bool isDisposing)
+                {
+                    base.Dispose(isDisposing);
+                    backgroundColourBinding?.Dispose();
                 }
 
                 public void SetContent(IReadOnlyList<Mod> content)

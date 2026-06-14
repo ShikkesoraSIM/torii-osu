@@ -19,14 +19,20 @@ namespace osu.Game.Screens.Select
 
         public float WidthForGradient { get; init; } = 0.3f;
 
+        private OverlayColourProvider colourProvider = null!;
+        private Box additiveLayer = null!;
+        private Box solidLayer = null!;
+        private Box gradientLayer = null!;
+
         [BackgroundDependencyLoader]
         private void load(OverlayColourProvider colourProvider)
         {
+            this.colourProvider = colourProvider;
             RelativeSizeAxes = Axes.Both;
 
             InternalChildren = new Drawable[]
             {
-                new Box
+                additiveLayer = new Box
                 {
                     Blending = BlendingParameters.Additive,
                     RelativeSizeAxes = Axes.Both,
@@ -34,13 +40,13 @@ namespace osu.Game.Screens.Select
                     Alpha = 0.5f,
                     Colour = ColourInfo.GradientHorizontal(colourProvider.Background2, colourProvider.Background2.Opacity(0)),
                 },
-                new Box
+                solidLayer = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
                     Width = 1 - WidthForGradient,
                     Colour = colourProvider.Background5.Opacity(StartAlpha),
                 },
-                new Box
+                gradientLayer = new Box
                 {
                     Anchor = Anchor.TopRight,
                     Origin = Anchor.TopRight,
@@ -49,6 +55,28 @@ namespace osu.Game.Screens.Select
                     Colour = ColourInfo.GradientHorizontal(colourProvider.Background5.Opacity(StartAlpha), colourProvider.Background5.Opacity(FinalAlpha)),
                 },
             };
+
+            colourProvider.ColoursChanged += updateTheme;
+        }
+
+        private void updateTheme()
+        {
+            if (additiveLayer != null)
+                additiveLayer.Colour = ColourInfo.GradientHorizontal(colourProvider.Background2, colourProvider.Background2.Opacity(0));
+
+            if (solidLayer != null)
+                solidLayer.Colour = colourProvider.Background5.Opacity(StartAlpha);
+
+            if (gradientLayer != null)
+                gradientLayer.Colour = ColourInfo.GradientHorizontal(colourProvider.Background5.Opacity(StartAlpha), colourProvider.Background5.Opacity(FinalAlpha));
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && colourProvider != null)
+                colourProvider.ColoursChanged -= updateTheme;
+
+            base.Dispose(isDisposing);
         }
     }
 }

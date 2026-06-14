@@ -90,6 +90,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
         {
             base.LoadComplete();
 
+            colourProvider.ColoursChanged += updateState;
             current.BindValueChanged(_ =>
             {
                 updateState();
@@ -141,5 +142,13 @@ namespace osu.Game.Graphics.UserInterfaceV2
         public bool IsDisabled => Current.Disabled;
 
         public float MainDrawHeight => DrawHeight;
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= updateState;
+
+            base.Dispose(isDisposing);
+        }
     }
 }

@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
@@ -38,6 +39,8 @@ namespace osu.Game.Screens.Select
             // PopoverContainer.
             public ISongSelect? SongSelect { get; init; }
             public required OverlayColourProvider ColourProvider { get; init; }
+
+            private readonly List<IDisposable> themeColourBindings = new List<IDisposable>();
 
             public Popover(FooterButtonOptions footerButton, BeatmapInfo beatmap)
             {
@@ -101,6 +104,16 @@ namespace osu.Game.Screens.Select
                 footerButton.OverlayState.Value = state.NewValue;
             }
 
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+
+                foreach (var binding in themeColourBindings)
+                    binding.Dispose();
+
+                themeColourBindings.Clear();
+            }
+
             private void addHeader(LocalisableString text, string? context = null)
             {
                 var textFlow = new OsuTextFlowContainer
@@ -115,11 +128,14 @@ namespace osu.Game.Screens.Select
                 if (context != null)
                 {
                     textFlow.NewLine();
-                    textFlow.AddText(context, t =>
+                    var contextPart = textFlow.AddText(context, t =>
                     {
                         t.Colour = ColourProvider.Content2;
                         t.Font = t.Font.With(size: 13);
                     });
+
+                    foreach (var partDrawable in contextPart.Drawables)
+                        themeColourBindings.Add(partDrawable.BindThemeColour(ColourProvider, p => p.Content2));
                 }
 
                 buttonFlow.Add(textFlow);
@@ -139,6 +155,8 @@ namespace osu.Game.Screens.Select
                         action?.Invoke();
                     },
                 };
+
+                themeColourBindings.Add(button.BindThemeColour(ColourProvider, (b, p) => b.BackgroundColour = p.Background3));
 
                 buttonFlow.Add(button);
             }
