@@ -2,12 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Colour;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
-using osu.Game.Graphics.UserInterface;
 using osu.Game.Overlays.Settings.Sections.Torii;
-using osuTK;
-using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Settings.Sections
 {
@@ -19,12 +16,11 @@ namespace osu.Game.Overlays.Settings.Sections
     {
         public override LocalisableString Header => "Torii";
 
-        // The Torii gate glyph in the red -> yellow gradient used on the dashboard
-        // platform indicators ("Torii Windows" red / "Nova Mac" yellow).
-        public override Drawable CreateIcon() => new ToriiGateGlyph
+        // Same torii-gate glyph the client badge uses, rendered like every other
+        // settings-section icon (plain monochrome, tinted by the settings panel).
+        public override Drawable CreateIcon() => new SpriteIcon
         {
-            Size = new Vector2(18),
-            Colour = ColourInfo.GradientVertical(new Color4(255, 64, 64, 255), new Color4(255, 204, 0, 255)),
+            Icon = FontAwesome.Solid.ToriiGate
         };
 
         public ToriiSection()
