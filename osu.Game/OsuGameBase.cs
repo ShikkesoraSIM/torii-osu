@@ -150,6 +150,9 @@ namespace osu.Game
 
         protected OsuConfigManager LocalConfig { get; private set; }
 
+        // Torii: kept alive so the input/audio thread-rate binding isn't collected.
+        private Bindable<ToriiInputAudioHzMode> toriiInputAudioHz;
+
         protected SessionStatics SessionStatics { get; private set; }
 
         protected OsuColour Colours { get; private set; }
@@ -385,6 +388,11 @@ namespace osu.Game
             // that starve the tiny WASAPI buffer on weak machines (the map-switch stutter).
             if (Performance.PotatoMode.Active)
                 frameworkConfig.SetValue(FrameworkSetting.AudioUseExperimentalWasapi, false);
+
+            // Torii: input/audio/update thread rate is the single source of truth for the
+            // host's framesync pipeline. Applied live (the framework re-evaluates on change).
+            toriiInputAudioHz = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
+            toriiInputAudioHz.BindValueChanged(e => Host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
 
             dependencies.Cache(Colours = new OsuColour());
 

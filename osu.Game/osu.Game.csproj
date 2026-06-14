@@ -39,7 +39,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Realm" Version="20.1.0" />
-    <PackageReference Include="ppy.osu.Framework" Version="2026.527.0" />
+    <!-- Torii: local framework checkout (clean ppy/osu-framework 2026.527.0 + the
+         input/audio thread-rate "Hz" mod). Swapped from the NuGet package so the
+         in-game Hz dropdown can drive GameHost.ToriiInputAudioHz. -->
+    <ProjectReference Include="..\..\toriirefresh-framework\osu.Framework\osu.Framework.csproj" />
     <PackageReference Include="ppy.osu.Game.Resources" Version="2026.523.0" />
     <PackageReference Include="Sentry" Version="6.6.0" />
     <PackageReference Include="SharpCompress" Version="0.49.1" />

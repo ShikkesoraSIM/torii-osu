@@ -176,6 +176,9 @@ namespace osu.Game.Configuration
             // Torii: Potato Mode (extreme-perf preset, read once at startup, restart-gated).
             SetDefault(OsuSetting.ToriiPotatoMode, false);
 
+            // Torii: input/audio/update thread rate. Drives GameHost.ToriiInputAudioHz live.
+            SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
+
             // Torii cosmetics / economy / UI
             SetDefault(OsuSetting.UserAuraEnabled, true);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
@@ -510,6 +513,7 @@ namespace osu.Game.Configuration
         ToriiServerPulseEnabled,
         UITheme,
         ToriiPotatoMode,
+        ToriiInputAudioHz,
 
         // Torii cosmetics / economy / UI
         UserAuraEnabled,
