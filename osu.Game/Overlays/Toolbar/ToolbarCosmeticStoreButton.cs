@@ -5,6 +5,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Overlays.Cosmetics;
+using osu.Game.Performance;
 
 namespace osu.Game.Overlays.Toolbar
 {
@@ -15,6 +16,13 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader(true)]
         private void load(CosmeticStoreOverlay store)
         {
+            // Potato mode: remove the store button entirely (minimal toolbar).
+            if (PotatoMode.Active)
+            {
+                Expire();
+                return;
+            }
+
             SetIcon(FontAwesome.Solid.Store);
             StateContainer = store;
         }

@@ -73,6 +73,13 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader]
         private void load()
         {
+            // Potato mode: remove the coins widget entirely (minimal toolbar).
+            if (PotatoMode.Active)
+            {
+                Expire();
+                return;
+            }
+
             Child = new Container
             {
                 AutoSizeAxes = Axes.X,
