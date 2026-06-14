@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -17,6 +18,7 @@ using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
+using osu.Game.Online.API;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
@@ -66,8 +68,15 @@ namespace osu.Game.Overlays
         [Resolved]
         private ChannelManager channelManager { get; set; } = null!;
 
+        // Threaded into BindFullScheme so the donator-only accent re-evaluates
+        // whenever the local user changes (login/logout/account switch).
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
+
         [Cached]
         private readonly OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Pink);
+        private IDisposable? customUiHueBinding;
+        private Box background = null!;
 
         [Cached]
         private readonly Bindable<Channel?> currentChannel = new Bindable<Channel?>();
@@ -97,6 +106,8 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader]
         private void load()
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays));
+
             // Required for the pop in/out animation
             RelativePositionAxes = Axes.Both;
 
@@ -113,7 +124,7 @@ namespace osu.Game.Overlays
                     Padding = new MarginPadding { Top = top_bar_height },
                     Children = new Drawable[]
                     {
-                        new Box
+                        background = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
                             Colour = colourProvider.Background4,
@@ -171,7 +182,21 @@ namespace osu.Game.Overlays
                     }
                 }
             };
+
+            // BindFullScheme drives both base + accent hue on the provider
+            // in a single ColoursChanged firing. The background tint is now
+            // refreshed by the BindThemeColour wiring rather than being
+            // re-applied manually here.
+            // api passed so the donator-only accent re-evaluates on
+            // login/logout — without it a stale supporter config in
+            // osu.cfg would still apply for non-supporter users.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays, api);
+
+            if (background != null)
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
         }
+
+        private IDisposable? backgroundThemeBinding;
 
         protected override void LoadComplete()
         {
@@ -446,6 +471,19 @@ namespace osu.Game.Overlays
                 default:
                     return true;
             }
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+            {
+                customUiHueBinding?.Dispose();
+                customUiHueBinding = null;
+                backgroundThemeBinding?.Dispose();
+                backgroundThemeBinding = null;
+            }
+
+            base.Dispose(isDisposing);
         }
     }
 }

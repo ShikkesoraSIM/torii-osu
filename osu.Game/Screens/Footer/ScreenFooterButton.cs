@@ -193,6 +193,7 @@ namespace osu.Game.Screens.Footer
             if (Overlay != null)
                 OverlayState.BindTo(Overlay.State);
 
+            colourProvider.ColoursChanged += UpdateDisplay;
             OverlayState.BindValueChanged(_ => UpdateDisplay());
             Enabled.BindValueChanged(_ => UpdateDisplay(), true);
 
@@ -295,6 +296,14 @@ namespace osu.Game.Screens.Footer
 
             if (expire)
                 this.Delay(Content.LatestTransformEndTime - Time.Current).Expire();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+                colourProvider.ColoursChanged -= UpdateDisplay;
+
+            base.Dispose(isDisposing);
         }
     }
 }

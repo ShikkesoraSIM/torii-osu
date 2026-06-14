@@ -7,6 +7,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.Profile.Header.Components;
 using osuTK;
@@ -69,12 +70,13 @@ namespace osu.Game.Users
                                 flag.Anchor = Anchor.CentreLeft;
                                 flag.Origin = Anchor.CentreLeft;
                             }),
-                            CreateUsername().With(username =>
+                            // Torii: wrap username in aura container (no-op for non-elite users).
+                            UserAuraContainer.Wrap(User, CreateUsername().With(username =>
                             {
                                 username.Anchor = Anchor.CentreLeft;
                                 username.Origin = Anchor.CentreLeft;
                                 username.UseFullGlyphHeight = false;
-                            }),
+                            })),
                             CreateRank().With(rank =>
                             {
                                 rank.Anchor = Anchor.CentreLeft;

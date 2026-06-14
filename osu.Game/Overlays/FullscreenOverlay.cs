@@ -93,7 +93,13 @@ namespace osu.Game.Overlays
 
         protected override void Dispose(bool isDisposing)
         {
-            customUiHueBinding?.Dispose();
+            if (isDisposing)
+            {
+                customUiHueBinding?.Dispose();
+                if (ColourProvider != null)
+                    ColourProvider.ColoursChanged -= UpdateColours;
+            }
+
             base.Dispose(isDisposing);
         }
 

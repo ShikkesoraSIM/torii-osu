@@ -17,8 +17,10 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Online.API;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Resources.Localisation.Web;
 using osuTK;
@@ -52,6 +54,8 @@ namespace osu.Game.Overlays
 
         [Cached]
         private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Purple);
+        private IDisposable? customUiHueBinding;
+        private Box background = null!;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
@@ -70,9 +74,19 @@ namespace osu.Game.Overlays
 
         private Container mainContent = null!;
 
+        // api passed into BindFullScheme so the donator-only accent
+        // re-evaluates on local-user changes (login / logout / account
+        // switch) — without it a non-supporter signed in on a machine
+        // where a supporter previously enabled the accent would inherit
+        // the cosmetic feature.
+        [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
+
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays));
+
             X = WIDTH;
             Width = WIDTH;
             RelativeSizeAxes = Axes.Y;
@@ -97,7 +111,7 @@ namespace osu.Game.Overlays
                     },
                     Children = new Drawable[]
                     {
-                        new Box
+                        background = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
                             Colour = colourProvider.Background4,
@@ -125,7 +139,17 @@ namespace osu.Game.Overlays
                     }
                 },
             };
+
+            // BindFullScheme drives base + donator accent hue together;
+            // background is now refreshed via BindThemeColour so we don't
+            // duplicate the apply path.
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays, api);
+
+            if (background != null)
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
         }
+
+        private IDisposable? backgroundThemeBinding;
 
         private ScheduledDelegate? notificationsEnabler;
 
@@ -278,6 +302,19 @@ namespace osu.Game.Overlays
         private void updateCounts()
         {
             unreadCount.Value = sections.Select(c => c.UnreadCount).Sum() + toastTray.UnreadCount;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+            {
+                customUiHueBinding?.Dispose();
+                customUiHueBinding = null;
+                backgroundThemeBinding?.Dispose();
+                backgroundThemeBinding = null;
+            }
+
+            base.Dispose(isDisposing);
         }
     }
 }

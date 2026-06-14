@@ -23,6 +23,7 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online;
 using osu.Game.Online.API;
@@ -66,6 +67,7 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Participants
         private UpdateableAvatar userAvatar = null!;
         private UpdateableFlag userFlag = null!;
         private OsuSpriteText username = null!;
+        private UserAuraContainer usernameAura = null!;
         private Container teamFlagContainer = null!;
         private OsuSpriteText userRankText = null!;
         private StyleDisplayIcon userStyleDisplay = null!;
@@ -156,11 +158,14 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Participants
                                             Anchor = Anchor.CentreLeft,
                                             Origin = Anchor.CentreLeft,
                                         },
-                                        username = new OsuSpriteText
+                                        // Torii: aura + (local) equipped name colour behind the lobby username.
+                                        usernameAura = new UserAuraContainer(null, username = new OsuSpriteText
+                                        {
+                                            Font = OsuFont.GetFont(weight: FontWeight.Bold, size: 18),
+                                        })
                                         {
                                             Anchor = Anchor.CentreLeft,
                                             Origin = Anchor.CentreLeft,
-                                            Font = OsuFont.GetFont(weight: FontWeight.Bold, size: 18),
                                         },
                                         userRankText = new OsuSpriteText
                                         {
@@ -276,6 +281,10 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Participants
                     Size = new Vector2(40, 20),
                 };
                 username.Text = user?.Username ?? string.Empty;
+                // Torii: tint the name with the equipped / highest-role colour and
+                // swap the aura to match the user now occupying this pooled panel.
+                username.Colour = ToriiColourHelper.GetTopColour(user) ?? Color4.White;
+                usernameAura.SetUser(user);
             }
 
             updateState();
