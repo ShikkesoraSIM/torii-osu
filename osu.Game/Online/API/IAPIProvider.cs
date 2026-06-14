@@ -121,6 +121,13 @@ namespace osu.Game.Online.API
         void Logout();
 
         /// <summary>
+        /// Torii: re-fetch the local user from the server and push it into
+        /// <see cref="LocalUser"/> so live cosmetic changes propagate without a relogin.
+        /// No-op while not online.
+        /// </summary>
+        void RefreshLocalUser();
+
+        /// <summary>
         /// Schedule a callback to run on the update thread.
         /// </summary>
         internal void Schedule(Action action);

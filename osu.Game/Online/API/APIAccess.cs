@@ -601,6 +601,26 @@ namespace osu.Game.Online.API
             flushQueue();
         }
 
+        public void RefreshLocalUser()
+        {
+            // Torii: re-fetch the local user so live cosmetic changes (equipping an
+            // aura/name colour here, or a UserUpdated broadcast for someone else)
+            // re-bind everything bound to LocalUser without a relogin. Failures are
+            // intentionally silent — this is a non-critical convenience refresh.
+            if (state.Value != APIState.Online)
+                return;
+
+            var refreshRequest = new GetMeRequest();
+            refreshRequest.Success += me => Schedule(() =>
+            {
+                if (state.Value != APIState.Online)
+                    return;
+
+                localUserState.SetLocalUser(me);
+            });
+            Queue(refreshRequest);
+        }
+
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);

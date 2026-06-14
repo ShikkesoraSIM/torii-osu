@@ -185,6 +185,11 @@ namespace osu.Game.Online.API
             LocalUser.Value = new GuestUser();
         }
 
+        public void RefreshLocalUser()
+        {
+            // No server to refresh against in tests / offline.
+        }
+
         public void UpdateLocalFriends()
         {
         }

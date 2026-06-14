@@ -156,6 +156,10 @@ namespace osu.Game
 
         private Container footerBasedOverlayContent;
 
+        // Torii: watches the server points ledger and pops the "points earned"
+        // summary card after a play / at calm menu moments.
+        private osu.Game.Overlays.Cosmetics.ToriiPointsWatcher toriiPointsWatcher;
+
         protected ScalingContainer ScreenContainer { get; private set; }
 
         protected Container ScreenOffsetContainer { get; private set; }
@@ -1197,6 +1201,10 @@ namespace osu.Game
             if (osu.Game.Online.Server.ToriiServerPulse.Enabled)
                 loadComponentSingleFile(new osu.Game.Online.Server.ToriiServerPulseProvider(), Add, true);
 
+            // Torii: points-earned summary watcher. Hosts its own card layer; the
+            // screen hooks below fire MarkPlayed()/OnMenu() at calm moments.
+            loadComponentSingleFile(toriiPointsWatcher = new osu.Game.Overlays.Cosmetics.ToriiPointsWatcher(), topMostOverlayContent.Add, true);
+
             loadComponentSingleFile(Toolbar = new Toolbar
             {
                 OnHome = delegate
@@ -1828,14 +1836,38 @@ namespace osu.Game
             }
         }
 
-        private void screenPushed(IScreen lastScreen, IScreen newScreen) => ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+        private void screenPushed(IScreen lastScreen, IScreen newScreen)
+        {
+            ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
+
+            // Torii: a results screen means a map was just played — wait for the
+            // award pass to settle, then surface the points summary once. Otherwise,
+            // reaching a calm menu screen is a chance to catch anything missed.
+            if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
+                toriiPointsWatcher?.MarkPlayed();
+            else if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
+        }
 
         private void screenExited(IScreen lastScreen, IScreen newScreen)
         {
             ScreenChanged((OsuScreen)lastScreen, (OsuScreen)newScreen);
 
+            // Coming back from a play is an EXIT (results pops off, song select shows
+            // underneath), so the post-play reveal has to fire here too.
+            if (isCalmRevealScreen(newScreen))
+                revealOnCalmScreen();
+
             if (newScreen == null)
                 Exit();
         }
+
+        // Calm, non-gameplay screens where a missed points summary should surface.
+        // The watcher's own cursor guard makes repeat calls harmless no-ops.
+        private static bool isCalmRevealScreen(IScreen screen) =>
+            screen is osu.Game.Screens.Menu.MainMenu
+            || screen is osu.Game.Screens.Select.SongSelect;
+
+        private void revealOnCalmScreen() => toriiPointsWatcher?.OnMenu();
     }
 }

@@ -359,6 +359,16 @@ namespace osu.Game
             dependencies.CacheAs(MultiplayerClient = new OnlineMultiplayerClient(endpoints));
             dependencies.CacheAs(metadataClient = new OnlineMetadataClient(endpoints));
 
+            // Torii: when the server broadcasts that the locally-signed-in user's
+            // public payload changed (equipped cosmetics, group membership, …),
+            // refresh LocalUser so badges / name colour / aura / accent gate
+            // repaint live without a relogin. UserAuraContainer handles OTHER users.
+            metadataClient.UserUpdated += updatedUserId =>
+            {
+                if (API.LocalUser.Value != null && API.LocalUser.Value.Id == updatedUserId)
+                    API.RefreshLocalUser();
+            };
+
             base.Content.Add(new BeatmapOnlineChangeIngest(beatmapUpdater, realm, metadataClient));
 
             BeatmapManager.ProcessBeatmap = (beatmapSet, scope) => beatmapUpdater.Process(beatmapSet, scope);
