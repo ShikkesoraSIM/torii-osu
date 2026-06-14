@@ -404,13 +404,18 @@ namespace osu.Game.Screens.SelectV2
                     return;
 
                 // If a new item is set and we already have an item, this is a case of reuse.
-                // To keep things simple, assume that we need to do a full refresh.
-                //
-                // In the future, this could be more contextual and check whether the associated model has actually changed.
+                // Torii: a filter rebuild re-wraps the SAME model instances in fresh
+                // CarouselItems, so a panel often gets handed back its own model. In that
+                // case the displayed content is already correct (live data like star
+                // rating flows through bindables, not PrepareForUse), so skip the full
+                // refresh and just adopt the new wrapper. Only rebuild when the model
+                // actually changed (real reuse for a different beatmap).
                 if (item != null && value != null)
                 {
+                    bool sameModel = ReferenceEquals(item.Model, value.Model);
                     item = value;
-                    PrepareForUse();
+                    if (!sameModel)
+                        PrepareForUse();
                 }
                 else
                     item = value;
