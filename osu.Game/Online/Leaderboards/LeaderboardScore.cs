@@ -21,6 +21,8 @@ using osu.Game.Extensions;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Overlays;
 using osu.Game.Rulesets.UI;
@@ -167,11 +169,15 @@ namespace osu.Game.Online.Leaderboards
                                     Position = new Vector2(HEIGHT - edge_margin, 0f),
                                     Children = new Drawable[]
                                     {
-                                        nameLabel = new OsuSpriteText
+                                        // Torii: wrap the username so staff/supporter users get their
+                                        // aura behind the name; Wrap returns the bare text when there's
+                                        // no aura. Also tints the name with the equipped name colour.
+                                        UserAuraContainer.Wrap(user as APIUser, nameLabel = new OsuSpriteText
                                         {
                                             Text = user.Username,
-                                            Font = OsuFont.GetFont(size: 23, weight: FontWeight.Bold, italics: true)
-                                        },
+                                            Font = OsuFont.GetFont(size: 23, weight: FontWeight.Bold, italics: true),
+                                            Colour = ToriiColourHelper.GetTopColour(user as APIUser) ?? Color4.White,
+                                        }),
                                         new FillFlowContainer
                                         {
                                             Anchor = Anchor.BottomLeft,
