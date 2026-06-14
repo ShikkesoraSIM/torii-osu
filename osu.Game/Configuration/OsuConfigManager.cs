@@ -173,6 +173,9 @@ namespace osu.Game.Configuration
             // Torii: cosmetic UI theme (default / grayscale / midnight variants).
             SetDefault(OsuSetting.UITheme, UIThemeOption.Torii);
 
+            // Torii: Potato Mode (extreme-perf preset, read once at startup, restart-gated).
+            SetDefault(OsuSetting.ToriiPotatoMode, false);
+
             // Torii cosmetics / economy / UI
             SetDefault(OsuSetting.UserAuraEnabled, true);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
@@ -506,6 +509,7 @@ namespace osu.Game.Configuration
         // Torii
         ToriiServerPulseEnabled,
         UITheme,
+        ToriiPotatoMode,
 
         // Torii cosmetics / economy / UI
         UserAuraEnabled,

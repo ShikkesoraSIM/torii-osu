@@ -40,6 +40,9 @@ namespace osu.Game.Screens.Edit.Timing
 
         private readonly MetronomeTick metronomeTick = new MetronomeTick();
 
+        // Functional editor metronome: keep firing even in Potato mode.
+        protected override bool SuppressedByPotatoMode => false;
+
         [Resolved]
         private OverlayColourProvider overlayColourProvider { get; set; } = null!;
 
@@ -407,6 +410,9 @@ namespace osu.Game.Screens.Edit.Timing
                 sampleTick = audio.Samples.Get(@"UI/metronome-tick");
                 sampleTickDownbeat = audio.Samples.Get(@"UI/metronome-tick-downbeat");
             }
+
+            // Functional: plays the editor metronome tick, must keep firing in Potato mode.
+            protected override bool SuppressedByPotatoMode => false;
 
             protected override void OnNewBeat(int beatIndex, TimingControlPoint timingPoint, EffectControlPoint effectPoint, ChannelAmplitudes amplitudes)
             {

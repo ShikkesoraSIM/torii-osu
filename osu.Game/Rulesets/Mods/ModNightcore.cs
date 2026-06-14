@@ -103,6 +103,9 @@ namespace osu.Game.Rulesets.Mods
 
             private const int bars_per_segment = 4;
 
+            // Functional: plays the nightcore mod's added beats, must keep firing in Potato mode.
+            protected override bool SuppressedByPotatoMode => false;
+
             protected override void OnNewBeat(int beatIndex, TimingControlPoint timingPoint, EffectControlPoint effectPoint, ChannelAmplitudes amplitudes)
             {
                 base.OnNewBeat(beatIndex, timingPoint, effectPoint, amplitudes);

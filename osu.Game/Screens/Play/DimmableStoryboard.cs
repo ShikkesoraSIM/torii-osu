@@ -10,6 +10,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Graphics.Containers;
+using osu.Game.Performance;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Storyboards;
 using osu.Game.Storyboards.Drawables;
@@ -93,6 +94,13 @@ namespace osu.Game.Screens.Play
         private void initializeStoryboard(bool async)
         {
             if (drawableStoryboard != null)
+                return;
+
+            // Potato mode: don't build purely-visual storyboards at all (the
+            // single biggest per-frame GPU + CPU cost on weak machines). Keep
+            // ones that carry samples or a front overlay layer, since those
+            // affect playback / fairness rather than just visuals.
+            if (PotatoMode.Active && !storyboardMustAlwaysBePresent.Value)
                 return;
 
             if (!ShowStoryboard.Value && !IgnoreUserSettings.Value)

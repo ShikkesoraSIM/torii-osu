@@ -17,6 +17,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             Children = new Drawable[]
             {
                 new UIThemeDropdownAndRestart(),
+                new PotatoModeToggleAndRestart(),
             };
         }
     }

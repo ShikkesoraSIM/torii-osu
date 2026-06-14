@@ -342,7 +342,7 @@ namespace osu.Game
             osu.Game.Graphics.UserEffects.UserAuraContainer.ReducedMotion =
                 () => LocalConfig.Get<bool>(OsuSetting.CosmeticsReducedMotion);
             osu.Game.Graphics.UserEffects.UserAuraContainer.CosmeticsSuppressed =
-                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden);
+                () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden) || Performance.PotatoMode.Active;
 
             dependencies.Cache(BeatmapDownloader = new BeatmapModelDownloader(BeatmapManager, API));
             dependencies.Cache(ScoreDownloader = new ScoreModelDownloader(ScoreManager, API));
@@ -378,6 +378,14 @@ namespace osu.Game
             // Torii: pin the cosmetic UI theme BEFORE OsuColour is constructed (its palette is
             // captured into the instance at build time). The dropdown prompts a restart on change.
             OsuColour.SetThemeFromConfig(LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme));
+
+            // Torii: Potato Mode read-once flag (heavy visuals check it at construction). Restart-gated.
+            Performance.PotatoMode.SetFromConfig(LocalConfig.Get<bool>(OsuSetting.ToriiPotatoMode));
+            // Potato forces the legacy (BASS) audio path; its larger buffer rides over GC hitches
+            // that starve the tiny WASAPI buffer on weak machines (the map-switch stutter).
+            if (Performance.PotatoMode.Active)
+                frameworkConfig.SetValue(FrameworkSetting.AudioUseExperimentalWasapi, false);
+
             dependencies.Cache(Colours = new OsuColour());
 
             RegisterImportHandler(BeatmapManager);

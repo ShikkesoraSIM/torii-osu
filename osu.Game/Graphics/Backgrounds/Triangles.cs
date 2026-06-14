@@ -5,6 +5,7 @@
 
 using osu.Framework.Graphics;
 using osu.Framework.Utils;
+using osu.Game.Performance;
 using osuTK;
 using osuTK.Graphics;
 using System;
@@ -127,6 +128,10 @@ namespace osu.Game.Graphics.Backgrounds
         {
             base.Update();
 
+            // Potato mode: no triangle movement or per-frame redraw.
+            if (PotatoMode.Active)
+                return;
+
             float adjustedAlpha = HideAlphaDiscrepancies
                 // Cubically scale alpha to make it drop off more sharply.
                 ? MathF.Pow(DrawColourInfo.Colour.AverageColour.Linear.A, 3)
@@ -180,6 +185,15 @@ namespace osu.Game.Graphics.Backgrounds
         {
             if (seed != null)
                 stableRandom = new Random(seed.Value);
+
+            // Potato mode: never spawn triangles.
+            if (PotatoMode.Active)
+            {
+                AimCount = 0;
+                parts.Clear();
+                Invalidate(Invalidation.DrawNode);
+                return;
+            }
 
             // Limited by the maximum size of QuadVertexBuffer for safety.
             const int max_triangles = ushort.MaxValue / (IRenderer.VERTICES_PER_QUAD + 2);

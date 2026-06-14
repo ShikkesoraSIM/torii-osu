@@ -27,6 +27,9 @@ namespace osu.Game.Rulesets.Mods
             InternalChild = sample = new PausableSkinnableSound(new SampleInfo("Gameplay/catch-banana"));
         }
 
+        // Functional: plays the metronome tick sound, so it must keep firing in Potato mode.
+        protected override bool SuppressedByPotatoMode => false;
+
         protected override void OnNewBeat(int beatIndex, TimingControlPoint timingPoint, EffectControlPoint effectPoint, ChannelAmplitudes amplitudes)
         {
             base.OnNewBeat(beatIndex, timingPoint, effectPoint, amplitudes);

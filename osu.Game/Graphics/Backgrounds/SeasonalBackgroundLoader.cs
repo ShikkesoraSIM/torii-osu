@@ -14,6 +14,7 @@ using osu.Game.Configuration;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Performance;
 
 namespace osu.Game.Graphics.Backgrounds
 {
@@ -81,6 +82,10 @@ namespace osu.Game.Graphics.Backgrounds
         {
             get
             {
+                // Potato mode: never download / decode seasonal backgrounds.
+                if (PotatoMode.Active)
+                    return false;
+
                 if (seasonalBackgroundMode.Value == SeasonalBackgroundMode.Never)
                     return false;
 

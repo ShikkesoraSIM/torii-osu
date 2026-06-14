@@ -7,6 +7,7 @@ using osu.Framework.Audio.Track;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Performance;
 
 namespace osu.Game.Graphics.Containers
 {
@@ -90,6 +91,17 @@ namespace osu.Game.Graphics.Containers
         {
         }
 
+        /// <summary>
+        /// Whether <see cref="OnNewBeat"/> should stop firing while Potato mode is active.
+        /// Defaults to <c>true</c> because the vast majority of beat-synced containers drive
+        /// purely cosmetic pulsing (carousel cards, the logo, menu buttons, side flashes, ...).
+        /// Functional consumers that need the beat regardless (metronome ticks, the nightcore
+        /// mod's added beats, the editor metronome) override this to <c>false</c>.
+        /// State bookkeeping (lastBeat / timing points / kiai flag) keeps updating either way;
+        /// only the cosmetic callback is suppressed.
+        /// </summary>
+        protected virtual bool SuppressedByPotatoMode => true;
+
         protected override void Update()
         {
             IsBeatSyncedWithTrack = BeatSyncSource.Clock.IsRunning;
@@ -144,7 +156,9 @@ namespace osu.Game.Graphics.Containers
 
             // as this event is sometimes used for sound triggers where `BeginDelayedSequence` has no effect, avoid firing it if too far away from the beat.
             // this can happen after a seek operation.
-            if (AllowMistimedEventFiring || Math.Abs(TimeSinceLastBeat) < MISTIMED_ALLOWANCE)
+            // Potato mode: cosmetic beat animations are suppressed (functional consumers opt out via SuppressedByPotatoMode).
+            if ((AllowMistimedEventFiring || Math.Abs(TimeSinceLastBeat) < MISTIMED_ALLOWANCE)
+                && !(PotatoMode.Active && SuppressedByPotatoMode))
             {
                 using (BeginDelayedSequence(-TimeSinceLastBeat))
                     OnNewBeat(beatIndex, TimingPoint, EffectPoint, BeatSyncSource.CurrentAmplitudes);

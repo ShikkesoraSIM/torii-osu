@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Rendering;
 using osu.Framework.Graphics.Shaders;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Utils;
+using osu.Game.Performance;
 using osuTK;
 
 namespace osu.Game.Graphics.Backgrounds
@@ -91,6 +92,10 @@ namespace osu.Game.Graphics.Backgrounds
         {
             base.Update();
 
+            // Potato mode: no triangle spawning, movement, or per-frame redraw.
+            if (PotatoMode.Active)
+                return;
+
             if (CreateNewTriangles)
                 addTriangles(false);
 
@@ -135,6 +140,13 @@ namespace osu.Game.Graphics.Backgrounds
 
         private void addTriangles(bool randomY)
         {
+            // Potato mode: never spawn triangles (AimCount 0 -> the draw node renders nothing).
+            if (PotatoMode.Active)
+            {
+                AimCount = 0;
+                return;
+            }
+
             // Limited by the maximum size of QuadVertexBuffer for safety.
             const int max_triangles = ushort.MaxValue / (IRenderer.VERTICES_PER_QUAD + 2);
 

@@ -11,6 +11,7 @@ using osuTK;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Game.Configuration;
+using osu.Game.Performance;
 using osu.Framework.Utils;
 
 namespace osu.Game.Graphics.Containers
@@ -70,7 +71,9 @@ namespace osu.Game.Graphics.Containers
         {
             base.Update();
 
-            if (parallaxEnabled.Value)
+            // Potato mode: leave content static (no per-frame parallax
+            // offset / scale interpolation, no high-frequency mouse track).
+            if (parallaxEnabled.Value && !PotatoMode.Active)
             {
                 Vector2 offset = Vector2.Zero;
 
