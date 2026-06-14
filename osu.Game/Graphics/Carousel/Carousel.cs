@@ -903,7 +903,14 @@ namespace osu.Game.Graphics.Carousel
                     continue;
 
                 float normalisedDepth = (float)(Math.Abs(selectedYPos - c.Item.CarouselYPosition) / DrawHeight);
-                Scroll.Panels.ChangeChildDepth(panel, c.Item.DepthLayer + normalisedDepth);
+                // Quantise the depth. Without this, normalisedDepth shifts by a hair every
+                // frame during a scroll, so ChangeChildDepth re-sorts the panel (remove +
+                // re-add + ChildDepthChanged invalidation) every single frame for every
+                // panel - a big slice of the per-frame invalidations/refreshes while
+                // scrolling or clicking. 0.05 granularity is imperceptible for draw order
+                // but lets the framework's equality self-guard skip most re-sorts.
+                float newDepth = c.Item.DepthLayer + MathF.Round(normalisedDepth / 0.05f) * 0.05f;
+                Scroll.Panels.ChangeChildDepth(panel, newDepth);
 
                 if (c.DrawYPosition != c.Item.CarouselYPosition)
                 {
