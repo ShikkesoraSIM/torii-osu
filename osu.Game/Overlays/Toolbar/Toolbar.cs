@@ -16,6 +16,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets;
 using osu.Framework.Input.Bindings;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Input.Bindings;
 
@@ -36,6 +37,9 @@ namespace osu.Game.Overlays.Toolbar
 
         private ToolbarUserButton userButton;
         private ToolbarRulesetSelector rulesetSelector;
+
+        // Torii custom UI hue (Menu scope): re-tints the toolbar chrome live.
+        private IDisposable customUiHueBinding;
 
         private const double transition_time = 500;
 
@@ -63,7 +67,7 @@ namespace osu.Game.Overlays.Toolbar
         private Bindable<RulesetInfo> ruleset { get; set; }
 
         [BackgroundDependencyLoader(true)]
-        private void load(OsuGame osuGame)
+        private void load(OsuGame osuGame, OsuConfigManager config)
         {
             ToolbarBackground background;
             HoverInterceptor interceptor;
@@ -197,6 +201,14 @@ namespace osu.Game.Overlays.Toolbar
 
             if (osuGame != null)
                 OverlayActivationMode.BindTo(osuGame.OverlayActivationMode);
+
+            // Seed the saved hue and keep the toolbar chrome in sync as the user
+            // edits the custom UI hue (Menu scope) live in settings.
+            if (config != null)
+            {
+                background.Hue = CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu);
+                customUiHueBinding = CustomUiHueHelper.BindHue(config, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, hue => background.Hue = hue);
+            }
         }
 
         protected override void LoadComplete()
@@ -210,17 +222,34 @@ namespace osu.Game.Overlays.Toolbar
         {
             public Bindable<bool> ShowGradient { get; } = new BindableBool();
 
+            private readonly Box solidBackground;
             private readonly Box gradientBackground;
+
+            // Default fallback (Blue scheme hue 200°) matches the rest of the
+            // menu chrome. ResolveHue() in Toolbar.load overrides this with the
+            // user's CustomUIHue if enabled for the Menu scope.
+            private int hue = 200;
+
+            public int Hue
+            {
+                get => hue;
+                set
+                {
+                    if (hue == value) return;
+
+                    hue = value;
+                    applyHue();
+                }
+            }
 
             public ToolbarBackground()
             {
                 RelativeSizeAxes = Axes.Both;
                 Children = new Drawable[]
                 {
-                    new Box
+                    solidBackground = new Box
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Colour = OsuColour.Gray(0.1f),
                     },
                     gradientBackground = new Box
                     {
@@ -232,6 +261,21 @@ namespace osu.Game.Overlays.Toolbar
                             OsuColour.Gray(0f).Opacity(0.7f), OsuColour.Gray(0).Opacity(0)),
                     },
                 };
+
+                applyHue();
+            }
+
+            // OverlayColourProvider derives Background6 as HSL(hue, 0.1, 0.1) —
+            // same lightness as the legacy Gray(0.1f) but tinted by the active
+            // hue. We instantiate a throwaway provider rather than resolving the
+            // ambient one because the Toolbar lives at the root of the OsuGame
+            // tree, outside any OverlayColourProvider scope.
+            private void applyHue()
+            {
+                if (solidBackground == null)
+                    return;
+
+                solidBackground.Colour = new OverlayColourProvider(hue).Background6;
             }
 
             protected override void LoadComplete()
@@ -319,6 +363,14 @@ namespace osu.Game.Overlays.Toolbar
 
         public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            customUiHueBinding?.Dispose();
+            customUiHueBinding = null;
+
+            base.Dispose(isDisposing);
         }
     }
 }

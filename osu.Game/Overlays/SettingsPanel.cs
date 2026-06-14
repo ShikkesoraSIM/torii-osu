@@ -19,6 +19,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Events;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Overlays.Settings;
@@ -75,6 +76,13 @@ namespace osu.Game.Overlays
         [Cached]
         private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Purple);
 
+        // Torii custom UI hue: re-tints the panel live when the user changes the hue.
+        private System.IDisposable customUiHueBinding;
+        private Box panelBackground = null!;
+
+        [Resolved(CanBeNull = true)]
+        private osu.Game.Online.API.IAPIProvider api { get; set; }
+
         protected SettingsPanel(bool showBackButton)
         {
             this.showBackButton = showBackButton;
@@ -85,8 +93,11 @@ namespace osu.Game.Overlays
         protected virtual IEnumerable<SettingsSection> CreateSections() => null;
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            // Torii: pin the custom UI hue before the panel surfaces are built.
+            colourProvider.ChangeColourScheme(CustomUiHueHelper.ResolveHue(config, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel));
+
             InternalChild = ContentContainer = new NonMaskedContent
             {
                 X = -WIDTH + ExpandedPosition,
@@ -94,7 +105,7 @@ namespace osu.Game.Overlays
                 RelativeSizeAxes = Axes.Y,
                 Children = new Drawable[]
                 {
-                    new Box
+                    panelBackground = new Box
                     {
                         Anchor = Anchor.TopRight,
                         Origin = Anchor.TopRight,
@@ -109,6 +120,11 @@ namespace osu.Game.Overlays
                     }
                 }
             };
+
+            // Subscribe BEFORE binding so the initial apply re-paints the panel with the
+            // resolved hue, and re-tint live whenever the user changes the hue setting.
+            colourProvider.ColoursChanged += updateTheme;
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.SettingsPanel, api);
 
             Add(new PopoverContainer
             {
@@ -224,6 +240,25 @@ namespace osu.Game.Overlays
         }
 
         private const double fade_in_duration = 500;
+
+        private void updateTheme()
+        {
+            if (panelBackground != null)
+                panelBackground.Colour = colourProvider.Background4;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing)
+            {
+                customUiHueBinding?.Dispose();
+                customUiHueBinding = null;
+                if (colourProvider != null)
+                    colourProvider.ColoursChanged -= updateTheme;
+            }
+
+            base.Dispose(isDisposing);
+        }
 
         private void loadSections()
         {
