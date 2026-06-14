@@ -189,13 +189,13 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CosmeticsHidden, false);
             SetDefault(OsuSetting.ToriiPointsBalance, 0);
             SetDefault(OsuSetting.ToriiPointsFeedCursor, 0);
-            SetDefault(OsuSetting.CustomUIHue, osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+            SetDefault(OsuSetting.CustomUIHue, (float)osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0f, 359f, 1f);
             SetDefault(OsuSetting.CustomUIHueEnabled, false);
             SetDefault(OsuSetting.CustomUIHueApplyToMenu, false);
             SetDefault(OsuSetting.CustomUIHueApplyToOverlays, true);
             SetDefault(OsuSetting.CustomUIHueApplyToSettingsPanel, true);
             SetDefault(OsuSetting.CustomUIAccentEnabled, false);
-            SetDefault(OsuSetting.CustomUIAccentHue, osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0, 359, 1);
+            SetDefault(OsuSetting.CustomUIAccentHue, (float)osu.Game.Overlays.OverlayColourScheme.Purple.GetHue(), 0f, 359f, 1f);
             SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
             SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
             SetDefault(OsuSetting.UseGameplayCursorInMenus, false);

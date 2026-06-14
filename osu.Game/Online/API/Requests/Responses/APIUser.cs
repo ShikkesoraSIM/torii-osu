@@ -102,6 +102,10 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"is_supporter")]
         public bool IsSupporter;
 
+        // Torii: whether the user has ever supported (used to gate donator-only cosmetics like custom hue).
+        [JsonProperty(@"has_supported")]
+        public bool HasSupported;
+
         [JsonProperty(@"support_level")]
         public int SupportLevel;
 

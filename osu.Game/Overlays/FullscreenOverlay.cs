@@ -10,6 +10,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
 using osu.Game.Online.API;
 using osuTK.Graphics;
@@ -38,10 +39,16 @@ namespace osu.Game.Overlays
         private readonly Box background;
         private readonly Container content;
 
+        // Torii custom UI hue: the overlay's own scheme hue, used as the fallback when the
+        // user hasn't set a custom hue. The binding re-tints live when the setting changes.
+        private readonly int defaultHue;
+        private System.IDisposable customUiHueBinding;
+
         protected FullscreenOverlay(OverlayColourScheme colourScheme)
         {
             RecreateHeader();
 
+            defaultHue = colourScheme.GetHue();
             ColourProvider = new OverlayColourProvider(colourScheme);
 
             RelativeSizeAxes = Axes.Both;
@@ -74,9 +81,20 @@ namespace osu.Game.Overlays
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            // Torii: apply the user's custom UI hue to this overlay's colour provider (or fall back
+            // to its own scheme hue), and re-tint live when the setting changes.
+            ColourProvider.ColoursChanged += UpdateColours;
+            customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, ColourProvider, defaultHue, CustomUiHueScope.Overlays, API);
+
             UpdateColours();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            customUiHueBinding?.Dispose();
+            base.Dispose(isDisposing);
         }
 
         protected abstract T CreateHeader();
