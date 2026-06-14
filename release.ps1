@@ -40,12 +40,26 @@ foreach ($suf in @("lazer", "torii", "nova")) {
 $tag = "v$base.$($maxN + 1)-$stream"
 
 $sha = (git rev-parse "origin/$branch").Trim()
-$msg = (git log -1 --pretty=%s "origin/$branch").Trim()
+
+# Show EVERYTHING that will ship in this release: all commits since the previous
+# release of this stream, not just the tip (which was misleading - it looked like
+# only the last commit was going out).
+$prevTag = (git describe --tags --match "v*-$stream" --abbrev=0 "origin/$branch" 2>$null)
 
 Write-Host ""
 Write-Host "  release:  $tag"
 Write-Host "  branch:   origin/$branch"
-Write-Host "  commit:   $($sha.Substring(0,10))  $msg"
+Write-Host "  tip:      $($sha.Substring(0,10))"
+
+if ($prevTag) {
+    $commits = @(git log "$prevTag..origin/$branch" --pretty="    %h  %s")
+    Write-Host "  changes since ${prevTag}:  $($commits.Count) commit(s)"
+    if ($commits.Count -gt 0) { $commits | ForEach-Object { Write-Host $_ } }
+    else { Write-Host "    (no new commits since last release - re-tagging the same tip)" }
+}
+else {
+    Write-Host "  commit:   $((git log -1 --pretty=%s "origin/$branch").Trim())"
+}
 Write-Host ""
 $ok = Read-Host "create + push this tag? this publishes a release. type 'yes'"
 if ($ok -ne "yes") { Write-Host "cancelled, nothing pushed."; exit 1 }
