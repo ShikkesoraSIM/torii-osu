@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Difficulty.Skills;
+using osu.Game.Rulesets.Difficulty.Utils;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Difficulty.Evaluators;
 using osu.Game.Rulesets.Osu.Mods;
@@ -16,15 +17,12 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
     /// </summary>
     public class Flashlight : StrainSkill
     {
-        private readonly bool hasHiddenMod;
-
         public Flashlight(Mod[] mods)
             : base(mods)
         {
-            hasHiddenMod = mods.Any(m => m is OsuModHidden);
         }
 
-        private double skillMultiplier => 0.05512;
+        private double skillMultiplier => 0.058;
         private double strainDecayBase => 0.15;
 
         private double currentStrain;
@@ -35,10 +33,41 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
 
         protected override double StrainValueAt(DifficultyHitObject current)
         {
+            if (!Mods.Any(m => m is OsuModFlashlight))
+                return 0;
+
             currentStrain *= strainDecay(current.DeltaTime);
-            currentStrain += FlashlightEvaluator.EvaluateDifficultyOf(current, hasHiddenMod) * skillMultiplier;
+            currentStrain += calculateModAdjustedDifficulty(current) * skillMultiplier;
 
             return currentStrain;
+        }
+
+        private double calculateModAdjustedDifficulty(DifficultyHitObject current)
+        {
+            double difficulty = FlashlightEvaluator.EvaluateDifficultyOf(current, Mods);
+
+            if (Mods.Any(m => m is OsuModTouchDevice))
+                difficulty = Math.Pow(difficulty, 0.9);
+
+            if (Mods.Any(m => m is OsuModMagnetised))
+            {
+                float magnetisedStrength = Mods.OfType<OsuModMagnetised>().First().AttractionStrength.Value;
+                difficulty *= 1.0 - magnetisedStrength;
+            }
+
+            if (Mods.Any(m => m is OsuModDeflate))
+            {
+                float deflateInitialScale = Mods.OfType<OsuModDeflate>().First().StartScale.Value;
+                difficulty *= Math.Clamp(DifficultyCalculationUtils.ReverseLerp(deflateInitialScale, 11, 1), 0.1, 1);
+            }
+
+            if (Mods.Any(m => m is OsuModRelax))
+                difficulty *= 0.7;
+
+            if (Mods.Any(m => m is OsuModAutopilot))
+                difficulty *= 0.4;
+
+            return difficulty;
         }
 
         public override double DifficultyValue() => GetCurrentStrainPeaks().Sum();
