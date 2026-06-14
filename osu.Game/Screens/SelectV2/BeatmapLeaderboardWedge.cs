@@ -322,6 +322,13 @@ namespace osu.Game.Screens.SelectV2
 
         private void updateScores()
         {
+            // The global leaderboard manager outlives this wedge, so an in-flight fetch
+            // can complete (and fire this bound handler) after the wedge is disposed -
+            // notably when returning from gameplay after setting a new score. Touching
+            // the drawable then throws ObjectDisposedException, so bail.
+            if (IsDisposed)
+                return;
+
             var scores = fetchedScores.Value;
 
             if (scores == null) return;
@@ -340,6 +347,11 @@ namespace osu.Game.Screens.SelectV2
 
         protected void SetScores(IEnumerable<ScoreInfo> scores, ScoreInfo? userScore = null, int? totalCount = null)
         {
+            // Defense in depth: LoadComponentsAsync below throws if the wedge has been
+            // disposed (e.g. a late leaderboard callback after leaving song select).
+            if (IsDisposed)
+                return;
+
             cancellationTokenSource?.Cancel();
             cancellationTokenSource = new CancellationTokenSource();
 
