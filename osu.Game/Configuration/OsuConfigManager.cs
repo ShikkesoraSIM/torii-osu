@@ -170,6 +170,9 @@ namespace osu.Game.Configuration
             // Torii: server pulse toolbar widget (live "currently playing" stats).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
+            // Torii: cosmetic UI theme (default / grayscale / midnight variants).
+            SetDefault(OsuSetting.UITheme, UIThemeOption.Torii);
+
             // Torii cosmetics / economy / UI
             SetDefault(OsuSetting.UserAuraEnabled, true);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
@@ -502,6 +505,7 @@ namespace osu.Game.Configuration
 
         // Torii
         ToriiServerPulseEnabled,
+        UITheme,
 
         // Torii cosmetics / economy / UI
         UserAuraEnabled,

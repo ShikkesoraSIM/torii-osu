@@ -374,6 +374,10 @@ namespace osu.Game
 
             dependencies.Cache(SessionStatics = new SessionStatics());
             dependencies.Cache(hitErrorTracker = new SessionAverageHitErrorTracker());
+
+            // Torii: pin the cosmetic UI theme BEFORE OsuColour is constructed (its palette is
+            // captured into the instance at build time). The dropdown prompts a restart on change.
+            OsuColour.SetThemeFromConfig(LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme));
             dependencies.Cache(Colours = new OsuColour());
 
             RegisterImportHandler(BeatmapManager);

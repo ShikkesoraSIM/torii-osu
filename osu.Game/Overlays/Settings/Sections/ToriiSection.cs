@@ -23,6 +23,7 @@ namespace osu.Game.Overlays.Settings.Sections
 
         public ToriiSection()
         {
+            Add(new ToriiInterfaceSettings());
             Add(new ToriiServerSettings());
         }
     }
