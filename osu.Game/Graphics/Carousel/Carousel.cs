@@ -906,7 +906,17 @@ namespace osu.Game.Graphics.Carousel
                 Scroll.Panels.ChangeChildDepth(panel, c.Item.DepthLayer + normalisedDepth);
 
                 if (c.DrawYPosition != c.Item.CarouselYPosition)
-                    c.DrawYPosition = Interpolation.DampContinuously(c.DrawYPosition, c.Item.CarouselYPosition, 50, Time.Elapsed);
+                {
+                    // Snap to the target once within a sub-pixel of it. DampContinuously only
+                    // asymptotes, so without a snap the position keeps changing by tiny amounts
+                    // every frame, re-invalidating each panel's layout forever (a big chunk of
+                    // the per-frame "refreshes" cost on large libraries). Snapping lets settled
+                    // panels stop updating entirely; only actively-moving panels keep damping.
+                    double target = c.Item.CarouselYPosition;
+                    c.DrawYPosition = Math.Abs(c.DrawYPosition - target) < 0.5
+                        ? target
+                        : Interpolation.DampContinuously(c.DrawYPosition, target, 50, Time.Elapsed);
+                }
 
                 panel.X = GetPanelXOffset(panel);
 
@@ -1044,10 +1054,14 @@ namespace osu.Game.Graphics.Carousel
             {
                 // To make transitions of items appearing in the flow look good, do a pass and make sure newly added items spawn from
                 // just beneath the *current interpolated position* of the previous panel.
+                // Torii: filter to on-screen panels using the already-computed Y bounds rather
+                // than ScreenSpaceDrawQuad.Intersects, which forces a screen-space quad (layout)
+                // computation per panel on every scroll step where new panels appear.
                 var orderedPanels = Scroll.Panels
-                                          .Where(p => Scroll.ScreenSpaceDrawQuad.Intersects(p.ScreenSpaceDrawQuad))
                                           .OfType<ICarouselPanel>()
-                                          .Where(p => p.Item != null)
+                                          .Where(p => p.Item != null
+                                                      && p.Item.CarouselYPosition >= visibleUpperBound
+                                                      && p.Item.CarouselYPosition <= visibleBottomBound)
                                           .OrderBy(p => p.Item!.CarouselYPosition)
                                           .ToList();
 
