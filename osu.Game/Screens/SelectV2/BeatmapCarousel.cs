@@ -365,6 +365,9 @@ namespace osu.Game.Screens.SelectV2
                         {
                             setExpansionStateOfGroup(ExpandedGroup, false);
                             ExpandedGroup = null;
+                            // collapsing here bypasses setExpandedGroup, so the random
+                            // candidate snapshot must be invalidated by hand.
+                            invalidateRandomCandidates();
                             return;
                         }
 
