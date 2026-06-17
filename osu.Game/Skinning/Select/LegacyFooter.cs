@@ -3,13 +3,17 @@
 
 using System;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Utils;
 using osu.Game.Graphics.Containers;
 using osu.Game.Screens.Menu;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Skinning.Select
 {
@@ -40,13 +44,27 @@ namespace osu.Game.Skinning.Select
             const float options_button_off = random_button_off + 48 * 1.6f;
             const float user_pos_off = options_button_off + 48 * 2 * 1.6f;
 
+            var bottomTexture = skin.GetTexture(@"songselect-bottom");
+
             InternalChildren = new Drawable[]
             {
+                // Torii: stable's "songselect-bottom" bar is not part of lazer's bundled
+                // resources, so fall back to a dark vertical gradient (transparent at the
+                // top, dark at the bottom) that mimics stable's footer backing. If a skin
+                // does ship the texture, draw it on top.
+                new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0f), Color4.Black.Opacity(0.85f)),
+                },
                 new Sprite
                 {
-                    Texture = skin.GetTexture(@"songselect-bottom"),
+                    Texture = bottomTexture,
                     RelativeSizeAxes = Axes.X,
                     Width = 1,
+                    Alpha = bottomTexture != null ? 1 : 0,
                 },
                 new LegacyBackButton
                 {

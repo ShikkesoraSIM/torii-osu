@@ -7,7 +7,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Primitives;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Game.Audio;
@@ -25,14 +25,18 @@ namespace osu.Game.Skinning.Select
 {
     public partial class LegacyFooterUser : CompositeDrawable
     {
-        private Sprite background = null!;
+        private Box background = null!;
         private OsuSpriteText usernameText = null!;
         private OsuTextFlowContainer infoText = null!;
         private OsuSpriteText rankText = null!;
         private Sprite rulesetIcon = null!;
-        private Sprite levelBar = null!;
+        private Box levelBar = null!;
         private UpdateableAvatar avatar = null!;
         private SkinnableSound hoverSound = null!;
+
+        private const float panel_width = 340;
+        private const float panel_height = 82;
+        private const float level_bar_max_width = 232;
 
         [Resolved]
         private LocalUserStatisticsProvider userStatisticsProvider { get; set; } = null!;
@@ -49,63 +53,77 @@ namespace osu.Game.Skinning.Select
         [BackgroundDependencyLoader]
         private void load()
         {
-            AutoSizeAxes = Axes.Both;
+            // Torii: the upstream layout (osu-stable reference coordinates with negative
+            // positions + OriginPosition offsets) renders incorrectly inside lazer's old
+            // song-select footer, so this is laid out cleanly inside a fixed-size masked
+            // panel. Same data + visual intent (stable-style user panel), sane coordinates.
+            Size = new Vector2(panel_width, panel_height);
 
-            // reference: https://github.com/peppy/osu-stable-reference/blob/c34a74fb61c17c5667486a12548485d1f03baa2e/osu!/Online/Drawable/User.cs#L622
-            // with minor adjustments to position/size specifications to better match visually (besides multiplying by 1.6)
-            InternalChildren = new Drawable[]
+            InternalChild = new Container
             {
-                usernameText = new OsuSpriteText
+                RelativeSizeAxes = Axes.Both,
+                Masking = true,
+                CornerRadius = 6,
+                Children = new Drawable[]
                 {
-                    Position = new Vector2(50.5f, -2f) * 1.6f,
-                    Font = OsuFont.Default.With(size: 14 * 1.6f),
-                },
-                infoText = new OsuTextFlowContainer(t => t.Font = OsuFont.Default.With(size: 10 * 1.6f))
-                {
-                    Position = new Vector2(50f, 11.5f) * 1.6f,
-                },
-                rulesetIcon = new Sprite
-                {
-                    Position = new Vector2(176, 0) * 1.6f,
-                    Colour = Color4.White.Opacity(70),
-                },
-                rankText = new OsuSpriteText
-                {
-                    Position = new Vector2(200, 9) * 1.6f,
-                    Font = OsuFont.Default.With(size: 36 * 1.6f * 0.9f),
-                    Origin = Anchor.TopRight,
-                },
-                levelBar = new Sprite
-                {
-                    Texture = skins.DefaultClassicSkin.GetTexture("levelbar"),
-                    // fixing the texture rectangle allows us to crop the texture by the drawable width.
-                    TextureRelativeSizeAxes = Axes.Y,
-                    TextureRectangle = new RectangleF(0, 0, 200, 1),
-                    OriginPosition = new Vector2(-120, -62),
-                    Colour = new Color4(252, 184, 6, 255),
-                    Alpha = 0.7f,
-                },
-                new Sprite
-                {
-                    Texture = skins.DefaultClassicSkin.GetTexture("levelbar-bg"),
-                    OriginPosition = new Vector2(-120, -62),
-                    Alpha = 0.4f,
-                },
-                background = new Sprite
-                {
-                    Texture = skins.DefaultClassicSkin.GetTexture("user-bg"),
-                    // https://github.com/peppy/osu-stable-reference/blob/c34a74fb61c17c5667486a12548485d1f03baa2e/osu!/Online/Drawable/User.cs#L520-L521
-                    Colour = new Color4(1, 1, 1, 255),
-                    Blending = BlendingParameters.Additive,
-                    Position = new Vector2(-4) * 1.6f,
-                },
-                avatar = new UpdateableAvatar(isInteractive: false, showUserPanelOnHover: false)
-                {
-                    Size = new Vector2(74),
-                    Position = new Vector2(23.5f) * 1.6f,
-                    Origin = Anchor.Centre,
-                },
-                hoverSound = new SkinnableSound(new SampleInfo("click-short")),
+                    background = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = new Color4(20, 20, 20, 255),
+                        Alpha = 0.7f,
+                    },
+                    avatar = new UpdateableAvatar(isInteractive: false, showUserPanelOnHover: false)
+                    {
+                        Size = new Vector2(panel_height - 12),
+                        Position = new Vector2(6, 6),
+                        Masking = true,
+                        CornerRadius = 4,
+                    },
+                    usernameText = new OsuSpriteText
+                    {
+                        Position = new Vector2(panel_height + 4, 6),
+                        Font = OsuFont.GetFont(size: 22, weight: FontWeight.SemiBold),
+                    },
+                    infoText = new OsuTextFlowContainer(t => t.Font = OsuFont.Default.With(size: 15))
+                    {
+                        Position = new Vector2(panel_height + 4, 32),
+                        AutoSizeAxes = Axes.Both,
+                    },
+                    rulesetIcon = new Sprite
+                    {
+                        Anchor = Anchor.TopRight,
+                        Origin = Anchor.TopRight,
+                        Position = new Vector2(-8, 8),
+                        Size = new Vector2(24),
+                        Colour = Color4.White.Opacity(110),
+                    },
+                    rankText = new OsuSpriteText
+                    {
+                        Anchor = Anchor.BottomRight,
+                        Origin = Anchor.BottomRight,
+                        Position = new Vector2(-8, -10),
+                        Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
+                    },
+                    new Box
+                    {
+                        // level bar background
+                        Anchor = Anchor.BottomLeft,
+                        Origin = Anchor.BottomLeft,
+                        Position = new Vector2(panel_height + 4, -5),
+                        Size = new Vector2(level_bar_max_width, 4),
+                        Colour = Color4.White.Opacity(40),
+                    },
+                    levelBar = new Box
+                    {
+                        // level bar fill
+                        Anchor = Anchor.BottomLeft,
+                        Origin = Anchor.BottomLeft,
+                        Position = new Vector2(panel_height + 4, -5),
+                        Size = new Vector2(0, 4),
+                        Colour = new Color4(252, 184, 6, 255),
+                    },
+                    hoverSound = new SkinnableSound(new SampleInfo("click-short")),
+                }
             };
         }
 
@@ -156,30 +174,33 @@ namespace osu.Game.Skinning.Select
                 {
                     int rank = statistics.GlobalRank.Value;
 
+                    rankText.Show();
                     rankText.Text = $"#{rank}";
 
+                    // Stable's faded rank-tier colours, bumped to stay readable on our panel.
                     if (rank > 100000)
-                        rankText.Colour = new Color4(255, 255, 255, 40);
+                        rankText.Colour = new Color4(255, 255, 255, 130);
                     else if (rank > 50000)
-                        rankText.Colour = new Color4(255, 255, 255, 60);
+                        rankText.Colour = new Color4(255, 255, 255, 160);
                     else if (rank > 1000)
-                        rankText.Colour = new Color4(255, 255, 255, 80);
+                        rankText.Colour = new Color4(255, 255, 255, 190);
                     else if (rank > 10)
-                        rankText.Colour = new Color4(255, 255, 255, 100);
+                        rankText.Colour = new Color4(255, 255, 255, 220);
                     else if (rank > 1)
-                        rankText.Colour = new Color4(244, 218, 73, 120);
+                        rankText.Colour = new Color4(244, 218, 73, 255);
                     else
-                        rankText.Colour = new Color4(88, 171, 248, 120);
+                        rankText.Colour = new Color4(88, 171, 248, 255);
                 }
 
-                rulesetIcon.Alpha = 70 / 255f;
+                rulesetIcon.Show();
+                rulesetIcon.Alpha = 110 / 255f;
                 rulesetIcon.Texture = skins.DefaultClassicSkin.GetTexture($"mode-{ruleset.Value.ShortName}-small");
 
                 if (statistics.Level.Progress == 0)
                     levelBar.Hide();
                 else
                 {
-                    levelBar.Width = 198 * statistics.Level.Progress / 100f;
+                    levelBar.Width = level_bar_max_width * statistics.Level.Progress / 100f;
                     levelBar.Show();
                 }
 
