@@ -41,6 +41,14 @@ namespace osu.Game.Screens
 
         public virtual bool ShowFooter => false;
 
+        /// <summary>
+        /// Torii: whether this screen allows the legacy (stable-style) song-select
+        /// footer chrome to replace the default footer when a legacy skin is active.
+        /// Only the solo song select opts in (its footer is [mods, random, options],
+        /// which the legacy chrome mirrors).
+        /// </summary>
+        public virtual bool AllowLegacyFooterSkinning => false;
+
         public virtual bool AllowExternalScreenChange => false;
 
         public virtual bool HideOverlaysOnEnter => false;

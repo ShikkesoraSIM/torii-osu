@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -20,6 +21,8 @@ using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
 using osu.Game.Screens.Menu;
+using osu.Game.Skinning;
+using osu.Game.Skinning.Select;
 using osuTK;
 
 namespace osu.Game.Screens.Footer
@@ -51,10 +54,45 @@ namespace osu.Game.Screens.Footer
         private readonly List<OverlayContainer> overlays = new List<OverlayContainer>();
 
         private Box background = null!;
+        private GridContainer buttonsGrid = null!;
         private FillFlowContainer<ScreenFooterButton> buttonsFlow = null!;
         private Container overlayContentContainer = null!;
         private Container<ScreenFooterButton> hiddenButtonsContainer = null!;
         private IDisposable? customUiHueBinding;
+
+        // ─── Torii: legacy (stable-style) song-select footer ────────────────
+        //
+        // frenzibyte's upstream PRs (ppy/osu #37974 + #37676/#37855/#37876) add
+        // the skinnable legacy footer COMPONENTS but leave them unwired ("hooked
+        // up at a later stage"). We mount the housing here and swap the default
+        // lazer chrome for it when (a) the current screen opts in via
+        // LegacySkinningEnabled (song select) AND (b) the active skin is a legacy
+        // skin AND (c) no footer overlay (mod select etc.) is open. When inactive
+        // the default footer behaves exactly as before.
+        [Resolved]
+        private SkinManager skins { get; set; } = null!;
+
+        private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
+        private LegacyFooter? legacyFooter;
+        private bool legacySkinningEnabled;
+
+        /// <summary>
+        /// Set by the current screen (song select) to allow the legacy footer
+        /// chrome to take over when a legacy skin is active. Other screens leave
+        /// this false so their footer is never replaced.
+        /// </summary>
+        public bool LegacySkinningEnabled
+        {
+            get => legacySkinningEnabled;
+            set
+            {
+                if (legacySkinningEnabled == value)
+                    return;
+
+                legacySkinningEnabled = value;
+                updateLegacyFooterState();
+            }
+        }
 
         private LogoTrackingContainer logoTrackingContainer = null!;
         private IDisposable? logoTracking;
@@ -92,7 +130,7 @@ namespace osu.Game.Screens.Footer
                     RelativeSizeAxes = Axes.Both,
                     Colour = colourProvider.Background5
                 },
-                new GridContainer
+                buttonsGrid = new GridContainer
                 {
                     RelativeSizeAxes = Axes.Both,
                     Padding = new MarginPadding { Left = OsuGame.SCREEN_EDGE_MARGIN + ScreenBackButton.BUTTON_WIDTH + padding },
@@ -149,6 +187,20 @@ namespace osu.Game.Screens.Footer
                     f.Origin = Anchor.Centre;
                     f.Position = new Vector2(-76, -36);
                 })),
+                // Legacy chrome sits at the bottom and is faded in (over the hidden
+                // default chrome) when the swap is active. The osu! logo is left on
+                // the default tracking facade above, whose position (-76,-36) matches
+                // the legacy footer's own facade, so no logo re-routing is needed.
+                legacyFooter = new LegacyFooter
+                {
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Alpha = 0,
+                    BackAction = onBackPressed,
+                    ModsAction = () => triggerScreenFooterButton(0),
+                    RandomAction = () => triggerScreenFooterButton(1),
+                    OptionsAction = () => triggerScreenFooterButton(2),
+                },
             };
 
             // Base hue: only applied when no overlay is "owning" the footer
@@ -169,6 +221,38 @@ namespace osu.Game.Screens.Footer
             });
 
             customUiAccentBinding = bindFooterAccent(config);
+
+            currentSkin.BindTo(skins.CurrentSkin);
+            currentSkin.BindValueChanged(_ => updateLegacyFooterState());
+        }
+
+        private void triggerScreenFooterButton(int index)
+        {
+            // The legacy footer's mod/random/options buttons forward to the real
+            // (currently hidden) ScreenFooterButtons of the song-select screen, so
+            // they drive identical behaviour. Only reached while the swap is active,
+            // where the button order is [mods, random, options].
+            var button = buttonsFlow.ElementAtOrDefault(index);
+            button?.TriggerClick();
+        }
+
+        private void updateLegacyFooterState()
+        {
+            if (legacyFooter == null)
+                return;
+
+            bool active = legacySkinningEnabled
+                          && ActiveOverlay == null
+                          && currentSkin.Value is LegacySkin;
+
+            legacyFooter.FadeTo(active ? 1 : 0, 120, Easing.OutQuint);
+
+            // Hide the default lazer chrome behind the legacy footer. The osu! logo
+            // facade is intentionally left visible (transparent container; positions
+            // the shared logo where the legacy footer expects it).
+            background.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
+            buttonsGrid.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
+            BackButton.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
         }
 
         [Resolved(CanBeNull = true)]
@@ -336,6 +420,10 @@ namespace osu.Game.Screens.Footer
 
             ActiveOverlay = overlay;
 
+            // An overlay (mod select etc.) owns the footer content now, so step the
+            // legacy chrome aside and let the default overlay-footer content show.
+            updateLegacyFooterState();
+
             Debug.Assert(temporarilyHiddenButtons.Count == 0);
 
             var targetButton = buttonsFlow.SingleOrDefault(b => b.Overlay == overlay);
@@ -411,6 +499,9 @@ namespace osu.Game.Screens.Footer
 
             activeOverlayContent = null;
             ActiveOverlay = null;
+
+            // Overlay closed; the legacy chrome can take over again if applicable.
+            updateLegacyFooterState();
         }
 
         private void updateColourScheme(int hue)

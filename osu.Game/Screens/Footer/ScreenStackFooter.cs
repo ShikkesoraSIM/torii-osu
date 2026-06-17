@@ -92,10 +92,15 @@ namespace osu.Game.Screens.Footer
             {
                 ((BindableBool)backButtonVisibility).Value = true;
 
+                Footer.LegacySkinningEnabled = false;
                 Footer.SetButtons([]);
                 Footer.Hide();
                 return;
             }
+
+            // Torii: let the legacy footer chrome take over only on opted-in screens
+            // (solo song select). Set before SetButtons so the swap reads the right state.
+            Footer.LegacySkinningEnabled = osuScreen.ShowFooter && osuScreen.AllowLegacyFooterSkinning;
 
             if (osuScreen.ShowFooter)
             {

@@ -29,6 +29,10 @@ namespace osu.Game.Screens.Select
     {
         protected override UserActivity InitialActivity => new UserActivity.ChoosingBeatmap();
 
+        // Torii: the legacy stable-style footer (back button + mode/mods/random/options
+        // + user rank/pp banner) takes over here when a legacy skin is active.
+        public override bool AllowLegacyFooterSkinning => true;
+
         private PlayerLoader? playerLoader;
         private IReadOnlyList<Mod>? modsAtGameplayStart;
 
