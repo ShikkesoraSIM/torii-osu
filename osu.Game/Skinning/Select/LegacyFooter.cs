@@ -25,6 +25,7 @@ namespace osu.Game.Skinning.Select
 
         private const float buttons_pos_4_3 = 120 * 1.6f;
         private const float buttons_pos_16_9 = 140 * 1.6f;
+        private const float footer_height = 90;
 
         // Torii: wired by the host footer so the legacy chrome drives the real
         // song-select actions. The upstream housing PR leaves these unhooked.
@@ -49,15 +50,17 @@ namespace osu.Game.Skinning.Select
             InternalChildren = new Drawable[]
             {
                 // Torii: stable's "songselect-bottom" bar is not part of lazer's bundled
-                // resources, so fall back to a dark vertical gradient (transparent at the
-                // top, dark at the bottom) that mimics stable's footer backing. If a skin
-                // does ship the texture, draw it on top.
+                // resources, so fall back to a fixed-height dark gradient that mimics
+                // stable's footer backing. (A RelativeSizeAxes.Y box can't size against
+                // this AutoSizeAxes.Y parent, which is why the bar previously rendered
+                // empty.) If a skin does ship the texture, draw it on top.
                 new Box
                 {
-                    RelativeSizeAxes = Axes.Both,
+                    RelativeSizeAxes = Axes.X,
+                    Height = footer_height,
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0f), Color4.Black.Opacity(0.85f)),
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.25f), Color4.Black.Opacity(0.72f)),
                 },
                 new Sprite
                 {

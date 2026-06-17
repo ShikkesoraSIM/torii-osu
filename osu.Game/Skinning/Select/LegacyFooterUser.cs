@@ -16,6 +16,8 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Overlays;
 using osu.Game.Rulesets;
 using osu.Game.Users.Drawables;
 using osuTK;
@@ -34,9 +36,9 @@ namespace osu.Game.Skinning.Select
         private UpdateableAvatar avatar = null!;
         private SkinnableSound hoverSound = null!;
 
-        private const float panel_width = 340;
-        private const float panel_height = 82;
-        private const float level_bar_max_width = 232;
+        private const float panel_width = 330;
+        private const float panel_height = 90;
+        private const float level_bar_max_width = 224;
 
         [Resolved]
         private LocalUserStatisticsProvider userStatisticsProvider { get; set; } = null!;
@@ -50,6 +52,11 @@ namespace osu.Game.Skinning.Select
         [Resolved]
         private SkinManager skins { get; set; } = null!;
 
+        [Resolved]
+        private UserProfileOverlay? profileOverlay { get; set; }
+
+        private APIUser? currentUser;
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -59,71 +66,71 @@ namespace osu.Game.Skinning.Select
             // panel. Same data + visual intent (stable-style user panel), sane coordinates.
             Size = new Vector2(panel_width, panel_height);
 
-            InternalChild = new Container
+            const float text_x = panel_height - 4;
+
+            InternalChildren = new Drawable[]
             {
-                RelativeSizeAxes = Axes.Both,
-                Masking = true,
-                CornerRadius = 6,
-                Children = new Drawable[]
+                // Subtle hover highlight only; the dark backing comes from the footer bar
+                // (LegacyFooter), so the banner doesn't double up the darkness.
+                background = new Box
                 {
-                    background = new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = new Color4(20, 20, 20, 255),
-                        Alpha = 0.7f,
-                    },
-                    avatar = new UpdateableAvatar(isInteractive: false, showUserPanelOnHover: false)
-                    {
-                        Size = new Vector2(panel_height - 12),
-                        Position = new Vector2(6, 6),
-                        Masking = true,
-                        CornerRadius = 4,
-                    },
-                    usernameText = new OsuSpriteText
-                    {
-                        Position = new Vector2(panel_height + 4, 6),
-                        Font = OsuFont.GetFont(size: 22, weight: FontWeight.SemiBold),
-                    },
-                    infoText = new OsuTextFlowContainer(t => t.Font = OsuFont.Default.With(size: 15))
-                    {
-                        Position = new Vector2(panel_height + 4, 32),
-                        AutoSizeAxes = Axes.Both,
-                    },
-                    rulesetIcon = new Sprite
-                    {
-                        Anchor = Anchor.TopRight,
-                        Origin = Anchor.TopRight,
-                        Position = new Vector2(-8, 8),
-                        Size = new Vector2(24),
-                        Colour = Color4.White.Opacity(110),
-                    },
-                    rankText = new OsuSpriteText
-                    {
-                        Anchor = Anchor.BottomRight,
-                        Origin = Anchor.BottomRight,
-                        Position = new Vector2(-8, -10),
-                        Font = OsuFont.GetFont(size: 34, weight: FontWeight.Bold),
-                    },
-                    new Box
-                    {
-                        // level bar background
-                        Anchor = Anchor.BottomLeft,
-                        Origin = Anchor.BottomLeft,
-                        Position = new Vector2(panel_height + 4, -5),
-                        Size = new Vector2(level_bar_max_width, 4),
-                        Colour = Color4.White.Opacity(40),
-                    },
-                    levelBar = new Box
-                    {
-                        // level bar fill
-                        Anchor = Anchor.BottomLeft,
-                        Origin = Anchor.BottomLeft,
-                        Position = new Vector2(panel_height + 4, -5),
-                        Size = new Vector2(0, 4),
-                        Colour = new Color4(252, 184, 6, 255),
-                    },
-                    hoverSound = new SkinnableSound(new SampleInfo("click-short")),
-                }
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4.White,
+                    Alpha = 0,
+                },
+                avatar = new UpdateableAvatar(isInteractive: false, showUserPanelOnHover: false)
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Size = new Vector2(panel_height - 18),
+                    X = 3,
+                    Masking = true,
+                    CornerRadius = 4,
+                },
+                usernameText = new OsuSpriteText
+                {
+                    Position = new Vector2(text_x, 10),
+                    Font = OsuFont.GetFont(size: 19, weight: FontWeight.SemiBold),
+                },
+                infoText = new OsuTextFlowContainer(t => t.Font = OsuFont.Default.With(size: 13))
+                {
+                    Position = new Vector2(text_x, 35),
+                    AutoSizeAxes = Axes.Both,
+                },
+                rulesetIcon = new Sprite
+                {
+                    Anchor = Anchor.TopRight,
+                    Origin = Anchor.TopRight,
+                    Position = new Vector2(-8, 10),
+                    Size = new Vector2(22),
+                    Colour = Color4.White.Opacity(110),
+                },
+                rankText = new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreRight,
+                    Origin = Anchor.CentreRight,
+                    Position = new Vector2(-10, 0),
+                    Font = OsuFont.GetFont(size: 32, weight: FontWeight.Bold),
+                },
+                new Box
+                {
+                    // level bar background
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Position = new Vector2(text_x, -8),
+                    Size = new Vector2(level_bar_max_width, 4),
+                    Colour = Color4.White.Opacity(45),
+                },
+                levelBar = new Box
+                {
+                    // level bar fill
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    Position = new Vector2(text_x, -8),
+                    Size = new Vector2(0, 4),
+                    Colour = new Color4(252, 184, 6, 255),
+                },
+                hoverSound = new SkinnableSound(new SampleInfo("click-short")),
             };
         }
 
@@ -149,6 +156,8 @@ namespace osu.Game.Skinning.Select
             // the local user's anyway). Falls back gracefully to a guest/offline state.
             var user = statistics?.User ?? api.LocalUser.Value;
 
+            currentUser = statistics == null || user == null || user.Id <= 1 ? null : user;
+
             if (statistics == null || user == null || user.Id <= 1)
             {
                 usernameText.Text = string.Empty;
@@ -162,11 +171,9 @@ namespace osu.Game.Skinning.Select
             {
                 usernameText.Text = user.Username;
                 infoText.Clear();
-                infoText.AddText($"Performance:{statistics.PP:N0}pp");
+                infoText.AddText($"Performance: {statistics.PP:N0}pp");
                 infoText.NewLine();
-                infoText.AddText($"Accuracy:{statistics.DisplayAccuracy}");
-                infoText.NewLine();
-                infoText.AddText($"Lv{statistics.Level.Current}");
+                infoText.AddText($"Accuracy: {statistics.DisplayAccuracy}    Lv{statistics.Level.Current}");
 
                 if (!statistics.GlobalRank.HasValue)
                     rankText.Hide();
@@ -210,15 +217,24 @@ namespace osu.Game.Skinning.Select
 
         protected override bool OnHover(HoverEvent e)
         {
-            background.FadeColour(new Color4(41, 41, 41, 255), 200);
+            background.FadeTo(0.12f, 200, Easing.OutQuint);
             hoverSound.Play();
             return true;
         }
 
         protected override void OnHoverLost(HoverLostEvent e)
         {
-            background.FadeColour(new Color4(1, 1, 1, 255), 200);
+            background.FadeTo(0, 200, Easing.OutQuint);
             base.OnHoverLost(e);
+        }
+
+        protected override bool OnClick(ClickEvent e)
+        {
+            // Stable opens the local user's profile when the footer user panel is clicked.
+            if (currentUser != null)
+                profileOverlay?.ShowUser(currentUser);
+
+            return true;
         }
 
         protected override void Dispose(bool isDisposing)
