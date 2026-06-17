@@ -157,6 +157,15 @@ namespace osu.Game.Screens.Play
         protected SkipOverlay SkipIntroOverlay { get; private set; }
         private SkipOverlay skipOutroOverlay;
 
+        // Torii: mid-map break-skip button + its one-time briefing popup. Both null
+        // when the feature is off (setting disabled, replay, or skipping not allowed).
+        private SkipBreakOverlay skipBreakOverlay;
+        private SkipBreakBriefingOverlay skipBreakBriefingOverlay;
+
+        private Bindable<bool> skipBreaksEnabled;
+        private Bindable<bool> skipBreaksSingleConfirmation;
+        private Bindable<bool> skipBreaksBriefingSeen;
+
         protected ScoreProcessor ScoreProcessor { get; private set; }
 
         protected HealthProcessor HealthProcessor { get; private set; }
@@ -290,6 +299,11 @@ namespace osu.Game.Screens.Play
             config.BindWith(OsuSetting.BeatmapSkins, rulesetSkinProvider.BeatmapSkins);
             config.BindWith(OsuSetting.BeatmapColours, rulesetSkinProvider.BeatmapColours);
             config.BindWith(OsuSetting.BeatmapHitsounds, rulesetSkinProvider.BeatmapHitsounds);
+
+            // Torii: mid-map break-skip settings.
+            skipBreaksEnabled = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksEnabled);
+            skipBreaksSingleConfirmation = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksSingleConfirmation);
+            skipBreaksBriefingSeen = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksBriefingSeen);
 
             GameplayClockContainer.Add(new GameplayScrollWheelHandling());
 
@@ -516,6 +530,17 @@ namespace osu.Game.Screens.Play
                         RequestSkip = () => progressToResults(false),
                         Alpha = 0
                     },
+                    // Torii: mid-map break-skip button. Only created for solo play /
+                    // saved replays (AllowBreakSkipping) when the setting is on — a
+                    // forward seek desyncs synced multiplayer + live spectating. Falls
+                    // back to an empty Container (the array can't hold a null child).
+                    (skipBreakOverlay = skipBreaksEnabled.Value && AllowBreakSkipping
+                        ? new SkipBreakOverlay(breakTracker, skipBreaksSingleConfirmation, skipBreaksBriefingSeen)
+                        {
+                            RequestSkip = PerformBreakSkip,
+                            RequestBriefing = showSkipBreakBriefing,
+                        }
+                        : null) ?? (Drawable)new Container(),
                     DrawableRuleset.ResumeOverlay?.CreateProxy() ?? new Container(),
                     PauseOverlay = new PauseOverlay
                     {
@@ -524,6 +549,10 @@ namespace osu.Game.Screens.Play
                         OnRetry = () => Restart(),
                         OnQuit = () => PerformExitWithConfirmation(),
                     },
+                    // Torii: one-time mid-map skip briefing, created only alongside the skip overlay.
+                    (skipBreakBriefingOverlay = skipBreakOverlay != null
+                        ? new SkipBreakBriefingOverlay(skipBreaksSingleConfirmation) { OnDismiss = onSkipBreakBriefingDismissed }
+                        : null) ?? (Drawable)new Container(),
                 },
             };
 
@@ -531,6 +560,8 @@ namespace osu.Game.Screens.Play
             {
                 SkipIntroOverlay.Expire();
                 skipOutroOverlay.Expire();
+                skipBreakOverlay?.Expire();
+                skipBreakBriefingOverlay?.Expire();
             }
 
             return container;
@@ -729,6 +760,60 @@ namespace osu.Game.Screens.Play
 
             // return samplePlaybackDisabled.Value to what is defined by the beatmap's current state
             updateSampleDisabledState();
+        }
+
+        /// <summary>
+        /// Torii: perform a mid-map break skip (forward clock seek to the break end lead-in).
+        /// </summary>
+        protected void PerformBreakSkip(double seekTarget)
+        {
+            // AllowBreakSkipping is the safety gate: solo + saved replays can seek freely;
+            // synced multiplayer / live spectating cannot. The overlay shouldn't exist when
+            // this fails, but guard the seek regardless.
+            if (!Configuration.AllowSkipping || !AllowBreakSkipping)
+                return;
+
+            // Never seek backwards (defends against a stale target a frame late).
+            if (seekTarget <= GameplayClockContainer.CurrentTime)
+                return;
+
+            samplePlaybackDisabled.Value = true;
+            GameplayClockContainer.Seek(seekTarget);
+            updateSampleDisabledState();
+        }
+
+        /// <summary>
+        /// Torii: whether the mid-map break skip is available. It's a forward seek, fine for
+        /// solo play + saved replays but not synced multiplayer (AllowPause false) or live
+        /// spectating (overridden false).
+        /// </summary>
+        protected virtual bool AllowBreakSkipping => Configuration.AllowPause;
+
+        /// <summary>
+        /// Torii: show the one-time mid-map skip briefing. Soft-pauses the gameplay clock
+        /// (no pause menu) while it's up; the triggering press is spent on discovery.
+        /// </summary>
+        private void showSkipBreakBriefing()
+        {
+            if (skipBreakBriefingOverlay == null)
+                return;
+
+            if (skipBreakBriefingOverlay.State.Value == Visibility.Visible)
+                return;
+
+            GameplayClockContainer.Stop();
+            skipBreakBriefingOverlay.Show();
+        }
+
+        private void onSkipBreakBriefingDismissed()
+        {
+            // Persist "seen": the briefing never shows again; the skip button switches to its
+            // normal confirm behaviour.
+            skipBreaksBriefingSeen.Value = true;
+
+            // Resume unless the attempt ended while the popup was open.
+            if (!GameplayState.HasFailed && !GameplayState.HasPassed)
+                GameplayClockContainer.Start();
         }
 
         /// <summary>

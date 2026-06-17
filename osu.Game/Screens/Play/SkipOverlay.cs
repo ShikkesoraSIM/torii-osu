@@ -304,14 +304,15 @@ namespace osu.Game.Screens.Play
             public override void Show() => State = Visibility.Visible;
         }
 
-        private partial class ButtonContainer : VisibilityContainer
+        // Torii: internal (not private) so SkipBreakOverlay can reuse the same button visuals.
+        internal partial class ButtonContainer : VisibilityContainer
         {
             protected override void PopIn() => this.FadeIn(fade_time);
 
             protected override void PopOut() => this.FadeOut(fade_time);
         }
 
-        private partial class Button : OsuClickableContainer
+        internal partial class Button : OsuClickableContainer
         {
             private Color4 colourNormal;
             private Color4 colourHover;

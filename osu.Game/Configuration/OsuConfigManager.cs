@@ -207,6 +207,9 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.AlphaStableSongSelectEnabled, false);
             SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
+            SetDefault(OsuSetting.ToriiSkipBreaksEnabled, true);
+            SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
+            SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
@@ -543,5 +546,8 @@ namespace osu.Game.Configuration
         AlphaStableSongSelectEnabled,
         AlphaPpDevModeEnabled,
         ToriiConfirmDangerousButtonsOnLongAttempts,
+        ToriiSkipBreaksEnabled,
+        ToriiSkipBreaksSingleConfirmation,
+        ToriiSkipBreaksBriefingSeen,
     }
 }
