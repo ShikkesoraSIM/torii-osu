@@ -113,6 +113,19 @@ namespace osu.Game.Overlays.Toolbar
                                             {
                                                 Action = () => OnHome?.Invoke()
                                             },
+                                            // Torii: small animated "PP-DEV" pill, visible only when the
+                                            // pp-dev variant is active on a Torii endpoint.
+                                            new Container
+                                            {
+                                                RelativeSizeAxes = Axes.Y,
+                                                AutoSizeAxes = Axes.X,
+                                                Child = new ToriiPpDevIndicator
+                                                {
+                                                    Anchor = Anchor.CentreLeft,
+                                                    Origin = Anchor.CentreLeft,
+                                                    Y = 2,
+                                                }
+                                            },
                                         },
                                     },
                                 }
