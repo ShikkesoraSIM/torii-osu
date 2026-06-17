@@ -292,6 +292,11 @@ namespace osu.Game
 
             dependencies.CacheAs(Storage);
 
+            // Torii: tracks which in-game "NEW" feature badges have been seen/dismissed
+            // (sidecar JSON under the torii/ storage dir). Cached after Storage so its
+            // constructor can resolve it. Consumed by NewFeatureBadge on form controls.
+            dependencies.Cache(new osu.Game.Configuration.NewFeatureTracker(Storage));
+
             var largeStore = new LargeTextureStore(Host.Renderer, Host.CreateTextureLoaderStore(new NamespacedResourceStore<byte[]>(Resources, @"Textures")));
             largeStore.AddTextureSource(Host.CreateTextureLoaderStore(CreateOnlineStore()));
             dependencies.Cache(largeStore);

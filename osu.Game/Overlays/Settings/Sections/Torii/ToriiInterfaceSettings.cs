@@ -16,6 +16,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Overlays.Cosmetics;
 using osu.Game.Overlays.Notifications;
 using osuTK;
@@ -28,7 +29,17 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         protected override LocalisableString Header => "Interface";
 
         [Resolved(CanBeNull = true)]
+        private IAPIProvider? api { get; set; }
+
+        [Resolved(CanBeNull = true)]
         private INotificationOverlay? notifications { get; set; }
+
+        // NSFW profile-media preference is server-authoritative (the server swaps
+        // avatar/cover URLs for placeholders before they leave the API), so we GET
+        // the current value on load and PATCH on toggle. suppressNsfwPatch stops the
+        // initial GET assignment from echoing back as a redundant PATCH.
+        private readonly Bindable<bool> nsfwProfileMediaBindable = new BindableBool();
+        private bool suppressNsfwPatch;
 
         // Resolved so the lock can send the user to the cosmetic store, where the
         // accent hue is bought with points. Optional because this subsection also
@@ -50,6 +61,19 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         {
             Children = new Drawable[]
             {
+                // NSFW profile media — mirrors the website's User Preferences toggle so
+                // users get the same control in-game. Server-authoritative (see LoadComplete).
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show NSFW profile media",
+                    HintText = "Show avatars and cover images from profiles flagged as NSFW. Saved to your account.",
+                    Current = nsfwProfileMediaBindable,
+                    NewFeatureId = NewFeatureRegistry.NsfwProfileMedia,
+                    ShowExplicitContentBadge = true,
+                })
+                {
+                    Keywords = new[] { @"nsfw", @"explicit", @"adult", @"profile", @"media", @"avatar", @"cover", @"18" },
+                },
                 new UIThemeDropdownAndRestart(),
                 new PotatoModeToggleAndRestart(),
                 new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
@@ -135,6 +159,41 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             // (or synced from the server on login). Fires immediately too so the
             // initial locked/unlocked state is correct.
             accentUnlocked?.BindValueChanged(_ => updateAccentLock(), true);
+
+            if (api == null)
+                return;
+
+            // NSFW profile media: (1) GET the saved value so the checkbox reflects the
+            // user's real state (suppress the echo PATCH on that assignment); (2) PATCH
+            // on toggle, reverting + notifying on failure so the checkbox never lies.
+            var prefRequest = new GetToriiUserPreferencesRequest();
+            prefRequest.Success += response => Schedule(() =>
+            {
+                suppressNsfwPatch = true;
+                nsfwProfileMediaBindable.Value = response.ProfileMediaShowNsfw ?? false;
+                suppressNsfwPatch = false;
+            });
+            api.Queue(prefRequest);
+
+            nsfwProfileMediaBindable.BindValueChanged(e =>
+            {
+                if (suppressNsfwPatch || api == null)
+                    return;
+
+                var patch = PatchToriiUserPreferencesRequest.ProfileMediaShowNsfw(e.NewValue);
+                patch.Failure += _ => Schedule(() =>
+                {
+                    suppressNsfwPatch = true;
+                    nsfwProfileMediaBindable.Value = e.OldValue;
+                    suppressNsfwPatch = false;
+
+                    notifications?.Post(new SimpleErrorNotification
+                    {
+                        Text = "Couldn't save your NSFW profile media preference. Try again in a moment.",
+                    });
+                });
+                api.Queue(patch);
+            });
         }
 
         private void updateAccentLock()

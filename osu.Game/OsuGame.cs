@@ -160,6 +160,9 @@ namespace osu.Game
         // summary card after a play / at calm menu moments.
         private osu.Game.Overlays.Cosmetics.ToriiPointsWatcher toriiPointsWatcher;
 
+        // Torii: surfaces pending gifts at calm menu moments (pairs with the points watcher).
+        private osu.Game.Overlays.Cosmetics.ToriiGiftWatcher toriiGiftWatcher;
+
         protected ScalingContainer ScreenContainer { get; private set; }
 
         protected Container ScreenOffsetContainer { get; private set; }
@@ -1205,6 +1208,10 @@ namespace osu.Game
             // screen hooks below fire MarkPlayed()/OnMenu() at calm moments.
             loadComponentSingleFile(toriiPointsWatcher = new osu.Game.Overlays.Cosmetics.ToriiPointsWatcher(), topMostOverlayContent.Add, true);
 
+            // Torii: gift reveal overlay + its watcher (the watcher resolves the overlay).
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiGiftOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(toriiGiftWatcher = new osu.Game.Overlays.Cosmetics.ToriiGiftWatcher(), Add, true);
+
             loadComponentSingleFile(Toolbar = new Toolbar
             {
                 OnHome = delegate
@@ -1276,6 +1283,10 @@ namespace osu.Game
             loadComponentSingleFile(new AccountCreationOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile<IDialogOverlay>(dialogOverlay = new DialogOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new MedalOverlay(), topMostOverlayContent.Add);
+
+            // Torii: restriction notice — watches api.State/LastLoginError and shows
+            // why/when when the local user is restricted. Self-contained, input only when visible.
+            loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.ToriiRestrictionOverlay(), topMostOverlayContent.Add);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);
             loadComponentSingleFile<BeatmapStore>(detachedBeatmapStore = new RealmDetachedBeatmapStore(), Add, true);
@@ -1844,7 +1855,10 @@ namespace osu.Game
             // award pass to settle, then surface the points summary once. Otherwise,
             // reaching a calm menu screen is a chance to catch anything missed.
             if (newScreen is osu.Game.Screens.Ranking.ResultsScreen)
+            {
+                toriiGiftWatcher?.MarkPlayed();
                 toriiPointsWatcher?.MarkPlayed();
+            }
             else if (isCalmRevealScreen(newScreen))
                 revealOnCalmScreen();
         }
@@ -1868,6 +1882,10 @@ namespace osu.Game
             screen is osu.Game.Screens.Menu.MainMenu
             || screen is osu.Game.Screens.Select.SongSelect;
 
-        private void revealOnCalmScreen() => toriiPointsWatcher?.OnMenu();
+        private void revealOnCalmScreen()
+        {
+            toriiGiftWatcher?.OnMenu();
+            toriiPointsWatcher?.OnMenu();
+        }
     }
 }

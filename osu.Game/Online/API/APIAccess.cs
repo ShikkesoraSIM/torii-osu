@@ -163,6 +163,12 @@ namespace osu.Game.Online.API
         private int failureCount;
 
         /// <summary>
+        /// Torii: guards the restriction lookup so the ~50ms reconnect loop doesn't fire
+        /// a check per retry (or let a late retry overwrite what we already resolved).
+        /// </summary>
+        private bool restrictionCheckInProgress;
+
+        /// <summary>
         /// The main API thread loop, which will continue to run until the game is shut down.
         /// </summary>
         private void run()
@@ -325,9 +331,34 @@ namespace osu.Game.Online.API
                     {
                         if (ex is APIException apiException && apiException.StatusCode < HttpStatusCode.InternalServerError)
                         {
-                            LastLoginError = ex;
-                            log.Add($@"Login failed for username {ProvidedUsername} on user retrieval ({LastLoginError.Message})!");
-                            Logout();
+                            // Torii: a valid token whose /me fetch was rejected is usually an
+                            // account restriction (the server 403s /me for restricted users).
+                            // Ask the one endpoint that does NOT 403 a restricted user; if it
+                            // confirms, stash the details as a RestrictedAccountException so the
+                            // login form + ToriiRestrictionOverlay can explain why. Runs while
+                            // the token is still valid; Logout() is deferred into the callback.
+                            if (restrictionCheckInProgress)
+                                return;
+
+                            restrictionCheckInProgress = true;
+
+                            var restrictionReq = new GetToriiUserRestrictionRequest();
+
+                            restrictionReq.Success += restriction =>
+                            {
+                                LastLoginError = restriction.IsRestricted ? new RestrictedAccountException(restriction) : ex;
+                                log.Add($@"Login failed for username {ProvidedUsername} on user retrieval ({LastLoginError.Message})!");
+                                Logout();
+                            };
+
+                            restrictionReq.Failure += _ =>
+                            {
+                                LastLoginError = ex;
+                                log.Add($@"Login failed for username {ProvidedUsername} on user retrieval ({LastLoginError.Message})!");
+                                Logout();
+                            };
+
+                            PerformAsync(restrictionReq);
                         }
                         else if (ex is WebException webException && webException.Message == @"Unauthorized")
                         {
@@ -390,6 +421,7 @@ namespace osu.Game.Online.API
 
             ProvidedUsername = username;
             this.password = password;
+            restrictionCheckInProgress = false;
         }
 
         public void AuthenticateSecondFactor(string code)

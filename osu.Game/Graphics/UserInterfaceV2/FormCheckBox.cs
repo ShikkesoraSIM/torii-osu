@@ -35,6 +35,18 @@ namespace osu.Game.Graphics.UserInterfaceV2
         /// </summary>
         public LocalisableString HintText { get; init; }
 
+        /// <summary>
+        /// When set, a dismissible "NEW" badge is shown on the caption (auto-dismisses
+        /// after a few interactions, tracked by <see cref="osu.Game.Configuration.NewFeatureTracker"/>).
+        /// Use a <see cref="osu.Game.Configuration.NewFeatureRegistry"/> id.
+        /// </summary>
+        public string? NewFeatureId { get; init; }
+
+        /// <summary>
+        /// When true, a small "+18" pill is appended to the caption (adult-content cue).
+        /// </summary>
+        public bool ShowExplicitContentBadge { get; init; }
+
         private FormControlBackground background = null!;
         private FormFieldCaption caption = null!;
 
@@ -72,6 +84,8 @@ namespace osu.Game.Graphics.UserInterfaceV2
                                 {
                                     Caption = Caption,
                                     TooltipText = HintText,
+                                    NewFeatureId = NewFeatureId,
+                                    ShowExplicitContentBadge = ShowExplicitContentBadge,
                                 },
                             },
                         },
@@ -116,6 +130,7 @@ namespace osu.Game.Graphics.UserInterfaceV2
         protected override bool OnClick(ClickEvent e)
         {
             switchButton.TriggerClick();
+            caption.RegisterInteraction();
             return true;
         }
 
