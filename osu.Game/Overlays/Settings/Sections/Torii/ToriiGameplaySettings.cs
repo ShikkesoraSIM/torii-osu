@@ -11,11 +11,10 @@ using osu.Game.Localisation;
 namespace osu.Game.Overlays.Settings.Sections.Torii
 {
     /// <summary>
-    /// Torii-specific gameplay-flow tweaks. Currently houses the mid-map break-skip
-    /// toggles; intended as the home for any future "modify how the gameplay screens
-    /// behave" preferences so they don't pollute Interface (visuals) or Server (networking).
-    /// (The long-attempt Retry/Quit confirm toggle is deferred until its GameplayMenuOverlay
-    /// gating is ported, to avoid shipping a dead toggle.)
+    /// Torii-specific gameplay-flow tweaks. Houses the long-attempt Retry/Quit
+    /// confirmation toggle and the mid-map break-skip toggles; intended as the
+    /// home for any future "modify how the gameplay screens behave" preferences
+    /// so they don't pollute Interface (visuals) or Server (networking).
     /// </summary>
     public partial class ToriiGameplaySettings : SettingsSubsection
     {
@@ -26,6 +25,16 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         {
             Children = new Drawable[]
             {
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Confirm Retry/Quit on long attempts",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts),
+                    HintText = "After ~60 seconds of active gameplay, Retry and Quit on the pause and fail screens require a second click within 5 seconds. Continue is unaffected.",
+                    NewFeatureId = NewFeatureRegistry.ConfirmDangerousButtons,
+                })
+                {
+                    Keywords = new[] { @"retry", @"quit", @"confirm", @"pause", @"fail", @"double", @"click", @"misclick", @"torii" },
+                },
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = ToriiSettingsStrings.SkipBreaks,

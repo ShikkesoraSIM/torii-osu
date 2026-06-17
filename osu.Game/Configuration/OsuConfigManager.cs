@@ -210,6 +210,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiSkipBreaksEnabled, true);
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
+            SetDefault(OsuSetting.EnableOboeAudio, true);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
@@ -549,5 +550,6 @@ namespace osu.Game.Configuration
         ToriiSkipBreaksEnabled,
         ToriiSkipBreaksSingleConfirmation,
         ToriiSkipBreaksBriefingSeen,
+        EnableOboeAudio,
     }
 }

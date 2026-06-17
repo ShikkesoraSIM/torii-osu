@@ -44,6 +44,15 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString SongProgress => new TranslatableString(getKey(@"song_progress"), @"Song progress: ");
 
+        /// <summary>
+        /// "Tap again to {0}" — used when an attempt is "long enough" that a
+        /// destructive action (Retry/Quit) is gated behind a second click.
+        /// {0} is the original button verb (Retry/Quit) so the prompt reads
+        /// like a direct continuation of the action the user just tried.
+        /// </summary>
+        public static LocalisableString TapAgainToConfirm(LocalisableString action) =>
+            new TranslatableString(getKey(@"tap_again_to_confirm"), @"Tap again to {0}", action);
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

@@ -129,6 +129,28 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string SkipBreaksSingleConfirmation = "v2026.602.0:skip-breaks-confirm";
 
+        // ---------------------------------------------------------------
+        // v2026.618.x — Retry/Quit long-attempt confirm + Android Oboe
+        // low-latency audio.
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// Marks the "Confirm Retry/Quit on long attempts" toggle in
+        /// Settings → Torii → Gameplay. After ~60 s of active gameplay the
+        /// Retry and Quit buttons on the pause / fail overlays require a
+        /// second click within a short window, so an accidental tap can't
+        /// throw away a long run.
+        /// </summary>
+        public const string ConfirmDangerousButtons = "v2026.618.0:confirm-dangerous-buttons";
+
+        /// <summary>
+        /// Marks the "Low-latency audio (Oboe)" toggle in Settings → Torii →
+        /// Android (Android builds only). Routes audio through Google's Oboe
+        /// library for AAudio MMAP-exclusive output, cutting Android audio
+        /// latency dramatically on supported devices.
+        /// </summary>
+        public const string OboeAudio = "v2026.618.0:oboe-audio";
+
         /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
@@ -144,6 +166,8 @@ namespace osu.Game.Configuration
             InputAudioHz,
             SkipBreaks,
             SkipBreaksSingleConfirmation,
+            ConfirmDangerousButtons,
+            OboeAudio,
         };
 
         /// <summary>

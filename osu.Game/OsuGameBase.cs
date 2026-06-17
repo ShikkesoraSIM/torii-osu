@@ -489,6 +489,88 @@ namespace osu.Game
             // if this becomes a more common thing, tracked settings should be reconsidered to allow local DI.
             LocalConfig.LookupSkinName = id => SkinManager.Query(s => s.ID == id)?.ToString() ?? "Unknown";
             LocalConfig.LookupKeyBindings = l => KeyBindingStore.GetBindingsStringFor(l);
+
+            initOboeAudio();
+        }
+
+        // Torii: Android low-latency Oboe audio bridge. Both null on non-Android or when
+        // EnableOboeAudio is OFF. oboeEnabledBindable is held in a strong field per
+        // GetBindable's contract (a discarded intermediate would let the GC silence the
+        // binding — symptom: "the Oboe toggle stops applying after a while").
+        private osu.Framework.Audio.OboeBridgeManager? oboeBridgeManager;
+        private osu.Framework.Audio.OboeAudioRedirector? oboeAudioRedirector;
+        private Bindable<bool>? oboeEnabledBindable;
+
+        /// <summary>
+        /// Subclass hook for the device's native output sample rate (Android
+        /// PROPERTY_OUTPUT_SAMPLE_RATE) — needed for Oboe's AAudio MMAP-exclusive output.
+        /// Default 0 (let Oboe pick); overridden in OsuGameAndroid.
+        /// </summary>
+        protected virtual int GetAndroidNativeOutputSampleRate() => 0;
+
+        /// <summary>
+        /// Boot/tear down the Android Oboe low-latency audio path from OsuSetting.EnableOboeAudio.
+        /// Routes BASS into a decode-only global mixer that Oboe pulls from at the AAudio output
+        /// (~15–30 ms vs vanilla 60–200 ms), falls back to OpenSL ES, and silently no-ops if the
+        /// bundled libosu_native.so can't load. Hot-swappable. No-op on Desktop / iOS.
+        /// </summary>
+        private void initOboeAudio()
+        {
+            if (RuntimeInfo.OS != RuntimeInfo.Platform.Android)
+                return;
+
+            if (LocalConfig == null)
+                return;
+
+            oboeEnabledBindable = LocalConfig.GetBindable<bool>(OsuSetting.EnableOboeAudio);
+            oboeEnabledBindable.BindValueChanged(e =>
+            {
+                if (e.NewValue)
+                    startOboeBridge();
+                else
+                    stopOboeBridge();
+            }, true);
+        }
+
+        private void startOboeBridge()
+        {
+            if (oboeBridgeManager != null)
+                return; // already running
+
+            try
+            {
+                int sampleRate = GetAndroidNativeOutputSampleRate();
+
+                oboeAudioRedirector = new osu.Framework.Audio.OboeAudioRedirector(Audio);
+                oboeBridgeManager = new osu.Framework.Audio.OboeBridgeManager();
+                oboeBridgeManager.StartOboeBridge(
+                    oboeAudioRedirector.Provider,
+                    sampleRate: sampleRate,
+                    onStarted: actualSampleRate => oboeAudioRedirector.RefreshMixers(actualSampleRate));
+
+                Logger.Log($"[Torii] Oboe low-latency audio bridge started (requested rate={sampleRate}).");
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e, "[Torii] Oboe audio start failed; staying on vanilla BASS output.");
+                oboeBridgeManager?.Dispose();
+                oboeAudioRedirector?.Dispose();
+                oboeBridgeManager = null;
+                oboeAudioRedirector = null;
+            }
+        }
+
+        private void stopOboeBridge()
+        {
+            if (oboeBridgeManager == null)
+                return; // already stopped
+
+            try { oboeBridgeManager.StopOboeBridge(); } catch { }
+            try { oboeAudioRedirector?.Dispose(); } catch { }
+            oboeBridgeManager = null;
+            oboeAudioRedirector = null;
+
+            Logger.Log("[Torii] Oboe low-latency audio bridge stopped (vanilla BASS output restored).");
         }
 
         private void updateLanguage() => CurrentLanguage.Value = LanguageExtensions.GetLanguageFor(frameworkLocale.Value, localisationParameters.Value);
@@ -834,6 +916,11 @@ namespace osu.Game
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
+
+            // Torii: tear down the Oboe bridge before LocalConfig so any final lifecycle
+            // touch happens while config is still alive.
+            try { oboeEnabledBindable?.UnbindAll(); } catch { }
+            stopOboeBridge();
 
             RulesetStore?.Dispose();
             LocalConfig?.Dispose();
