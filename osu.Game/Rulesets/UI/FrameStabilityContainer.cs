@@ -124,6 +124,16 @@ namespace osu.Game.Rulesets.UI
             return true;
         }
 
+        /// <summary>
+        /// Torii: force the next frame to seek the frame-stable clock straight to the
+        /// reference (gameplay) time instead of catching up one frame-interval at a time.
+        /// Used by the mid-map break skip: a large forward seek otherwise lets the audio
+        /// (which jumps instantly) run ahead of the hitobjects while the frame-stable clock
+        /// crawls to the target — badly on long breaks under rate-increasing mods. Reuses
+        /// the same direct-seek path the very first gameplay frame takes.
+        /// </summary>
+        public void RequestDirectSeek() => firstConsumption = true;
+
         private void updateClock()
         {
             if (waitingOnFrames.Value)
