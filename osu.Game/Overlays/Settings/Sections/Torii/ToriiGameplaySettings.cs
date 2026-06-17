@@ -29,8 +29,8 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 {
                     Caption = "Skin the song-select footer",
                     Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
-                    HintText = "When on, the song-select footer uses your skin's own textures (positioned like osu!stable). "
-                               + "Turn off for a clean, consistent footer that looks the same with every skin.",
+                    HintText = "When on, the song-select footer uses your skin's own backing (songselect-bottom). "
+                               + "Turn off for a clean, consistent dark bar. The buttons + user panel are always shown either way.",
                     NewFeatureId = NewFeatureRegistry.LegacyFooterSkin,
                 })
                 {

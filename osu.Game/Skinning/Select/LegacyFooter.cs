@@ -47,26 +47,17 @@ namespace osu.Game.Skinning.Select
             const float user_pos_off = options_button_off + 48 * 2 * 1.6f;
 
             // ─── Torii: skin vs bundled footer chrome ───────────────────────
-            // "Skin the song-select footer" toggle. When ON, render the active skin's own
-            // footer textures using stable's positioning; when OFF, a clean consistent
-            // bundled footer regardless of skin.
+            // "Skin the song-select footer" toggle. When ON, use the active skin's own
+            // songselect-bottom backing; when OFF, a clean consistent bar.
+            //
+            // The buttons always use the BUNDLED classic textures: custom skins commonly bake
+            // a full stable-era footer mockup into their selection-* textures at sizes/positions
+            // calibrated for stable's pipeline, which don't translate to lazer's layout (they
+            // float or disappear). Bundled buttons keep the footer reliable + aligned with any
+            // skin. (This is the genuinely-unsolved part of the upstream WIP PR.)
             bool useSkin = config.Get<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
 
-            // Stable splits the footer into two layouts (SongSelection.cs:311): default-skin
-            // buttons are bottom-anchored ("new"), but a skin shipping its OWN selection-*
-            // textures uses the "old" layout — TopLeft origin at y=426 in stable's 480-tall
-            // space — so its baked footer design lands correctly near the bottom. frenzibyte's
-            // PR only implements the new layout, which is why custom skins float to the middle.
-            bool customButtons = useSkin
-                                 && skins.CurrentSkin.Value != skins.DefaultClassicSkin
-                                 && skins.CurrentSkin.Value.GetTexture(@"selection-mods") != null;
-
-            // Old layout: button sprites grow downward from y≈426 (480-space) → 86.4 px above
-            // the footer bottom once scaled by 1.6 into the 768-space the footer is laid out in.
-            const float old_layout_buttons_y = -(480 - 426) * 1.6f;
-
-            // null texture source = the ambient (current) skin; bundled = the classic skin.
-            ISkin? buttonSource = useSkin ? null : skins.DefaultClassicSkin;
+            ISkin buttonSource = skins.DefaultClassicSkin;
             var bottomTexture = useSkin ? skin.GetTexture(@"songselect-bottom") : null;
 
             InternalChildren = new Drawable[]
@@ -116,15 +107,14 @@ namespace osu.Game.Skinning.Select
                         new Container
                         {
                             Anchor = Anchor.BottomLeft,
-                            Origin = customButtons ? Anchor.TopLeft : Anchor.BottomLeft,
-                            Y = customButtons ? old_layout_buttons_y : 0,
+                            Origin = Anchor.BottomLeft,
                             AutoSizeAxes = Axes.Both,
                             Children = new[]
                             {
-                                new LegacyRulesetFooterButton { TextureSource = buttonSource, LegacyTopLeftLayout = customButtons },
-                                new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource, LegacyTopLeftLayout = customButtons },
-                                new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource, LegacyTopLeftLayout = customButtons },
-                                new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource, LegacyTopLeftLayout = customButtons },
+                                new LegacyRulesetFooterButton { TextureSource = buttonSource },
+                                new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
+                                new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
+                                new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource },
                             }
                         },
                     }
