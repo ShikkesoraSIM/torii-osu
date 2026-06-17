@@ -78,7 +78,16 @@ namespace osu.Game.Online
                 throw new InvalidOperationException($@"Retrieving statistics is not supported for ruleset {ruleset.ShortName}");
 
             var request = new GetUserRequest(api.LocalUser.Value.Id, ruleset);
-            request.Success += u => UpdateStatistics(u.Statistics, ruleset, callback);
+            request.Success += u =>
+            {
+                // Torii: back-fill the owning user so consumers (e.g. the legacy
+                // song-select footer panel) can read statistics.User. GetUserRequest
+                // returns it as a sibling, not nested inside Statistics.
+                if (u.Statistics != null)
+                    u.Statistics.User = u;
+
+                UpdateStatistics(u.Statistics, ruleset, callback);
+            };
             api.Queue(request);
         }
 
