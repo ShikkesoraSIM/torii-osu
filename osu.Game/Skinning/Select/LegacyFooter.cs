@@ -51,14 +51,14 @@ namespace osu.Game.Skinning.Select
                 // Torii: stable's "songselect-bottom" backing bar is not bundled with
                 // lazer's classic skin, so when the active skin doesn't provide it, fall
                 // back to a bottom-anchored dark gradient so there's always a footer bar.
-                // Skins that DO ship songselect-bottom render it (below) exactly as upstream.
+                // Skins that DO ship songselect-bottom render it (below).
                 new Box
                 {
                     RelativeSizeAxes = Axes.X,
-                    Height = 90,
+                    Height = 96,
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.2f), Color4.Black.Opacity(0.7f)),
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.55f), Color4.Black.Opacity(0.9f)),
                     Alpha = bottomTexture != null ? 0 : 1,
                 },
                 new Sprite
@@ -66,6 +66,12 @@ namespace osu.Game.Skinning.Select
                     Texture = bottomTexture,
                     RelativeSizeAxes = Axes.X,
                     Width = 1,
+                    // Stable anchors songselect-bottom to the screen's bottom-left, growing
+                    // upward (SongSelection.cs: Origins.BottomLeft at (0, 480)). The upstream
+                    // PR put it at the footer's TopLeft, which floats it up when the footer is
+                    // taller than the texture. Pin it to the bottom to match stable.
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
                 },
                 new LegacyBackButton
                 {
