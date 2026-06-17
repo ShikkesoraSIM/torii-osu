@@ -25,6 +25,7 @@ namespace osu.Game.Skinning.Select
 
         private const float buttons_pos_4_3 = 120 * 1.6f;
         private const float buttons_pos_16_9 = 140 * 1.6f;
+        private const float footer_bar_height = 96;
 
         // Torii: wired by the host footer so the legacy chrome drives the real
         // song-select actions. The upstream housing PR leaves these unhooked.
@@ -44,34 +45,22 @@ namespace osu.Game.Skinning.Select
             const float options_button_off = random_button_off + 48 * 1.6f;
             const float user_pos_off = options_button_off + 48 * 2 * 1.6f;
 
-            var bottomTexture = skin.GetTexture(@"songselect-bottom");
-
+            // Torii: a consistent clean footer bar pinned to the bottom. We intentionally
+            // do NOT render the skin's "songselect-bottom" texture: that asset isn't bundled
+            // with lazer's classic skin, and skins that DO ship it commonly bake a full
+            // stable-era footer mockup (buttons + panels) into a tall texture which, drawn
+            // at native height, floats up into the middle of the screen. A solid bar gives a
+            // predictable, aligned footer with every skin (the skin's buttons + the user
+            // panel still render on top for skin flavour).
             InternalChildren = new Drawable[]
             {
-                // Torii: stable's "songselect-bottom" backing bar is not bundled with
-                // lazer's classic skin, so when the active skin doesn't provide it, fall
-                // back to a bottom-anchored dark gradient so there's always a footer bar.
-                // Skins that DO ship songselect-bottom render it (below).
                 new Box
                 {
                     RelativeSizeAxes = Axes.X,
-                    Height = 96,
+                    Height = footer_bar_height,
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.55f), Color4.Black.Opacity(0.9f)),
-                    Alpha = bottomTexture != null ? 0 : 1,
-                },
-                new Sprite
-                {
-                    Texture = bottomTexture,
-                    RelativeSizeAxes = Axes.X,
-                    Width = 1,
-                    // Stable anchors songselect-bottom to the screen's bottom-left, growing
-                    // upward (SongSelection.cs: Origins.BottomLeft at (0, 480)). The upstream
-                    // PR put it at the footer's TopLeft, which floats it up when the footer is
-                    // taller than the texture. Pin it to the bottom to match stable.
-                    Anchor = Anchor.BottomLeft,
-                    Origin = Anchor.BottomLeft,
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.5f), Color4.Black.Opacity(0.85f)),
                 },
                 new LegacyBackButton
                 {
