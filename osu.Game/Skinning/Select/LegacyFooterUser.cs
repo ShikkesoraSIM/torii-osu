@@ -15,6 +15,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online;
+using osu.Game.Online.API;
 using osu.Game.Rulesets;
 using osu.Game.Users.Drawables;
 using osuTK;
@@ -35,6 +36,9 @@ namespace osu.Game.Skinning.Select
 
         [Resolved]
         private LocalUserStatisticsProvider userStatisticsProvider { get; set; } = null!;
+
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
@@ -122,17 +126,23 @@ namespace osu.Game.Skinning.Select
         private void updateDisplay()
         {
             var statistics = userStatisticsProvider.GetStatisticsFor(ruleset.Value);
+            // Torii: GetUserRequest does not populate UserStatistics.User in this base,
+            // so source the username/avatar from the local user (the stats are always
+            // the local user's anyway). Falls back gracefully to a guest/offline state.
+            var user = statistics?.User ?? api.LocalUser.Value;
 
-            if (statistics == null)
+            if (statistics == null || user == null || user.Id <= 1)
             {
                 usernameText.Text = string.Empty;
                 infoText.Text = string.Empty;
                 rankText.Text = string.Empty;
                 rulesetIcon.Hide();
+                avatar.User = null;
+                levelBar.Hide();
             }
             else
             {
-                usernameText.Text = statistics.User.Username;
+                usernameText.Text = user.Username;
                 infoText.Clear();
                 infoText.AddText($"Performance:{statistics.PP:N0}pp");
                 infoText.NewLine();
@@ -173,7 +183,7 @@ namespace osu.Game.Skinning.Select
                     levelBar.Show();
                 }
 
-                avatar.User = statistics.User;
+                avatar.User = user;
             }
         }
 

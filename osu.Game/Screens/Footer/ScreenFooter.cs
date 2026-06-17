@@ -74,6 +74,7 @@ namespace osu.Game.Screens.Footer
 
         private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
         private LegacyFooter? legacyFooter;
+        private bool legacyFooterLoading;
         private bool legacySkinningEnabled;
 
         /// <summary>
@@ -187,20 +188,6 @@ namespace osu.Game.Screens.Footer
                     f.Origin = Anchor.Centre;
                     f.Position = new Vector2(-76, -36);
                 })),
-                // Legacy chrome sits at the bottom and is faded in (over the hidden
-                // default chrome) when the swap is active. The osu! logo is left on
-                // the default tracking facade above, whose position (-76,-36) matches
-                // the legacy footer's own facade, so no logo re-routing is needed.
-                legacyFooter = new LegacyFooter
-                {
-                    Anchor = Anchor.BottomLeft,
-                    Origin = Anchor.BottomLeft,
-                    Alpha = 0,
-                    BackAction = onBackPressed,
-                    ModsAction = () => triggerScreenFooterButton(0),
-                    RandomAction = () => triggerScreenFooterButton(1),
-                    OptionsAction = () => triggerScreenFooterButton(2),
-                },
             };
 
             // Base hue: only applied when no overlay is "owning" the footer
@@ -238,14 +225,19 @@ namespace osu.Game.Screens.Footer
 
         private void updateLegacyFooterState()
         {
-            if (legacyFooter == null)
-                return;
-
             bool active = legacySkinningEnabled
                           && ActiveOverlay == null
                           && currentSkin.Value is LegacySkin;
 
-            legacyFooter.FadeTo(active ? 1 : 0, 120, Easing.OutQuint);
+            // The legacy footer is created lazily on first activation. By the time a
+            // legacy skin is active on song select, LocalUserStatisticsProvider (which
+            // LegacyFooterUser depends on) is registered — it is cached after the footer
+            // chrome during OsuGame load, so eager construction here would fail injection.
+            // Lazy-loading also means non-legacy users never pay for it.
+            if (active)
+                ensureLegacyFooterLoaded();
+
+            legacyFooter?.FadeTo(active ? 1 : 0, 120, Easing.OutQuint);
 
             // Hide the default lazer chrome behind the legacy footer. The osu! logo
             // facade is intentionally left visible (transparent container; positions
@@ -253,6 +245,33 @@ namespace osu.Game.Screens.Footer
             background.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
             buttonsGrid.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
             BackButton.FadeTo(active ? 0 : 1, 120, Easing.OutQuint);
+        }
+
+        private void ensureLegacyFooterLoaded()
+        {
+            if (legacyFooter != null || legacyFooterLoading)
+                return;
+
+            legacyFooterLoading = true;
+
+            var footer = new LegacyFooter
+            {
+                Anchor = Anchor.BottomLeft,
+                Origin = Anchor.BottomLeft,
+                Alpha = 0,
+                BackAction = onBackPressed,
+                ModsAction = () => triggerScreenFooterButton(0),
+                RandomAction = () => triggerScreenFooterButton(1),
+                OptionsAction = () => triggerScreenFooterButton(2),
+            };
+
+            LoadComponentAsync(footer, loaded =>
+            {
+                legacyFooter = loaded;
+                AddInternal(loaded);
+                // re-evaluate: the skin / screen may have changed during the async load.
+                updateLegacyFooterState();
+            });
         }
 
         [Resolved(CanBeNull = true)]
