@@ -75,6 +75,7 @@ namespace osu.Game.Screens.Footer
         private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
         private LegacyFooter? legacyFooter;
         private bool legacyFooterLoading;
+        private int legacyFooterGeneration;
         private bool legacySkinningEnabled;
 
         /// <summary>
@@ -210,7 +211,25 @@ namespace osu.Game.Screens.Footer
             customUiAccentBinding = bindFooterAccent(config);
 
             currentSkin.BindTo(skins.CurrentSkin);
-            currentSkin.BindValueChanged(_ => updateLegacyFooterState());
+            currentSkin.BindValueChanged(_ => onSkinChanged());
+        }
+
+        private void onSkinChanged()
+        {
+            // The legacy footer reads its textures from the skin once at load time, so a
+            // skin change must drop the cached (and any in-flight) instance and rebuild it
+            // against the new skin's assets. The generation bump invalidates a load that's
+            // still in progress.
+            legacyFooterGeneration++;
+
+            if (legacyFooter != null)
+            {
+                RemoveInternal(legacyFooter, true);
+                legacyFooter = null;
+            }
+
+            legacyFooterLoading = false;
+            updateLegacyFooterState();
         }
 
         private void triggerScreenFooterButton(int index)
@@ -253,6 +272,7 @@ namespace osu.Game.Screens.Footer
                 return;
 
             legacyFooterLoading = true;
+            int generation = legacyFooterGeneration;
 
             var footer = new LegacyFooter
             {
@@ -267,9 +287,17 @@ namespace osu.Game.Screens.Footer
 
             LoadComponentAsync(footer, loaded =>
             {
+                // A skin change superseded this load while it was in flight; discard it.
+                if (generation != legacyFooterGeneration)
+                {
+                    loaded.Dispose();
+                    return;
+                }
+
                 legacyFooter = loaded;
+                legacyFooterLoading = false;
                 AddInternal(loaded);
-                // re-evaluate: the skin / screen may have changed during the async load.
+                // re-evaluate: the screen state may have changed during the async load.
                 updateLegacyFooterState();
             });
         }
