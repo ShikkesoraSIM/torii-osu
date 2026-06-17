@@ -93,6 +93,26 @@ namespace osu.Game.Online.Metadata
             return null;
         }
 
+        /// <summary>
+        /// Torii: verified client name for a user, populated out-of-band by the spectator's
+        /// custom SignalR <c>UserClientNameUpdated(int, string?)</c> signal (only emitted after
+        /// the server cross-references the user's executable hash against registered Torii
+        /// builds). Used by <see cref="osu.Game.Users.Drawables.ToriiClientBadge"/> to confirm a
+        /// user is genuinely on Torii. Null until the server broadcasts a verified name.
+        /// </summary>
+        protected readonly System.Collections.Concurrent.ConcurrentDictionary<int, string?> VerifiedClientNames = new System.Collections.Concurrent.ConcurrentDictionary<int, string?>();
+
+        public string? GetVerifiedClientName(int userId)
+            => VerifiedClientNames.TryGetValue(userId, out string? clientName) ? clientName : null;
+
+        protected void HandleUserClientNameUpdated(int userId, string? clientName)
+        {
+            if (clientName == null)
+                VerifiedClientNames.TryRemove(userId, out _);
+            else
+                VerifiedClientNames[userId] = clientName;
+        }
+
         public abstract Task UpdateActivity(UserActivity? activity);
 
         public abstract Task UpdateStatus(UserStatus? status);

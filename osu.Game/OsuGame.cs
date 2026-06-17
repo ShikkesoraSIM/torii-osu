@@ -1254,6 +1254,14 @@ namespace osu.Game
             // Points history overlay (toggled by the toolbar points/coins button).
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsHistoryOverlay(), overlayContent.Add, true);
 
+            // Torii staff hub: the 4 tool overlays (cached so the hub resolves them) + the
+            // hub itself, opened by the admin-only toolbar button. Hidden from non-staff.
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.GiftAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.AccessCodeAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.PointsActivityAdminOverlay(), overlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.ToriiAdminOverlay(), overlayContent.Add, true);
+
             loadComponentSingleFile(beatmapListing = new BeatmapListingOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(dashboard = new DashboardOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(news = new NewsOverlay(), overlayContent.Add, true);

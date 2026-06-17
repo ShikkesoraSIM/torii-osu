@@ -131,7 +131,21 @@ namespace osu.Game.Users
                 });
             }
 
-            return layout;
+            // Torii: overlay the client/platform badge in the top-right corner.
+            return new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    layout,
+                    CreateClientBadge().With(badge =>
+                    {
+                        badge.Anchor = Anchor.TopRight;
+                        badge.Origin = Anchor.TopRight;
+                        badge.Margin = new MarginPadding { Top = 6, Right = 6 };
+                    }),
+                },
+            };
         }
     }
 }

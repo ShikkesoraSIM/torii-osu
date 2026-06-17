@@ -192,6 +192,7 @@ namespace osu.Game.Overlays.Toolbar
                                             //    Icon = FontAwesome.Solid.search
                                             //},
                                             userButton = new ToolbarUserButton(),
+                                            new ToolbarAdminButton(),
                                             new ToolbarCosmeticStoreButton(),
                                             new ToolbarPointsButton(),
                                             new ToriiServerPulseButton(),

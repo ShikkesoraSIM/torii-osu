@@ -68,6 +68,8 @@ namespace osu.Game.Online.Metadata
                     connection.On<int, UserPresence?>(nameof(IMetadataClient.UserPresenceUpdated), ((IMetadataClient)this).UserPresenceUpdated);
                     connection.On<int, UserPresence?>(nameof(IMetadataClient.FriendPresenceUpdated), ((IMetadataClient)this).FriendPresenceUpdated);
                     connection.On<int>(nameof(IMetadataClient.UserUpdated), ((IMetadataClient)this).UserUpdated);
+                    // Torii: out-of-band verified client-name signal (see MetadataClient.HandleUserClientNameUpdated).
+                    connection.On<int, string?>(@"UserClientNameUpdated", HandleUserClientNameUpdated);
                     connection.On<DailyChallengeInfo?>(nameof(IMetadataClient.DailyChallengeUpdated), ((IMetadataClient)this).DailyChallengeUpdated);
                     connection.On<MultiplayerRoomScoreSetEvent>(nameof(IMetadataClient.MultiplayerRoomScoreSet), ((IMetadataClient)this).MultiplayerRoomScoreSet);
                     connection.On(nameof(IStatefulUserHubClient.DisconnectRequested), ((IStatefulUserHubClient)this).DisconnectRequested);

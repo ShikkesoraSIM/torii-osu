@@ -24,5 +24,13 @@ namespace osu.Game.Users
         /// </summary>
         [Key(1)]
         public UserStatus? Status { get; set; }
+
+        /// <summary>
+        /// Torii: the verified client/platform string the user is on (e.g. "Torii|Windows").
+        /// Set server-side and broadcast over the spectator presence; null when unverified.
+        /// New field at <c>Key(2)</c> — backward compatible (older peers just drop it).
+        /// </summary>
+        [Key(2)]
+        public string? ClientName { get; set; }
     }
 }

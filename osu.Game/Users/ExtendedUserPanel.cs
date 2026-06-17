@@ -27,8 +27,13 @@ namespace osu.Game.Users
         [Resolved]
         private MetadataClient? metadata { get; set; }
 
+        // Torii: client/platform badge. Null until a subclass opts in via CreateClientBadge()
+        // and places it in its layout; UpdateClientName below keeps it in sync.
+        private ToriiClientBadge? toriiClientBadge;
+
         private UserStatus? lastStatus;
         private UserActivity? lastActivity;
+        private string? lastClientName;
         private DateTimeOffset? lastVisit;
 
         protected ExtendedUserPanel(APIUser user)
@@ -59,6 +64,9 @@ namespace osu.Game.Users
         }
 
         protected Container CreateStatusIcon() => statusIcon = new StatusIcon();
+
+        /// <summary>Torii: create the client/platform badge for a subclass to place in its layout.</summary>
+        protected ToriiClientBadge CreateClientBadge() => toriiClientBadge = new ToriiClientBadge();
 
         protected FillFlowContainer CreateStatusMessage(bool rightAlignedChildren)
         {
@@ -94,9 +102,14 @@ namespace osu.Game.Users
             UserPresence? presence = metadata?.GetPresence(User.OnlineID);
             UserStatus status = presence?.Status ?? UserStatus.Offline;
             UserActivity? activity = presence?.Activity;
+            // Torii: prefer the presence client name; fall back to the verified-name side channel.
+            string? clientName = presence?.ClientName ?? metadata?.GetVerifiedClientName(User.OnlineID);
 
-            if (status == lastStatus && activity == lastActivity)
+            if (status == lastStatus && activity == lastActivity && clientName == lastClientName)
                 return;
+
+            toriiClientBadge?.UpdateClientName(clientName);
+            lastClientName = clientName;
 
             if (status == UserStatus.Offline && lastVisit != null)
             {
