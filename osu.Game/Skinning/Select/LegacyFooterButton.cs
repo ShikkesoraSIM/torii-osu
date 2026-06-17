@@ -26,9 +26,15 @@ namespace osu.Game.Skinning.Select
         }
 
         [BackgroundDependencyLoader]
-        private void load(ISkinSource skin)
+        private void load(SkinManager skins)
         {
             AutoSizeAxes = Axes.Both;
+
+            // Torii: use the bundled classic skin for the button textures instead of the
+            // ambient skin. Many custom skins bake a full stable-era footer mockup into
+            // their selection-* textures, which rendered at native size float into the
+            // middle of the screen. Bundled textures keep the footer consistent + clean.
+            var classic = skins.DefaultClassicSkin;
 
             Children = new Drawable[]
             {
@@ -36,7 +42,7 @@ namespace osu.Game.Skinning.Select
                 {
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    Texture = skin.GetTexture($"selection-{kind}"),
+                    Texture = classic.GetTexture($"selection-{kind}"),
                     // to match stable, the button input area should not be taken from this sprite. it should be taken from the hover sprite below.
                     // see: https://github.com/peppy/osu-stable-reference/blob/c34a74fb61c17c5667486a12548485d1f03baa2e/osu!/GameModes/Select/SongSelection.cs#L340-L349
                     BypassAutoSizeAxes = Axes.Both,
@@ -45,7 +51,7 @@ namespace osu.Game.Skinning.Select
                 {
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    Texture = skin.GetTexture($"selection-{kind}-over"),
+                    Texture = classic.GetTexture($"selection-{kind}-over"),
                     Alpha = 0f,
                     AlwaysPresent = true,
                 },
