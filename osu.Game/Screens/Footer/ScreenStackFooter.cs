@@ -7,6 +7,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Screens;
+using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Skinning;
 using osu.Game.Skinning.Select;
@@ -52,7 +53,11 @@ namespace osu.Game.Screens.Footer
         [Resolved]
         private SkinManager skins { get; set; } = null!;
 
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
+
         private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
+        private Bindable<bool> footerUseSkin = null!;
         private DrawSizePreservingFillContainer? legacyFooterContainer;
         private LegacyFooter? legacyFooter;
         private bool legacyFooterLoading;
@@ -89,6 +94,11 @@ namespace osu.Game.Screens.Footer
         {
             currentSkin.BindTo(skins.CurrentSkin);
             currentSkin.BindValueChanged(_ => onSkinChanged());
+
+            // Rebuild the legacy footer when the "skin the footer" toggle changes so it
+            // applies live (it reads the setting once at construction).
+            footerUseSkin = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
+            footerUseSkin.BindValueChanged(_ => onSkinChanged());
 
             // When an overlay (mod select etc.) takes/leaves the footer, the legacy
             // chrome must step aside / return.

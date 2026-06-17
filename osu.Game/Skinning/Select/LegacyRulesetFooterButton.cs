@@ -14,7 +14,7 @@ namespace osu.Game.Skinning.Select
         private Sprite modeIcon = null!;
 
         [Resolved]
-        private SkinManager skins { get; set; } = null!;
+        private ISkinSource skin { get; set; } = null!;
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
@@ -41,9 +41,11 @@ namespace osu.Game.Skinning.Select
         {
             base.LoadComplete();
 
+            ISkin source = TextureSource ?? skin;
+
             ruleset.BindValueChanged(r =>
             {
-                modeIcon.Texture = skins.DefaultClassicSkin.GetTexture($@"mode-{r.NewValue.ShortName}-small");
+                modeIcon.Texture = source.GetTexture($@"mode-{r.NewValue.ShortName}-small");
             }, true);
         }
     }

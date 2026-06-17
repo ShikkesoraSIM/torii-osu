@@ -152,6 +152,14 @@ namespace osu.Game.Configuration
         public const string OboeAudio = "v2026.618.0:oboe-audio";
 
         /// <summary>
+        /// Marks the "Skin the song-select footer" toggle in Settings → Torii →
+        /// Interface. When on, the legacy song-select footer renders the active
+        /// skin's own textures (with stable's positioning); when off, a clean
+        /// consistent bundled footer is used regardless of skin.
+        /// </summary>
+        public const string LegacyFooterSkin = "v2026.618.0:legacy-footer-skin";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -168,6 +176,7 @@ namespace osu.Game.Configuration
             SkipBreaksSingleConfirmation,
             ConfirmDangerousButtons,
             OboeAudio,
+            LegacyFooterSkin,
         };
 
         /// <summary>

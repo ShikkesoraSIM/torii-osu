@@ -18,6 +18,15 @@ namespace osu.Game.Skinning.Select
         private SkinnableSound hoverSound = null!;
         private SkinnableSound clickSound = null!;
 
+        /// <summary>Texture source for the button graphics. Null = the ambient (current) skin.</summary>
+        public ISkin? TextureSource { get; init; }
+
+        /// <summary>
+        /// Stable's "old" footer layout (used for custom skins): the button sprite is
+        /// anchored to the TOP and grows downward, instead of the bottom-anchored new layout.
+        /// </summary>
+        public bool LegacyTopLeftLayout { get; init; }
+
         public LegacyFooterButton(string kind)
         {
             this.kind = kind;
@@ -26,32 +35,29 @@ namespace osu.Game.Skinning.Select
         }
 
         [BackgroundDependencyLoader]
-        private void load(SkinManager skins)
+        private void load(ISkinSource skin)
         {
             AutoSizeAxes = Axes.Both;
 
-            // Torii: use the bundled classic skin for the button textures instead of the
-            // ambient skin. Many custom skins bake a full stable-era footer mockup into
-            // their selection-* textures, which rendered at native size float into the
-            // middle of the screen. Bundled textures keep the footer consistent + clean.
-            var classic = skins.DefaultClassicSkin;
+            ISkin source = TextureSource ?? skin;
+            Anchor spriteAnchor = LegacyTopLeftLayout ? Anchor.TopLeft : Anchor.BottomLeft;
 
             Children = new Drawable[]
             {
                 new Sprite
                 {
-                    Anchor = Anchor.BottomLeft,
-                    Origin = Anchor.BottomLeft,
-                    Texture = classic.GetTexture($"selection-{kind}"),
+                    Anchor = spriteAnchor,
+                    Origin = spriteAnchor,
+                    Texture = source.GetTexture($"selection-{kind}"),
                     // to match stable, the button input area should not be taken from this sprite. it should be taken from the hover sprite below.
                     // see: https://github.com/peppy/osu-stable-reference/blob/c34a74fb61c17c5667486a12548485d1f03baa2e/osu!/GameModes/Select/SongSelection.cs#L340-L349
                     BypassAutoSizeAxes = Axes.Both,
                 },
                 hoverSprite = new Sprite
                 {
-                    Anchor = Anchor.BottomLeft,
-                    Origin = Anchor.BottomLeft,
-                    Texture = classic.GetTexture($"selection-{kind}-over"),
+                    Anchor = spriteAnchor,
+                    Origin = spriteAnchor,
+                    Texture = source.GetTexture($"selection-{kind}-over"),
                     Alpha = 0f,
                     AlwaysPresent = true,
                 },

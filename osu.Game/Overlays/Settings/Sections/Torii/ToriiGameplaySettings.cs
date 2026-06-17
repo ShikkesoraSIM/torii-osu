@@ -27,6 +27,17 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             {
                 new SettingsItemV2(new FormCheckBox
                 {
+                    Caption = "Skin the song-select footer",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
+                    HintText = "When on, the song-select footer uses your skin's own textures (positioned like osu!stable). "
+                               + "Turn off for a clean, consistent footer that looks the same with every skin.",
+                    NewFeatureId = NewFeatureRegistry.LegacyFooterSkin,
+                })
+                {
+                    Keywords = new[] { @"footer", @"skin", @"song", @"select", @"legacy", @"bottom", @"buttons", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
                     Caption = "Confirm Retry/Quit on long attempts",
                     Current = config.GetBindable<bool>(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts),
                     HintText = "After ~60 seconds of active gameplay, Retry and Quit on the pause and fail screens require a second click within 5 seconds. Continue is unaffected.",

@@ -211,6 +211,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
             SetDefault(OsuSetting.EnableOboeAudio, true);
+            SetDefault(OsuSetting.ToriiLegacyFooterUseSkin, true);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
@@ -551,5 +552,6 @@ namespace osu.Game.Configuration
         ToriiSkipBreaksSingleConfirmation,
         ToriiSkipBreaksBriefingSeen,
         EnableOboeAudio,
+        ToriiLegacyFooterUseSkin,
     }
 }
