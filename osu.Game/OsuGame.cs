@@ -1261,6 +1261,13 @@ namespace osu.Game
             loadComponentSingleFile(channelManager = new ChannelManager(API), Add, true);
             loadComponentSingleFile(chatOverlay = new ChatOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new MessageNotifier(), Add, true);
+
+            // Torii: post-login briefing (needs the channel manager for unread messages) +
+            // the cosmetic redeem/unlock celebration overlays (resolved as deps by the store
+            // + redeem flow). All event-driven, no polling.
+            loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.ToriiBriefingOverlay(channelManager), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);
             loadComponentSingleFile(changelogOverlay = new ChangelogOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(userProfile = new UserProfileOverlay(), overlayContent.Add, true);

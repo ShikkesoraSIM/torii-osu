@@ -27,6 +27,7 @@ namespace osu.Game.Overlays.Settings.Sections
         {
             Add(new ToriiInterfaceSettings());
             Add(new ToriiServerSettings());
+            Add(new ToriiBriefingSettings());
         }
     }
 }
