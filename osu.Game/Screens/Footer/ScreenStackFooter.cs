@@ -150,6 +150,9 @@ namespace osu.Game.Screens.Footer
                 Anchor = Anchor.BottomLeft,
                 Origin = Anchor.BottomLeft,
                 RelativeSizeAxes = Axes.X,
+                // Torii: nudge the whole footer down a few logical px so its content sits flush
+                // on the screen bottom (closes the small gap the bottom-anchored elements leave).
+                Y = 4,
                 // The legacy footer drives the real song-select actions via the default footer.
                 BackAction = () => BackButtonPressed?.Invoke(),
                 ModsAction = () => Footer.TriggerFooterButton(0),

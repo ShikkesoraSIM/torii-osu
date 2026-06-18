@@ -35,11 +35,16 @@ namespace osu.Game.Skinning.Select
         public Action? RandomAction { get; init; }
         public Action? OptionsAction { get; init; }
 
+        // Custom skins commonly bake their footer design into the upper part of tall
+        // selection-* textures (transparent below), so bottom-anchoring floats the design up.
+        // Push the button row down by this much so the design lands on the footer bottom.
+        // Tunable while dialing in the exact look against the live game.
+        private const float custom_button_push_down = 90f;
+
         [BackgroundDependencyLoader]
         private void load(ISkinSource skin, OsuConfigManager config, SkinManager skins)
         {
-            RelativeSizeAxes = Axes.X;
-            AutoSizeAxes = Axes.Y;
+            RelativeSizeAxes = Axes.Both;
 
             const float mods_button_off = 57.6f * 1.6f;
             const float random_button_off = mods_button_off + 48 * 1.6f;
@@ -57,8 +62,15 @@ namespace osu.Game.Skinning.Select
             // skin. (This is the genuinely-unsolved part of the upstream WIP PR.)
             bool useSkin = config.Get<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
 
-            ISkin buttonSource = skins.DefaultClassicSkin;
+            // null = ambient (current) skin textures; bundled classic otherwise.
+            ISkin? buttonSource = useSkin ? null : skins.DefaultClassicSkin;
             var bottomTexture = useSkin ? skin.GetTexture(@"songselect-bottom") : null;
+
+            // Custom-skin buttons use stable's old (TopLeft) layout so their baked design
+            // lands at the bottom instead of floating up; bundled buttons use the new layout.
+            bool customButtons = useSkin
+                                 && skins.CurrentSkin.Value != skins.DefaultClassicSkin
+                                 && skins.CurrentSkin.Value.GetTexture(@"selection-mods") != null;
 
             InternalChildren = new Drawable[]
             {
@@ -93,7 +105,7 @@ namespace osu.Game.Skinning.Select
                 {
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
-                    AutoSizeAxes = Axes.Both,
+                    RelativeSizeAxes = Axes.Both,
                     X = buttons_pos_16_9,
                     Children = new Drawable[]
                     {
@@ -108,6 +120,7 @@ namespace osu.Game.Skinning.Select
                         {
                             Anchor = Anchor.BottomLeft,
                             Origin = Anchor.BottomLeft,
+                            Y = customButtons ? custom_button_push_down : 0,
                             AutoSizeAxes = Axes.Both,
                             Children = new[]
                             {

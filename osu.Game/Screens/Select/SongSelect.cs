@@ -121,6 +121,12 @@ namespace osu.Game.Screens.Select
         private BeatmapTitleWedge titleWedge = null!;
         private BeatmapDetailsArea detailsArea = null!;
         private FillFlowContainer wedgesContainer = null!;
+
+        // Torii: legacy (stable-style) song-select UI. When on, the modern lazer chrome
+        // (filter/sort/star-rating bar + the left info & details wedges) is hidden so the
+        // screen reads like osu!stable (carousel + legacy footer). Shares the footer-skin toggle.
+        private Bindable<bool> legacyUi = null!;
+        private LegacyBeatmapInfoPanel legacyInfoPanel = null!;
         private Box rightGradientBackground = null!;
         private Container mainContent = null!;
         private SkinnableContainer skinnableContent = null!;
@@ -319,6 +325,15 @@ namespace osu.Game.Screens.Select
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
                 },
+                // Torii: stable-style beatmap info block for the legacy UI (top-left). Hidden
+                // by default; shown in legacy mode via updateLegacyChrome.
+                legacyInfoPanel = new LegacyBeatmapInfoPanel
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Margin = new MarginPadding { Top = 60, Left = 20 },
+                    Alpha = 0,
+                },
                 modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
             });
 
@@ -334,6 +349,26 @@ namespace osu.Game.Screens.Select
             });
 
             showConvertedBeatmaps = config.GetBindable<bool>(OsuSetting.ShowConvertedBeatmaps);
+
+            legacyUi = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
+            legacyUi.BindValueChanged(_ => updateLegacyChrome(), true);
+        }
+
+        /// <summary>
+        /// Torii: hide/show the modern lazer song-select chrome for the legacy (stable-style)
+        /// UI mode. Hides the filter/sort bar and the left info + details wedges so only the
+        /// carousel + legacy footer remain, matching osu!stable.
+        /// </summary>
+        private void updateLegacyChrome()
+        {
+            if (FilterControl == null)
+                return;
+
+            bool legacy = legacyUi.Value;
+
+            FilterControl.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
+            wedgesContainer.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
+            legacyInfoPanel.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
         }
 
         // Colour scheme for mod overlay is left as default (green) to match mods button.
@@ -844,7 +879,10 @@ namespace osu.Game.Screens.Select
             {
                 titleWedge.Show();
                 detailsArea.Show();
-                FilterControl.Show();
+
+                // In legacy UI mode the filter bar + wedges stay hidden (see updateLegacyChrome).
+                if (!legacyUi.Value)
+                    FilterControl.Show();
             }
         }
 

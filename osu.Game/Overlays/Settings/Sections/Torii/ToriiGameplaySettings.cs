@@ -27,10 +27,10 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             {
                 new SettingsItemV2(new FormCheckBox
                 {
-                    Caption = "Skin the song-select footer",
+                    Caption = "Legacy (stable-style) song select",
                     Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
-                    HintText = "When on, the song-select footer uses your skin's own backing (songselect-bottom). "
-                               + "Turn off for a clean, consistent dark bar. The buttons + user panel are always shown either way.",
+                    HintText = "Makes song select look like osu!stable: a skinnable legacy footer (back / mode / mods / random / options "
+                               + "+ your rank panel) and the modern filter/sort bar and info wedges hidden. Turn off for the standard lazer UI.",
                     NewFeatureId = NewFeatureRegistry.LegacyFooterSkin,
                 })
                 {
