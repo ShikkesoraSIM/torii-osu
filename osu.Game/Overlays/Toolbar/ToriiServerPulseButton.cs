@@ -29,10 +29,9 @@ namespace osu.Game.Overlays.Toolbar
 {
     /// <summary>
     /// Compact toolbar entry-point for the live server-pulse widget. Sits
-    /// in the right cluster of <see cref="ToriiAlphaToolbar"/> next to the
-    /// notification bell + user chip + clock, mirrors their visual height
-    /// + corner radius + glass-y background so it reads as a sibling
-    /// rather than a foreign element.
+    /// in the toolbar's right cluster next to the notification bell + user
+    /// chip + clock, mirrors their visual height + corner radius + glass-y
+    /// background so it reads as a sibling rather than a foreign element.
     ///
     /// Visual layout (collapsed)
     /// -------------------------

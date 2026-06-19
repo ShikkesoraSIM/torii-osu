@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Configuration;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics;
@@ -22,11 +23,16 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
         private bool automaticRendererInUse;
 
+        private FormCheckBox? dangerousUnlimitedCheckbox;
+        private readonly Bindable<SettingsNote.Data?> dangerousUnlimitedNote = new Bindable<SettingsNote.Data?>();
+
         [BackgroundDependencyLoader]
         private void load(FrameworkConfigManager config, OsuConfigManager osuConfig, IDialogOverlay? dialogOverlay, OsuGame? game, GameHost host)
         {
             var renderer = config.GetBindable<RendererType>(FrameworkSetting.Renderer);
             automaticRendererInUse = renderer.Value == RendererType.Automatic;
+
+            var dangerousUnlimitedNoCap = config.GetBindable<bool>(FrameworkSetting.AllowDangerousUnlimitedNoCap);
 
             IEnumerable<RendererType> availableRenderers = host.GetPreferredRenderersForCurrentPlatform().Order();
 
@@ -57,6 +63,16 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps", @"framerate" },
                 },
+                new SettingsItemV2(dangerousUnlimitedCheckbox = new FormCheckBox
+                {
+                    Caption = "I am stupid, I ignore warnings and want no limits",
+                    HintText = "Allows the experimental Unlimited mode to uncap update, input, and audio scheduling too. This can cause audio pops, stutters, heat, and general gremlin behaviour.",
+                    Current = dangerousUnlimitedNoCap,
+                })
+                {
+                    Keywords = new[] { @"fps", @"unlimited", @"no cap", @"danger", @"audio" },
+                    Note = { BindTarget = dangerousUnlimitedNote },
+                },
                 new SettingsItemV2(new FormEnumDropdown<ExecutionMode>
                 {
                     Caption = GraphicsSettingsStrings.ThreadingMode,
@@ -71,6 +87,52 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                     Keywords = new[] { @"framerate", @"counter" },
                 },
             };
+
+            dangerousUnlimitedNoCap.BindValueChanged(v =>
+            {
+                dangerousUnlimitedNote.Value = v.NewValue
+                    ? new SettingsNote.Data("Unsafe mode enabled: Unlimited can now uncap update/input/audio too. Disable this first if audio starts doubling, popping, or stuttering.", SettingsNote.Type.Warning)
+                    : new SettingsNote.Data("Recommended: leave this off. Unlimited will still uncap rendering, but keeps audio/input/update protected.", SettingsNote.Type.Informational);
+            }, true);
+
+            // torii (CRITICO): el toggle "I am stupid" es peligroso en renderers Deferred. el Deferred
+            // encola draw events del update thread al draw thread; si el update corre sin cap (que es lo
+            // que prende este toggle) los eventos se encolan mas rapido de lo que la GPU los consume ->
+            // memoria sin limite -> crash por OOM en ~30s. los renderers inmediatos no tienen esa cola y
+            // el toggle se comporta como dice el warning (pops + calor, no crash). Nova/refresh shippean
+            // Deferred por DEFAULT, asi que casi todos lo pegarian: lo forzamos off + disabled cuando se
+            // resuelve un Deferred, y lo habilitamos solo si el usuario eligio explicitamente uno no-deferred.
+            bool isDeferredRenderer(RendererType t) =>
+                t == RendererType.Deferred_Direct3D11
+                || t == RendererType.Deferred_Metal
+                || t == RendererType.Deferred_OpenGL
+                || t == RendererType.Deferred_Vulkan;
+
+            void applyDangerousUnlimitedGate(RendererType resolvedRenderer)
+            {
+                if (isDeferredRenderer(resolvedRenderer))
+                {
+                    // forzamos off asi un `true` guardado de antes no auto-dispara el OOM al arrancar.
+                    if (dangerousUnlimitedNoCap.Value)
+                        dangerousUnlimitedNoCap.Value = false;
+
+                    dangerousUnlimitedNoCap.Disabled = true;
+                    if (dangerousUnlimitedCheckbox != null)
+                        dangerousUnlimitedCheckbox.Current.Disabled = true;
+
+                    dangerousUnlimitedNote.Value = new SettingsNote.Data(
+                        "Disabled on the Deferred renderer: uncapped update + Deferred = unbounded memory growth + crash. Switch to a non-deferred renderer if you really want this.",
+                        SettingsNote.Type.Warning);
+                }
+                else
+                {
+                    dangerousUnlimitedNoCap.Disabled = false;
+                    if (dangerousUnlimitedCheckbox != null)
+                        dangerousUnlimitedCheckbox.Current.Disabled = false;
+                }
+            }
+
+            applyDangerousUnlimitedGate(host.ResolvedRenderer);
 
             renderer.BindValueChanged(r =>
             {

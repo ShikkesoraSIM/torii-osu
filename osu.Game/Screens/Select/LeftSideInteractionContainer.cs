@@ -15,13 +15,23 @@ namespace osu.Game.Screens.Select
     {
         private readonly Action? resetCarouselPosition;
 
+        // Torii: forwards a drag that starts in this (empty, in legacy mode) left area into the carousel
+        // scroll, and a predicate gating that to legacy mode only. Without this, the container eats the
+        // mouse-down (OnMouseDown => true) so the carousel never gets the drag, making the empty left
+        // area a drag dead-zone.
+        private readonly Action<float>? forwardScroll;
+        private readonly Func<bool>? canForwardDrag;
+
         private bool mouseContained;
+        private bool isDragging;
 
         private InputManager inputManager = null!;
 
-        public LeftSideInteractionContainer(Action resetCarouselPosition)
+        public LeftSideInteractionContainer(Action resetCarouselPosition, Action<float>? forwardScroll = null, Func<bool>? canForwardDrag = null)
         {
             this.resetCarouselPosition = resetCarouselPosition;
+            this.forwardScroll = forwardScroll;
+            this.canForwardDrag = canForwardDrag;
         }
 
         // we want to block plain scrolls on the left side so that they don't scroll the carousel,
@@ -30,6 +40,21 @@ namespace osu.Game.Screens.Select
         protected override bool OnScroll(ScrollEvent e) => !e.ControlPressed && !e.AltPressed && !e.ShiftPressed && !e.SuperPressed;
 
         protected override bool OnMouseDown(MouseDownEvent e) => true;
+
+        // Only claim the drag when forwarding is allowed (legacy mode); otherwise leave behaviour as-is.
+        protected override bool OnDragStart(DragStartEvent e) => canForwardDrag?.Invoke() == true;
+
+        protected override void OnDrag(DragEvent e)
+        {
+            isDragging = true;
+            forwardScroll?.Invoke(e.Delta.Y);
+        }
+
+        protected override void OnDragEnd(DragEndEvent e)
+        {
+            isDragging = false;
+            base.OnDragEnd(e);
+        }
 
         protected override void LoadComplete()
         {
@@ -40,6 +65,10 @@ namespace osu.Game.Screens.Select
         protected override void Update()
         {
             base.Update();
+
+            // Don't snap the carousel back to the selection while drag-scrolling from here (would fight it).
+            if (isDragging)
+                return;
 
             // We want to trigger an action whenever the cursor is in the left area of song select.
             // Other elements in song select handle input, so rather than using `OnHover` let's check the true mouse position.

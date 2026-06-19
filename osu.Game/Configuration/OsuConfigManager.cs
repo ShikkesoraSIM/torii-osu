@@ -178,6 +178,16 @@ namespace osu.Game.Configuration
 
             // Torii: input/audio/update thread rate. Drives GameHost.ToriiInputAudioHz live.
             SetDefault(OsuSetting.ToriiInputAudioHz, ToriiInputAudioHzMode.Hz2000);
+            // torii: marca de una sola vez. el primer arranque siembra el default de hz segun la
+            // maquina (ver OsuGameBase) sin pisar nunca una eleccion posterior del usuario.
+            SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
+
+            // torii: key debounce anti-chatter. dropea el re-press de una tecla de gameplay que cae
+            // dentro del umbral despues de su ultimo release (el doble-tap fantasma de teclados
+            // rapid-trigger / switches gastados). umbral en ms reales, bien abajo del gap minimo de
+            // un tap real (un stream de un dedo a 200 bpm son ~75ms) o se comeria inputs validos.
+            SetDefault(OsuSetting.ToriiKeyDebounceEnabled, false);
+            SetDefault(OsuSetting.ToriiKeyDebounceThresholdMs, 15.0, 1.0, 50.0);
 
             // Torii cosmetics / economy / UI
             SetDefault(OsuSetting.UserAuraEnabled, true);
@@ -202,8 +212,6 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
             SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
             SetDefault(OsuSetting.UseGameplayCursorInMenus, false);
-            SetDefault(OsuSetting.AlphaToolbarEnabled, false);
-            SetDefault(OsuSetting.AlphaToolbarUse, false);
             SetDefault(OsuSetting.AlphaStableSongSelectEnabled, false);
             SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
@@ -519,6 +527,9 @@ namespace osu.Game.Configuration
         UITheme,
         ToriiPotatoMode,
         ToriiInputAudioHz,
+        ToriiInputAudioHzAutoTuned,
+        ToriiKeyDebounceEnabled,
+        ToriiKeyDebounceThresholdMs,
 
         // Torii cosmetics / economy / UI
         UserAuraEnabled,
@@ -543,8 +554,6 @@ namespace osu.Game.Configuration
         CustomUIAccentUnlocked,
         MenuCursorStyle,
         UseGameplayCursorInMenus,
-        AlphaToolbarEnabled,
-        AlphaToolbarUse,
         AlphaStableSongSelectEnabled,
         AlphaPpDevModeEnabled,
         ToriiConfirmDangerousButtonsOnLongAttempts,

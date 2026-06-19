@@ -68,9 +68,18 @@ namespace osu.Game.Screens.Footer
         /// <summary>Fired when an overlay starts/stops owning the footer.</summary>
         public event Action? OverlayStateChanged;
 
+        /// <summary>
+        /// Whether the default lazer footer chrome is showing. False while the legacy footer has taken
+        /// over — in that case the default footer buttons are faded to alpha 0 and so leave the global
+        /// key-binding queue (IsPresent == false), which is why SongSelect drives their hotkeys instead.
+        /// </summary>
+        public bool DefaultChromeVisible { get; private set; } = true;
+
         /// <summary>Show/hide the default lazer footer chrome (used when the legacy footer takes over).</summary>
         public void SetDefaultChromeVisible(bool visible)
         {
+            DefaultChromeVisible = visible;
+
             background.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);
             buttonsGrid.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);
             BackButton.FadeTo(visible ? 1 : 0, 120, Easing.OutQuint);

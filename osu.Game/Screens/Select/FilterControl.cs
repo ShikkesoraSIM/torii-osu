@@ -348,6 +348,12 @@ namespace osu.Game.Screens.Select
             searchTextBox.Current.Value = query;
         }
 
+        /// <summary>
+        /// Torii: the live search query bindable, exposed so the legacy (stable-style) song-select
+        /// search box can bind two-way to the same source the modern filter uses.
+        /// </summary>
+        public Bindable<string> SearchQuery => searchTextBox.Current;
+
         protected override void PopIn()
         {
             this.MoveToX(0, SongSelect.ENTER_DURATION, Easing.OutQuint)

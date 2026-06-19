@@ -43,7 +43,10 @@
          input/audio thread-rate "Hz" mod). Swapped from the NuGet package so the
          in-game Hz dropdown can drive GameHost.ToriiInputAudioHz. -->
     <ProjectReference Include="..\..\toriirefresh-framework\osu.Framework\osu.Framework.csproj" />
-    <PackageReference Include="ppy.osu.Game.Resources" Version="2026.523.0" />
+    <!-- Torii: local osu-resources checkout (clean ppy/osu-resources 2026.523.0 + bundled
+         legacy song-select panels songselect-top/bottom from stable, for the legacy UI).
+         Swapped from the NuGet package so the default classic skin ships those textures. -->
+    <ProjectReference Include="..\..\toriirefresh-resources\osu.Game.Resources\osu.Game.Resources.csproj" />
     <PackageReference Include="Sentry" Version="6.6.0" />
     <PackageReference Include="SharpCompress" Version="0.49.1" />
     <PackageReference Include="NUnit" Version="4.5.1" />

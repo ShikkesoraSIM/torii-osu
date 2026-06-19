@@ -2,6 +2,8 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -67,6 +69,11 @@ namespace osu.Game.Rulesets.UI
             InternalChild = KeyBindingContainer =
                 CreateKeyBindingContainer(ruleset, variant, unique)
                     .WithChild(content = new Container { RelativeSizeAxes = Axes.Both });
+
+            // torii: avisamos al debounce cuando estamos en replay asi deja en paz las acciones
+            // que vienen del replay (fidelidad). el chatter se filtra solo en play en vivo.
+            if (KeyBindingContainer is RulesetKeyBindingContainer debounceContainer)
+                debounceContainer.ReplayActive = () => ReplayInputHandler != null;
         }
 
         [BackgroundDependencyLoader(true)]
@@ -219,9 +226,54 @@ namespace osu.Game.Rulesets.UI
         {
             protected override bool HandleRepeats => false;
 
+            // torii: key debounce anti-chatter. dropea un press de accion de gameplay que cae dentro
+            // de la ventana real configurada despues del release anterior de esa misma accion (el
+            // doble-tap fantasma de rapid-trigger / switches gastados). como el press suprimido nunca
+            // llega a base.PropagatePressed, la accion no entra en pressedActions, asi su release
+            // posterior se vuelve no-op solo y el recorder de replay no graba el chatter. solo
+            // acciones de gameplay, solo play en vivo (ReplayActive saca el replay), medido en ms
+            // reales asi DT/HT no escalan la ventana.
+            public Func<bool>? ReplayActive { get; set; }
+
+            private Bindable<bool>? debounceEnabled;
+            private Bindable<double>? debounceThresholdMs;
+            private readonly Dictionary<T, double> lastReleaseMs = new Dictionary<T, double>();
+
             public RulesetKeyBindingContainer(RulesetInfo ruleset, int variant, SimultaneousBindingMode unique)
                 : base(ruleset, variant, unique)
             {
+            }
+
+            [BackgroundDependencyLoader(true)]
+            private void load(OsuConfigManager? config)
+            {
+                debounceEnabled = config?.GetBindable<bool>(OsuSetting.ToriiKeyDebounceEnabled);
+                debounceThresholdMs = config?.GetBindable<double>(OsuSetting.ToriiKeyDebounceThresholdMs);
+            }
+
+            private bool debounceActive => debounceEnabled?.Value == true && ReplayActive?.Invoke() != true;
+
+            private static double realtimeMs() => Stopwatch.GetTimestamp() * 1000.0 / Stopwatch.Frequency;
+
+            protected override Drawable PropagatePressed(IEnumerable<Drawable> drawables, InputState state, T pressed, float scrollAmount = 0, bool isPrecise = false, bool repeat = false)
+            {
+                if (debounceActive && !repeat
+                    && lastReleaseMs.TryGetValue(pressed, out double released)
+                    && realtimeMs() - released < (debounceThresholdMs?.Value ?? 0))
+                {
+                    // chatter: dropeamos el press entero (nunca se dispatchea ni se graba).
+                    return null;
+                }
+
+                return base.PropagatePressed(drawables, state, pressed, scrollAmount, isPrecise, repeat);
+            }
+
+            protected override void PropagateReleased(IEnumerable<Drawable> drawables, InputState state, T released)
+            {
+                if (debounceActive)
+                    lastReleaseMs[released] = realtimeMs();
+
+                base.PropagateReleased(drawables, state, released);
             }
 
             protected override void ReloadMappings(IQueryable<RealmKeyBinding> realmKeyBindings)

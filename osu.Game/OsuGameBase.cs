@@ -406,6 +406,19 @@ namespace osu.Game
 
             // Torii: input/audio/update thread rate is the single source of truth for the
             // host's framesync pipeline. Applied live (the framework re-evaluates on change).
+            // torii: en el primerisimo arranque sembramos el default de hz segun la capacidad
+            // aproximada de la maquina, asi una pc floja/vieja no abre a los 2000 competitivos y
+            // tironea. una sola vez (guardado por ToriiInputAudioHzAutoTuned); despues gana siempre
+            // la eleccion del usuario en el dropdown. va antes del GetBindable asi el bindable lee
+            // el valor ya sembrado.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiInputAudioHzAutoTuned))
+            {
+                var tunedHz = ToriiInputAudioHzDefaults.ForThisMachine();
+                Logger.Log($"Torii: first-launch input/audio Hz auto-tuned to {(int)tunedHz} ({Environment.ProcessorCount} cores).");
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHz, tunedHz);
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzAutoTuned, true);
+            }
+
             toriiInputAudioHz = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
             toriiInputAudioHz.BindValueChanged(e => Host.ToriiInputAudioHz.Value = (int)e.NewValue, true);
 
@@ -632,6 +645,11 @@ namespace osu.Game
             AddFont(Resources, @"Fonts/Venera/Venera-Light");
             AddFont(Resources, @"Fonts/Venera/Venera-Bold");
             AddFont(Resources, @"Fonts/Venera/Venera-Black");
+
+            // Torii: osu!stable's "Aller" UI font, for the legacy (stable-style) song-select UI.
+            AddFont(Resources, @"Fonts/Aller/Aller-Regular");
+            AddFont(Resources, @"Fonts/Aller/Aller-Light");
+            AddFont(Resources, @"Fonts/Aller/Aller-Bold");
 
             Fonts.AddStore(new OsuIcon.OsuIconStore(Textures));
         }

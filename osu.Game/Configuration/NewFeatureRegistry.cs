@@ -160,6 +160,13 @@ namespace osu.Game.Configuration
         public const string LegacyFooterSkin = "v2026.618.0:legacy-footer-skin";
 
         /// <summary>
+        /// Marks the anti-chatter "Key debounce" toggle in Settings → Input
+        /// (mirrored in Settings → Torii). Filters the spurious double-taps that
+        /// rapid-trigger / hall-effect keyboards and worn switches produce.
+        /// </summary>
+        public const string KeyDebounce = "v2026.610.0:key-debounce";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -177,6 +184,7 @@ namespace osu.Game.Configuration
             ConfirmDangerousButtons,
             OboeAudio,
             LegacyFooterSkin,
+            KeyDebounce,
         };
 
         /// <summary>

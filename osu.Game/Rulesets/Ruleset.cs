@@ -290,6 +290,17 @@ namespace osu.Game.Rulesets
         public virtual RulesetSettingsSubsection? CreateSettings() => null;
 
         /// <summary>
+        /// torii: mirror opcional de <see cref="CreateSettings"/> bajo Settings -> Torii, ademas de la
+        /// ubicacion nativa en Settings -> Rulesets -> X. devuelve null por default; los rulesets con
+        /// prefs mirroreadas overridean para devolver una subseccion que bindea los MISMOS bindables que
+        /// su <see cref="CreateSettings"/>, asi tocar el toggle en cualquiera de las dos pantallas
+        /// mantiene las dos en sync. vive aca y no en un registry aparte para que el proyecto de cada
+        /// ruleset (que ya tiene acceso a su propio config manager) arme la subseccion sin forzar a
+        /// osu.Game a depender de los assemblies de cada ruleset.
+        /// </summary>
+        public virtual Overlays.Settings.SettingsSubsection? CreateToriiSettingsSubsection() => null;
+
+        /// <summary>
         /// Creates the <see cref="IRulesetConfigManager"/> for this <see cref="Ruleset"/>.
         /// </summary>
         /// <param name="settings">The <see cref="SettingsStore"/> to store the settings.</param>

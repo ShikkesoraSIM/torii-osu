@@ -105,8 +105,6 @@ namespace osu.Game.Configuration
             { OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, typeof(bool) },
 
             // Alpha-feature unlock flags (live behind the access-code panel)
-            { OsuSetting.AlphaToolbarEnabled, typeof(bool) },
-            { OsuSetting.AlphaToolbarUse, typeof(bool) },
             { OsuSetting.AlphaPpDevModeEnabled, typeof(bool) },
             { OsuSetting.AlphaStableSongSelectEnabled, typeof(bool) },
 

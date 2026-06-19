@@ -120,6 +120,9 @@ namespace osu.Game.Graphics
 
                 case Typeface.Inter:
                     return @"Inter";
+
+                case Typeface.Aller:
+                    return @"Aller";
             }
 
             return null;
@@ -136,6 +139,15 @@ namespace osu.Game.Graphics
             if ((family == GetFamilyString(Typeface.Torus) || family == GetFamilyString(Typeface.TorusAlternate)) && weight == FontWeight.Medium)
                 // torus doesn't have a medium; fallback to regular.
                 weight = FontWeight.Regular;
+
+            if (family == GetFamilyString(Typeface.Aller))
+            {
+                // Aller only ships Light / Regular / Bold; map the others onto those.
+                if (weight == FontWeight.Medium)
+                    weight = FontWeight.Regular;
+                else if (weight == FontWeight.SemiBold || weight == FontWeight.Black)
+                    weight = FontWeight.Bold;
+            }
 
             return weight.ToString();
         }
@@ -170,6 +182,7 @@ namespace osu.Game.Graphics
         [Description("Torus (alternate)")]
         TorusAlternate,
         Inter,
+        Aller,
     }
 
     public enum FontWeight

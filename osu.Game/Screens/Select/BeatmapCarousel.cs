@@ -52,6 +52,14 @@ namespace osu.Game.Screens.Select
 
         public const float SPACING = 3f;
 
+        /// <summary>
+        /// Torii: scroll the carousel by a raw drag delta. Used by the legacy song-select's left-side
+        /// interaction container to forward drags that begin in the empty area beside the carousel
+        /// (where the hidden song-info wedges would be) into the carousel, like dragging the carousel
+        /// itself. Sign matches the carousel's own drag (drag down -> see earlier items).
+        /// </summary>
+        public void ScrollFromDelta(float delta) => Scroll.OffsetScrollPosition(-delta);
+
         private IBindableList<BeatmapSetInfo> detachedBeatmaps = null!;
 
         private readonly LoadingLayer loading;
@@ -502,6 +510,15 @@ namespace osu.Game.Screens.Select
             if (ExpandedBeatmapSet != null) setExpandedSet(ExpandedBeatmapSet);
             if (ExpandedGroup != null) setExpandedGroup(ExpandedGroup);
 
+            // Torii: a legacy grouping tab was pressed - close every group now that the re-group and
+            // selection have settled, so the user sees all groups collapsed (headers only) instead of
+            // the selected group staying open. Runs after the expansion transfer above, so it wins.
+            if (CollapseGroupsOnNextFilter)
+            {
+                CollapseGroupsOnNextFilter = false;
+                CollapseAllGroups();
+            }
+
             foreach (var item in Scroll.Panels.OfType<PanelBeatmapSet>().Where(p => p.Item != null))
                 updateVisibleBeatmaps((GroupedBeatmapSet)item.Item!.Model, item);
         }
@@ -582,6 +599,27 @@ namespace osu.Game.Screens.Select
                 default:
                     throw new ArgumentException($"Unsupported model type {item.Model}");
             }
+        }
+
+        /// <summary>
+        /// Torii: when set, the next completed filter collapses every group (consumed in
+        /// <see cref="HandleFilterCompleted"/>). The legacy grouping tabs set this so picking a grouping
+        /// shows all groups closed, like stable's "group then Shift+Enter".
+        /// </summary>
+        public bool CollapseGroupsOnNextFilter { get; set; }
+
+        /// <summary>
+        /// Torii: collapse every group so only the group headers are visible (like stable's
+        /// "group then Shift+Enter"). Used by the legacy song-select grouping tabs so that picking a
+        /// grouping shows all the groups closed instead of leaving the selected one expanded.
+        /// </summary>
+        public void CollapseAllGroups()
+        {
+            foreach (var group in grouping.GroupItems.Keys.ToArray())
+                setExpansionStateOfGroup(group, false);
+
+            ExpandedGroup = null;
+            ExpandedBeatmapSet = null;
         }
 
         private void setExpandedGroup(GroupDefinition? group)

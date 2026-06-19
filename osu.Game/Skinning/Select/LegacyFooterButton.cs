@@ -1,12 +1,15 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Events;
 using osu.Game.Audio;
+using osuTK;
 
 namespace osu.Game.Skinning.Select
 {
@@ -18,14 +21,14 @@ namespace osu.Game.Skinning.Select
         private SkinnableSound hoverSound = null!;
         private SkinnableSound clickSound = null!;
 
-        /// <summary>Texture source for the button graphics. Null = the ambient (current) skin.</summary>
+        /// <summary>de donde salen las texturas del boton. null = el skin actual.</summary>
         public ISkin? TextureSource { get; init; }
 
-        /// <summary>
-        /// Stable's "old" footer layout (used for custom skins): the button sprite is
-        /// anchored to the TOP and grows downward, instead of the bottom-anchored new layout.
-        /// </summary>
-        public bool LegacyTopLeftLayout { get; init; }
+        // el slot del boton de stable. el hit area clickeable queda fijado a esto asi nunca depende del
+        // tamaño de la textura del skin (un selection-* que falta / es 0 / es enorme no puede dejar el
+        // boton sin click ni comerse a los de al lado). los glyphs se dibujan solo visual encima.
+        private const float slot_width = 74;
+        private const float slot_height = 90;
 
         public LegacyFooterButton(string kind)
         {
@@ -35,32 +38,51 @@ namespace osu.Game.Skinning.Select
         }
 
         [BackgroundDependencyLoader]
-        private void load(ISkinSource skin)
+        private void load(ISkinSource skin, SkinManager skins)
         {
-            AutoSizeAxes = Axes.Both;
+            Width = slot_width;
+            Height = slot_height;
 
             ISkin source = TextureSource ?? skin;
-            Anchor spriteAnchor = LegacyTopLeftLayout ? Anchor.TopLeft : Anchor.BottomLeft;
+            const Anchor spriteAnchor = Anchor.BottomLeft;
+
+            // si el skin activo no trae estas texturas, caemos al classic bundleado. si no, un
+            // "selection-{kind}-over" que falta colapsa el boton (y su hit area, que sale del sprite de
+            // hover) a 0x0, o sea invisible y sin click en algunos skins.
+            Texture? texture(string name) => source.GetTexture(name) ?? skins.DefaultClassicSkin.GetTexture(name);
+
+            // arma el sprite del glyph del boton, achicando las texturas de skin que vengan ENORMES al
+            // tamaño del slot. algunos skins traen un selection-mode (y mode-*-small) gigante como
+            // decoracion "skinnable top" del song-select, eso lo dibuja aparte y atras del chrome el
+            // LegacyTopDecoration. el boton del footer tiene que quedar tamaño boton asi no te tapa toda la pantalla.
+            Sprite glyph(string name, bool hover)
+            {
+                var tex = texture(name);
+
+                var sprite = new Sprite
+                {
+                    Anchor = spriteAnchor,
+                    Origin = spriteAnchor,
+                    Texture = tex,
+                    BypassAutoSizeAxes = Axes.Both,
+                    Alpha = hover ? 0f : 1f,
+                    AlwaysPresent = hover,
+                };
+
+                if (tex != null)
+                {
+                    float maxDim = Math.Max(tex.DisplayWidth, tex.DisplayHeight);
+                    if (maxDim > slot_height)
+                        sprite.Size = new Vector2(tex.DisplayWidth, tex.DisplayHeight) * (slot_height / maxDim);
+                }
+
+                return sprite;
+            }
 
             Children = new Drawable[]
             {
-                new Sprite
-                {
-                    Anchor = spriteAnchor,
-                    Origin = spriteAnchor,
-                    Texture = source.GetTexture($"selection-{kind}"),
-                    // to match stable, the button input area should not be taken from this sprite. it should be taken from the hover sprite below.
-                    // see: https://github.com/peppy/osu-stable-reference/blob/c34a74fb61c17c5667486a12548485d1f03baa2e/osu!/GameModes/Select/SongSelection.cs#L340-L349
-                    BypassAutoSizeAxes = Axes.Both,
-                },
-                hoverSprite = new Sprite
-                {
-                    Anchor = spriteAnchor,
-                    Origin = spriteAnchor,
-                    Texture = source.GetTexture($"selection-{kind}-over"),
-                    Alpha = 0f,
-                    AlwaysPresent = true,
-                },
+                glyph($"selection-{kind}", hover: false),
+                hoverSprite = glyph($"selection-{kind}-over", hover: true),
                 hoverSound = new SkinnableSound(new SampleInfo("click-short")),
                 clickSound = new SkinnableSound(new SampleInfo("click-short-confirm")),
             };
