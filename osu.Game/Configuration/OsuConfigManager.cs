@@ -163,7 +163,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.GameplayDisableWinKey, true);
 
             // Update
-            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Torii);
 
             SetDefault(OsuSetting.Version, string.Empty);
 

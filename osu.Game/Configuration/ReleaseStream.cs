@@ -5,11 +5,16 @@ using System.ComponentModel;
 
 namespace osu.Game.Configuration
 {
+    /// <summary>
+    /// torii: canales de release. heredado de lazer como { Lazer, Tachyon }; renombrado a Torii
+    /// (estable) y Nova (experimental, .NET 10 / Deferred / D3D12, tags vYYYY.MDD.N-nova). sin
+    /// migracion explicita: Enum.TryParse falla con los strings viejos y cae al default (Torii).
+    /// </summary>
     public enum ReleaseStream
     {
-        Lazer,
+        Torii,
 
-        [Description("Tachyon (Unstable)")]
-        Tachyon
+        [Description("Nova (Experimental)")]
+        Nova
     }
 }

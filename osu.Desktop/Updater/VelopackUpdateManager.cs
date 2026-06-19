@@ -55,7 +55,13 @@ namespace osu.Desktop.Updater
 
             try
             {
-                IUpdateSource updateSource = new GithubSource(@"https://github.com/ppy/osu", null, ReleaseStream.Value == Game.Configuration.ReleaseStream.Tachyon);
+                // torii: actualizamos desde la repo de torii (no ppy/osu!). el stream Nova usa
+                // ToriiUpdateSource para quedarse SOLO con los tags -nova (sino una estable -torii con
+                // version mas alta lo bajaria de stream); la estable usa el GithubSource normal (su
+                // includePrereleases=false ya excluye los -nova).
+                IUpdateSource updateSource = ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova
+                    ? new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: @"nova")
+                    : new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     AllowVersionDowngrade = true

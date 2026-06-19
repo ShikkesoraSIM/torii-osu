@@ -80,12 +80,12 @@ namespace osu.Game.Overlays.Settings.Sections.General
 
         private void releaseStreamChanged(ValueChangedEvent<ReleaseStream> stream)
         {
-            if (stream.NewValue == ReleaseStream.Tachyon)
+            if (stream.NewValue == ReleaseStream.Nova)
             {
                 dialogOverlay?.Push(
                     new ConfirmDialog(GeneralSettingsStrings.ChangeReleaseStreamConfirmation,
-                        () => configReleaseStream.Value = ReleaseStream.Tachyon,
-                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Lazer)
+                        () => configReleaseStream.Value = ReleaseStream.Nova,
+                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
                     {
                         BodyText = GeneralSettingsStrings.ChangeReleaseStreamConfirmationInfo
                     });

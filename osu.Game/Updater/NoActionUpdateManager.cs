@@ -36,9 +36,9 @@ namespace osu.Game.Updater
             try
             {
                 ReleaseStream stream = externalReleaseStream ?? ReleaseStream.Value;
-                bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
+                bool includePrerelease = stream == Configuration.ReleaseStream.Nova;
 
-                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ppy/osu/releases?per_page=10&page=1");
+                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=10&page=1");
                 await releasesRequest.PerformAsync(cancellationToken).ConfigureAwait(false);
 
                 GitHubRelease[] releases = releasesRequest.ResponseObject;
