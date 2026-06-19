@@ -1081,14 +1081,10 @@ namespace osu.Game
                 { FrameworkSetting.VolumeMusic, 0.6 },
                 { FrameworkSetting.VolumeEffect, 0.6 },
                 { FrameworkSetting.AudioUseExperimentalWasapi, true },
-                // Torii Nova emulation: default to the Deferred renderer (Direct3D11 on Windows,
-                // Metal on macOS, Automatic elsewhere), matching the Nova stream.
-                {
-                    FrameworkSetting.Renderer,
-                    RuntimeInfo.OS == RuntimeInfo.Platform.Windows ? RendererType.Deferred_Direct3D11
-                    : RuntimeInfo.OS == RuntimeInfo.Platform.macOS ? RendererType.Deferred_Metal
-                    : RendererType.Automatic
-                },
+                // torii: default al renderer Automatic (estable, lo elige el framework por plataforma).
+                // el Deferred / D3D12 todavia da hiccups y problemas, asi que NO va de default; el
+                // usuario avanzado lo puede elegir a mano en Settings -> Graphics -> Renderer.
+                { FrameworkSetting.Renderer, RendererType.Automatic },
             };
         }
 
