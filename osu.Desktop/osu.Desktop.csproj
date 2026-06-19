@@ -1,17 +1,20 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Project">
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii)</Description>
-    <AssemblyName>osu!</AssemblyName>
-    <AssemblyTitle>Torii</AssemblyTitle>
-    <Title>Torii</Title>
-    <Product>Torii</Product>
-    <ApplicationIcon>lazer.ico</ApplicationIcon>
+    <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Nova)</Description>
+    <!-- el binario se llama torii.exe igual que la Nova de ahora, asi el update de velopack pisa
+         el install existente en vez de dejar dos exes distintos. -->
+    <AssemblyName>torii</AssemblyName>
+    <AssemblyTitle>Torii Nova</AssemblyTitle>
+    <Title>Torii Nova</Title>
+    <Product>Torii Nova</Product>
+    <ApplicationIcon>torii.ico</ApplicationIcon>
     <Version>0.0.0</Version>
     <FileVersion>0.0.0</FileVersion>
-    <!-- Torii Nova emulation: Workstation + Concurrent GC (matches the Nova stream). -->
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <!-- GC workstation + concurrent: colecciona mas seguido, los pause de Gen2 no congelan. -->
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
@@ -33,9 +36,30 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Label="Resources">
+    <!-- torii.ico es el icono activo; dejamos lazer.ico embebido por si algo lo referencia por nombre. -->
+    <EmbeddedResource Include="torii.ico" />
     <EmbeddedResource Include="lazer.ico" />
   </ItemGroup>
   <ItemGroup Label="Windows Icons">
     <Content Include="*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- config de macOS -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <CFBundleName>Torii Nova</CFBundleName>
+    <CFBundleDisplayName>Torii Nova</CFBundleDisplayName>
+    <CFBundleIdentifier>com.shikkesora.torii</CFBundleIdentifier>
+    <CFBundleVersion>0.0.0</CFBundleVersion>
+    <CFBundlePackageType>APPL</CFBundlePackageType>
+    <CFBundleSignature>????</CFBundleSignature>
+    <CFBundleExecutable>torii</CFBundleExecutable>
+    <CFBundleIconFile>torii.icns</CFBundleIconFile>
+    <NSPrincipalClass>NSApplication</NSPrincipalClass>
+    <NSHighResolutionCapable>true</NSHighResolutionCapable>
+  </PropertyGroup>
+
+  <ItemGroup Label="macOS Icons" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Content Include="torii.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('torii.icns')" />
+    <Content Include="lazer.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('lazer.icns')" />
   </ItemGroup>
 </Project>
