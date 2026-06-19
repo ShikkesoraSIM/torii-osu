@@ -167,6 +167,13 @@ namespace osu.Game.Configuration
         public const string KeyDebounce = "v2026.610.0:key-debounce";
 
         /// <summary>
+        /// Marks the "Auto-hide toolbar" toggle in Settings → Torii → Interface. Hides the toolbar
+        /// until you move the cursor to the top of the screen (great for the legacy song select, where
+        /// a hidden toolbar gives the full stable-style layout).
+        /// </summary>
+        public const string AutoHideToolbar = "v2026.619.0:auto-hide-toolbar";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -185,6 +192,7 @@ namespace osu.Game.Configuration
             OboeAudio,
             LegacyFooterSkin,
             KeyDebounce,
+            AutoHideToolbar,
         };
 
         /// <summary>

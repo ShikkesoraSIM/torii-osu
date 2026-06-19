@@ -13,6 +13,7 @@ using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Game;
 using osu.Game.Beatmaps;
@@ -47,6 +48,16 @@ namespace osu.Game.Screens.Select
     public partial class LegacyLeaderboard : CompositeDrawable
     {
         public readonly Bindable<BeatmapLeaderboardScope> Scope = new Bindable<BeatmapLeaderboardScope>(BeatmapLeaderboardScope.Local);
+
+        /// <summary>
+        /// torii: lo dispara SongSelect (con carousel.ScrollToSelection). hoverear la leaderboard hace
+        /// volver el carousel a la cancion seleccionada, como en el modo normal. solo se dispara sobre
+        /// la region real de la leaderboard (scores/dropdown/PB), no sobre la zona vacia de al lado.
+        /// </summary>
+        public Action? HoverScrollRequested { get; init; }
+
+        private InputManager inputManager = null!;
+        private bool wasLeaderboardHovered;
 
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
@@ -161,9 +172,27 @@ namespace osu.Game.Screens.Select
             return false;
         }
 
+        protected override void Update()
+        {
+            base.Update();
+
+            // torii: cuando el mouse entra a la region real de la leaderboard (la misma que captura
+            // input) disparamos el scroll-a-la-seleccion una sola vez. la zona vacia de al lado no
+            // entra aca (RPIAt da false ahi), asi sigue siendo solo para drag-scroll.
+            bool over = HoverScrollRequested != null && inputManager != null
+                        && ReceivePositionalInputAt(inputManager.CurrentState.Mouse.Position);
+
+            if (over && !wasLeaderboardHovered)
+                HoverScrollRequested?.Invoke();
+
+            wasLeaderboardHovered = over;
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            inputManager = GetContainingInputManager()!;
 
             legacyActive = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
 

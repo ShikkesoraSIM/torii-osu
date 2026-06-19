@@ -41,6 +41,7 @@ using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
+using osu.Game.Overlays.Notifications;
 using osu.Game.Overlays.Mods;
 using osu.Game.Overlays.Volume;
 using osu.Game.Rulesets;
@@ -149,6 +150,12 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private OsuGameBase? game { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private INotificationOverlay? notifications { get; set; }
+
+        [Resolved]
+        private OsuConfigManager gameConfig { get; set; } = null!;
 
         [Resolved]
         private OsuLogo? logo { get; set; }
@@ -380,6 +387,8 @@ namespace osu.Game.Screens.Select
                             Anchor = Anchor.TopLeft,
                             Origin = Anchor.TopLeft,
                             RelativeSizeAxes = Axes.Both,
+                            // hoverear la leaderboard vuelve el carousel a la seleccion (como el modo normal).
+                            HoverScrollRequested = () => carousel.ScrollToSelection(),
                         },
                     },
                 },
@@ -430,6 +439,12 @@ namespace osu.Game.Screens.Select
             wedgesContainer.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
             legacyTopContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
             legacyLeaderboardContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
+
+            // torii: cuando el area es mas ancha que 16:9 (tipico con la nav-bar arriba) letterboxeamos
+            // TODO el screen+footer juntos via el ScalingContainer, asi todo (carousel, chrome, footer,
+            // back button) se achica uniforme y centrado, con el fondo dimmeado del screen-scaling en
+            // los costados. al salir de legacy se limpia (null) y vuelve a full screen.
+            (game as OsuGame)?.SetLegacyScreenAspectLock(legacy ? 1366f / 768f : null);
         }
 
         // Colour scheme for mod overlay is left as default (green) to match mods button.
@@ -841,6 +856,49 @@ namespace osu.Game.Screens.Select
             }
 
             Beatmap.BindValueChanged(updateVariousState, true);
+
+            // torii: re-aplicar el letterbox legacy al llegar (puede haber quedado limpio al irnos).
+            (game as OsuGame)?.SetLegacyScreenAspectLock(legacyUi.Value ? 1366f / 768f : null);
+
+            maybeShowToolbarHints();
+        }
+
+        /// <summary>
+        /// torii: dos avisos de descubrimiento, cada uno una sola vez. si usás el stable song select,
+        /// te recomienda esconder la toolbar (mejor experiencia). si NO lo usás, tras ver la song select
+        /// varias veces te avisa que existe. ambos son notificaciones (dismisseables, no joden).
+        /// </summary>
+        private void maybeShowToolbarHints()
+        {
+            if (notifications == null)
+                return;
+
+            if (legacyUi.Value)
+            {
+                // primera vez en stable song select: sugerimos esconder la toolbar (lo maneja OsuGame,
+                // que centraliza el aviso: tambien sale a los ~30 toggles de la toolbar).
+                (game as OsuGame)?.ShowToolbarHideHint();
+            }
+            else
+            {
+                int views = gameConfig.Get<int>(OsuSetting.ToriiSongSelectViews) + 1;
+                gameConfig.SetValue(OsuSetting.ToriiSongSelectViews, views);
+
+                if (views >= 50 && !gameConfig.Get<bool>(OsuSetting.ToriiStablePromoShown))
+                {
+                    gameConfig.SetValue(OsuSetting.ToriiStablePromoShown, true);
+                    notifications.Post(new SimpleNotification
+                    {
+                        Text = "Psst, Torii has a classic stable-style song select. Click to turn it on (or find it in Settings, Torii, Interface).",
+                        Icon = FontAwesome.Solid.ToriiGate,
+                        Activated = () =>
+                        {
+                            gameConfig.SetValue(OsuSetting.ToriiLegacyFooterUseSkin, true);
+                            return true;
+                        },
+                    });
+                }
+            }
         }
 
         private void updateVariousState(ValueChangedEvent<WorkingBeatmap> e)
@@ -858,6 +916,9 @@ namespace osu.Game.Screens.Select
 
         private void onLeavingScreen()
         {
+            // torii: soltar el letterbox legacy asi el resto del juego no queda achicado.
+            (game as OsuGame)?.SetLegacyScreenAspectLock(null);
+
             restoreBackground();
 
             Beatmap.ValueChanged -= updateVariousState;

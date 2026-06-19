@@ -33,6 +33,16 @@ namespace osu.Game.Overlays.Toolbar
         /// </summary>
         private bool hiddenByUser;
 
+        /// <summary>
+        /// torii: cuando el auto-hide esta prendido, esta toolbar la maneja el reveal-por-hover de
+        /// OsuGame. en ese caso ignoramos <see cref="hiddenByUser"/> asi un Ctrl+T previo no deja la
+        /// toolbar trabada sin poder revelarse al llevar el mouse arriba.
+        /// </summary>
+        public bool AutoHideActive { get; set; }
+
+        // torii: cuenta los Ctrl+T; OsuGame sugiere el auto-hide cuando llega a ~30.
+        private Bindable<int> toolbarToggleCount = null!;
+
         public Action OnHome;
 
         private ToolbarUserButton userButton;
@@ -69,6 +79,8 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader(true)]
         private void load(OsuGame osuGame, OsuConfigManager config)
         {
+            toolbarToggleCount = config.GetBindable<int>(OsuSetting.ToriiToolbarToggleCount);
+
             ToolbarBackground background;
             HoverInterceptor interceptor;
 
@@ -321,7 +333,7 @@ namespace osu.Game.Overlays.Toolbar
 
         protected override void UpdateState(ValueChangedEvent<Visibility> state)
         {
-            bool blockShow = hiddenByUser || OverlayActivationMode.Value == OverlayActivation.Disabled;
+            bool blockShow = (hiddenByUser && !AutoHideActive) || OverlayActivationMode.Value == OverlayActivation.Disabled;
 
             if (state.NewValue == Visibility.Visible && blockShow)
             {
@@ -355,6 +367,7 @@ namespace osu.Game.Overlays.Toolbar
             {
                 case GlobalAction.ToggleToolbar:
                     hiddenByUser = State.Value == Visibility.Visible; // set before toggling to allow the operation to always succeed.
+                    toolbarToggleCount.Value++;
                     ToggleVisibility();
                     return true;
             }

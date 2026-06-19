@@ -189,6 +189,19 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiKeyDebounceEnabled, false);
             SetDefault(OsuSetting.ToriiKeyDebounceThresholdMs, 15.0, 1.0, 50.0);
 
+            // torii: auto-esconder la toolbar. aparece al llevar el mouse bien arriba y se va sola tras
+            // un ratito. pensado para el legacy song select (toolbar abajo = experiencia 16:9 completa).
+            SetDefault(OsuSetting.ToriiAutoHideToolbar, false);
+
+            // torii: popups de descubrimiento (se muestran una sola vez). uno recomienda esconder la
+            // toolbar a quien usa el stable song select; el otro le avisa a quien NO lo usa que existe,
+            // tras ver la song select varias veces.
+            SetDefault(OsuSetting.ToriiToolbarHintShown, false);
+            SetDefault(OsuSetting.ToriiStablePromoShown, false);
+            SetDefault(OsuSetting.ToriiSongSelectViews, 0);
+            // torii: cuantas veces se togglo la toolbar (Ctrl+T). a las ~30 sugerimos el auto-hide.
+            SetDefault(OsuSetting.ToriiToolbarToggleCount, 0);
+
             // Torii cosmetics / economy / UI
             SetDefault(OsuSetting.UserAuraEnabled, true);
             SetDefault(OsuSetting.EquippedNameColour, string.Empty);
@@ -530,6 +543,11 @@ namespace osu.Game.Configuration
         ToriiInputAudioHzAutoTuned,
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,
+        ToriiAutoHideToolbar,
+        ToriiToolbarHintShown,
+        ToriiStablePromoShown,
+        ToriiSongSelectViews,
+        ToriiToolbarToggleCount,
 
         // Torii cosmetics / economy / UI
         UserAuraEnabled,

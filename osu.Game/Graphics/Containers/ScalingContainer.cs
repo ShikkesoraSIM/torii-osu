@@ -52,7 +52,13 @@ namespace osu.Game.Graphics.Containers
         private RectangleF? customRect;
         private bool customRectIsRelativePosition;
 
+        private float? forcedAspectRatio;
+
         private ITabletHandler? tabletHandler;
+
+        // torii: recalcula el letterbox forzado cuando cambia el tamanio (el rect depende del aspecto
+        // del area, asi que hay que rehacerlo en cada resize / toggle de la nav-bar).
+        private readonly LayoutValue aspectLayout = new LayoutValue(Invalidation.DrawSize);
 
         /// <summary>
         /// Set a custom position and scale which overrides any user specification.
@@ -67,6 +73,21 @@ namespace osu.Game.Graphics.Containers
             if (IsLoaded) Scheduler.AddOnce(updateSize);
         }
 
+        /// <summary>
+        /// torii: fuerza un letterbox a un aspect ratio fijo, centrado, tapando lo que sobra con el
+        /// fondo dimmeado (igual que el screen scaling). lo usa el song select legacy: cuando la nav-bar
+        /// arriba achica la altura y el area queda mas ancha que 16:9, en vez de estirarse el chrome
+        /// deja barras iguales a los dos costados. <c>null</c> limpia y vuelve al scaling normal.
+        /// </summary>
+        public void SetForcedAspectRatio(float? aspectRatio)
+        {
+            if (forcedAspectRatio == aspectRatio)
+                return;
+
+            forcedAspectRatio = aspectRatio;
+            if (IsLoaded) Scheduler.AddOnce(updateSize);
+        }
+
         private const float corner_radius = 10;
 
         /// <summary>
@@ -78,6 +99,8 @@ namespace osu.Game.Graphics.Containers
             this.targetMode = targetMode;
             RelativeSizeAxes = Axes.Both;
 
+            AddLayout(aspectLayout);
+
             InternalChild = sizableContainer = new SizeableAlwaysInputContainer(targetMode == ScalingMode.Everything)
             {
                 RelativeSizeAxes = Axes.Both,
@@ -85,6 +108,21 @@ namespace osu.Game.Graphics.Containers
                 CornerRadius = corner_radius,
                 Child = content = new ScalingDrawSizePreservingFillContainer(targetMode != ScalingMode.Gameplay)
             };
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            // torii: el rect del letterbox forzado depende del aspecto del area, asi que lo rehacemos
+            // cuando cambia el tamanio (resize de ventana, toggle de la nav-bar, etc).
+            if (!aspectLayout.IsValid)
+            {
+                if (forcedAspectRatio != null)
+                    updateSize();
+
+                aspectLayout.Validate();
+            }
         }
 
         public partial class ScalingDrawSizePreservingFillContainer : DrawSizePreservingFillContainer
@@ -196,7 +234,20 @@ namespace osu.Game.Graphics.Containers
 
             RectangleF targetRect = new RectangleF(Vector2.Zero, Vector2.One);
 
-            if (customRect != null)
+            if (forcedAspectRatio is float aspect && aspect > 0 && DrawWidth > 0 && DrawHeight > 0)
+            {
+                // torii: letterbox a un aspect fijo, centrado. el rect mas grande de ese aspecto que
+                // entra en el area, centrado, y lo que sobra queda de barras (mismo bg dimmeado atras).
+                sizableContainer.RelativePositionAxes = Axes.Both;
+
+                float areaAspect = DrawWidth / DrawHeight;
+                Vector2 size = areaAspect > aspect
+                    ? new Vector2(aspect / areaAspect, 1) // area mas ancha: barras a los costados
+                    : new Vector2(1, areaAspect / aspect); // area mas alta: barras arriba/abajo
+
+                targetRect = new RectangleF((Vector2.One - size) / 2, size);
+            }
+            else if (customRect != null)
             {
                 sizableContainer.RelativePositionAxes = customRectIsRelativePosition ? Axes.Both : Axes.None;
 

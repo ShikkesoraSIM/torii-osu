@@ -70,6 +70,16 @@ namespace osu.Game.Screens.Select
             if (isDragging)
                 return;
 
+            // torii: en modo legacy esta zona izquierda es para drag-scrollear el carousel y browsear.
+            // si dejamos el "volver a la seleccion" al hoverear, te tira el scroll de vuelta a la cancion
+            // actual cada vez que pasas el mouse por ahi (lo que el usuario veia como "la leaderboard me
+            // resetea el carousel"). asi que en legacy desactivamos el reset por hover.
+            if (canForwardDrag?.Invoke() == true)
+            {
+                mouseContained = Contains(inputManager.CurrentState.Mouse.Position);
+                return;
+            }
+
             // We want to trigger an action whenever the cursor is in the left area of song select.
             // Other elements in song select handle input, so rather than using `OnHover` let's check the true mouse position.
             if (Contains(inputManager.CurrentState.Mouse.Position))

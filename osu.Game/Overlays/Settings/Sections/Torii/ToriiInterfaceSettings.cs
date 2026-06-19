@@ -87,6 +87,16 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 },
                 new SettingsItemV2(new FormCheckBox
                 {
+                    Caption = "Auto-hide toolbar",
+                    HintText = "Keep the top toolbar hidden and only reveal it when you move the cursor to the very top of the screen, then it tucks away again on its own. Great with the stable song select, where a hidden toolbar gives the full classic layout.",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiAutoHideToolbar),
+                    NewFeatureId = NewFeatureRegistry.AutoHideToolbar,
+                })
+                {
+                    Keywords = new[] { @"toolbar", @"taskbar", @"navbar", @"auto", @"hide", @"reveal", @"hover", @"immersive", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
                     Caption = "Custom UI hue",
                     HintText = "Tint the UI (menus, overlays, settings) to a custom hue instead of the theme default.",
                     Current = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled),

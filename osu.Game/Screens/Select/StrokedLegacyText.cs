@@ -12,11 +12,11 @@ using osuTK.Graphics;
 namespace osu.Game.Screens.Select
 {
     /// <summary>
-    /// torii: texto legacy (estilo osu!stable) con un drop shadow suave mas un contorno oscuro casi
-    /// invisible alrededor de los glifos, asi se lee como el texto de la UI de stable sobre fondos
-    /// claros/cargados. el stroke se estampa en 8 direcciones con un offset sub-pixel (constante, NO
-    /// escalado por el tamano de fuente) y queda bien tenue; la copia real (de adelante) lleva una
-    /// sombra sutil encima. todas las copias comparten el mismo atlas de fuente bitmap asi entran en el
+    /// torii: texto legacy (estilo osu!stable) con un drop shadow suave mas un contorno fino casi opaco
+    /// alrededor de los glifos, asi se lee como el texto de la UI de stable sobre fondos claros/cargados.
+    /// el stroke se estampa en 8 direcciones con un offset sub-pixel (constante, NO escalado por el
+    /// tamano de fuente) asi queda apretado y definido sin engordar el texto; la copia real (de
+    /// adelante) lleva una sombra sutil encima. todas las copias comparten el mismo atlas de fuente bitmap asi entran en el
     /// mismo draw call. casi drop-in de <see cref="OsuSpriteText"/>: seteas Text, Font, Colour, Anchor/Origin como siempre.
     /// </summary>
     public partial class StrokedLegacyText : CompositeDrawable
@@ -32,8 +32,8 @@ namespace osu.Game.Screens.Select
         private readonly OsuSpriteText main;
         private readonly OsuSpriteText[] strokes = new OsuSpriteText[directions.Length];
 
-        /// <summary>grosor absoluto del stroke en px locales. sub-pixel = un contorno casi invisible.</summary>
-        public float StrokeWidth { get; init; } = 0.5f;
+        /// <summary>grosor absoluto del stroke en px locales. fino: un contorno apretado, no un halo.</summary>
+        public float StrokeWidth { get; init; } = 0.35f;
 
         public LocalisableString Text
         {
@@ -82,17 +82,17 @@ namespace osu.Game.Screens.Select
                 children[i] = strokes[i] = new OsuSpriteText
                 {
                     Shadow = false,
-                    // bien tenue: el stroke tiene que apenas notarse, no engordar el texto.
-                    Colour = new Color4(0f, 0f, 0f, 0.35f),
+                    // contorno fino y suave: se nota el borde pero sin quedar negro/cargado.
+                    Colour = new Color4(0f, 0f, 0f, 0.5f),
                     Position = directions[i],
                 };
             }
 
             children[directions.Length] = main = new OsuSpriteText
             {
-                // le dejamos a la copia real el drop shadow suavecito de stable.
+                // drop shadow apenas, mas suave que antes asi no carga el texto de negro.
                 Shadow = true,
-                ShadowColour = new Color4(0f, 0f, 0f, 0.5f),
+                ShadowColour = new Color4(0f, 0f, 0f, 0.3f),
                 ShadowOffset = new Vector2(0f, 0.08f),
                 Colour = Color4.White,
             };

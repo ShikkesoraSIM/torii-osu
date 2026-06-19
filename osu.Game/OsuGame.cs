@@ -123,6 +123,19 @@ namespace osu.Game
 
         public Toolbar Toolbar { get; private set; }
 
+        // torii: auto-hide de la toolbar. la escondemos sola y la revelamos al llevar el cursor bien
+        // arriba; tras un ratito sin tenerlo ahi se vuelve a esconder.
+        private Bindable<bool> autoHideToolbar;
+        private double? toolbarAutoHideTime;
+        private InputManager autoHideInputManager;
+        private const float toolbar_reveal_edge = 5;
+        private const double toolbar_auto_hide_delay = 1500;
+
+        // torii: avisos sobre la toolbar. a los ~30 Ctrl+T sugerimos el auto-hide; al activar el stable
+        // song select mostramos un disclaimer de que es experimental.
+        private Bindable<int> toolbarToggleHintWatcher;
+        private Bindable<bool> legacyStableDisclaimerWatcher;
+
         private ChatOverlay chatOverlay;
 
         private ChannelManager channelManager;
@@ -164,6 +177,14 @@ namespace osu.Game
         private osu.Game.Overlays.Cosmetics.ToriiGiftWatcher toriiGiftWatcher;
 
         protected ScalingContainer ScreenContainer { get; private set; }
+
+        /// <summary>
+        /// torii: pide al ScalingContainer de las pantallas que letterboxee todo (screen + footer +
+        /// back button) a un aspect fijo y centrado, con barras dimmeadas a los costados. lo usa el
+        /// song select legacy para que el chrome no se rompa cuando la nav-bar arriba achica el area.
+        /// null vuelve al scaling normal.
+        /// </summary>
+        public void SetLegacyScreenAspectLock(float? aspectRatio) => ScreenContainer.SetForcedAspectRatio(aspectRatio);
 
         protected Container ScreenOffsetContainer { get; private set; }
 
@@ -1775,7 +1796,11 @@ namespace osu.Game
         {
             base.UpdateAfterChildren();
 
-            ScreenOffsetContainer.Padding = new MarginPadding { Top = toolbarOffset };
+            // torii: con auto-hide la toolbar OVERLAYea la pantalla en vez de empujarla. asi mostrarla
+            // o esconderla no cambia el alto de la pantalla y NO relayoutea el carousel (sino, al
+            // esconderse, te tiraba el scroll de vuelta a la cancion seleccionada). de paso la
+            // song-select queda siempre full 16:9 con auto-hide.
+            ScreenOffsetContainer.Padding = new MarginPadding { Top = autoHideToolbar?.Value == true ? 0 : toolbarOffset };
             overlayOffsetContainer.Padding = new MarginPadding { Top = toolbarOffset };
 
             float horizontalOffset = 0f;
@@ -1792,6 +1817,113 @@ namespace osu.Game
             overlayContent.X = horizontalOffset * 1.2f;
 
             GlobalCursorDisplay.ShowCursor = (ScreenStack.CurrentScreen as IOsuScreen)?.CursorVisible ?? false;
+
+            updateAutoHideToolbar();
+        }
+
+        private void updateAutoHideToolbar()
+        {
+            if (autoHideToolbar == null)
+            {
+                autoHideToolbar = LocalConfig.GetBindable<bool>(OsuSetting.ToriiAutoHideToolbar);
+                autoHideToolbar.BindValueChanged(e =>
+                {
+                    // con auto-hide prendido la toolbar la maneja el reveal-por-hover; le avisamos para
+                    // que ignore un Ctrl+T previo (sino quedaba trabada escondida sin poder revelarse).
+                    Toolbar.AutoHideActive = e.NewValue;
+
+                    // al apagarlo, devolvemos la toolbar a la vista (de ahi la maneja la logica normal).
+                    if (!e.NewValue)
+                    {
+                        toolbarAutoHideTime = null;
+                        Toolbar.Show();
+                    }
+                }, true);
+
+                // a los ~30 toggles de la toolbar (Ctrl+T) sugerimos el auto-hide (una sola vez).
+                toolbarToggleHintWatcher = LocalConfig.GetBindable<int>(OsuSetting.ToriiToolbarToggleCount);
+                toolbarToggleHintWatcher.BindValueChanged(e =>
+                {
+                    if (e.NewValue >= 30)
+                        ShowToolbarHideHint();
+                });
+
+                // al activar el stable song select, mostramos un disclaimer de que es experimental.
+                legacyStableDisclaimerWatcher = LocalConfig.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
+                legacyStableDisclaimerWatcher.BindValueChanged(e =>
+                {
+                    if (e.NewValue)
+                        postStableSongSelectDisclaimer();
+                });
+            }
+
+            if (!autoHideToolbar.Value)
+                return;
+
+            // gameplay / intros dejan OverlayActivation en Disabled: ahi la toolbar no se muestra igual,
+            // asi que el reveal no molesta jugando (lo bloquea Toolbar.UpdateState).
+            autoHideInputManager ??= GetContainingInputManager();
+            float mouseY = autoHideInputManager?.CurrentState.Mouse.Position.Y ?? float.MaxValue;
+
+            if (mouseY <= toolbar_reveal_edge)
+            {
+                // cursor pegado al borde de arriba: la traemos.
+                toolbarAutoHideTime = null;
+                Toolbar.Show();
+            }
+            else if (Toolbar.State.Value == Visibility.Visible)
+            {
+                // mientras el cursor siga sobre la banda de la toolbar la dejamos; si no, cuenta regresiva.
+                if (mouseY <= Toolbar.HEIGHT || Toolbar.IsHovered)
+                    toolbarAutoHideTime = null;
+                else
+                {
+                    toolbarAutoHideTime ??= Time.Current + toolbar_auto_hide_delay;
+
+                    if (Time.Current >= toolbarAutoHideTime)
+                    {
+                        toolbarAutoHideTime = null;
+                        Toolbar.Hide();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// torii: aviso (una sola vez) que sugiere prender el auto-hide de la toolbar. lo dispara el
+        /// stable song select la primera vez, o cuando el usuario togglo la toolbar unas 30 veces.
+        /// click = lo activa.
+        /// </summary>
+        public void ShowToolbarHideHint()
+        {
+            if (LocalConfig.Get<bool>(OsuSetting.ToriiToolbarHintShown))
+                return;
+
+            // si ya lo tiene prendido no hace falta sugerirlo.
+            if (LocalConfig.Get<bool>(OsuSetting.ToriiAutoHideToolbar))
+                return;
+
+            LocalConfig.SetValue(OsuSetting.ToriiToolbarHintShown, true);
+
+            Notifications.Post(new SimpleNotification
+            {
+                Text = "Tip: you can auto-hide the toolbar and reveal it by moving the cursor to the very top. Click to turn it on - great for the stable song select.",
+                Icon = FontAwesome.Solid.ToriiGate,
+                Activated = () =>
+                {
+                    LocalConfig.SetValue(OsuSetting.ToriiAutoHideToolbar, true);
+                    return true;
+                },
+            });
+        }
+
+        private void postStableSongSelectDisclaimer()
+        {
+            Notifications.Post(new SimpleNotification
+            {
+                Text = "Heads up: the stable song select is experimental. Some skins may look a bit broken and there can be bugs. You can turn it off anytime in Settings.",
+                Icon = FontAwesome.Solid.ToriiGate,
+            });
         }
 
         protected virtual void ScreenChanged([CanBeNull] IOsuScreen current, [CanBeNull] IOsuScreen newScreen)

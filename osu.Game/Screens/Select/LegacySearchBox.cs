@@ -74,11 +74,15 @@ namespace osu.Game.Screens.Select
             };
         }
 
-        private partial class SearchTextBox : OsuTextBox
+        private partial class SearchTextBox : FocusedTextBox
         {
             public SearchTextBox()
             {
                 PlaceholderText = @"Type to search!";
+                // como en lazer: agarra y mantiene el foco asi se puede tipear directo sin clickear.
+                // las teclas de navegacion (flechas / enter) igual pasan al carousel; solo se queda con
+                // lo imprimible. solo esta presente en modo legacy, asi que no roba foco en el resto.
+                HoldFocus = true;
             }
 
             [BackgroundDependencyLoader]
