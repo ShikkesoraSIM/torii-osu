@@ -99,9 +99,10 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             // encola draw events del update thread al draw thread; si el update corre sin cap (que es lo
             // que prende este toggle) los eventos se encolan mas rapido de lo que la GPU los consume ->
             // memoria sin limite -> crash por OOM en ~30s. los renderers inmediatos no tienen esa cola y
-            // el toggle se comporta como dice el warning (pops + calor, no crash). Nova/refresh shippean
-            // Deferred por DEFAULT, asi que casi todos lo pegarian: lo forzamos off + disabled cuando se
-            // resuelve un Deferred, y lo habilitamos solo si el usuario eligio explicitamente uno no-deferred.
+            // el toggle se comporta como dice el warning (pops + calor, no crash). el default ahora es
+            // Automatic (= D3D11 inmediato), pero alguien que eligio Deferred a mano (o que viene de una
+            // Nova vieja con Deferred guardado en el ini) igual lo puede pegar: lo forzamos off + disabled
+            // cuando se resuelve un Deferred, y lo habilitamos solo si se resuelve uno no-deferred.
             bool isDeferredRenderer(RendererType t) =>
                 t == RendererType.Deferred_Direct3D11
                 || t == RendererType.Deferred_Metal
