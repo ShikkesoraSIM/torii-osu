@@ -135,6 +135,7 @@ namespace osu.Game
         // song select mostramos un disclaimer de que es experimental.
         private Bindable<int> toolbarToggleHintWatcher;
         private Bindable<bool> legacyStableDisclaimerWatcher;
+        private osu.Game.Overlays.ToriiBriefing.ToolbarAutoHideHintOverlay toolbarAutoHideHint;
 
         private ChatOverlay chatOverlay;
 
@@ -1240,6 +1241,12 @@ namespace osu.Game
                 },
             }, topMostOverlayContent.Add);
 
+            // torii: popup glass (estilo briefing) que sugiere el auto-hide de la toolbar.
+            loadComponentSingleFile(toolbarAutoHideHint = new osu.Game.Overlays.ToriiBriefing.ToolbarAutoHideHintOverlay
+            {
+                OnEnable = () => LocalConfig.SetValue(OsuSetting.ToriiAutoHideToolbar, true),
+            }, topMostOverlayContent.Add);
+
             loadComponentSingleFile(volume = new VolumeOverlay(), leftFloatingOverlayContent.Add, true);
 
             onScreenDisplay = new OnScreenDisplay();
@@ -1901,16 +1908,8 @@ namespace osu.Game
 
             LocalConfig.SetValue(OsuSetting.ToriiToolbarHintShown, true);
 
-            Notifications.Post(new SimpleNotification
-            {
-                Text = "Tip: you can auto-hide the toolbar and reveal it by moving the cursor to the very top. Click to turn it on - great for the stable song select.",
-                Icon = FontAwesome.Solid.ToriiGate,
-                Activated = () =>
-                {
-                    LocalConfig.SetValue(OsuSetting.ToriiAutoHideToolbar, true);
-                    return true;
-                },
-            });
+            // popup glass estilo briefing (no un toast); el boton "enable" prende el auto-hide.
+            toolbarAutoHideHint?.Show();
         }
 
         private void postStableSongSelectDisclaimer()
