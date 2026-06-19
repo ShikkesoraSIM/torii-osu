@@ -41,7 +41,6 @@ using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
-using osu.Game.Overlays.Notifications;
 using osu.Game.Overlays.Mods;
 using osu.Game.Overlays.Volume;
 using osu.Game.Rulesets;
@@ -150,9 +149,6 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private OsuGameBase? game { get; set; }
-
-        [Resolved(CanBeNull = true)]
-        private INotificationOverlay? notifications { get; set; }
 
         [Resolved]
         private OsuConfigManager gameConfig { get; set; } = null!;
@@ -864,39 +860,36 @@ namespace osu.Game.Screens.Select
         }
 
         /// <summary>
-        /// torii: dos avisos de descubrimiento, cada uno una sola vez. si usás el stable song select,
-        /// te recomienda esconder la toolbar (mejor experiencia). si NO lo usás, tras ver la song select
-        /// varias veces te avisa que existe. ambos son notificaciones (dismisseables, no joden).
+        /// torii: popups glass de descubrimiento, cada uno una sola vez. (C) en la stable song select
+        /// recomienda el auto-hide de la toolbar; (B) a quien NO la usa, tras varias visitas, le ofrece
+        /// la stable. el caso (A) -uso frecuente de la toolbar- lo dispara OsuGame aparte. damos ~2s de
+        /// delay tras llegar asi el popup aparece con su animacion + sonido y no pisado por la transicion
+        /// de entrada; si nos fuimos antes, no sale (el Scheduler de la screen se cancela al disposear).
         /// </summary>
         private void maybeShowToolbarHints()
         {
-            if (notifications == null)
-                return;
-
             if (legacyUi.Value)
             {
-                // primera vez en stable song select: sugerimos esconder la toolbar (lo maneja OsuGame,
-                // que centraliza el aviso: tambien sale a los ~30 toggles de la toolbar).
-                (game as OsuGame)?.ShowToolbarHideHint();
+                // (C) en la stable recomendamos el auto-hide para la mejor experiencia.
+                Scheduler.AddDelayed(() =>
+                {
+                    if (this.IsCurrentScreen())
+                        (game as OsuGame)?.ShowAutoHideHint(true);
+                }, 2000);
             }
             else
             {
+                // (B) contamos visitas a la song select normal; tras unas cuantas, ofrecemos la stable.
                 int views = gameConfig.Get<int>(OsuSetting.ToriiSongSelectViews) + 1;
                 gameConfig.SetValue(OsuSetting.ToriiSongSelectViews, views);
 
-                if (views >= 50 && !gameConfig.Get<bool>(OsuSetting.ToriiStablePromoShown))
+                if (views >= 15)
                 {
-                    gameConfig.SetValue(OsuSetting.ToriiStablePromoShown, true);
-                    notifications.Post(new SimpleNotification
+                    Scheduler.AddDelayed(() =>
                     {
-                        Text = "Psst, Torii has a classic stable-style song select. Click to turn it on (or find it in Settings, Torii, Interface).",
-                        Icon = FontAwesome.Solid.ToriiGate,
-                        Activated = () =>
-                        {
-                            gameConfig.SetValue(OsuSetting.ToriiLegacyFooterUseSkin, true);
-                            return true;
-                        },
-                    });
+                        if (this.IsCurrentScreen())
+                            (game as OsuGame)?.ShowStableSongSelectPromo();
+                    }, 2000);
                 }
             }
         }

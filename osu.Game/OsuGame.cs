@@ -135,7 +135,8 @@ namespace osu.Game
         // song select mostramos un disclaimer de que es experimental.
         private Bindable<int> toolbarToggleHintWatcher;
         private Bindable<bool> legacyStableDisclaimerWatcher;
-        private osu.Game.Overlays.ToriiBriefing.ToolbarAutoHideHintOverlay toolbarAutoHideHint;
+        private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay autoHideHint;
+        private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay stableSongSelectPromo;
 
         private ChatOverlay chatOverlay;
 
@@ -1241,10 +1242,25 @@ namespace osu.Game
                 },
             }, topMostOverlayContent.Add);
 
-            // torii: popup glass (estilo briefing) que sugiere el auto-hide de la toolbar.
-            loadComponentSingleFile(toolbarAutoHideHint = new osu.Game.Overlays.ToriiBriefing.ToolbarAutoHideHintOverlay
+            // torii: popups glass (estilo briefing) de descubrimiento. uno recomienda el auto-hide de la
+            // toolbar (lo dispara A: uso frecuente de la toolbar, o C: estar en la stable song select);
+            // el otro promociona la stable song select a quien no la usa (B). el toggle real va embebido.
+            loadComponentSingleFile(autoHideHint = new osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay
             {
-                OnEnable = () => LocalConfig.SetValue(OsuSetting.ToriiAutoHideToolbar, true),
+                Title = "Try Auto-hide toolbar!",
+                ToggleCaption = "Auto-hide toolbar",
+                ToggleHint = "Reveal it any time by moving the cursor to the very top of the screen.",
+                Accent = osu.Game.Overlays.ToriiBriefing.BriefingTheme.AccentPink,
+                Toggle = LocalConfig.GetBindable<bool>(OsuSetting.ToriiAutoHideToolbar),
+            }, topMostOverlayContent.Add);
+
+            loadComponentSingleFile(stableSongSelectPromo = new osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay
+            {
+                Title = "Try the stable song select!",
+                ToggleCaption = "Stable song select",
+                ToggleHint = "A classic stable-style song select. You can also find it in Settings, Torii, Interface.",
+                Accent = osu.Game.Overlays.ToriiBriefing.BriefingTheme.AccentCyan,
+                Toggle = LocalConfig.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
             }, topMostOverlayContent.Add);
 
             loadComponentSingleFile(volume = new VolumeOverlay(), leftFloatingOverlayContent.Add, true);
@@ -1843,12 +1859,12 @@ namespace osu.Game
                     }
                 }, true);
 
-                // a los ~30 toggles de la toolbar (Ctrl+T) sugerimos el auto-hide (una sola vez).
+                // (A) a los ~30 toggles de la toolbar sugerimos el auto-hide (una sola vez, copy general).
                 toolbarToggleHintWatcher = LocalConfig.GetBindable<int>(OsuSetting.ToriiToolbarToggleCount);
                 toolbarToggleHintWatcher.BindValueChanged(e =>
                 {
                     if (e.NewValue >= 30)
-                        ShowToolbarHideHint();
+                        ShowAutoHideHint(false);
                 });
 
                 // al activar el stable song select, mostramos un disclaimer de que es experimental.
@@ -1893,23 +1909,50 @@ namespace osu.Game
         }
 
         /// <summary>
-        /// torii: aviso (una sola vez) que sugiere prender el auto-hide de la toolbar. lo dispara el
-        /// stable song select la primera vez, o cuando el usuario togglo la toolbar unas 30 veces.
-        /// click = lo activa.
+        /// torii: popup (una sola vez) que recomienda el auto-hide de la toolbar. dos disparadores con
+        /// copy distinto pero el MISMO flag (una sola rec de auto-hide): A = uso frecuente de la toolbar
+        /// (~30 toggles), C = estar en la stable song select. si ya lo tiene prendido, no molesta.
         /// </summary>
-        public void ShowToolbarHideHint()
+        public void ShowAutoHideHint(bool stableContext)
         {
+            // no pisamos gameplay/intros con un popup modal; reintenta despues (no marcamos el flag aun).
+            if (OverlayActivationMode.Value == OverlayActivation.Disabled)
+                return;
+
             if (LocalConfig.Get<bool>(OsuSetting.ToriiToolbarHintShown))
                 return;
 
-            // si ya lo tiene prendido no hace falta sugerirlo.
             if (LocalConfig.Get<bool>(OsuSetting.ToriiAutoHideToolbar))
                 return;
 
             LocalConfig.SetValue(OsuSetting.ToriiToolbarHintShown, true);
 
-            // popup glass estilo briefing (no un toast); el boton "enable" prende el auto-hide.
-            toolbarAutoHideHint?.Show();
+            string body = stableContext
+                ? "For the best experience on the stable song select we recommend hiding the toolbar. Turn on auto-hide below (it slides back when you move the cursor to the top), or just hide it any time with Ctrl+T."
+                : "You use the toolbar a lot! We added an auto-hide option: it tucks away on its own and slides back when you move the cursor to the very top of the screen. Give it a try below.";
+
+            autoHideHint?.Present(body);
+        }
+
+        /// <summary>
+        /// torii: popup (una sola vez) que le ofrece la stable song select a quien no la usa. lo dispara
+        /// la song select tras varias visitas (B). el toggle embebido la prende al toque.
+        /// </summary>
+        public void ShowStableSongSelectPromo()
+        {
+            if (OverlayActivationMode.Value == OverlayActivation.Disabled)
+                return;
+
+            if (LocalConfig.Get<bool>(OsuSetting.ToriiStablePromoShown))
+                return;
+
+            // si ya la tiene prendida no tiene sentido ofrecersela.
+            if (LocalConfig.Get<bool>(OsuSetting.ToriiLegacyFooterUseSkin))
+                return;
+
+            LocalConfig.SetValue(OsuSetting.ToriiStablePromoShown, true);
+
+            stableSongSelectPromo?.Present("We brought back a classic stable-style song select. Want to try it? Turn it on below, or any time in Settings, Torii, Interface.");
         }
 
         private void postStableSongSelectDisclaimer()
