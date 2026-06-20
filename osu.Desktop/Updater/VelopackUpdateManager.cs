@@ -64,7 +64,12 @@ namespace osu.Desktop.Updater
                     : new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
-                    AllowVersionDowngrade = true
+                    // torii: NO permitimos downgrade. si un stream queda mal seteado (ej: caes a Torii con
+                    // un build Nova instalado), con downgrade=true el updater te tira para ATRAS en loop.
+                    // con false, peor caso no hay update hasta arreglarlo, pero nunca un loop de bajada.
+                    // el esquema de version es por fecha (siempre sube), asi que un "rollback" real es
+                    // igual un tag mas nuevo, no perdemos esa capacidad.
+                    AllowVersionDowngrade = false
                 });
 
                 UpdateInfo? update = await updateManager.CheckForUpdatesAsync().ConfigureAwait(false);

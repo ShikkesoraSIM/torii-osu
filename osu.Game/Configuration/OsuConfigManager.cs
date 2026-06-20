@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.IO;
 using osu.Framework;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
@@ -9,6 +10,7 @@ using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Beatmaps.Drawables.Cards;
 using osu.Game.Input;
@@ -30,9 +32,82 @@ namespace osu.Game.Configuration
 {
     public class OsuConfigManager : IniConfigManager<OsuSetting>, IGameplaySettings
     {
+        /// <summary>
+        /// torii escribe su config + token OAuth en torii.ini en vez del game.ini de upstream. asi cuando
+        /// el usuario corre el cliente oficial de ppy sobre la misma carpeta de datos, ese cliente es dueño
+        /// de game.ini y los dos no se pisan las keys (ni el login). lo compartido (mapas, skins, replays,
+        /// la realm) sigue compartido porque vive en archivos/carpetas aparte que ningun config toca.
+        /// </summary>
+        public const string TORII_CONFIG_FILENAME = "torii.ini";
+
+        private const string upstream_config_filename = "game.ini";
+
+        protected override string Filename => TORII_CONFIG_FILENAME;
+
         public OsuConfigManager(Storage storage)
-            : base(storage)
+            : base(prepareMigratedStorage(storage))
         {
+        }
+
+        /// <summary>
+        /// migracion de una sola vez: deja torii.ini con el config + token que el usuario ya tenia (en
+        /// game.ini) antes de que el ctor base lea de ahi. idempotente. asi al actualizar nadie pierde
+        /// sesion ni settings, y game.ini queda intacto para el cliente oficial. errores se tragan
+        /// (log Important): el peor caso es un torii.ini de defaults (login una vez), nada mas se pierde.
+        /// </summary>
+        private static Storage prepareMigratedStorage(Storage storage)
+        {
+            try
+            {
+                bool toriiExists = storage.Exists(TORII_CONFIG_FILENAME);
+
+                // ya migrado (torii.ini tiene un Token): no hacemos nada.
+                if (toriiExists && toriiIniContainsToken(storage))
+                    return storage;
+
+                // copiamos desde game.ini si existe: el usuario conserva sesion + todas las settings.
+                if (storage.Exists(upstream_config_filename))
+                {
+                    using (Stream src = storage.GetStream(upstream_config_filename, FileAccess.Read, FileMode.Open))
+                    using (Stream dst = storage.CreateFileSafely(TORII_CONFIG_FILENAME))
+                        src.CopyTo(dst);
+                }
+                // install nuevo sin archivos: nada que hacer, IniConfigManager crea torii.ini de defaults.
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[torii.ini] migracion desde {upstream_config_filename} fallo: {ex.Message}", LoggingTarget.Runtime, LogLevel.Important);
+            }
+
+            return storage;
+        }
+
+        /// <summary>
+        /// señal barata de que torii.ini ya tiene un config primario (la presencia de cualquier key
+        /// "Token" lo prueba), asi no re-copiamos game.ini encima en cada arranque.
+        /// </summary>
+        private static bool toriiIniContainsToken(Storage storage)
+        {
+            try
+            {
+                using (Stream stream = storage.GetStream(TORII_CONFIG_FILENAME, FileAccess.Read, FileMode.Open))
+                using (var reader = new StreamReader(stream))
+                {
+                    string? line;
+
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        if (line.TrimStart().StartsWith("Token", StringComparison.Ordinal))
+                            return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         protected override void InitialiseDefaults()
