@@ -1,0 +1,137 @@
+name: Auto tag from master
+
+on:
+  # Releases are cut MANUALLY only. Pushing commits to master/main/nova no
+  # longer auto-tags, so work can land freely without shipping a build.
+  # To cut a release, run this workflow from the branch you want:
+  #   - master / main -> -torii (stable)
+  #   - nova          -> -nova  (prerelease; served only to Torii Nova users
+  #     via Velopack includePrereleases, see build-gu.yml)
+  # Either from the Actions tab ("Run workflow") or:
+  #   gh workflow run auto-tag.yml --ref master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  create-tag:
+    name: Create dated tag (yyyy.mdd.N-{torii,nova})
+    runs-on: ubuntu-latest
+    # When we push a tag, Build workflow (which listens to tags 'v*') will run and publish.
+    # Suffix is branch-derived: master → -torii (stable), nova → -nova
+    # (experimental, ships as GitHub prerelease). The next-N counter
+    # scans ALL three known suffixes (legacy -lazer, current -torii,
+    # experimental -nova) for the same day so version numbers never
+    # collide across streams — a -nova release after a -torii on the
+    # same day still gets a unique N.
+    steps:
+      - name: Checkout
+      
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next tag
+        id: calc
+        shell: bash
+        env:
+          TZ: UTC
+        run: |
+          YEAR=$(date -u +%Y)
+          # month without leading zero
+          MONTH=$(date -u +%-m)
+          # day with leading zero
+          DAY=$(date -u +%d)
+          MDD="${MONTH}${DAY}"
+          BASE="${YEAR}.${MDD}"
+
+          # Branch decides the suffix:
+          #   master / main → -torii (stable)
+          #   nova          → -nova  (experimental, ships as prerelease)
+          # Anything else falls back to -torii defensively — a workflow_dispatch
+          # off a non-standard branch will still produce something sensible.
+          case "${GITHUB_REF_NAME}" in
+            nova) STREAM_SUFFIX="nova" ;;
+            master|main) STREAM_SUFFIX="torii" ;;
+            *) STREAM_SUFFIX="torii" ;;
+          esac
+
+          # Counter is SHARED across all known suffixes for the day. We
+          # scan legacy -lazer (pre-rename), current -torii (stable), and
+          # -nova (experimental) so a same-day release in any stream gets
+          # a unique N. Example: with v2026.511.0-lazer + v2026.511.1-torii
+          # existing, the next nova push computes v2026.511.2-nova.
+          MAXN=-1
+          for SUFFIX in lazer torii nova; do
+            while IFS= read -r t; do
+              N=$(echo "$t" | sed -E "s/^v${BASE}\.([0-9]+)-${SUFFIX}$/\1/" || true)
+              if [[ "$N" =~ ^[0-9]+$ ]]; then
+                if (( N > MAXN )); then MAXN=$N; fi
+              fi
+            done < <(git tag -l "v${BASE}.*-${SUFFIX}")
+          done
+
+          NEXT=$((MAXN+1))
+          VERSION="${BASE}.${NEXT}-${STREAM_SUFFIX}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Computed tag: v$VERSION  (stream=${STREAM_SUFFIX}, from branch=${GITHUB_REF_NAME})"
+
+      - name: Create and push tag
+        id: create_tag
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.calc.outputs.version }}"
+          if git rev-parse -q --verify "$TAG" >/dev/null; then
+            echo "Tag already exists: $TAG"
+            echo "version_tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "used_fallback=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git tag -a "$TAG" -m "Auto release $TAG"
+
+          PUSH_TOKEN="$TOKEN"
+          if [[ -z "$PUSH_TOKEN" ]]; then
+            echo "RELEASE_TOKEN missing; falling back to GITHUB_TOKEN."
+            PUSH_TOKEN="$GITHUB_TOKEN"
+            echo "used_fallback=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "used_fallback=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          git push "https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git" "$TAG"
+          echo "version_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger release build (fallback token mode)
+        if: steps.create_tag.outputs.used_fallback == 'true' && steps.create_tag.outputs.created == 'true'
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_TAG: ${{ steps.create_tag.outputs.version_tag }}
+        run: |
+          echo "Dispatching build-gu.yml manually for $VERSION_TAG"
+          BODY=$(jq -n \
+            --arg ref "${GITHUB_REF_NAME}" \
+            --arg version "${VERSION_TAG}" \
+            '{ref:$ref,inputs:{version:$version}}')
+
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/build-gu.yml/dispatches" \
+            -d "$BODY"
+
+
