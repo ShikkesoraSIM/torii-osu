@@ -56,41 +56,34 @@ namespace osu.Game.Skinning.Select
             var baseTex = texture($"selection-{kind}");
             var overTex = texture($"selection-{kind}-over") ?? baseTex;
 
-            // tamaño final del glyph: si la textura viene ENORME (algunos skins traen un selection-mode
-            // gigante como decoracion "skinnable top", que dibuja aparte el LegacyTopDecoration) la achicamos
-            // al slot; si no, su tamaño natural. el hit area del boton es fijo (74x90) aparte.
-            // CLAVE PARA EL ALINEADO: el base y el -over comparten el MISMO tamaño + anchor, asi el glow
-            // overlaya 100% sin offset aunque el -over del skin venga con un tamaño/padding apenas distinto
-            // (sino cada uno se escalaba por su cuenta y el -over quedaba corrido un par de px).
-            var sizingTex = baseTex ?? overTex;
-            Vector2 glyphSize = Vector2.Zero;
-
-            if (sizingTex != null)
-            {
-                glyphSize = new Vector2(sizingTex.DisplayWidth, sizingTex.DisplayHeight);
-
-                float maxDim = Math.Max(sizingTex.DisplayWidth, sizingTex.DisplayHeight);
-                if (maxDim > slot_height)
-                    glyphSize *= slot_height / maxDim;
-            }
+            // tamaño de cada glyph: si la textura viene ENORME (algunos skins traen un selection-mode gigante
+            // como decoracion "skinnable top", que dibuja aparte el LegacyTopDecoration) la achicamos al slot;
+            // si no, su tamaño natural. el hit area del boton es fijo (74x90) aparte.
+            Vector2 baseSize = sizeFor(baseTex);
 
             Children = new Drawable[]
             {
+                // glyph base, anclado abajo-izquierda como stable.
                 new Sprite
                 {
                     Anchor = spriteAnchor,
                     Origin = spriteAnchor,
                     Texture = baseTex,
                     BypassAutoSizeAxes = Axes.Both,
-                    Size = glyphSize,
+                    Size = baseSize,
                 },
+                // glow "-over" del hover: mantiene su tamaño NATURAL (prominente, como en stable) pero lo
+                // CENTRAMOS sobre el glyph base (origin al centro, ubicado en el centro del base). asi queda
+                // alineado aunque el -over del skin sea de otro tamaño que el base, en vez de quedar corrido
+                // por anclar los dos abajo-izquierda con tamaños distintos. aditivo = glow encima del base.
                 hoverSprite = new Sprite
                 {
                     Anchor = spriteAnchor,
-                    Origin = spriteAnchor,
+                    Origin = Anchor.Centre,
+                    Position = new Vector2(baseSize.X / 2f, -baseSize.Y / 2f),
                     Texture = overTex,
                     BypassAutoSizeAxes = Axes.Both,
-                    Size = glyphSize,
+                    Size = sizeFor(overTex),
                     Alpha = 0,
                     AlwaysPresent = true,
                     Blending = BlendingParameters.Additive,
@@ -98,6 +91,18 @@ namespace osu.Game.Skinning.Select
                 hoverSound = new SkinnableSound(new SampleInfo("click-short")),
                 clickSound = new SkinnableSound(new SampleInfo("click-short-confirm")),
             };
+
+            Vector2 sizeFor(Texture? tex)
+            {
+                if (tex == null)
+                    return Vector2.Zero;
+
+                var size = new Vector2(tex.DisplayWidth, tex.DisplayHeight);
+                float maxDim = Math.Max(tex.DisplayWidth, tex.DisplayHeight);
+                if (maxDim > slot_height)
+                    size *= slot_height / maxDim;
+                return size;
+            }
         }
 
         protected override bool OnHover(HoverEvent e)
