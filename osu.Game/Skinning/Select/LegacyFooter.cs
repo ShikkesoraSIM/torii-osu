@@ -155,7 +155,7 @@ namespace osu.Game.Skinning.Select
                         AutoSizeAxes = Axes.Both,
                         Children = new[]
                         {
-                            new LegacyRulesetFooterButton { TextureSource = buttonSource },
+                            new LegacyRulesetFooterButton { TextureSource = buttonSource, SuppressBaseGlyph = skinFooterDecoration },
                             new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
                             new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
                             new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource },

@@ -24,6 +24,13 @@ namespace osu.Game.Skinning.Select
         /// <summary>de donde salen las texturas del boton. null = el skin actual.</summary>
         public ISkin? TextureSource { get; init; }
 
+        /// <summary>
+        /// cuando el glyph base de este boton es en realidad la decoracion skinnable-top gigante del skin
+        /// (tipico de selection-mode), no lo dibujamos como glyph del boton: clampeado al slot saldria una
+        /// mini version rara de toda la decoracion. la decoracion la dibuja aparte LegacyFooter.
+        /// </summary>
+        public bool SuppressBaseGlyph { get; init; }
+
         // el slot del boton de stable. el hit area clickeable queda fijado a esto asi nunca depende del
         // tamaño de la textura del skin (un selection-* que falta / es 0 / es enorme no puede dejar el
         // boton sin click ni comerse a los de al lado). los glyphs se dibujan solo visual encima.
@@ -56,31 +63,37 @@ namespace osu.Game.Skinning.Select
             var baseTex = texture($"selection-{kind}");
             var overTex = texture($"selection-{kind}-over") ?? baseTex;
 
-            // tamaño de cada glyph: si la textura viene ENORME (algunos skins traen un selection-mode gigante
-            // como decoracion "skinnable top", que dibuja aparte el LegacyTopDecoration) la achicamos al slot;
-            // si no, su tamaño natural. el hit area del boton es fijo (74x90) aparte.
-            Vector2 baseSize = sizeFor(baseTex);
+            // si este boton lleva en realidad la decoracion gigante (ej: selection-mode usado como
+            // skinnable-top), no la dibujamos como glyph ni como hover: la dibuja aparte LegacyFooter.
+            if (SuppressBaseGlyph)
+            {
+                baseTex = null;
+                overTex = null;
+            }
+
+            // nudge fino del glow -over para que calce con el grafico del boton (el -over del skin cae un
+            // toque abajo-izquierda respecto al "+", asi que lo corremos un poco arriba-derecha).
+            // +x = derecha, -y = arriba. AJUSTABLE: si queda corrido, mover estos dos numeros.
+            var hoverNudge = new Vector2(1, -6);
 
             Children = new Drawable[]
             {
-                // glyph base, anclado abajo-izquierda como stable.
+                // glyph base, anclado abajo-izquierda como stable. tamaño natural (clampeado al slot si la
+                // textura del skin viene enorme). el hit area del boton es fijo (74x90) aparte.
                 new Sprite
                 {
                     Anchor = spriteAnchor,
                     Origin = spriteAnchor,
                     Texture = baseTex,
                     BypassAutoSizeAxes = Axes.Both,
-                    Size = baseSize,
+                    Size = sizeFor(baseTex),
                 },
-                // glow "-over" del hover: mantiene su tamaño NATURAL (prominente, como en stable) pero lo
-                // CENTRAMOS sobre el glyph base (origin al centro, ubicado en el centro del base). asi queda
-                // alineado aunque el -over del skin sea de otro tamaño que el base, en vez de quedar corrido
-                // por anclar los dos abajo-izquierda con tamaños distintos. aditivo = glow encima del base.
+                // glow "-over" del hover: mismo anclaje + tamaño natural que el base, + el nudge fino.
                 hoverSprite = new Sprite
                 {
                     Anchor = spriteAnchor,
-                    Origin = Anchor.Centre,
-                    Position = new Vector2(baseSize.X / 2f, -baseSize.Y / 2f),
+                    Origin = spriteAnchor,
+                    Position = hoverNudge,
                     Texture = overTex,
                     BypassAutoSizeAxes = Axes.Both,
                     Size = sizeFor(overTex),

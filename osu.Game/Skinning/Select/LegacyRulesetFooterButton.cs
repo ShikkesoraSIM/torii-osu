@@ -50,6 +50,15 @@ namespace osu.Game.Skinning.Select
 
             ruleset.BindValueChanged(r =>
             {
+                // si el skin trae los iconos de mode como decoracion gigante skinnable-top (igual que
+                // selection-mode), no los dibujamos como icono del boton: clampeados al slot quedan como una
+                // mini-decoracion rara al lado del footer. la decoracion la dibuja aparte LegacyFooter.
+                if (SuppressBaseGlyph)
+                {
+                    modeIcon.Texture = null;
+                    return;
+                }
+
                 string name = $@"mode-{r.NewValue.ShortName}-small";
                 var tex = source.GetTexture(name) ?? skins.DefaultClassicSkin.GetTexture(name);
                 modeIcon.Texture = tex;
