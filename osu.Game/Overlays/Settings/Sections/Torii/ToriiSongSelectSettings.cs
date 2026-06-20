@@ -21,10 +21,13 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
 
         // el toggle stable (que ademas trae el footer legacy bundleado). cuando esta prendido, el footer
         // legacy va si o si, asi que el toggle de abajo queda forzado prendido y deshabilitado.
-        private readonly Bindable<bool> stableSongSelect = new BindableBool();
+        // se asignan en load() con el bindable del config DIRECTO (no new + BindTo a un temporal): las
+        // bindings de osu!framework son weak-ref y un bound-copy temporal sin guardar se lo come el GC,
+        // y ahi el toggle dejaba de reaccionar (quedaba grisado aunque apagaras el stable).
+        private Bindable<bool> stableSongSelect = null!;
 
         // la preferencia REAL del usuario para el footer legacy standalone (lo que se guarda en config).
-        private readonly Bindable<bool> footerPref = new BindableBool();
+        private Bindable<bool> footerPref = null!;
 
         // lo que ve el checkbox: refleja la pref cuando stable esta apagado, o queda checked+disabled
         // cuando stable esta prendido. el writeback a footerPref solo persiste clicks REALES del usuario.
@@ -39,8 +42,8 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config)
         {
-            stableSongSelect.BindTo(config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin));
-            footerPref.BindTo(config.GetBindable<bool>(OsuSetting.ToriiLegacySongSelectFooter));
+            stableSongSelect = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
+            footerPref = config.GetBindable<bool>(OsuSetting.ToriiLegacySongSelectFooter);
 
             Children = new Drawable[]
             {
