@@ -147,10 +147,9 @@ jobs:
             runtime: osx-arm64
             artifact-name: osu-torii-macos-apple-silicon
             executable: torii
-          - os: ubuntu-latest
-            runtime: android
-            artifact-name: osu-torii-android
-            executable: osu.Android-Signed.apk
+          # torii: android queda fuera por ahora. osu.Android sigue en net8.0-android y choca con las
+          # osu.Game en net10.0 (NU1201/NU1202); ademas ppy.osu.Framework.Android no tiene build net10.
+          # se reincorpora cuando portemos osu.Android a net10. desktop (win/linux/mac) shippea igual.
 
     steps:
     - name: Checkout code
@@ -326,20 +325,6 @@ jobs:
             --configfile nuget.config \
             --no-cache \
             --force
-
-          # On Windows the legacy-shim project (osu.Desktop.Shim) also
-          # needs a restore against the right RID so the subsequent
-          # `dotnet publish --no-restore` of the shim doesn't fail.
-          # Linux/macOS don't ship the shim (see desktop-build step
-          # below for why) so we skip restoring it there.
-          if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            dotnet restore osu.Desktop.Shim/osu.Desktop.Shim.csproj \
-              --runtime ${{ matrix.runtime }} \
-              --verbosity normal \
-              --configfile nuget.config \
-              --no-cache \
-              --force
-          fi
         fi
 
     - name: Setup Android signing (Android only)
@@ -597,37 +582,6 @@ jobs:
             -p:FileVersion=${{ needs.version.outputs.fileVersion }} \
             -p:AssemblyVersion=${{ needs.version.outputs.assemblyVersion }} \
             -p:InformationalVersion=${{ needs.version.outputs.version }}
-
-          # On Windows ONLY: publish the legacy-shortcut shim
-          # (osu-torii.exe) right next to torii.exe. The shim is a tiny
-          # self-contained launcher that exists purely to keep old
-          # taskbar pins / desktop shortcuts pointing at osu-torii.exe
-          # working after the rename. We only ship it on win-* runtimes
-          # because that's where pinned shortcuts are a thing — Linux
-          # and macOS users don't have the equivalent OS-level pin
-          # state to migrate. Single-file + trimmed so it adds ~12 MB
-          # to the Windows install (one-time cost; gone in a future
-          # release once we drop the shim).
-          if [[ "${{ matrix.runtime }}" == win-* ]]; then
-            dotnet publish osu.Desktop.Shim/osu.Desktop.Shim.csproj \
-              --self-contained \
-              --runtime ${{ matrix.runtime }} \
-              --configuration Release \
-              --no-restore \
-              --verbosity normal \
-              -p:Version=${{ needs.version.outputs.semver }} \
-              -p:FileVersion=${{ needs.version.outputs.fileVersion }} \
-              -p:AssemblyVersion=${{ needs.version.outputs.assemblyVersion }} \
-              -p:InformationalVersion=${{ needs.version.outputs.version }}
-
-            SHIM_OUT="osu.Desktop.Shim/bin/Release/net10.0/${{ matrix.runtime }}/publish/osu-torii.exe"
-            if [[ -f "$SHIM_OUT" ]]; then
-              cp "$SHIM_OUT" "publish/${{ matrix.runtime }}/osu-torii.exe"
-              echo "Shipped legacy shim: publish/${{ matrix.runtime }}/osu-torii.exe ($(stat -c%s "$SHIM_OUT") bytes)"
-            else
-              echo "::warning::Shim publish produced no osu-torii.exe at $SHIM_OUT — legacy pins will break after this release."
-            fi
-          fi
         fi
 
     - name: Resolve desktop executable name
@@ -1100,7 +1054,6 @@ jobs:
           "osu.app.Apple.Silicon.zip"
           "portable-osx-x64.zip"
           "portable-osx-arm64.zip"
-          "torii.apk"
         )
 
         missing=0
