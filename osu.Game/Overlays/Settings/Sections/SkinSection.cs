@@ -17,6 +17,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.UserInterface;
@@ -55,7 +56,7 @@ namespace osu.Game.Overlays.Settings.Sections
         private IDisposable realmSubscription;
 
         [BackgroundDependencyLoader(permitNulls: true)]
-        private void load([CanBeNull] SkinEditorOverlay skinEditor)
+        private void load(OsuConfigManager config, [CanBeNull] SkinEditorOverlay skinEditor)
         {
             Children = new Drawable[]
             {
@@ -80,10 +81,20 @@ namespace osu.Game.Overlays.Settings.Sections
                         new DeleteSkinButton { Padding = new MarginPadding { Left = 2.5f }, RelativeSizeAxes = Axes.X, Width = 1 / 3f },
                     }
                 },
+                new SkinFavouriteButton(),
                 new SettingsButtonV2
                 {
                     Text = SkinSettingsStrings.SkinLayoutEditor,
                     Action = () => skinEditor?.ToggleVisibility(),
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = SkinSettingsStrings.CycleSkinsThroughFavoritesOnly,
+                    HintText = SkinSettingsStrings.CycleSkinsThroughFavoritesOnlyDescription,
+                    Current = config.GetBindable<bool>(OsuSetting.CycleSkinsThroughFavoritesOnly),
+                })
+                {
+                    Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin", "hotkey", "keybind" },
                 },
             };
         }
@@ -95,6 +106,11 @@ namespace osu.Game.Overlays.Settings.Sections
             realmSubscription = realm.RegisterForNotifications(_ => realm.Realm.All<SkinInfo>()
                                                                          .Where(s => !s.DeletePending)
                                                                          .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase), skinsChanged);
+
+            // torii: el estado pinneado vive en un sidecar JSON (no en el realm), asi que togglearlo NO
+            // dispara la subscripcion de realm de arriba. escuchamos el evento propio del store para que
+            // el dropdown reordene + refresque el prefijo corazon despues de un pin/unpin.
+            skins.PinnedSkins.Changed += refreshSkinList;
 
             skinDropdown.Current.BindValueChanged(skin =>
             {
@@ -122,16 +138,99 @@ namespace osu.Game.Overlays.Settings.Sections
             Schedule(() => skinDropdown.Items = dropdownItems);
         }
 
+        // torii: rebuild del dropdown desde la lista ordenada (pinneadas primero). lo marshaleamos al
+        // update thread porque PinnedSkinsStore.Changed puede venir de cualquier hilo.
+        private void refreshSkinList() => Schedule(() =>
+        {
+            dropdownItems.Clear();
+            dropdownItems.AddRange(skins.GetAllUsableSkins());
+            skinDropdown.Items = dropdownItems;
+        });
+
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
 
             realmSubscription?.Dispose();
+
+            // torii: desenganchamos el evento del store asi no nos llega un callback sobre una seccion
+            // ya disposeada si algo muta el sidecar despues de cerrar settings.
+            if (skins != null)
+                skins.PinnedSkins.Changed -= refreshSkinList;
         }
 
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
         {
-            protected override LocalisableString GenerateItemText(Live<SkinInfo> item) => item.ToString();
+            [Resolved]
+            private SkinManager skinManager { get; set; }
+
+            protected override LocalisableString GenerateItemText(Live<SkinInfo> item)
+            {
+                // torii: prefijo de corazon en las skins pinneadas.
+                bool pinned = skinManager.PinnedSkins.IsPinned(item.ID);
+                return item.PerformRead(s => pinned ? $"♥ {s}" : s.ToString());
+            }
+        }
+
+        public partial class SkinFavouriteButton : SettingsButtonV2
+        {
+            [Resolved]
+            private SkinManager skins { get; set; }
+
+            private Bindable<Skin> currentSkin;
+            private HeartIcon heart;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Action = togglePin;
+
+                Content.Add(heart = new HeartIcon
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    X = 16,
+                    Size = new Vector2(16),
+                });
+            }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                currentSkin = skins.CurrentSkin.GetBoundCopy();
+                currentSkin.BindValueChanged(_ => updateState());
+                currentSkin.BindDisabledChanged(_ => updateState(), true);
+
+                // refleja cambios de pin que vengan de cualquier lado (no solo de este boton).
+                skins.PinnedSkins.Changed += onPinnedChanged;
+            }
+
+            private void onPinnedChanged() => Schedule(() => updateState());
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                if (skins != null)
+                    skins.PinnedSkins.Changed -= onPinnedChanged;
+            }
+
+            private void updateState(bool withAnimation = false)
+            {
+                bool currentlyPinned = skins.PinnedSkins.IsPinned(currentSkin.Value.SkinInfo.ID);
+                heart.SetActive(currentlyPinned, withAnimation);
+                Text = currentlyPinned ? SkinSettingsStrings.UnpinSkin : SkinSettingsStrings.PinSkin;
+                Enabled.Value = !currentSkin.Disabled;
+            }
+
+            private void togglePin()
+            {
+                skins.TogglePinned(skins.CurrentSkinInfo.Value);
+                // el handler del evento tambien nos refresca (sin animacion), pero llamamos updateState aca
+                // explicito asi el click del usuario anima el pop del corazon (el guard interno del
+                // HeartIcon hace que la segunda llamada sea no-op).
+                updateState(withAnimation: skins.PinnedSkins.IsPinned(currentSkin.Value.SkinInfo.ID));
+            }
         }
 
         public partial class RenameSkinButton : SettingsButtonV2, IHasPopover

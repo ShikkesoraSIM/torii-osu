@@ -55,6 +55,9 @@ namespace osu.Game.Skinning
 
         public readonly Bindable<Live<SkinInfo>> CurrentSkinInfo = new Bindable<Live<SkinInfo>>(ArgonSkin.CreateInfo().ToLiveUnmanaged());
 
+        /// <summary>torii: skins pinneadas (favoritos). estado en un sidecar JSON, no en el realm.</summary>
+        public readonly PinnedSkinsStore PinnedSkins;
+
         private readonly SkinImporter skinImporter;
 
         private readonly LegacySkinExporter skinExporter;
@@ -92,6 +95,8 @@ namespace osu.Game.Skinning
             this.resources = resources;
 
             userFiles = new StorageBackedResourceStore(storage.GetStorageForDirectory("files"));
+
+            PinnedSkins = new PinnedSkinsStore(storage);
 
             skinImporter = new SkinImporter(storage, realm, this)
             {
@@ -164,9 +169,20 @@ namespace osu.Game.Skinning
 
                 foreach (var s in userSkins)
                     skins.Add(s);
+
+                // torii: las pinneadas (favoritas) primero. OrderBy es estable, asi que dentro de cada
+                // grupo se mantiene el orden de categoria de arriba.
+                skins = skins.OrderByDescending(s => PinnedSkins.IsPinned(s.ID)).ToList();
             });
 
             return skins;
+        }
+
+        /// <summary>torii: togglea el estado pinneado del skin (persiste en el sidecar JSON).</summary>
+        public void TogglePinned(Live<SkinInfo> skin)
+        {
+            Guid id = skin.ID;
+            PinnedSkins.SetPinned(id, !PinnedSkins.IsPinned(id));
         }
 
         public void SelectRandomSkin()
@@ -197,7 +213,7 @@ namespace osu.Game.Skinning
             });
         }
 
-        private void cycleSkins(int direction)
+        private void cycleSkins(int direction, bool favouritesOnly)
         {
             Debug.Assert(direction != 0);
 
@@ -206,6 +222,16 @@ namespace osu.Game.Skinning
                 return;
 
             var skins = GetAllUsableSkins();
+
+            if (favouritesOnly)
+            {
+                var favourites = skins.Where(s => PinnedSkins.IsPinned(s.ID)).ToList();
+
+                // si no hay al menos 2 pinneadas caemos a la lista completa, sino el keybind no haria
+                // nada o se trabaria en una sola.
+                if (favourites.Count >= 2)
+                    skins = favourites;
+            }
 
             int i = skins.IndexOf(CurrentSkinInfo.Value);
 
@@ -224,12 +250,13 @@ namespace osu.Game.Skinning
         /// <summary>
         /// Cycle one skin backward.
         /// </summary>
-        public void SelectPreviousSkin() => cycleSkins(-1);
+        public void SelectPreviousSkin(bool favouritesOnly = false) => cycleSkins(-1, favouritesOnly);
 
         /// <summary>
         /// Cycle one skin forward.
         /// </summary>
-        public void SelectNextSkin() => cycleSkins(1);
+        /// <param name="favouritesOnly">torii: si es true, cicla solo entre skins pinneadas (con fallback a todas si hay menos de 2).</param>
+        public void SelectNextSkin(bool favouritesOnly = false) => cycleSkins(1, favouritesOnly);
 
         /// <summary>
         /// Retrieve a <see cref="Skin"/> instance for the provided <see cref="SkinInfo"/>
