@@ -24,9 +24,9 @@ using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Settings.Sections.Torii
 {
-    public partial class ToriiInterfaceSettings : SettingsSubsection
+    public partial class ToriiMenusSettings : SettingsSubsection
     {
-        protected override LocalisableString Header => "Interface";
+        protected override LocalisableString Header => "Menus";
 
         [Resolved(CanBeNull = true)]
         private IAPIProvider? api { get; set; }
@@ -94,31 +94,6 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 })
                 {
                     Keywords = new[] { @"pulse", @"toolbar", @"server", @"activity", @"online", @"live", @"torii", @"playing", @"heartbeat" },
-                },
-                new PotatoModeToggleAndRestart(),
-                new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
-                {
-                    Caption = "Input/audio thread rate",
-                    HintText = "How fast the input, audio and update threads run. Higher rates suit high-polling-rate mice (e.g. 8000 Hz) but cost more CPU. 2000 Hz is a safe default. Applies instantly.",
-                    Current = config.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz),
-                    NewFeatureId = NewFeatureRegistry.InputAudioHz,
-                })
-                {
-                    Keywords = new[] { @"hz", @"polling", @"rate", @"input", @"audio", @"thread", @"latency", @"8000", @"performance" },
-                },
-                // stable song select: es una feature de UI (cambia todo el chrome del song select al look
-                // stable), por eso vive aca en Interface y no en Gameplay. va pegada al auto-hide toolbar
-                // porque se complementan (el hint del auto-hide menciona el stable song select).
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = "Legacy (stable-style) song select",
-                    Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
-                    HintText = "Makes song select look like osu!stable: a skinnable legacy footer (back / mode / mods / random / options "
-                               + "+ your rank panel) and the modern filter/sort bar and info wedges hidden. Turn off for the standard lazer UI.",
-                    NewFeatureId = NewFeatureRegistry.LegacyFooterSkin,
-                })
-                {
-                    Keywords = new[] { @"footer", @"skin", @"song", @"select", @"legacy", @"bottom", @"buttons", @"torii", @"stable" },
                 },
                 new SettingsItemV2(new FormCheckBox
                 {

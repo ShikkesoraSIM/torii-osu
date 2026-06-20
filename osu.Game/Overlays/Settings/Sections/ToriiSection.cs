@@ -29,7 +29,9 @@ namespace osu.Game.Overlays.Settings.Sections
         [BackgroundDependencyLoader]
         private void load(RulesetStore rulesets)
         {
-            Add(new ToriiInterfaceSettings());
+            Add(new ToriiSongSelectSettings());
+            Add(new ToriiMenusSettings());
+            Add(new ToriiGraphicsSettings());
             Add(new ToriiGameplaySettings());
             // key debounce anti-chatter. mismo binding que la copia en Settings -> Input (tocar una
             // actualiza la otra en vivo), espejada aca al lado de los tweaks de gameplay.
