@@ -412,6 +412,8 @@ namespace osu.Game.Screens.OnlinePlay.Playlists
                     TimeSpan.FromDays(14),
                     TimeSpan.FromDays(days_in_month),
                     TimeSpan.FromDays(days_in_month * 3),
+                    // torii: opcion "para siempre" (sin gate de supporter).
+                    DurationDropdown.Forever,
                 };
             }
 
@@ -430,7 +432,9 @@ namespace osu.Game.Screens.OnlinePlay.Playlists
             private bool hasValidSettings => room.RoomID == null && NameField.Text.Length > 0 && room.Playlist.Count > 0
                                              && hasValidDuration;
 
-            private bool hasValidDuration => DurationField.Current.Value <= TimeSpan.FromDays(14) || localUser.Value.IsSupporter;
+            // torii: sin gate de supporter. cualquiera puede crear playlists de la duracion que quiera,
+            // incluida "para siempre". el server no valida supporter ni la duracion, asi que esto basta.
+            private bool hasValidDuration => true;
 
             private void apply()
             {
@@ -506,12 +510,18 @@ namespace osu.Game.Screens.OnlinePlay.Playlists
 
         private partial class DurationDropdown : OsuDropdown<TimeSpan>
         {
+            // torii: sentinel de "para siempre". 100 anios = efectivamente infinito para una playlist
+            // (el server hace ends_at = starts_at + duracion, asi que queda con fin alla por 2126). usamos
+            // un valor grande pero acotado para no overflowear el int de minutos ni el DateTime del server.
+            public static readonly TimeSpan Forever = TimeSpan.FromDays(36500);
+
             public DurationDropdown()
             {
                 Menu.MaxHeight = 100;
             }
 
-            protected override LocalisableString GenerateItemText(TimeSpan item) => item.Humanize(maxUnit: TimeUnit.Month);
+            protected override LocalisableString GenerateItemText(TimeSpan item)
+                => item == Forever ? "Forever" : item.Humanize(maxUnit: TimeUnit.Month);
         }
     }
 }
