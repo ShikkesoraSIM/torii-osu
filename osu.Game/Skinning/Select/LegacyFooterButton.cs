@@ -55,9 +55,12 @@ namespace osu.Game.Skinning.Select
             // tamaño del slot. algunos skins traen un selection-mode (y mode-*-small) gigante como
             // decoracion "skinnable top" del song-select, eso lo dibuja aparte y atras del chrome el
             // LegacyTopDecoration. el boton del footer tiene que quedar tamaño boton asi no te tapa toda la pantalla.
-            Sprite glyph(string name, bool hover)
+            Sprite glyph(string name, bool hover, Texture? fallbackTex = null)
             {
-                var tex = texture(name);
+                // stable dibuja el glyph base SIEMPRE visible y el "-over" como un glow ADITIVO que aparece
+                // al hoverear. si el skin no trae el "-over" (muchos .osk traen solo el glyph base), caemos al
+                // glyph base como capa de hover asi el glow igual aparece, en vez de no mostrar nada.
+                var tex = texture(name) ?? fallbackTex;
 
                 var sprite = new Sprite
                 {
@@ -67,6 +70,8 @@ namespace osu.Game.Skinning.Select
                     BypassAutoSizeAxes = Axes.Both,
                     Alpha = hover ? 0f : 1f,
                     AlwaysPresent = hover,
+                    // el "-over" es un glow aditivo encima del glyph base, como en stable.
+                    Blending = hover ? BlendingParameters.Additive : BlendingParameters.Inherit,
                 };
 
                 if (tex != null)
@@ -79,10 +84,27 @@ namespace osu.Game.Skinning.Select
                 return sprite;
             }
 
+            // resolvemos el glyph base una vez asi el sprite de hover puede caer a el cuando el skin no trae "-over".
+            var baseTex = texture($"selection-{kind}");
+
             Children = new Drawable[]
             {
-                glyph($"selection-{kind}", hover: false),
-                hoverSprite = glyph($"selection-{kind}-over", hover: true),
+                new Sprite
+                {
+                    Anchor = spriteAnchor,
+                    Origin = spriteAnchor,
+                    Texture = baseTex,
+                    BypassAutoSizeAxes = Axes.Both,
+                }.With(s =>
+                {
+                    if (baseTex != null)
+                    {
+                        float maxDim = Math.Max(baseTex.DisplayWidth, baseTex.DisplayHeight);
+                        if (maxDim > slot_height)
+                            s.Size = new Vector2(baseTex.DisplayWidth, baseTex.DisplayHeight) * (slot_height / maxDim);
+                    }
+                }),
+                hoverSprite = glyph($"selection-{kind}-over", hover: true, fallbackTex: baseTex),
                 hoverSound = new SkinnableSound(new SampleInfo("click-short")),
                 clickSound = new SkinnableSound(new SampleInfo("click-short-confirm")),
             };
