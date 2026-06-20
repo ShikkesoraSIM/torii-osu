@@ -5,13 +5,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Localisation;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Drawables;
 using osu.Game.Configuration;
@@ -43,10 +43,10 @@ namespace osu.Game.Screens.Select
             [Resolved]
             private IBindable<IReadOnlyList<Mod>> mods { get; set; } = null!;
 
-            private ModSettingChangeTracker? settingChangeTracker;
-
             [Resolved]
             private BeatmapDifficultyCache difficultyCache { get; set; } = null!;
+
+            private ModSettingChangeTracker? settingChangeTracker;
 
             private StarRatingDisplay starRatingDisplay = null!;
             private FillFlowContainer nameLine = null!;
@@ -255,13 +255,16 @@ namespace osu.Game.Screens.Select
                     mapperText.Text = beatmap.Value.Metadata.Author.Username;
                 }
 
+                // torii: el wedge del mapa seleccionado SI calcula mod-aware via difficultyCache (es uno
+                // solo, debounced + cacheado). arranca en el SR guardado al instante y lo refina con los mods.
+                // las filas del carousel quedan en el SR guardado (nomod) para no recalcular por panel.
                 starRatingDisplay.Current = (Bindable<StarDifficulty>)difficultyCache.GetBindableDifficulty(beatmap.Value.BeatmapInfo, cancellationSource.Token, SongSelect.DIFFICULTY_CALCULATION_DEBOUNCE);
 
-                updateCountStatistics(cancellationSource.Token);
+                updateCountStatistics();
                 updateDifficultyStatistics();
             }
 
-            private void updateCountStatistics(CancellationToken cancellationToken)
+            private void updateCountStatistics()
             {
                 if (beatmap.IsDefault)
                 {
@@ -269,24 +272,66 @@ namespace osu.Game.Screens.Select
                     return;
                 }
 
-                Task.Run(() =>
+                var statistics = getCountStatisticsFromMetadata(beatmap.Value.BeatmapInfo);
+
+                if (statistics.Count == 0)
                 {
-                    // This can take time as it is a synchronous task.
-                    // TODO: We're calling `GetPlayableBeatmap` multiple times every map load at song select.
-                    var playableBeatmap = beatmap.Value.GetPlayableBeatmap(ruleset.Value);
-                    var statistics = playableBeatmap.GetStatistics()
-                                                    .Select(s => new StatisticDifficulty.Data(s.Name, s.BarDisplayLength ?? 0, s.BarDisplayLength ?? 0, 1, s.Content))
-                                                    .ToList();
+                    countStatisticsDisplay.FadeOut(300, Easing.OutQuint);
+                    return;
+                }
 
-                    Schedule(() =>
-                    {
-                        if (cancellationToken.IsCancellationRequested)
-                            return;
+                countStatisticsDisplay.FadeIn(200, Easing.OutQuint);
+                countStatisticsDisplay.Statistics = statistics;
+            }
 
-                        countStatisticsDisplay.FadeIn(200, Easing.OutQuint);
-                        countStatisticsDisplay.Statistics = statistics;
-                    });
-                }, cancellationToken);
+            private static IReadOnlyList<StatisticDifficulty.Data> getCountStatisticsFromMetadata(BeatmapInfo beatmapInfo)
+            {
+                int total = beatmapInfo.TotalObjectCount;
+
+                if (total < 0)
+                    return Array.Empty<StatisticDifficulty.Data>();
+
+                // OnlineInfo no esta poblado fuera del import, asi que los conteos salen de la metadata
+                // guardada: objetos sin duracion vs objetos con duracion (sliders/spinners, hold notes, etc).
+                // etiquetamos por el ruleset NATIVO del mapa (no el seleccionado) para no mal-etiquetar converts.
+                int duration = Math.Max(beatmapInfo.EndTimeObjectCount, 0);
+                int regular = Math.Max(total - duration, 0);
+                int sum = Math.Max(1, total);
+
+                var labels = getCountLabels(beatmapInfo.Ruleset.ShortName);
+
+                if (duration <= 0)
+                    return new[] { createStatistic(labels.Regular, total, 1) };
+
+                return new[]
+                {
+                    createStatistic(labels.Regular, regular, regular / (float)sum),
+                    createStatistic(labels.Duration, duration, duration / (float)sum),
+                };
+            }
+
+            private static (LocalisableString Regular, LocalisableString Duration) getCountLabels(string nativeRuleset)
+            {
+                switch (nativeRuleset)
+                {
+                    case @"taiko":
+                        return (BeatmapStatisticStrings.Hits, BeatmapStatisticStrings.Drumrolls);
+
+                    case @"fruits":
+                    case @"catch":
+                        return (BeatmapStatisticStrings.Fruits, BeatmapStatisticStrings.JuiceStreams);
+
+                    case @"mania":
+                        return (BeatmapStatisticStrings.Notes, BeatmapStatisticStrings.HoldNotes);
+
+                    default:
+                        return (BeatmapStatisticStrings.Circles, BeatmapStatisticStrings.Sliders);
+                }
+            }
+
+            private static StatisticDifficulty.Data createStatistic(LocalisableString label, int count, float barLength)
+            {
+                return new StatisticDifficulty.Data(label, barLength, barLength, 1, count.ToString());
             }
 
             private void updateDifficultyStatistics() => Scheduler.AddOnce(() =>

@@ -67,7 +67,7 @@ namespace osu.Game.Screens.Select
         ///
         /// This is intentionally slightly higher than key repeat, but low enough to not impede user experience.
         /// </summary>
-        public const int SELECTION_DEBOUNCE = 150;
+        public const int SELECTION_DEBOUNCE = 350;
 
         /// <summary>
         /// A general "global" debounce to be applied to anything aggressive difficulty calculation at song select,
@@ -699,8 +699,6 @@ namespace osu.Game.Screens.Select
 
             if (!track.IsRunning && (music.UserPauseRequested != true || isNewTrack))
             {
-                Logger.Log($"Song select decided to {nameof(ensurePlayingSelected)}");
-
                 // Only restart playback if a new track.
                 // This is important so that when exiting gameplay, the track is not restarted back to the preview point.
                 music.Play(isNewTrack);

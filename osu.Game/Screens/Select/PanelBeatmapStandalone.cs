@@ -20,6 +20,7 @@ using osu.Game.Graphics.Carousel;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Overlays;
+using osu.Game.Performance;
 using osu.Game.Resources.Localisation.Web;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
@@ -224,7 +225,7 @@ namespace osu.Game.Screens.Select
 
             var beatmapSet = beatmap.BeatmapSet!;
 
-            scheduledBackgroundRetrieval = Scheduler.AddDelayed(b => beatmapBackground.Beatmap = beatmaps.GetWorkingBeatmap(b), beatmap, 50);
+            scheduledBackgroundRetrieval = Scheduler.AddDelayed(b => beatmapBackground.Beatmap = beatmaps.GetWorkingBeatmap(b), beatmap, PanelSetBackground.BACKGROUND_RETRIEVAL_DELAY);
 
             titleText.Text = new RomanisableString(beatmapSet.Metadata.TitleUnicode, beatmapSet.Metadata.Title);
             artistText.Text = new RomanisableString(beatmapSet.Metadata.ArtistUnicode, beatmapSet.Metadata.Artist);
@@ -265,6 +266,15 @@ namespace osu.Game.Screens.Select
 
             if (Item == null)
                 return;
+
+            // torii: en potato mode usamos el SR guardado (nomod) sin recalcular por panel. ver PanelBeatmap.
+            if (PotatoMode.Active)
+            {
+                var stored = new StarDifficulty(beatmap.StarRating, 0);
+                starRatingDisplay.Current.Value = stored;
+                spreadDisplay.StarDifficulty.Value = stored;
+                return;
+            }
 
             starDifficultyBindable = difficultyCache.GetBindableDifficulty(beatmap, starDifficultyCancellationSource.Token, SongSelect.DIFFICULTY_CALCULATION_DEBOUNCE);
             starDifficultyBindable.BindValueChanged(starDifficulty =>

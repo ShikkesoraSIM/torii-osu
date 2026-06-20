@@ -85,36 +85,25 @@ namespace osu.Game.Screens.Select
             titleText.Text = $"{metadata.Artist} - {metadata.Title} [{info.DifficultyName}]";
             mapperText.Text = $"Mapped by {metadata.Author.Username}";
 
-            int circles = 0, sliders = 0, spinners = 0, total = 0;
-
-            try
-            {
-                var objects = working.Beatmap?.HitObjects;
-
-                if (objects != null)
-                {
-                    foreach (var h in objects)
-                    {
-                        total++;
-                        string name = h.GetType().Name;
-
-                        if (name.Contains("Spinner") || name.Contains("Swell"))
-                            spinners++;
-                        else if (name.Contains("Slider") || name.Contains("Hold") || name.Contains("Drum") || name.Contains("Juice"))
-                            sliders++;
-                        else
-                            circles++;
-                    }
-                }
-            }
-            catch
-            {
-                // no esta el beatmap jugable, los conteos quedan en cero.
-            }
+            int total = info.TotalObjectCount >= 0 ? info.TotalObjectCount : 0;
 
             int lengthSeconds = (int)(info.Length / 1000);
             lengthText.Text = $"Length: {lengthSeconds / 60:00}:{lengthSeconds % 60:00}   BPM: {info.BPM:0}   Objects: {total}";
-            countsText.Text = $"Circles: {circles}   Sliders: {sliders}   Spinners: {spinners}";
+
+            var onlineInfo = info.OnlineInfo;
+
+            if (onlineInfo != null)
+            {
+                countsText.Text = $"Circles: {onlineInfo.CircleCount}   Sliders: {onlineInfo.SliderCount}   Spinners: {onlineInfo.SpinnerCount}";
+            }
+            else if (info.EndTimeObjectCount >= 0)
+            {
+                countsText.Text = $"Objects: {total}   Duration objects: {info.EndTimeObjectCount}";
+            }
+            else
+            {
+                countsText.Text = @"Objects: unavailable";
+            }
 
             var diff = info.Difficulty;
             statsText.Text = $"CS:{diff.CircleSize:0.##} AR:{diff.ApproachRate:0.##} OD:{diff.OverallDifficulty:0.##} HP:{diff.DrainRate:0.##}   Star Rating: {info.StarRating:0.0}★";

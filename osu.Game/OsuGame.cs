@@ -1385,6 +1385,9 @@ namespace osu.Game
             // the cosmetic redeem/unlock celebration overlays (resolved as deps by the store
             // + redeem flow). All event-driven, no polling.
             loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.ToriiBriefingOverlay(channelManager), topMostOverlayContent.Add, true);
+            // torii: popup de recalculo de dificultad. se auto-dispara si hay mapas pendientes; va en la capa
+            // top-most (no en la pantalla) para que no quede dimmeado.
+            loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.DifficultyRecalcOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);

@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -167,33 +168,39 @@ namespace osu.Game.Database
                     beatmapIds.Add(b.ID);
             });
 
+            // torii: avisamos al popup de arranque cuantos mapas hay (0 = ninguno) y, si hay, esperamos la
+            // eleccion de cuanta CPU usar antes de arrancar. si ya eligio antes usamos su modo guardado.
+            ToriiDifficultyRecalcCoordinator.AnnouncePending(beatmapIds.Count);
+
             if (beatmapIds.Count == 0)
                 return;
 
             Logger.Log($"Found {beatmapIds.Count} beatmaps which require star rating reprocessing.");
+
+            ToriiDifficultyRecalcMode recalcMode = resolveDifficultyRecalcMode();
+            int parallelism = ToriiDifficultyRecalc.ParallelismFor(recalcMode);
+            Logger.Log($"Star rating recompute using {recalcMode} ({parallelism} thread(s)).");
 
             var notification = showProgressNotification(beatmapIds.Count, "Reprocessing star rating for beatmaps", "beatmaps' star ratings have been updated");
 
             int processedCount = 0;
             int failedCount = 0;
 
-            Dictionary<string, Ruleset> rulesetCache = new Dictionary<string, Ruleset>();
+            // el SR de cada mapa es CPU-bound e independiente, asi que paralelizamos. GetWorkingBeatmap
+            // lockea solo el lookup del cache; el decode pesado + el calculo van en paralelo de verdad.
+            var rulesetCache = new ConcurrentDictionary<string, Ruleset>();
 
-            Ruleset getRuleset(RulesetInfo rulesetInfo)
-            {
-                if (!rulesetCache.TryGetValue(rulesetInfo.ShortName, out var ruleset))
-                    ruleset = rulesetCache[rulesetInfo.ShortName] = rulesetInfo.CreateInstance();
+            Ruleset getRuleset(RulesetInfo rulesetInfo) => rulesetCache.GetOrAdd(rulesetInfo.ShortName, _ => rulesetInfo.CreateInstance());
 
-                return ruleset;
-            }
-
-            foreach (Guid id in beatmapIds)
+            Parallel.ForEach(beatmapIds, new ParallelOptions { MaxDegreeOfParallelism = parallelism }, (id, loopState) =>
             {
                 if (notification?.State == ProgressNotificationState.Cancelled)
-                    break;
+                {
+                    loopState.Stop();
+                    return;
+                }
 
-                updateNotificationProgress(notification, processedCount, beatmapIds.Count);
-
+                // se duerme solo si hay gameplay / sesion high-perf activa (no traba el juego).
                 sleepIfRequired();
 
                 var beatmap = realmAccess.Run(r => r.Find<BeatmapInfo>(id)?.Detach());
@@ -217,16 +224,28 @@ namespace osu.Game.Database
                             liveBeatmapInfo.StarRating = starRating;
                     });
                     ((IWorkingBeatmapCache)beatmapManager).Invalidate(beatmap);
-                    ++processedCount;
+
+                    int done = Interlocked.Increment(ref processedCount);
+                    if (done % 25 == 0 || done == beatmapIds.Count)
+                        updateNotificationProgress(notification, done, beatmapIds.Count);
                 }
                 catch (Exception e)
                 {
                     Logger.Log($"Background processing failed on {beatmap}: {e}");
-                    ++failedCount;
+                    Interlocked.Increment(ref failedCount);
                 }
-            }
+            });
 
             completeNotification(notification, processedCount, beatmapIds.Count, failedCount);
+        }
+
+        private ToriiDifficultyRecalcMode resolveDifficultyRecalcMode()
+        {
+            // esperamos que el popup de arranque resuelva (timeout largo por si el usuario tarda). si nunca
+            // aparece / se cierra, cae al modo guardado (default gentil de lazer). el popup en si decide si
+            // mostrarse (cantidad de mapas + una vez por sesion); aca solo esperamos su eleccion.
+            var fallback = config.Get<ToriiDifficultyRecalcMode>(OsuSetting.ToriiDifficultyRecalcMode);
+            return ToriiDifficultyRecalcCoordinator.WaitForChoice(TimeSpan.FromMinutes(3), fallback);
         }
 
         private void processOnlineBeatmapSetsWithNoUpdate()

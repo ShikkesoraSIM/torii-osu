@@ -21,6 +21,11 @@ namespace osu.Game.Screens.Select
 {
     public partial class PanelSetBackground : Container
     {
+        public const double BACKGROUND_RETRIEVAL_DELAY = 250;
+
+        private const double minimum_time_before_load = 200;
+        private const double distance_time_before_load = 200;
+
         [Resolved]
         private BeatmapCarousel? beatmapCarousel { get; set; }
 
@@ -149,7 +154,7 @@ namespace osu.Game.Screens.Select
                 // - By using a slightly customised formula to decide when to start the load, we can coerce the loading of backgrounds into an order that
                 //   prioritises panels which are closest to the centre of the screen. Basically, we want to load backgrounds "outwards" from the visual
                 //   centre to give the user the best experience possible.
-                float timeUpdatingBeforeLoad = Math.Abs(containingSsdq.Centre.Y - ScreenSpaceDrawQuad.Centre.Y) / containingSsdq.Height * 100;
+                double timeUpdatingBeforeLoad = minimum_time_before_load + Math.Abs(containingSsdq.Centre.Y - ScreenSpaceDrawQuad.Centre.Y) / containingSsdq.Height * distance_time_before_load;
 
                 timeSinceUnpool += Time.Elapsed;
 

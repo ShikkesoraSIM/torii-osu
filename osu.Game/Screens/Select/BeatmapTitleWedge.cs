@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions;
@@ -247,43 +246,17 @@ namespace osu.Game.Screens.Select
             updateOnlineDisplay();
         }
 
-        private CancellationTokenSource? lengthBpmCancellationSource;
-
         private void updateLengthAndBpmStatistics()
         {
-            lengthBpmCancellationSource?.Cancel();
-            lengthBpmCancellationSource = new CancellationTokenSource();
+            var beatmapInfo = working.Value.BeatmapInfo;
+            double rate = ModUtils.CalculateRateWithMods(mods.Value);
 
-            var token = lengthBpmCancellationSource.Token;
+            double hitLength = Math.Round(beatmapInfo.Length / rate);
+            int bpm = FormatUtils.RoundBPM(beatmapInfo.BPM, rate);
 
-            Task.Run(() =>
-            {
-                var beatmapInfo = working.Value.BeatmapInfo;
-                // This can take time as it is a synchronous task.
-                var beatmap = working.Value.Beatmap;
-
-                double rate = ModUtils.CalculateRateWithMods(mods.Value);
-
-                int bpmMax = FormatUtils.RoundBPM(beatmap.ControlPointInfo.BPMMaximum, rate);
-                int bpmMin = FormatUtils.RoundBPM(beatmap.ControlPointInfo.BPMMinimum, rate);
-                int mostCommonBPM = FormatUtils.RoundBPM(60000 / beatmap.GetMostCommonBeatLength(), rate);
-
-                double drainLength = Math.Round(beatmap.CalculateDrainLength() / rate);
-                double hitLength = Math.Round(beatmapInfo.Length / rate);
-
-                Schedule(() =>
-                {
-                    if (token.IsCancellationRequested)
-                        return;
-
-                    lengthStatistic.Text = hitLength.ToFormattedDuration();
-                    lengthStatistic.TooltipText = BeatmapsetsStrings.ShowStatsTotalLength(drainLength.ToFormattedDuration());
-
-                    bpmStatistic.Text = bpmMin == bpmMax
-                        ? $"{bpmMin}"
-                        : LocalisableString.Interpolate($"{bpmMin}-{bpmMax} ({SongSelectStrings.MostlyBPM(mostCommonBPM)})");
-                });
-            }, token);
+            lengthStatistic.Text = hitLength.ToFormattedDuration();
+            lengthStatistic.TooltipText = BeatmapsetsStrings.ShowStatsTotalLength(hitLength.ToFormattedDuration());
+            bpmStatistic.Text = $"{bpm}";
         }
 
         private CancellationTokenSource? onlineDisplayCancellationSource;

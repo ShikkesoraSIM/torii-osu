@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,9 @@ namespace osu.Game.Database
         private readonly ManualResetEventSlim loaded = new ManualResetEventSlim();
 
         private readonly BindableList<BeatmapSetInfo> detachedBeatmapSets = new BindableList<BeatmapSetInfo>();
+
+        private const int max_pending_operations_per_update = 24;
+        private const double max_pending_operation_time_ms = 4;
 
         private IDisposable? realmSubscription;
 
@@ -153,8 +157,12 @@ namespace osu.Game.Database
 
             lock (detachedBeatmapSets)
             {
-                // If this ever leads to performance issues, we could dequeue a limited number of operations per update frame.
-                while (pendingOperations.TryDequeue(out var op))
+                var stopwatch = Stopwatch.StartNew();
+                int processed = 0;
+
+                while (processed < max_pending_operations_per_update
+                       && stopwatch.Elapsed.TotalMilliseconds < max_pending_operation_time_ms
+                       && pendingOperations.TryDequeue(out var op))
                 {
                     switch (op.Type)
                     {
@@ -175,6 +183,8 @@ namespace osu.Game.Database
                             detachedBeatmapSets.RemoveAt(op.Index);
                             break;
                     }
+
+                    processed++;
                 }
             }
         }

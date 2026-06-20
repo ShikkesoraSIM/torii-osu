@@ -342,5 +342,12 @@ inspectcode
 # Fody (pulled in by Realm) - schema file
 FodyWeavers.xsd
 
+# torii: profiling / diagnostic dumps (no van al repo)
+*.nettrace
+*.nettrace.etlx
+*.gcdump
+counters-*.csv
+trace-*.csv
+
 .idea/.idea.osu.Desktop/.idea/misc.xml
 .idea/.idea.osu.Android/.idea/deploymentTargetDropDown.xml

@@ -264,6 +264,10 @@ namespace osu.Game.Configuration
             // maquina (ver OsuGameBase) sin pisar nunca una eleccion posterior del usuario.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
 
+            // Torii: cuanta CPU usa el recalculo de star rating de fondo. default gentil (lazer) asi si el
+            // popup de arranque se cierra/falla, no se come la maquina. el popup la guarda como preferencia.
+            SetDefault(OsuSetting.ToriiDifficultyRecalcMode, ToriiDifficultyRecalcMode.LazerDefault);
+
             // torii nova: marca de una sola vez para el reset del renderer. la Nova vieja forzaba
             // Renderer=Deferred en el framework.ini; al migrar a toriirefresh (misma data dir) ese
             // valor queda guardado y los traeria al renderer hiccupy. en el primer arranque post-update
@@ -673,5 +677,6 @@ namespace osu.Game.Configuration
         EnableOboeAudio,
         ToriiLegacyFooterUseSkin,
         ToriiLegacySongSelectFooter,
+        ToriiDifficultyRecalcMode,
     }
 }
