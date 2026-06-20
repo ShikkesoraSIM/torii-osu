@@ -1,13 +1,29 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\osu.Android.props" />
   <PropertyGroup>
-    <TargetFramework>net8.0-android</TargetFramework>
+    <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>osu.Android</RootNamespace>
     <AssemblyName>osu.Android</AssemblyName>
     <Version>0.0.0</Version>
     <ApplicationVersion Condition=" '$(ApplicationVersion)' == '' ">1</ApplicationVersion>
     <ApplicationDisplayVersion Condition=" '$(ApplicationDisplayVersion)' == '' ">$(Version)</ApplicationDisplayVersion>
+
+    <!-- Run on CoreCLR instead of Mono. .NET 10 enables CoreCLR for Android;
+         on arm64 this is ~3x faster on tight inner loops (difficulty calc +
+         audio mixer), and uses the same JIT as the desktop builds. -->
+    <UseMonoRuntime>false</UseMonoRuntime>
+
+    <!-- Disable ReadyToRun: there is no R2R compiler for android-arm64 in
+         .NET 10 yet. Without this the publish fails with NETSDK1094
+         ("a valid runtime package was not found"). The CoreCLR JIT still runs
+         at full speed; only the marginal cold-start R2R benefit is lost. -->
+    <PublishReadyToRun>false</PublishReadyToRun>
+
+    <!-- Android application properties (match proven Torii Nova branding). -->
+    <ApplicationId>sh.shikkesora.torii</ApplicationId>
+    <ApplicationTitle>Torii Nova</ApplicationTitle>
+    <AndroidManifest>AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\osu.Game.Rulesets.Catch\osu.Game.Rulesets.Catch.csproj" />

@@ -23,7 +23,7 @@ env:
   # ships with the framework via nuget.org — no extra fork to clone/pack,
   # so restore resolves everything straight from nuget.org.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '1e81675396366d27b816e24ef40bef709527621c'
+  FRAMEWORK_REF: 'e7e802cbe71816b42d52824c1b2136df90296f14'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: 'f6fccb7eeda3c87961537b8fe79077ec67b29370'
 
@@ -147,9 +147,10 @@ jobs:
             runtime: osx-arm64
             artifact-name: osu-torii-macos-apple-silicon
             executable: torii
-          # torii: android queda fuera por ahora. osu.Android sigue en net8.0-android y choca con las
-          # osu.Game en net10.0 (NU1201/NU1202); ademas ppy.osu.Framework.Android no tiene build net10.
-          # se reincorpora cuando portemos osu.Android a net10. desktop (win/linux/mac) shippea igual.
+          - os: ubuntu-latest
+            runtime: android
+            artifact-name: osu-torii-android
+            executable: osu.Android-Signed.apk
 
     steps:
     - name: Checkout code
@@ -1054,6 +1055,7 @@ jobs:
           "osu.app.Apple.Silicon.zip"
           "portable-osx-x64.zip"
           "portable-osx-arm64.zip"
+          "torii.apk"
         )
 
         missing=0
