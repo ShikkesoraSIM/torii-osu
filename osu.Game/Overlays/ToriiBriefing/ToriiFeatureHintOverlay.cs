@@ -121,7 +121,9 @@ namespace osu.Game.Overlays.ToriiBriefing
                             Origin = Anchor.CentreLeft,
                             Icon = FontAwesome.Solid.ToriiGate,
                             Size = new Vector2(BriefingTheme.TypeBody),
-                            Colour = Accent,
+                            // la firma "TORII" va siempre en rosa, igual que el resto de los briefings,
+                            // sin importar el accent del popup.
+                            Colour = BriefingTheme.AccentPink,
                         },
                         new OsuSpriteText
                         {
@@ -129,7 +131,7 @@ namespace osu.Game.Overlays.ToriiBriefing
                             Origin = Anchor.CentreLeft,
                             Text = "TORII",
                             Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
-                            Colour = Accent,
+                            Colour = BriefingTheme.AccentPink,
                         },
                     },
                 },

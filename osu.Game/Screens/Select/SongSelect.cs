@@ -128,6 +128,10 @@ namespace osu.Game.Screens.Select
         // screen reads like osu!stable (carousel + legacy footer). Shares the footer-skin toggle.
         private Bindable<bool> legacyUi = null!;
 
+        // torii: guard de re-entrancy del rebuild del chrome legacy (si un toggle y un cambio de skin
+        // caen en el mismo frame).
+        private bool rebuildingLegacyChrome;
+
         // Torii: watches the grouping config so a legacy-tab group change flags the carousel to collapse
         // all groups once the re-group completes (consumed in BeatmapCarousel.HandleFilterCompleted).
         private Bindable<GroupMode> legacyGroupCollapseWatcher = null!;
@@ -149,6 +153,10 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private OsuGameBase? game { get; set; }
+
+        // torii: lo usamos para reconstruir el chrome legacy cuando cambia el skin estando en stable.
+        [Resolved]
+        private ISkinSource skinSource { get; set; } = null!;
 
         [Resolved]
         private OsuConfigManager gameConfig { get; set; } = null!;
@@ -405,7 +413,17 @@ namespace osu.Game.Screens.Select
             showConvertedBeatmaps = config.GetBindable<bool>(OsuSetting.ShowConvertedBeatmaps);
 
             legacyUi = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
-            legacyUi.BindValueChanged(_ => updateLegacyChrome(), true);
+            legacyUi.BindValueChanged(e =>
+            {
+                // al PRENDER el stable estando ya en la pantalla, reconstruimos el chrome para que las
+                // texturas de skin se resuelvan frescas (sino quedan stale hasta salir y volver). el
+                // invoke inicial (,true) corre durante el load -todavia no somos current- asi que cae al
+                // else y solo hace el fade, como antes.
+                if (e.NewValue && this.IsCurrentScreen())
+                    rebuildLegacyChrome();
+                else
+                    updateLegacyChrome();
+            }, true);
 
             // Torii: when the user picks a grouping via the legacy tabs, collapse all groups after the
             // re-group so they see every group closed (stable's "group then Shift+Enter"), instead of
@@ -441,6 +459,69 @@ namespace osu.Game.Screens.Select
             // back button) se achica uniforme y centrado, con el fondo dimmeado del screen-scaling en
             // los costados. al salir de legacy se limpia (null) y vuelve a full screen.
             (game as OsuGame)?.SetLegacyScreenAspectLock(legacy ? 1366f / 768f : null);
+        }
+
+        // torii: el skin cambio. solo reconstruimos si el stable esta activo y seguimos en pantalla
+        // (SourceChanged es un callback de manager de larga vida; no debe tocar una screen ya disposeada).
+        private void onSkinChangedWhileLegacy()
+        {
+            if (!legacyUi.Value || !this.IsCurrentScreen())
+                return;
+
+            // diferimos un frame: en este momento SourceChanged esta iterando SU lista de handlers, que
+            // incluye los de los componentes legacy actuales. si los disposeamos ya, esos handlers (que
+            // siguen en la lista capturada de esta emision) correrian sobre objetos disposeados. en el
+            // proximo frame la emision ya termino y reconstruimos seguro (Schedule se cancela al disposear).
+            Schedule(rebuildLegacyChrome);
+        }
+
+        /// <summary>
+        /// torii: reconstruye el chrome legacy como si entraramos de cero. el toggle solo hacia fade de
+        /// los contenedores creados una vez en load(), pero sus hijos resuelven las texturas de skin
+        /// one-shot en LoadComplete; al prender el stable mid-screen (o cambiar de skin) quedaban stale
+        /// hasta salir y volver al menu. reemplazamos el Child de cada contenedor (no el contenedor, asi
+        /// el z-order no cambia): el setter disposa el hijo viejo -corriendo su Dispose, que desuscribe
+        /// sus handlers de skin- y carga el nuevo contra el skin ACTUAL.
+        /// </summary>
+        private void rebuildLegacyChrome()
+        {
+            if (rebuildingLegacyChrome || !this.IsCurrentScreen())
+                return;
+
+            if (legacyTopContainer is not Container topContainer || legacyLeaderboardContainer is not Container leaderboardContainer)
+                return;
+
+            rebuildingLegacyChrome = true;
+
+            try
+            {
+                topContainer.Child = new LegacySongSelectTop
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    RelativeSizeAxes = Axes.Both,
+                    FilterControl = FilterControl,
+                };
+
+                leaderboardContainer.Child = new OsuContextMenuContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Child = new LegacyLeaderboard
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.TopLeft,
+                        RelativeSizeAxes = Axes.Both,
+                        HoverScrollRequested = () => carousel.ScrollToSelection(),
+                    },
+                };
+            }
+            finally
+            {
+                rebuildingLegacyChrome = false;
+            }
+
+            // dejamos los contenedores en el estado visible correcto + re-aplica el aspect lock.
+            updateLegacyChrome();
         }
 
         // Colour scheme for mod overlay is left as default (green) to match mods button.
@@ -500,6 +581,10 @@ namespace osu.Game.Screens.Select
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            // torii: cambiar de skin con el stable activo reconstruye el chrome legacy (sino las texturas
+            // viejas quedan cacheadas). el delegate apunta a este screen (no a un local) asi no lo barre el GC.
+            skinSource.SourceChanged += onSkinChangedWhileLegacy;
 
             modSelectOverlayRegistration = overlayManager?.RegisterBlockingOverlay(modSelectOverlay);
 
@@ -1480,6 +1565,9 @@ namespace osu.Game.Screens.Select
 
         protected override void Dispose(bool isDisposing)
         {
+            if (skinSource is not null)
+                skinSource.SourceChanged -= onSkinChangedWhileLegacy;
+
             customUiHueBinding?.Dispose();
             base.Dispose(isDisposing);
             modSelectOverlayRegistration?.Dispose();
