@@ -100,6 +100,16 @@ namespace osu.Game.Localisation
         public static LocalisableString ShowConvertedBeatmaps => new TranslatableString(getKey(@"show_converted_beatmaps"), @"Show converted beatmaps");
 
         /// <summary>
+        /// "Strictly vertical UI (no slant)"
+        /// </summary>
+        public static LocalisableString UnslantedSongSelectUI => new TranslatableString(getKey(@"unslanted_song_select_ui"), @"Strictly vertical UI (no slant)");
+
+        /// <summary>
+        /// "Re-render the slanted Song Select panels (wedges, leaderboard, dropdowns) as straight rectangles. Takes effect on next entry to song select."
+        /// </summary>
+        public static LocalisableString UnslantedSongSelectUIDescription => new TranslatableString(getKey(@"unslanted_song_select_ui_description"), @"Re-render the slanted Song Select panels (wedges, leaderboard, dropdowns) as straight rectangles. Takes effect on next entry to song select.");
+
+        /// <summary>
         /// "Display beatmaps from"
         /// </summary>
         public static LocalisableString StarsMinimum => new TranslatableString(getKey(@"stars_minimum"), @"Display beatmaps from");

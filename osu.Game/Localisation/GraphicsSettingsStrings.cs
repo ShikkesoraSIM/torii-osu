@@ -164,6 +164,21 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString ShrinkGameToSafeArea => new TranslatableString(getKey(@"shrink_game_to_safe_area"), @"Shrink game to avoid cameras and notches");
 
+        /// <summary>
+        /// "Force SDL3 backend"
+        /// </summary>
+        public static LocalisableString ForceSDL3 => new TranslatableString(getKey(@"force_sdl3"), @"Force SDL3 backend");
+
+        /// <summary>
+        /// "Switch the windowing/input layer to SDL3 on Linux and macOS..."
+        /// </summary>
+        public static LocalisableString ForceSDL3Description => new TranslatableString(getKey(@"force_sdl3_description"), @"Switch the windowing/input layer to SDL3 on Linux and macOS. Windows already uses SDL3 unconditionally, so this is a no-op there. Requires a game restart to take effect.");
+
+        /// <summary>
+        /// "In order to switch the SDL backend, the game will close. Please open it again."
+        /// </summary>
+        public static LocalisableString ChangeSDLBackendConfirmation => new TranslatableString(getKey(@"change_sdl_backend_confirmation"), @"In order to switch the SDL backend, the game will close. Please open it again.");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

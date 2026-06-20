@@ -109,9 +109,32 @@ namespace osu.Game
         protected const float SIDE_OVERLAY_OFFSET_RATIO = 0.05f;
 
         /// <summary>
-        /// A common shear factor applied to most components of the game.
+        /// The default shear factor applied to most components of the game.
+        /// Components read it indirectly through <see cref="SHEAR"/>, which can
+        /// swap to <see cref="Vector2.Zero"/> when the user toggles
+        /// <c>OsuSetting.UnslantedSongSelectUI</c> for a clean rectangular layout.
+        /// Don't use this constant directly except inside the <see cref="SHEAR"/>
+        /// getter; the indirection is what makes the toggle work.
         /// </summary>
-        public static readonly Vector2 SHEAR = new Vector2(0.2f, 0);
+        public static readonly Vector2 DEFAULT_SHEAR = new Vector2(0.2f, 0);
+
+        /// <summary>
+        /// A common shear factor applied to most components of the game.
+        /// Returns <see cref="DEFAULT_SHEAR"/> normally; returns
+        /// <see cref="Vector2.Zero"/> when the user has opted in to the
+        /// strictly-vertical song select layout via
+        /// <c>OsuSetting.UnslantedSongSelectUI</c>. Components that already
+        /// constructed with the previous shear keep that shear until they're
+        /// rebuilt — re-entering song select suffices, no full restart needed.
+        /// </summary>
+        public static Vector2 SHEAR { get; private set; } = new Vector2(0.2f, 0);
+
+        /// <summary>
+        /// Switch <see cref="SHEAR"/> between the default sheared vector and
+        /// <see cref="Vector2.Zero"/>. Subsequent component construction reads the
+        /// new value; existing drawables keep the value they captured.
+        /// </summary>
+        public static void SetUnslantedUI(bool unslanted) => SHEAR = unslanted ? Vector2.Zero : DEFAULT_SHEAR;
 
         /// <summary>
         /// For elements placed close to the screen edge, this is the margin to leave to the edge.
@@ -258,6 +281,8 @@ namespace osu.Game
         private Bindable<string> configRuleset;
 
         private Bindable<bool> applySafeAreaConsiderations;
+
+        private Bindable<bool> unslantedSongSelectUI;
 
         private Bindable<float> uiScale;
 
@@ -496,6 +521,16 @@ namespace osu.Game
 
             applySafeAreaConsiderations = LocalConfig.GetBindable<bool>(OsuSetting.SafeAreaConsiderations);
             applySafeAreaConsiderations.BindValueChanged(apply => SafeAreaContainer.SafeAreaOverrideEdges = apply.NewValue ? SafeAreaOverrideEdges : Edges.All, true);
+
+            // Wire the strictly-vertical (un-sheared) song select toggle.
+            // SetUnslantedUI flips OsuGame.SHEAR between DEFAULT_SHEAR and
+            // Vector2.Zero; components reading the property at construction time
+            // pick up the new value when next built (re-entering song select is
+            // enough, no full app restart required). Also forced on for the
+            // grayscale (fsyori) theme, whose squared-corner aesthetic clashes
+            // with the slant.
+            unslantedSongSelectUI = LocalConfig.GetBindable<bool>(OsuSetting.UnslantedSongSelectUI);
+            unslantedSongSelectUI.BindValueChanged(v => SetUnslantedUI(v.NewValue || OsuColour.IsGrayscaleTheme), true);
         }
 
         private ExternalLinkOpener externalLinkOpener;

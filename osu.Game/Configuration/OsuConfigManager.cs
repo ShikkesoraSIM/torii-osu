@@ -67,6 +67,7 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToolbarClockDisplayMode, ToolbarClockDisplayMode.Full);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
+            SetDefault(OsuSetting.UnslantedSongSelectUI, false);
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
@@ -125,6 +126,11 @@ namespace osu.Game.Configuration
 
             // Graphics
             SetDefault(OsuSetting.ShowFpsDisplay, false);
+
+            // Torii: force the SDL3 windowing/input backend on Linux + macOS.
+            // Read pre-host from game.ini by Program.cs to flip OSU_SDL3 before
+            // the framework bakes in its backend choice. No-op on Windows/mobile.
+            SetDefault(OsuSetting.ForceSDL3, false);
 
             SetDefault(OsuSetting.ShowStoryboard, true);
             SetDefault(OsuSetting.BeatmapSkins, true);
@@ -452,6 +458,7 @@ namespace osu.Game.Configuration
         BeatmapListingCardSize,
         ToolbarClockDisplayMode,
         SongSelectBackgroundBlur,
+        UnslantedSongSelectUI,
         Version,
         ShowFirstRunSetup,
         ShowConvertedBeatmaps,
@@ -538,6 +545,7 @@ namespace osu.Game.Configuration
         DashboardDisplayStyle,
 
         // Torii
+        ForceSDL3,
         ToriiServerPulseEnabled,
         UITheme,
         ToriiPotatoMode,

@@ -124,7 +124,9 @@ namespace osu.Game.Screens.Select
                             {
                                 Top = 5,
                                 // Left padding offsets the shear to create a visually appealing list display.
-                                Left = 80f,
+                                // With the unslanted toggle on (OsuGame.SHEAR.X == 0) the slant doesn't exist
+                                // and 80f turns into dead space, so collapse to 35f to keep the list sane.
+                                Left = OsuGame.SHEAR.X != 0 ? 80f : 35f,
                                 // Bottom padding ensures the last entry's full width is displayed
                                 // (ie it is fully on screen after shear is considered).
                                 Bottom = BeatmapLeaderboardScore.HEIGHT * 3

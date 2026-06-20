@@ -55,6 +55,20 @@ namespace osu.Game.Overlays.Settings.Sections.UserInterface
                     Caption = GameplaySettingsStrings.BackgroundBlur,
                     Current = config.GetBindable<bool>(OsuSetting.SongSelectBackgroundBlur),
                 }),
+                // Strictly-vertical song select layout. The game shears most
+                // components by OsuGame.SHEAR (0.2f, 0); flipping this to true
+                // makes OsuGame.SHEAR return Vector2.Zero so wedges, leaderboard
+                // rows, dropdowns and the metadata panel render rectangular.
+                // Takes effect on next entry to song select (no app restart).
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = UserInterfaceStrings.UnslantedSongSelectUI,
+                    HintText = UserInterfaceStrings.UnslantedSongSelectUIDescription,
+                    Current = config.GetBindable<bool>(OsuSetting.UnslantedSongSelectUI),
+                })
+                {
+                    Keywords = new[] { "slant", "slanted", "shear", "vertical", "rectangular", "diagonal" },
+                },
             };
         }
     }

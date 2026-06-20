@@ -10,6 +10,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
@@ -17,6 +18,8 @@ using osu.Game.Rulesets;
 using osu.Game.Screens.Edit.Components;
 using osu.Game.Skinning;
 using osuTK;
+using osuTK.Graphics;
+using osu.Framework.Graphics.Sprites;
 
 namespace osu.Game.Overlays.SkinEditor
 {
@@ -27,6 +30,14 @@ namespace osu.Game.Overlays.SkinEditor
         private readonly SkinnableContainer target;
 
         private readonly RulesetInfo? ruleset;
+
+        // When set, this toolbox lists ONLY Torii-custom components
+        // (those implementing IToriiSkinComponent) drawn from BOTH
+        // osu.Game and the active ruleset's assembly. Used by the
+        // "Torii Exclusive Components" section pinned at the top of
+        // the sidebar so users don't have to scroll past the lazer
+        // standard set to find the bonus pieces shipped with Torii.
+        private readonly bool toriiExclusiveOnly;
 
         private FillFlowContainer fill = null!;
 
@@ -40,6 +51,25 @@ namespace osu.Game.Overlays.SkinEditor
         {
             this.target = target;
             this.ruleset = ruleset;
+        }
+
+        /// <summary>
+        /// Factory for the dedicated Torii section pinned at the top
+        /// of the components sidebar. Lists only components flagged
+        /// with <see cref="IToriiSkinComponent"/>; the regular
+        /// toolboxes filter the same set out so nothing appears twice.
+        /// </summary>
+        public static SkinComponentToolbox CreateToriiExclusive(SkinnableContainer target, RulesetInfo? ruleset)
+            => new SkinComponentToolbox(target, ruleset, toriiOnly: true);
+
+        private SkinComponentToolbox(SkinnableContainer target, RulesetInfo? ruleset, bool toriiOnly)
+            : base(toriiOnly
+                ? (LocalisableString)@"Torii Exclusive Components"
+                : (ruleset == null ? SkinEditorStrings.Components : LocalisableString.Interpolate($"{SkinEditorStrings.Components} ({ruleset.Name})")))
+        {
+            this.target = target;
+            this.ruleset = ruleset;
+            toriiExclusiveOnly = toriiOnly;
         }
 
         [BackgroundDependencyLoader]
@@ -60,7 +90,10 @@ namespace osu.Game.Overlays.SkinEditor
         {
             fill.Clear();
 
-            var skinnableTypes = SerialisedDrawableInfo.GetAllAvailableDrawables(ruleset);
+            var skinnableTypes = toriiExclusiveOnly
+                ? SerialisedDrawableInfo.GetAllToriiSkinComponents(ruleset)
+                : SerialisedDrawableInfo.GetAllAvailableDrawables(ruleset);
+
             foreach (var type in skinnableTypes)
                 attemptAddComponent(type);
         }
@@ -184,18 +217,74 @@ namespace osu.Game.Overlays.SkinEditor
                             Child = component
                         },
                     },
-                    new OsuSpriteText
-                    {
-                        Text = component.GetType().Name,
-                        Anchor = Anchor.BottomCentre,
-                        Origin = Anchor.BottomCentre,
-                        Margin = new MarginPadding(5),
-                    },
+                    createNameLabel(),
                 });
 
                 // adjust provided component to fit / display in a known state.
                 component.Anchor = Anchor.Centre;
                 component.Origin = Anchor.Centre;
+            }
+
+            /// <summary>
+            /// Bottom-edge label for the component card. For components
+            /// flagged with <see cref="IToriiSkinComponent"/> we add a
+            /// small torii-gate glyph and tint the name in the brand
+            /// vermillion so users can spot Torii-custom additions
+            /// among the upstream lazer set without having to read
+            /// every class name.
+            /// </summary>
+            private Drawable createNameLabel()
+            {
+                bool isTorii = component is IToriiSkinComponent;
+
+                // Same vermillion the ToriiClientBadge uses on user
+                // panels — keeps the visual language consistent so a
+                // user already knows "vermillion + torii glyph =
+                // Torii-specific" from one place to another.
+                var torii_red = new Color4(204, 41, 41, 255);
+
+                var nameText = new OsuSpriteText
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Text = component.GetType().Name,
+                    Colour = isTorii ? torii_red : Color4.White,
+                    Font = isTorii
+                        ? OsuFont.Default.With(weight: FontWeight.SemiBold)
+                        : OsuFont.Default,
+                };
+
+                if (!isTorii)
+                {
+                    return nameText.With(t =>
+                    {
+                        t.Anchor = Anchor.BottomCentre;
+                        t.Origin = Anchor.BottomCentre;
+                        t.Margin = new MarginPadding(5);
+                    });
+                }
+
+                return new FillFlowContainer
+                {
+                    Anchor = Anchor.BottomCentre,
+                    Origin = Anchor.BottomCentre,
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(5, 0),
+                    Margin = new MarginPadding(5),
+                    Children = new Drawable[]
+                    {
+                        new SpriteIcon
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            Icon = FontAwesome.Solid.ToriiGate,
+                            Size = new Vector2(11),
+                            Colour = torii_red,
+                        },
+                        nameText,
+                    },
+                };
             }
 
             protected override void UpdateAfterChildren()
