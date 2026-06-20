@@ -138,6 +138,9 @@ namespace osu.Game
         private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay autoHideHint;
         private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay stableSongSelectPromo;
 
+        // torii: preview transitorio del tamano de cursor, lo dispara el hotkey Ctrl+Shift+rueda/+/-.
+        private CursorSizePreviewOverlay cursorSizePreview;
+
         private ChatOverlay chatOverlay;
 
         private ChannelManager channelManager;
@@ -1263,6 +1266,9 @@ namespace osu.Game
                 Toggle = LocalConfig.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
             }, topMostOverlayContent.Add);
 
+            // torii: preview del tamano de cursor (lo dispara el hotkey de cursor size).
+            loadComponentSingleFile(cursorSizePreview = new CursorSizePreviewOverlay(), topMostOverlayContent.Add, true);
+
             loadComponentSingleFile(volume = new VolumeOverlay(), leftFloatingOverlayContent.Add, true);
 
             onScreenDisplay = new OnScreenDisplay();
@@ -1752,6 +1758,14 @@ namespace osu.Game
 
                     SkinManager.SelectPreviousSkin(LocalConfig.Get<bool>(OsuSetting.CycleSkinsThroughFavoritesOnly));
                     return true;
+
+                case GlobalAction.IncreaseCursorSize:
+                    adjustCursorSize(0.05f);
+                    return true;
+
+                case GlobalAction.DecreaseCursorSize:
+                    adjustCursorSize(-0.05f);
+                    return true;
             }
 
             return false;
@@ -1953,6 +1967,18 @@ namespace osu.Game
             LocalConfig.SetValue(OsuSetting.ToriiStablePromoShown, true);
 
             stableSongSelectPromo?.Present("We brought back a classic stable-style song select. Want to try it? Turn it on below, or any time in Settings, Torii, Interface.");
+        }
+
+        /// <summary>
+        /// torii: ajusta el GameplayCursorSize por delta (clampeado a su rango) y popea el preview. es
+        /// gameplay-only a pedido: el cursor de menu queda como lo dejo el usuario en Settings.
+        /// </summary>
+        private void adjustCursorSize(float delta)
+        {
+            var gameplayCursor = (BindableNumber<float>)LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize);
+            gameplayCursor.Value = Math.Clamp(gameplayCursor.Value + delta, gameplayCursor.MinValue, gameplayCursor.MaxValue);
+
+            cursorSizePreview?.OnAdjusted();
         }
 
         private void postStableSongSelectDisclaimer()

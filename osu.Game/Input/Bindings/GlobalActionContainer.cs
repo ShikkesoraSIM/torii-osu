@@ -107,6 +107,11 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.R }, GlobalAction.RandomSkin),
             new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.E }, GlobalAction.PreviousSkin),
             new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.T }, GlobalAction.NextSkin),
+            // torii: ajustar el tamano del cursor al vuelo (Ctrl+Shift+rueda o +/-).
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.MouseWheelUp }, GlobalAction.IncreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.MouseWheelDown }, GlobalAction.DecreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.Plus }, GlobalAction.IncreaseCursorSize),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.Minus }, GlobalAction.DecreaseCursorSize),
 
             new KeyBinding(InputKey.F10, GlobalAction.ToggleGameplayMouseButtons),
             new KeyBinding(InputKey.F12, GlobalAction.TakeScreenshot),
@@ -535,7 +540,14 @@ namespace osu.Game.Input.Bindings
         EditorSubmitBeatmap,
 
         [LocalisableDescription(typeof(EditorStrings), nameof(EditorStrings.EditExternally))]
-        EditorEditExternally
+        EditorEditExternally,
+
+        // torii: agregadas al final para no correr los indices serializados de los keybindings existentes.
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.IncreaseCursorSize))]
+        IncreaseCursorSize,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.DecreaseCursorSize))]
+        DecreaseCursorSize,
     }
 
     public enum GlobalActionCategory
