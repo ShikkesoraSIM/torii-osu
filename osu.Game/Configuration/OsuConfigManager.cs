@@ -189,6 +189,12 @@ namespace osu.Game.Configuration
             // maquina (ver OsuGameBase) sin pisar nunca una eleccion posterior del usuario.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
 
+            // torii nova: marca de una sola vez para el reset del renderer. la Nova vieja forzaba
+            // Renderer=Deferred en el framework.ini; al migrar a toriirefresh (misma data dir) ese
+            // valor queda guardado y los traeria al renderer hiccupy. en el primer arranque post-update
+            // lo reseteamos a Automatic (ver OsuGame), una sola vez, sin pisar futuras elecciones.
+            SetDefault(OsuSetting.ToriiNovaRendererMigrated, false);
+
             // torii: key debounce anti-chatter. dropea el re-press de una tecla de gameplay que cae
             // dentro del umbral despues de su ultimo release (el doble-tap fantasma de teclados
             // rapid-trigger / switches gastados). umbral en ms reales, bien abajo del gap minimo de
@@ -551,6 +557,7 @@ namespace osu.Game.Configuration
         ToriiPotatoMode,
         ToriiInputAudioHz,
         ToriiInputAudioHzAutoTuned,
+        ToriiNovaRendererMigrated,
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,
         ToriiAutoHideToolbar,

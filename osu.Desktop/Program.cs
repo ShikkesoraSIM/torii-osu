@@ -23,10 +23,10 @@ namespace osu.Desktop
 #if DEBUG
         private const string base_game_name = @"osu-development";
 #else
-        // toriirefresh: isolated data directory so this fork never touches the
-        // stock osu!lazer library (%APPDATA%/osu). Will become the Torii data
-        // dir as the project matures.
-        private const string base_game_name = @"osu-toriirefresh";
+        // torii nova: usamos la MISMA data dir que la Nova vieja (%APPDATA%/osu-torii)
+        // asi el update es seamless: el usuario conserva skins, settings, mapas, scores,
+        // collections, todo. toriirefresh REEMPLAZA a Nova, no convive con ella.
+        private const string base_game_name = @"osu-torii";
 #endif
 
         /// <summary>

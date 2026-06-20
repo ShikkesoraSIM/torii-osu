@@ -465,10 +465,40 @@ namespace osu.Game
             }
         }
 
+        // torii nova: la Nova vieja forzaba Renderer=Deferred en el framework.ini. al migrar a
+        // toriirefresh (misma data dir osu-torii) ese valor queda guardado y arrastraria al usuario
+        // al renderer con hiccups. una sola vez, si el ini trae un Deferred guardado, lo volvemos a
+        // Automatic (el default nuevo). respeta una eleccion futura: solo corre una vez y despues nunca
+        // mas. toca recien al proximo arranque (el framework ya levanto con el valor viejo en esta
+        // sesion), pero a partir de ahi quedan en Automatic.
+        private void migrateNovaRenderer()
+        {
+            var migrated = LocalConfig.GetBindable<bool>(OsuSetting.ToriiNovaRendererMigrated);
+
+            if (migrated.Value)
+                return;
+
+            var renderer = frameworkConfig.GetBindable<RendererType>(FrameworkSetting.Renderer);
+
+            switch (renderer.Value)
+            {
+                case RendererType.Deferred_Direct3D11:
+                case RendererType.Deferred_Metal:
+                case RendererType.Deferred_OpenGL:
+                case RendererType.Deferred_Vulkan:
+                    renderer.Value = RendererType.Automatic;
+                    break;
+            }
+
+            migrated.Value = true;
+        }
+
         [BackgroundDependencyLoader]
         private void load()
         {
             sentryLogger.AttachUser(API.LocalUser);
+
+            migrateNovaRenderer();
 
             if (SeasonalUIConfig.ENABLED)
                 dependencies.CacheAs(osuLogo = new OsuLogoChristmas { Alpha = 0 });
