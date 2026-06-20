@@ -29,6 +29,11 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
         public readonly IBindable<float> ScaleBindable = new BindableFloat();
         public readonly IBindable<int> IndexInCurrentComboBindable = new Bindable<int>();
 
+        // torii: mirror local de OsuHitObject.ComboIndexWithOffsetsBindable, mismo patron que
+        // IndexInCurrentComboBindable de arriba. lo usa LegacyMainCirclePiece para las variantes de
+        // hitcircle por combo-color.
+        public readonly IBindable<int> ComboIndexWithOffsetsBindable = new Bindable<int>();
+
         // Must be set to update IsHovered as it's used in relax mod to detect osu hit objects.
         public override bool HandlePositionalInput => true;
 
@@ -59,6 +64,7 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
             base.OnApply();
 
             IndexInCurrentComboBindable.BindTo(HitObject.IndexInCurrentComboBindable);
+            ((Bindable<int>)ComboIndexWithOffsetsBindable).BindTo(HitObject.ComboIndexWithOffsetsBindable);
             PositionBindable.BindTo(HitObject.PositionBindable);
             StackHeightBindable.BindTo(HitObject.StackHeightBindable);
             ScaleBindable.BindTo(HitObject.ScaleBindable);
@@ -69,6 +75,7 @@ namespace osu.Game.Rulesets.Osu.Objects.Drawables
             base.OnFree();
 
             IndexInCurrentComboBindable.UnbindFrom(HitObject.IndexInCurrentComboBindable);
+            ((Bindable<int>)ComboIndexWithOffsetsBindable).UnbindFrom(HitObject.ComboIndexWithOffsetsBindable);
             PositionBindable.UnbindFrom(HitObject.PositionBindable);
             StackHeightBindable.UnbindFrom(HitObject.StackHeightBindable);
             ScaleBindable.UnbindFrom(HitObject.ScaleBindable);
