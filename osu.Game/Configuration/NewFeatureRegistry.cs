@@ -94,15 +94,13 @@ namespace osu.Game.Configuration
         public const string NsfwProfileMedia = "v2026.522.0:nsfw-profile-media";
 
         /// <summary>
-        /// Marks the new "Input/audio thread rate" dropdown in Settings →
-        /// Graphics → Renderer. The rate used to be hardcoded to 2000 Hz
-        /// across every frame-sync mode (introduced with the
-        /// torii_input_audio_hz constant in osu-framework); now users
-        /// pick from 500 / 1000 / 2000 / 4000 / 8000 Hz so weaker
-        /// machines aren't burned by the historical default. Badge calls
-        /// attention to a setting users wouldn't otherwise notice exists
-        /// (it sits between the existing FrameLimiter and "I am stupid"
-        /// rows).
+        /// Marks the "Input/audio thread rate" dropdown in Settings → Torii →
+        /// Interface. The rate used to be hardcoded to 2000 Hz across every
+        /// frame-sync mode (introduced with the torii_input_audio_hz constant
+        /// in osu-framework); now users pick from 2000 / 4000 / 8000 Hz so
+        /// high-polling-rate mice can run faster while weaker machines stay on
+        /// the safe 2000 Hz default. Badge calls attention to a setting users
+        /// wouldn't otherwise notice exists.
         /// </summary>
         public const string InputAudioHz = "v2026.522.0:input-audio-hz";
 

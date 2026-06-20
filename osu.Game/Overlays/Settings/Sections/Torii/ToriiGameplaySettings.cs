@@ -27,17 +27,6 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             {
                 new SettingsItemV2(new FormCheckBox
                 {
-                    Caption = "Legacy (stable-style) song select",
-                    Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
-                    HintText = "Makes song select look like osu!stable: a skinnable legacy footer (back / mode / mods / random / options "
-                               + "+ your rank panel) and the modern filter/sort bar and info wedges hidden. Turn off for the standard lazer UI.",
-                    NewFeatureId = NewFeatureRegistry.LegacyFooterSkin,
-                })
-                {
-                    Keywords = new[] { @"footer", @"skin", @"song", @"select", @"legacy", @"bottom", @"buttons", @"torii" },
-                },
-                new SettingsItemV2(new FormCheckBox
-                {
                     Caption = "Confirm Retry/Quit on long attempts",
                     Current = config.GetBindable<bool>(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts),
                     HintText = "After ~60 seconds of active gameplay, Retry and Quit on the pause and fail screens require a second click within 5 seconds. Continue is unaffected.",

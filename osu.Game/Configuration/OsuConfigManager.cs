@@ -225,7 +225,6 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.CustomUIAccentUnlocked, false);
             SetDefault(OsuSetting.MenuCursorStyle, osu.Game.Graphics.Cursor.MenuCursorStyle.LazerDefault);
             SetDefault(OsuSetting.UseGameplayCursorInMenus, false);
-            SetDefault(OsuSetting.AlphaStableSongSelectEnabled, false);
             SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
             SetDefault(OsuSetting.ToriiSkipBreaksEnabled, true);
@@ -572,7 +571,6 @@ namespace osu.Game.Configuration
         CustomUIAccentUnlocked,
         MenuCursorStyle,
         UseGameplayCursorInMenus,
-        AlphaStableSongSelectEnabled,
         AlphaPpDevModeEnabled,
         ToriiConfirmDangerousButtonsOnLongAttempts,
         ToriiSkipBreaksEnabled,

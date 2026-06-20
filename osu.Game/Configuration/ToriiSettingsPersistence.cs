@@ -106,7 +106,6 @@ namespace osu.Game.Configuration
 
             // Alpha-feature unlock flags (live behind the access-code panel)
             { OsuSetting.AlphaPpDevModeEnabled, typeof(bool) },
-            { OsuSetting.AlphaStableSongSelectEnabled, typeof(bool) },
 
             // Misc Torii visual prefs
             { OsuSetting.SongSelectBackgroundBlur, typeof(bool) },
