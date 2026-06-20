@@ -172,6 +172,14 @@ namespace osu.Game.Configuration
         public const string AutoHideToolbar = "v2026.619.0:auto-hide-toolbar";
 
         /// <summary>
+        /// Marks the "Legacy footer" toggle in Settings -> Torii -> Song Select. When on, the
+        /// stable-style song-select footer (back / mode / mods / random / options + rank panel) is
+        /// shown even with the rest of the modern lazer chrome. It is forced on and bundled with the
+        /// "Legacy (stable-style) song select" option, so the badge points users to the standalone switch.
+        /// </summary>
+        public const string LegacySongSelectFooter = "v2026.620.0:legacy-song-select-footer";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -191,6 +199,7 @@ namespace osu.Game.Configuration
             LegacyFooterSkin,
             KeyDebounce,
             AutoHideToolbar,
+            LegacySongSelectFooter,
         };
 
         /// <summary>

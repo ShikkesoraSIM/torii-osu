@@ -58,6 +58,9 @@ namespace osu.Game.Screens.Footer
 
         private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
         private Bindable<bool> footerUseSkin = null!;
+        // torii: toggle independiente del footer legacy. el footer legacy se muestra si el stable esta
+        // prendido (footerUseSkin) O si este toggle standalone esta prendido.
+        private Bindable<bool> legacyFooterStandalone = null!;
         private DrawSizePreservingFillContainer? legacyFooterContainer;
         private LegacyFooter? legacyFooter;
         private bool legacyFooterLoading;
@@ -100,6 +103,11 @@ namespace osu.Game.Screens.Footer
             footerUseSkin = config.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin);
             footerUseSkin.BindValueChanged(_ => onSkinChanged());
 
+            // The standalone "Legacy footer" toggle only flips whether the footer is mounted, so a plain
+            // updateLegacyFooter (lazy-load + fade) is enough - no full skin teardown needed.
+            legacyFooterStandalone = config.GetBindable<bool>(OsuSetting.ToriiLegacySongSelectFooter);
+            legacyFooterStandalone.BindValueChanged(_ => updateLegacyFooter());
+
             // When an overlay (mod select etc.) takes/leaves the footer, the legacy
             // chrome must step aside / return.
             Footer.OverlayStateChanged += updateLegacyFooter;
@@ -124,8 +132,11 @@ namespace osu.Game.Screens.Footer
 
         private void updateLegacyFooter()
         {
+            // torii: el footer legacy se muestra cuando la pantalla lo permite Y (el stable song select
+            // esta prendido O el toggle standalone del footer esta prendido) Y no hay overlay activo.
+            // antes el gate era "hay un skin legacy activo", lo que mostraba el footer ignorando el toggle.
             bool active = allowLegacyFooterSkinning
-                          && currentSkin.Value is LegacySkin
+                          && (footerUseSkin.Value || legacyFooterStandalone.Value)
                           && !Footer.HasActiveOverlay;
 
             if (active)
