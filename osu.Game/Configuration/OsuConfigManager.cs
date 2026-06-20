@@ -478,6 +478,10 @@ namespace osu.Game.Configuration
             // short-circuit on it at their read sites. Restart-gated via the settings toggle.
             SetDefault(OsuSetting.ToriiPotatoMode, false);
 
+            // Torii: cuanta CPU usa el recalculo de star rating de fondo. default gentil (lazer) asi si el
+            // popup de arranque se cierra/falla, no se come la maquina. el popup la guarda como preferencia.
+            SetDefault(OsuSetting.ToriiDifficultyRecalcMode, ToriiDifficultyRecalcMode.LazerDefault);
+
             // Torii: anti-chatter key debounce (off by default). Drops a gameplay-key
             // re-press that lands within the threshold of that key's last release —
             // the spurious double-tap from rapid-trigger / worn switches. Threshold is
@@ -917,6 +921,7 @@ namespace osu.Game.Configuration
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,
         ToriiPotatoMode,
+        ToriiDifficultyRecalcMode,
         LastProcessedMetadataId,
         SafeAreaConsiderations,
         ComboColourNormalisationAmount,

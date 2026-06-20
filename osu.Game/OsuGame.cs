@@ -1370,6 +1370,9 @@ namespace osu.Game
             var rankingsOverlay = loadComponentSingleFile(new RankingsOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(channelManager = new ChannelManager(API), Add, true);
             loadComponentSingleFile(new ToriiBriefingOverlay(channelManager), topMostOverlayContent.Add, true);
+            // torii: popup de recalculo de dificultad. se auto-dispara si hay mapas pendientes; va en la capa
+            // top-most (no en la pantalla) para que no quede dimmeado.
+            loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.DifficultyRecalcOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new FollowersListOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(chatOverlay = new ChatOverlay(), overlayContent.Add, true);
             loadComponentSingleFile(new MessageNotifier(), Add, true);

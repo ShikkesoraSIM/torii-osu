@@ -27,6 +27,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.API;
 using osu.Game.Overlays;
+using osu.Game.Performance;
 using osu.Game.Resources.Localisation.Web;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
@@ -245,13 +246,24 @@ namespace osu.Game.Screens.Select.Carousel
             // Only compute difficulty when the item is visible.
             if (Item?.State.Value != CarouselItemState.Collapsed)
             {
-                // We've potentially cancelled the computation above so a new bindable is required.
-                starDifficultyBindable = difficultyCache.GetBindableDifficulty(beatmapInfo, (starDifficultyCancellationSource = new CancellationTokenSource()).Token, 200);
-                starDifficultyBindable.BindValueChanged(d =>
+                // torii: en potato mode las filas del carousel usan el SR guardado (nomod) en vez de recalcular
+                // por panel. con pp-dev el calculo pesa y reventaba la GC al scrollear. el wedge sigue mod-aware.
+                if (PotatoMode.Active)
                 {
-                    starCounter.Current = (float)(d.NewValue.Stars);
-                    difficultyIcon.Current.Value = d.NewValue;
-                }, true);
+                    var stored = new StarDifficulty(beatmapInfo.StarRating, 0);
+                    starCounter.Current = (float)stored.Stars;
+                    difficultyIcon.Current.Value = stored;
+                }
+                else
+                {
+                    // We've potentially cancelled the computation above so a new bindable is required.
+                    starDifficultyBindable = difficultyCache.GetBindableDifficulty(beatmapInfo, (starDifficultyCancellationSource = new CancellationTokenSource()).Token, 200);
+                    starDifficultyBindable.BindValueChanged(d =>
+                    {
+                        starCounter.Current = (float)(d.NewValue.Stars);
+                        difficultyIcon.Current.Value = d.NewValue;
+                    }, true);
+                }
 
                 updateKeyCount();
             }
