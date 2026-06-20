@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Game.Cosmetics;
 using osu.Game.Rulesets.Osu.Configuration;
 using osu.Game.Rulesets.UI;
 using osu.Game.Skinning;
@@ -32,6 +33,13 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         private readonly SkinnableDrawable cursorTrail;
 
         private readonly CursorRippleVisualiser rippleVisualiser;
+
+        // Torii: an equipped store cursor-trail cosmetic replaces the skin's
+        // trail (the skin trail is hidden, the cosmetic renders below the head).
+        [Resolved(canBeNull: true)]
+        private ToriiCosmeticsManager cosmetics { get; set; }
+
+        private Drawable cosmeticTrail;
 
         public OsuCursorContainer()
         {
@@ -57,7 +65,15 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         {
             base.LoadComplete();
 
-            showTrail.BindValueChanged(v => cursorTrail.FadeTo(v.NewValue ? 1 : 0, 200), true);
+            showTrail.BindValueChanged(_ => updateSkinTrailVisibility());
+
+            if (cosmetics != null)
+            {
+                cosmetics.EquippedTrailId.BindValueChanged(_ => Schedule(rebuildCosmeticTrail), true);
+                cosmetics.CustomisationChanged += onCustomisationChanged;
+            }
+            else
+                updateSkinTrailVisibility();
 
             ActiveCursor.CursorScale.BindValueChanged(e =>
             {
@@ -72,6 +88,42 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         private void updateTrailScale()
         {
             if (cursorTrail.Drawable is CursorTrail trail) trail.CursorScale = new Vector2(ActiveCursor.CursorScale.Value);
+        }
+
+        private void rebuildCosmeticTrail()
+        {
+            if (cosmeticTrail != null)
+            {
+                fadeContainer.Remove(cosmeticTrail, true);
+                cosmeticTrail = null;
+            }
+
+            var created = cosmetics?.CreateEquippedTrail();
+            if (created != null)
+            {
+                cosmeticTrail = created;
+                cosmeticTrail.Depth = 1f; // behind the cursor head
+                fadeContainer.Add(cosmeticTrail);
+            }
+
+            updateSkinTrailVisibility();
+        }
+
+        // Live slider tweak from the store: if the changed trail is the one
+        // we're showing, re-apply its length/density to the existing instance
+        // (no rebuild, so it updates under the cursor as you drag).
+        private void onCustomisationChanged(string id) => Schedule(() =>
+        {
+            if (cosmeticTrail != null && cosmetics != null && id == cosmetics.EquippedTrailId.Value)
+                cosmetics.ApplyCustomisationTo(cosmeticTrail, id);
+        });
+
+        private void updateSkinTrailVisibility()
+        {
+            // When a cosmetic trail is equipped, hide the skin trail entirely
+            // (same effect as the cursor-trail setting being off).
+            bool cosmeticActive = cosmeticTrail != null;
+            cursorTrail.FadeTo(!cosmeticActive && showTrail.Value ? 1 : 0, 200);
         }
 
         private int downCount;
@@ -136,6 +188,13 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         {
             fadeContainer.FadeTo(0.05f, 450, Easing.OutQuint);
             ActiveCursor.ScaleTo(0.8f, 450, Easing.OutQuint);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (cosmetics != null)
+                cosmetics.CustomisationChanged -= onCustomisationChanged;
+            base.Dispose(isDisposing);
         }
 
         private partial class DefaultCursorTrail : CursorTrail
