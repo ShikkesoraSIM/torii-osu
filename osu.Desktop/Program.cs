@@ -87,9 +87,18 @@ namespace osu.Desktop
         /// </summary>
         private static bool readForceSDL3FromIni(string storageFolder)
         {
-            string iniPath = Path.Combine(storageFolder, "game.ini");
+            // torii escribe su config en torii.ini (el game.ini queda para el cliente oficial),
+            // asi que miramos ese primero. caemos a game.ini para el primer arranque post-update,
+            // antes de que corra la migracion que copia game.ini -> torii.ini.
+            return readForceSDL3FromFile(Path.Combine(storageFolder, "torii.ini"))
+                   ?? readForceSDL3FromFile(Path.Combine(storageFolder, "game.ini"))
+                   ?? false;
+        }
+
+        private static bool? readForceSDL3FromFile(string iniPath)
+        {
             if (!File.Exists(iniPath))
-                return false;
+                return null;
 
             try
             {
@@ -114,11 +123,11 @@ namespace osu.Desktop
             }
             catch
             {
-                // If we can't read the ini for any reason, fall back to the
-                // framework default for this platform (i.e. don't force SDL3).
+                // si no podemos leer el ini, que el siguiente fallback decida (peor caso: default).
             }
 
-            return false;
+            // no encontramos la key en este archivo: que decida el fallback.
+            return null;
         }
 
         private static LegacyTcpIpcProvider? legacyIpc;
