@@ -63,6 +63,17 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"fps", @"framerate" },
                 },
+                // torii: mismo dropdown de Hz que esta en Torii > Interface, mirroreado aca al lado del
+                // frame limiter (mismo bindable, quedan sincronizados); su casa natural es Graphics.
+                new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
+                {
+                    Caption = "Input/audio thread rate",
+                    HintText = "How fast the input, audio and update threads run. Higher rates suit high-polling-rate mice (e.g. 8000 Hz) but cost more CPU. 2000 Hz is a safe default. Applies instantly.",
+                    Current = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz),
+                })
+                {
+                    Keywords = new[] { @"hz", @"polling", @"rate", @"input", @"audio", @"thread", @"latency", @"8000", @"performance" },
+                },
                 new SettingsItemV2(dangerousUnlimitedCheckbox = new FormCheckBox
                 {
                     Caption = "I am stupid, I ignore warnings and want no limits",

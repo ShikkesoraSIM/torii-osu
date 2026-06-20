@@ -96,6 +96,9 @@ namespace osu.Game.Overlays.Settings.Sections
                 {
                     Keywords = new[] { "skin", "cycle", "favourite", "favorite", "pin", "hotkey", "keybind" },
                 },
+                // torii: el dropdown del UI theme cosmetico, mirroreado aca (tambien vive en Torii >
+                // Interface, mismo key) porque quien navega skins espera el switch de paleta cerca.
+                new UIThemeDropdownAndRestart(),
             };
         }
 

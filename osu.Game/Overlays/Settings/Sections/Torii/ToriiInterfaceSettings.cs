@@ -75,6 +75,26 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                     Keywords = new[] { @"nsfw", @"explicit", @"adult", @"profile", @"media", @"avatar", @"cover", @"18" },
                 },
                 new UIThemeDropdownAndRestart(),
+                // menu cursor style: mirroreado aca (tambien vive en UI > General, mismo key) asi el
+                // que toca cosmeticos lo encuentra cerca.
+                new SettingsItemV2(new FormEnumDropdown<osu.Game.Graphics.Cursor.MenuCursorStyle>
+                {
+                    Caption = @"Menu cursor style",
+                    Current = config.GetBindable<osu.Game.Graphics.Cursor.MenuCursorStyle>(OsuSetting.MenuCursorStyle),
+                })
+                {
+                    Keywords = new[] { @"cursor", @"gameplay", @"skin", @"torii", @"style" },
+                },
+                // toggle del server pulse (la pill del toolbar con currently-playing / plays-per-minute).
+                // mismo bindable que ToriiServerPulseButton, apagarlo corta el polling al toque.
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show server pulse on toolbar",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiServerPulseEnabled),
+                })
+                {
+                    Keywords = new[] { @"pulse", @"toolbar", @"server", @"activity", @"online", @"live", @"torii", @"playing", @"heartbeat" },
+                },
                 new PotatoModeToggleAndRestart(),
                 new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
                 {
