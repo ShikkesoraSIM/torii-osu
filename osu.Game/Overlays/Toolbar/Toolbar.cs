@@ -178,23 +178,22 @@ namespace osu.Game.Overlays.Toolbar
                                         AutoSizeAxes = Axes.X,
                                         Children = new Drawable[]
                                         {
-                                            new ToolbarNewsButton(),
-                                            new ToolbarChangelogButton(),
-                                            new ToolbarWikiButton(),
+                                            // torii: News / Changelog / Wiki sacados del toolbar (no los usamos).
                                             new ToolbarRankingsButton(),
                                             new ToolbarBeatmapListingButton(),
                                             new ToolbarChatButton(),
                                             new ToolbarSocialButton(),
                                             new ToolbarMusicButton(),
-                                            //new ToolbarButton
-                                            //{
-                                            //    Icon = FontAwesome.Solid.search
-                                            //},
                                             userButton = new ToolbarUserButton(),
                                             new ToolbarAdminButton(),
                                             new ToolbarCosmeticStoreButton(),
+                                            // torii: un poco de aire alrededor de los pills de puntos + pulse
+                                            // asi no se ven pegados entre si ni contra el store / clock.
+                                            new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             new ToolbarPointsButton(),
+                                            new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             new ToriiServerPulseButton(),
+                                            new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             new ToolbarClock(),
                                             new ToolbarNotificationButton(),
                                         }
