@@ -6,11 +6,13 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Input.Events;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osuTK;
 using osuTK.Graphics;
+using osuTK.Input;
 
 namespace osu.Game.Screens.Select
 {
@@ -80,8 +82,7 @@ namespace osu.Game.Screens.Select
             {
                 PlaceholderText = @"Type to search!";
                 // como en lazer: agarra y mantiene el foco asi se puede tipear directo sin clickear.
-                // las teclas de navegacion (flechas / enter) igual pasan al carousel; solo se queda con
-                // lo imprimible. solo esta presente en modo legacy, asi que no roba foco en el resto.
+                // solo esta presente en modo legacy, asi que no roba foco en el resto.
                 HoldFocus = true;
             }
 
@@ -90,6 +91,18 @@ namespace osu.Game.Screens.Select
             {
                 BackgroundUnfocused = Color4.Transparent;
                 BackgroundFocused = Color4.Transparent;
+            }
+
+            protected override bool OnKeyDown(KeyDownEvent e)
+            {
+                // NO consumimos Enter: FocusedTextBox vendria a commitearlo y se lo comeria, y entonces
+                // GlobalAction.Select (empezar el mapa) nunca dispara. lo dejamos pasar, igual que
+                // FocusedTextBox ya hace con Escape para GlobalAction.Back. la busqueda filtra live por el
+                // binding two-way, asi que no necesitamos el commit.
+                if (e.Key == Key.Enter || e.Key == Key.KeypadEnter)
+                    return false;
+
+                return base.OnKeyDown(e);
             }
         }
     }
