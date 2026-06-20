@@ -42,16 +42,24 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 },
             };
 
+            // suppress evita el loop infinito: revertir en Cancel re-dispara este handler.
+            bool suppressPulseDialog = false;
+
             pulseEnabled.BindValueChanged(change =>
             {
                 // Skip the initial bind; only a real user flip should prompt a restart.
-                if (change.NewValue == change.OldValue)
+                if (suppressPulseDialog || change.NewValue == change.OldValue)
                     return;
 
                 dialogOverlay?.Push(new ConfirmDialog(
                     "The server pulse is built (or skipped) at startup, so the game needs to restart to fully apply this. It will close now, please open it again.",
                     () => game?.AttemptExit(),
-                    () => pulseEnabled.Value = change.OldValue));
+                    () =>
+                    {
+                        suppressPulseDialog = true;
+                        pulseEnabled.Value = change.OldValue;
+                        suppressPulseDialog = false;
+                    }));
             });
         }
     }

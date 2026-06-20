@@ -110,6 +110,9 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             {
                 var forceSDL3 = osuConfig.GetBindable<bool>(OsuSetting.ForceSDL3);
 
+                // suppress evita el loop infinito: el revert de Cancel re-dispara este handler.
+                bool suppressSdl3Dialog = false;
+
                 AddRange(new Drawable[]
                 {
                     new SettingsItemV2(new FormCheckBox
@@ -125,6 +128,11 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
                 forceSDL3.BindValueChanged(change =>
                 {
+                    // ignoramos el re-disparo del revert (Cancel), sino al revertir entraria de nuevo aca
+                    // (y con RestartAppWhenExited true cerraria el juego sin querer).
+                    if (suppressSdl3Dialog)
+                        return;
+
                     // Mirrors the renderer-change pattern below: if Velopack can
                     // re-launch us, just exit and the updater brings the game back
                     // up with the new env var. Otherwise prompt with a confirm
@@ -139,7 +147,12 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                         dialogOverlay?.Push(new ConfirmDialog(
                             GraphicsSettingsStrings.ChangeSDLBackendConfirmation,
                             () => game?.AttemptExit(),
-                            () => forceSDL3.Value = change.OldValue));
+                            () =>
+                            {
+                                suppressSdl3Dialog = true;
+                                forceSDL3.Value = change.OldValue;
+                                suppressSdl3Dialog = false;
+                            }));
                     }
                 });
             }

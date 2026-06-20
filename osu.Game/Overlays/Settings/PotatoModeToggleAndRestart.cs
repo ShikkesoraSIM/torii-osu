@@ -74,6 +74,10 @@ namespace osu.Game.Overlays.Settings
         private static bool registered;
         private static readonly object register_lock = new object();
 
+        // evita el loop infinito: al cancelar revertimos el valor, lo que re-dispara
+        // BindValueChanged; este flag hace que ese re-disparo no vuelva a abrir el dialog.
+        private static bool suppress;
+
         public static void EnsureRegistered(Bindable<bool> potatoBindable, OsuGame? game, IDialogOverlay? dialogOverlay)
         {
             if (registered)
@@ -88,7 +92,8 @@ namespace osu.Game.Overlays.Settings
                 {
                     // No-op on the initial bind (fires once with the current
                     // value); only a real user flip should prompt a restart.
-                    if (change.NewValue == change.OldValue)
+                    // suppress: ignoramos el re-disparo que causa el revert de Cancel.
+                    if (suppress || change.NewValue == change.OldValue)
                         return;
 
                     // Route through the confirm dialog rather than a
@@ -100,7 +105,12 @@ namespace osu.Game.Overlays.Settings
                     dialogOverlay?.Push(new ConfirmDialog(
                         "Potato mode changes a lot of visuals, so the game needs to restart. It will close now, please open it again.",
                         () => game?.AttemptExit(),
-                        () => potatoBindable.Value = change.OldValue));
+                        () =>
+                        {
+                            suppress = true;
+                            potatoBindable.Value = change.OldValue;
+                            suppress = false;
+                        }));
                 });
 
                 registered = true;

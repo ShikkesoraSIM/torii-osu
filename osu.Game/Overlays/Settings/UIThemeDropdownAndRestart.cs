@@ -113,6 +113,9 @@ namespace osu.Game.Overlays.Settings
         private static bool registered;
         private static readonly object register_lock = new object();
 
+        // evita el loop: el revert de Cancel re-dispara BindValueChanged; con esto no reabre el dialog.
+        private static bool suppress;
+
         public static void EnsureRegistered(Bindable<UIThemeOption> themeBindable, OsuGame? game, IDialogOverlay? dialogOverlay)
         {
             // Fast path outside the lock — once we've registered, every
@@ -132,7 +135,7 @@ namespace osu.Game.Overlays.Settings
                     // opening the settings panel would always pop the
                     // confirm dialog because the bindable "changes from
                     // default to current" on first read.
-                    if (change.NewValue == change.OldValue)
+                    if (suppress || change.NewValue == change.OldValue)
                         return;
 
                     // Always route through the confirm dialog rather
@@ -157,7 +160,12 @@ namespace osu.Game.Overlays.Settings
                     dialogOverlay?.Push(new ConfirmDialog(
                         "In order to change the UI theme, the game will close. Please open it again.",
                         () => game?.AttemptExit(),
-                        () => themeBindable.Value = change.OldValue));
+                        () =>
+                        {
+                            suppress = true;
+                            themeBindable.Value = change.OldValue;
+                            suppress = false;
+                        }));
                 });
 
                 registered = true;
