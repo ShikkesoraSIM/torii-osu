@@ -21,6 +21,7 @@ namespace osu.Game.Skinning.Select
     public partial class LegacyFooter : CompositeDrawable
     {
         private Container components = null!;
+        private Container buttonsContainer = null!;
         private LogoTrackingContainer logoTrackingContainer = null!;
         private IDisposable? logoTracking;
 
@@ -101,35 +102,21 @@ namespace osu.Game.Skinning.Select
                     Origin = Anchor.BottomLeft,
                     Action = BackAction,
                 },
+                // solo la tarjeta de stats del user. los botones salieron a su propia capa (buttonsContainer)
+                // que va DESPUES de la decoracion selection-mode, asi el glow -over del hover no queda tapado.
                 components = new Container
                 {
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
                     RelativeSizeAxes = Axes.Both,
                     X = buttons_pos_16_9,
-                    Children = new Drawable[]
+                    Child = new LegacyFooterUser
                     {
-                        new LegacyFooterUser
-                        {
-                            Anchor = Anchor.BottomLeft,
-                            Origin = Anchor.BottomLeft,
-                            X = user_pos_off + 3 * 1.6f,
-                            Y = 2 * 1.6f,
-                        },
-                        new Container
-                        {
-                            Anchor = Anchor.BottomLeft,
-                            Origin = Anchor.BottomLeft,
-                            AutoSizeAxes = Axes.Both,
-                            Children = new[]
-                            {
-                                new LegacyRulesetFooterButton { TextureSource = buttonSource },
-                                new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
-                                new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
-                                new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource },
-                            }
-                        },
-                    }
+                        Anchor = Anchor.BottomLeft,
+                        Origin = Anchor.BottomLeft,
+                        X = user_pos_off + 3 * 1.6f,
+                        Y = 2 * 1.6f,
+                    },
                 },
                 // capa de ADELANTE: el cosmetic selection-mode del skin, encima de la tarjeta de stats
                 // (tapa performance/acc/lvl, el circulo transparente deja ver el avatar). misma textura y
@@ -153,6 +140,28 @@ namespace osu.Game.Skinning.Select
                         Position = new Vector2(buttons_pos_16_9, -2),
                     },
                 },
+                // los botones del footer (mode/mods/random/options), ENCIMA de la decoracion selection-mode
+                // asi su glow -over de hover no queda tapado. mismo X que components, sincronizado en Update().
+                buttonsContainer = new Container
+                {
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    RelativeSizeAxes = Axes.Both,
+                    X = buttons_pos_16_9,
+                    Child = new Container
+                    {
+                        Anchor = Anchor.BottomLeft,
+                        Origin = Anchor.BottomLeft,
+                        AutoSizeAxes = Axes.Both,
+                        Children = new[]
+                        {
+                            new LegacyRulesetFooterButton { TextureSource = buttonSource },
+                            new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
+                            new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
+                            new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource },
+                        }
+                    }
+                },
                 (logoTrackingContainer = new LogoTrackingContainer
                 {
                     RelativeSizeAxes = Axes.Both,
@@ -174,6 +183,8 @@ namespace osu.Game.Skinning.Select
 
             bool isWidescreen = Precision.DefinitelyBigger(DrawWidth, 1024);
             components.X = isWidescreen ? buttons_pos_16_9 : buttons_pos_4_3;
+            // los botones (capa de arriba, separada de components) siguen el mismo X.
+            buttonsContainer.X = components.X;
         }
 
         public void StartTrackingLogo(OsuLogo logo, float duration = 0, Easing easing = Easing.None)
