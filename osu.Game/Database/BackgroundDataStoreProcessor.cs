@@ -98,8 +98,10 @@ namespace osu.Game.Database
                 upgradeModMultipliers();
                 convertLegacyTotalScoreToStandardised();
                 upgradeScoreRanks();
-                backpopulateMissingSubmissionAndRankDates();
-                backpopulateUserTags();
+                // torii: desactivamos estos dos pasos de backpopulation porque tiran notificaciones molestas al arranque.
+                // las fechas de submit/rank y los user tags igual se llenan al importar (BeatmapUpdaterMetadataLookup), asi que no perdemos nada para mapas nuevos.
+                // backpopulateMissingSubmissionAndRankDates();
+                // backpopulateUserTags();
             }, TaskCreationOptions.LongRunning).ContinueWith(t =>
             {
                 if (t.Exception?.InnerException is ObjectDisposedException)
