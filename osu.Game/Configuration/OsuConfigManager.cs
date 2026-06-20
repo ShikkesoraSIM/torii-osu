@@ -242,7 +242,8 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.Scaling, ScalingMode.Off);
             SetDefault(OsuSetting.SafeAreaConsiderations, true);
-            SetDefault(OsuSetting.ScalingBackgroundDim, 0.9f, 0.5f, 1f, 0.01f);
+            // torii: rango ampliado a 0-100% (era 0.5-1) asi el layout-background se puede empujar hasta invisible.
+            SetDefault(OsuSetting.ScalingBackgroundDim, 0.9f, 0f, 1f, 0.01f);
 
             SetDefault(OsuSetting.ScalingSizeX, 0.8f, 0.2f, 1f, 0.01f);
             SetDefault(OsuSetting.ScalingSizeY, 0.8f, 0.2f, 1f, 0.01f);

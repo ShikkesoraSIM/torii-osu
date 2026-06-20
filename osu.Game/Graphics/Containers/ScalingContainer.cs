@@ -292,6 +292,10 @@ namespace osu.Game.Graphics.Containers
         {
             protected override bool AllowStoryboardBackground => false;
 
+            // torii: el fondo del dim de layout busca layout-background primero (fallback a menu-background)
+            // asi el skinner puede shippear una imagen distinta para esta capa.
+            protected override string SkinBackgroundLookupName => @"layout-background";
+
             public override void OnEntering(ScreenTransitionEvent e)
             {
                 this.FadeInFromZero(4000, Easing.OutQuint);

@@ -42,6 +42,11 @@ namespace osu.Game.Screens.Backgrounds
 
         protected virtual bool AllowStoryboardBackground => true;
 
+        // torii: nombre de lookup del skin para el fondo. default menu-background; el ScalingContainer
+        // lo overridea a layout-background asi un skin puede shippear una imagen distinta para el dim
+        // de layout que para el fondo del main menu (fallback a menu-background si no la trae).
+        protected virtual string SkinBackgroundLookupName => @"menu-background";
+
         [BackgroundDependencyLoader]
         private void load(IAPIProvider api, SkinManager skinManager, OsuConfigManager config)
         {
@@ -168,7 +173,7 @@ namespace osu.Game.Screens.Backgrounds
                                 break;
 
                             default:
-                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName());
+                                newBackground = new SkinBackground(skin.Value, getBackgroundTextureName(), SkinBackgroundLookupName);
                                 break;
                         }
 
