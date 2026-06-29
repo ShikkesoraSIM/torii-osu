@@ -261,6 +261,9 @@ namespace osu.Game.Screens.Select
                     if (beatmapSet.GetOnlineURL(api, ruleset.Value) is string url)
                         items.Add(new OsuMenuItem(CommonStrings.CopyLink, MenuItemType.Standard, () => game?.CopyToClipboard(url)));
 
+                    if (beatmapSet.GetOfficialOnlineURL(ruleset.Value) is string osuUrl)
+                        items.Add(new OsuMenuItem("Copy osu! link", MenuItemType.Standard, () => game?.CopyToClipboard(osuUrl)));
+
                     items.Add(new OsuMenuItemSpacer());
                 }
 
