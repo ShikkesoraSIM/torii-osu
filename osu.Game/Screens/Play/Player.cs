@@ -807,6 +807,13 @@ namespace osu.Game.Screens.Play
 
             samplePlaybackDisabled.Value = true;
             GameplayClockContainer.Seek(seekTarget);
+
+            // Torii: snap the frame-stable gameplay clock directly to the target rather than
+            // letting it catch up frame-by-frame. The audio seek is instant, so without this
+            // the hitobjects lag behind on a long break (worst under DT, where the audio runs
+            // even further ahead during the catch-up window) and notes appear after their time.
+            (DrawableRuleset.FrameStableClock as FrameStabilityContainer)?.RequestDirectSeek();
+
             updateSampleDisabledState();
         }
 

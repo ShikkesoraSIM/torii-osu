@@ -226,8 +226,17 @@ namespace osu.Game.Screens.Play
         /// backs off a further <see cref="SKIP_LEAD_IN_MS"/> so the player gets
         /// a moment to settle before the first post-break note instead of
         /// landing right on top of it.
+        ///
+        /// <see cref="SKIP_LEAD_IN_MS"/> is wall-clock intent, but the gameplay
+        /// clock counts in beatmap time, so under rate-increasing mods (DT, and
+        /// especially DT2x) a fixed beatmap-time lead-in collapses in real
+        /// seconds - 2000ms of map time is barely 1s of reaction at 2x, which is
+        /// why notes were still unreadable after a skip there. Scale the lead-in
+        /// by the gameplay rate so the player always gets ~2s of real time before
+        /// the first note regardless of mods. Clamped at 1x so slower mods (HT)
+        /// never shrink the lead-in below the base value.
         /// </summary>
-        private static double skipTargetFor(Period period) => period.End - SKIP_LEAD_IN_MS;
+        private double skipTargetFor(Period period) => period.End - SKIP_LEAD_IN_MS * Math.Max(1.0, gameplayClock.GetTrueGameplayRate());
 
         private bool isWorthSkipping(Period period) => skipTargetFor(period) - gameplayClock.CurrentTime > MINIMUM_SKIP_SAVINGS;
 
