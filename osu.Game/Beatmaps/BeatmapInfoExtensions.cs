@@ -88,5 +88,17 @@ namespace osu.Game.Beatmaps
 
             return $@"{api.Endpoints.WebsiteUrl}/beatmapsets/{beatmapInfo.BeatmapSet.OnlineID}#{ruleset?.ShortName ?? beatmapInfo.Ruleset.ShortName}/{beatmapInfo.OnlineID}";
         }
+
+        /// <summary>
+        /// Get the official osu! (osu.ppy.sh) beatmap difficulty page URL, or <c>null</c> if unavailable.
+        /// Torii OnlineIDs mirror the real osu! ids, so this resolves on the official site.
+        /// </summary>
+        public static string? GetOfficialOnlineURL(this IBeatmapInfo beatmapInfo, IRulesetInfo? ruleset = null)
+        {
+            if (beatmapInfo.OnlineID <= 0 || beatmapInfo.BeatmapSet == null)
+                return null;
+
+            return $@"https://osu.ppy.sh/beatmapsets/{beatmapInfo.BeatmapSet.OnlineID}#{ruleset?.ShortName ?? beatmapInfo.Ruleset.ShortName}/{beatmapInfo.OnlineID}";
+        }
     }
 }

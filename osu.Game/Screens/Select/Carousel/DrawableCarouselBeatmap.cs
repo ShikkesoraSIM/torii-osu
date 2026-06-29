@@ -314,6 +314,9 @@ namespace osu.Game.Screens.Select.Carousel
                 if (beatmapInfo.GetOnlineURL(api, ruleset.Value) is string url)
                     items.Add(new OsuMenuItem(CommonStrings.CopyLink, MenuItemType.Standard, () => game?.CopyToClipboard(url)));
 
+                if (beatmapInfo.GetOfficialOnlineURL(ruleset.Value) is string osuUrl)
+                    items.Add(new OsuMenuItem("Copy osu! link", MenuItemType.Standard, () => game?.CopyToClipboard(osuUrl)));
+
                 if (manager != null)
                     items.Add(new OsuMenuItem("Mark as played", MenuItemType.Standard, () => manager.MarkPlayed(beatmapInfo)));
 

@@ -45,5 +45,20 @@ namespace osu.Game.Beatmaps
 
             return $@"{api.Endpoints.WebsiteUrl}/beatmapsets/{beatmapSetInfo.OnlineID}";
         }
+
+        /// <summary>
+        /// Get the official osu! (osu.ppy.sh) beatmapset page URL, or <c>null</c> if unavailable.
+        /// Torii beatmapset OnlineIDs mirror the real osu! ids, so this resolves on the official site.
+        /// </summary>
+        public static string? GetOfficialOnlineURL(this IBeatmapSetInfo beatmapSetInfo, IRulesetInfo? ruleset = null)
+        {
+            if (beatmapSetInfo.OnlineID <= 0)
+                return null;
+
+            if (ruleset != null)
+                return $@"https://osu.ppy.sh/beatmapsets/{beatmapSetInfo.OnlineID}#{ruleset.ShortName}";
+
+            return $@"https://osu.ppy.sh/beatmapsets/{beatmapSetInfo.OnlineID}";
+        }
     }
 }
