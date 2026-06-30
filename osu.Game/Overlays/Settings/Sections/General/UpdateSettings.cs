@@ -119,6 +119,26 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 return;
             }
 
+            // Vanilla is upstream lazer wired to Torii: no Torii features, and its
+            // client-side pp will drift from the server's. Spell that out before the
+            // user commits to swapping to a different binary.
+            if (stream.NewValue == ReleaseStream.Vanilla)
+            {
+                dialogOverlay?.Push(
+                    new ConfirmDialog("Switch to the Vanilla stream?",
+                        () =>
+                        {
+                            configReleaseStream.Value = ReleaseStream.Vanilla;
+                            checkForUpdates().FireAndForget();
+                        },
+                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
+                    {
+                        BodyText = "Vanilla is basically Lazer but wired to work on Torii. It won't have any Torii features and the PP gotten from maps will deviate from the one stored in the server, but this is good for people with compatibility problems, lag issues, poor pcs, or weird systems like Wayland, Linux, etc."
+                    });
+
+                return;
+            }
+
             configReleaseStream.Value = stream.NewValue;
             checkForUpdates().FireAndForget();
         }

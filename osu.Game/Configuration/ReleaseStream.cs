@@ -38,6 +38,13 @@ namespace osu.Game.Configuration
         Torii,
 
         [Description("Nova (Experimental)")]
-        Nova
+        Nova,
+
+        /// <summary>
+        /// Upstream lazer wired to Torii servers only, with no Torii features.
+        /// Aimed at compatibility / low-spec / Linux-Wayland users. Ships under
+        /// the <c>-vanilla</c> tag suffix as a GitHub prerelease, like Nova.
+        /// </summary>
+        Vanilla
     }
 }

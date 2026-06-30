@@ -76,10 +76,26 @@ namespace osu.Desktop.Updater
                 //   considered. This prevents the silent reverse-downgrade
                 //   path where a later semver-higher stable release would
                 //   otherwise "update" a Nova user back to stable.
-                bool isNovaStream = ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova;
-                IUpdateSource updateSource = isNovaStream
-                    ? (IUpdateSource)new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "nova")
-                    : new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                // Nova and Vanilla are both GitHub prereleases, so each pins to its
+                // own `-<suffix>` tag via ToriiUpdateSource. This stops the silent
+                // reverse-downgrade where a later semver-higher stable release would
+                // otherwise "update" a Nova/Vanilla user back to stable.
+                IUpdateSource updateSource;
+
+                switch (ReleaseStream.Value)
+                {
+                    case Game.Configuration.ReleaseStream.Nova:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "nova");
+                        break;
+
+                    case Game.Configuration.ReleaseStream.Vanilla:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "vanilla");
+                        break;
+
+                    default:
+                        updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                        break;
+                }
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     AllowVersionDowngrade = true
