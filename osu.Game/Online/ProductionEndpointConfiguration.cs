@@ -7,13 +7,16 @@ namespace osu.Game.Online
     {
         public ProductionEndpointConfiguration()
         {
-            WebsiteUrl = APIUrl = @"https://osu.ppy.sh";
+            // Vanilla stream: upstream lazer wired to Torii. API / auth / realtime all
+            // point at Torii; osu.ppy.sh is never used for the server side.
+            APIUrl = @"https://lazer-api.shikkesora.com";
+            WebsiteUrl = @"https://lazer.shikkesora.com";
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
             APIClientID = "5";
-            SpectatorUrl = "https://spectator.osu.ppy.sh/spectator";
-            MultiplayerUrl = "https://spectator.osu.ppy.sh/multiplayer";
-            MetadataUrl = "https://spectator.osu.ppy.sh/metadata";
-            BeatmapSubmissionServiceUrl = "https://bss.ppy.sh";
+            SpectatorUrl = $@"{APIUrl}/signalr/spectator";
+            MultiplayerUrl = $@"{APIUrl}/signalr/multiplayer";
+            MetadataUrl = $@"{APIUrl}/signalr/metadata";
+            BeatmapSubmissionServiceUrl = $@"{APIUrl}/beatmap-submission";
         }
     }
 }

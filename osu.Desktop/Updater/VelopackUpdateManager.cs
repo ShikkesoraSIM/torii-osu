@@ -5,12 +5,15 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game;
+using osu.Game.Configuration;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Screens.Play;
+using osuTK.Graphics;
 using Velopack;
 using Velopack.Sources;
 using UpdateManager = osu.Game.Updater.UpdateManager;
@@ -27,6 +30,9 @@ namespace osu.Desktop.Updater
 
         [Resolved]
         private ILocalUserPlayInfo? localUserInfo { get; set; }
+
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
 
         private bool isInGameplay => localUserInfo?.PlayingState.Value != LocalUserPlayingState.NotPlaying;
 
@@ -55,7 +61,41 @@ namespace osu.Desktop.Updater
 
             try
             {
-                IUpdateSource updateSource = new GithubSource(@"https://github.com/ppy/osu", null, ReleaseStream.Value == Game.Configuration.ReleaseStream.Tachyon);
+                // Pull desktop updates from the Torii repository releases.
+                //
+                // Stream selection mapping:
+                // - Torii (stable) → plain `GithubSource` with
+                //   `includePrereleases = false`. The `-torii` releases are
+                //   non-prereleases, and `-nova` releases are tagged
+                //   prereleases (see build-gu.yml), so the upstream
+                //   exclusion naturally pins stable users to stable tags.
+                //   Legacy `-lazer` releases also count as stable because
+                //   they were published non-prerelease too.
+                // - Torii Nova → `ToriiUpdateSource` with `requiredTagSuffix
+                //   = "nova"` so only `-nova` tagged releases are
+                //   considered. This prevents the silent reverse-downgrade
+                //   path where a later semver-higher stable release would
+                //   otherwise "update" a Nova user back to stable.
+                // Nova and Vanilla are both GitHub prereleases, so each pins to its
+                // own `-<suffix>` tag via ToriiUpdateSource. This stops the silent
+                // reverse-downgrade where a later semver-higher stable release would
+                // otherwise "update" a Nova/Vanilla user back to stable.
+                IUpdateSource updateSource;
+
+                switch (ReleaseStream.Value)
+                {
+                    case Game.Configuration.ReleaseStream.Nova:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "nova");
+                        break;
+
+                    case Game.Configuration.ReleaseStream.Vanilla:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "vanilla");
+                        break;
+
+                    default:
+                        updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                        break;
+                }
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     AllowVersionDowngrade = true
@@ -86,6 +126,12 @@ namespace osu.Desktop.Updater
             catch (Exception e)
             {
                 log($"Update check failed with error ({e.Message})");
+                runOutsideOfGameplay(() => notificationOverlay.Post(new SimpleNotification
+                {
+                    Text = "Update check failed. If you're using a portable build, download the latest portable package manually.",
+                    Icon = FontAwesome.Solid.ExclamationTriangle,
+                    IconColour = Color4.OrangeRed,
+                }), cancellationToken);
 
                 // we shouldn't crash on a web failure. or any failure for the matter.
                 scheduleNextUpdateCheck();
@@ -146,11 +192,11 @@ namespace osu.Desktop.Updater
             action();
         }
 
-        private void restartToApplyUpdate(Velopack.UpdateManager updateManager, UpdateInfo update)
+        private void restartToApplyUpdate(Velopack.UpdateManager updateManager, UpdateInfo update) => Task.Run(async () =>
         {
-            game.RestartOnExitAction = () => updateManager.WaitExitThenApplyUpdates(update.TargetFullRelease);
-            game.AttemptExit();
-        }
+            await updateManager.WaitExitThenApplyUpdatesAsync(update.TargetFullRelease).ConfigureAwait(false);
+            Schedule(() => game.AttemptExit());
+        });
 
         private static void log(string text) => Logger.Log($"VelopackUpdateManager: {text}");
     }

@@ -109,13 +109,13 @@ namespace osu.Desktop
 
         protected override UpdateManager CreateUpdateManager()
         {
-            // If this is the first time we've run the game, ie it is being installed,
-            // reset the user's release stream to "lazer".
-            //
-            // This ensures that if a user is trying to recover from a failed startup on an unstable release stream,
-            // the game doesn't immediately try and update them back to the release stream after starting up.
+            // On a genuinely fresh install of the Vanilla binary, keep the user on the
+            // Vanilla stream (this binary IS Vanilla) so the updater doesn't immediately
+            // pull a different stream's tag and swap them off it. A stream switch from
+            // another Torii binary reuses the existing data dir, so IsFirstRun is false
+            // there and the user's chosen stream is preserved.
             if (IsFirstRun)
-                LocalConfig.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+                LocalConfig.SetValue(OsuSetting.ReleaseStream, ReleaseStream.Vanilla);
 
             if (IsPackageManaged)
                 return new NoActionUpdateManager();

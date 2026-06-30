@@ -35,6 +35,11 @@ namespace osu.Game.Configuration
         {
         }
 
+        // Vanilla shares Torii's config file so login + library + standard settings carry
+        // across streams seamlessly. The upstream-subset enum resets a few Torii-only
+        // toggles on save; nothing important (token, resolution, server) is affected.
+        protected override string Filename => @"torii.ini";
+
         protected override void InitialiseDefaults()
         {
             // UI/selection defaults
@@ -163,7 +168,10 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.GameplayDisableWinKey, true);
 
             // Update
-            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Lazer);
+            SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Torii);
+
+            // Vanilla: one-shot first-launch welcome notice (shown once on reaching the menu).
+            SetDefault(OsuSetting.ShownVanillaNotice, false);
 
             SetDefault(OsuSetting.Version, string.Empty);
 
@@ -467,5 +475,7 @@ namespace osu.Game.Configuration
 
         DashboardSortMode,
         DashboardDisplayStyle,
+
+        ShownVanillaNotice,
     }
 }

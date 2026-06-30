@@ -50,6 +50,14 @@ namespace osu.Game.Overlays.Settings.Sections.General
             // For simplicity, hide the concept of release streams from mobile users.
             if (isDesktop)
             {
+                // (Removed) "Disable automatic updates (GU)" checkbox — the
+                // option felt half-finished (the underlying OsuSetting is
+                // still kept for backward-compat with existing configs) and
+                // the actual disable-updates UX should be "switch streams"
+                // not "stop all updates". If a user genuinely needs to pin
+                // their version, they can run the portable archive instead
+                // of the installer.
+
                 Add(new SettingsItemV2(releaseStreamDropdown = new FormEnumDropdown<ReleaseStream>
                 {
                     Caption = GeneralSettingsStrings.ReleaseStream,
@@ -80,12 +88,30 @@ namespace osu.Game.Overlays.Settings.Sections.General
 
         private void releaseStreamChanged(ValueChangedEvent<ReleaseStream> stream)
         {
-            if (stream.NewValue == ReleaseStream.Tachyon)
+            // Confirm before switching to the experimental Nova channel — moving
+            // off stable means downloading a different binary (different target
+            // framework, different default renderer) which is harder to roll
+            // back than just toggling a setting.
+            //
+            // After a confirmed switch (either direction) we IMMEDIATELY fire a
+            // CheckForUpdate against the new stream's source so the switch feels
+            // seamless — the user changes the dropdown value, ten seconds later
+            // they see "Update available" for the new stream's binary, instead
+            // of waiting up to 30 minutes for the next background poll.
+            // VelopackUpdateManager.PerformUpdateCheck reads ReleaseStream.Value
+            // at call time, so the bound-and-saved config change above
+            // (configReleaseStream.Value = ...) is visible by the time the
+            // check fires.
+            if (stream.NewValue == ReleaseStream.Nova)
             {
                 dialogOverlay?.Push(
                     new ConfirmDialog(GeneralSettingsStrings.ChangeReleaseStreamConfirmation,
-                        () => configReleaseStream.Value = ReleaseStream.Tachyon,
-                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Lazer)
+                        () =>
+                        {
+                            configReleaseStream.Value = ReleaseStream.Nova;
+                            checkForUpdates().FireAndForget();
+                        },
+                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
                     {
                         BodyText = GeneralSettingsStrings.ChangeReleaseStreamConfirmationInfo
                     });
@@ -93,7 +119,28 @@ namespace osu.Game.Overlays.Settings.Sections.General
                 return;
             }
 
+            // Vanilla is upstream lazer wired to Torii: no Torii features, and its
+            // client-side pp will drift from the server's. Spell that out before the
+            // user commits to swapping to a different binary.
+            if (stream.NewValue == ReleaseStream.Vanilla)
+            {
+                dialogOverlay?.Push(
+                    new ConfirmDialog("Switch to the Vanilla stream?",
+                        () =>
+                        {
+                            configReleaseStream.Value = ReleaseStream.Vanilla;
+                            checkForUpdates().FireAndForget();
+                        },
+                        () => releaseStreamDropdown.Current.Value = ReleaseStream.Torii)
+                    {
+                        BodyText = "Vanilla is basically Lazer but wired to work on Torii. It won't have any Torii features and the PP gotten from maps will deviate from the one stored in the server, but this is good for people with compatibility problems, lag issues, poor pcs, or weird systems like Wayland, Linux, etc."
+                    });
+
+                return;
+            }
+
             configReleaseStream.Value = stream.NewValue;
+            checkForUpdates().FireAndForget();
         }
 
         private async Task checkForUpdates()
@@ -127,7 +174,10 @@ namespace osu.Game.Overlays.Settings.Sections.General
             }
             finally
             {
-                checkingNotification.CompleteSilently();
+                // This sequence allows the notification to be immediately dismissed without posting a continuation message.
+                checkingNotification.CompletionTarget = null;
+                checkingNotification.State = ProgressNotificationState.Completed;
+                checkingNotification.Close(false);
                 checkForUpdatesButton.Enabled.Value = true;
             }
         }

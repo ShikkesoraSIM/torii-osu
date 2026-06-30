@@ -7,8 +7,10 @@ namespace osu.Game.Online
     {
         public DevelopmentEndpointConfiguration()
         {
-            WebsiteUrl = APIUrl = @"https://dev.ppy.sh";
-            APIClientSecret = @"3LP2mhUrV89xxzD1YKNndXHEhWWCRLPNKioZ9ymT";
+            // Vanilla stream: even debug builds talk to Torii only, never dev.ppy.sh.
+            APIUrl = @"https://lazer-api.shikkesora.com";
+            WebsiteUrl = @"https://lazer.shikkesora.com";
+            APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
             APIClientID = "5";
             SpectatorUrl = $@"{APIUrl}/signalr/spectator";
             MultiplayerUrl = $@"{APIUrl}/signalr/multiplayer";

@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
-        <id>osulazer</id>
+        <id>osu-torii</id>
         <version>0.0.0</version>
-        <title>osu!</title>
+        <title>Torii Vanilla</title>
         <authors>ppy Pty Ltd</authors>
         <owners>Dean Herbert</owners>
         <projectUrl>https://osu.ppy.sh/</projectUrl>

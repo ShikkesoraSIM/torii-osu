@@ -52,6 +52,7 @@ using osu.Game.Online.Leaderboards;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays;
 using osu.Game.Overlays.BeatmapListing;
+using osu.Game.Overlays.Dialog;
 using osu.Game.Overlays.Mods;
 using osu.Game.Overlays.Music;
 using osu.Game.Overlays.Notifications;
@@ -1766,6 +1767,16 @@ namespace osu.Game
                 case MainMenu menu:
                     menuScreen = menu;
                     devBuildBanner?.Show();
+
+                    // Vanilla: show the one-shot welcome notice the first time a direct
+                    // install reaches the menu (stream switches go through the dropdown
+                    // confirm instead, so this only fires for fresh standalone installs).
+                    if (!LocalConfig.Get<bool>(OsuSetting.ShownVanillaNotice))
+                    {
+                        LocalConfig.SetValue(OsuSetting.ShownVanillaNotice, true);
+                        dialogOverlay?.Push(new VanillaWelcomeDialog());
+                    }
+
                     break;
 
                 case Player player:

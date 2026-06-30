@@ -35,14 +35,14 @@ namespace osu.Game.Updater
         private void load(OsuGameBase game)
         {
             version = game.Version.Split('-').First();
-            stream = Enum.TryParse(game.Version.Split('-').Last(), true, out ReleaseStream s) ? s : Configuration.ReleaseStream.Lazer;
+            stream = Enum.TryParse(game.Version.Split('-').Last(), true, out ReleaseStream s) ? s : Configuration.ReleaseStream.Torii;
         }
 
         protected override async Task<bool> PerformUpdateCheck(CancellationToken cancellationToken)
         {
             try
             {
-                bool includePrerelease = stream == Configuration.ReleaseStream.Tachyon;
+                bool includePrerelease = stream == Configuration.ReleaseStream.Nova;
 
                 OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ppy/osu/releases?per_page=10&page=1");
                 await releasesRequest.PerformAsync(cancellationToken).ConfigureAwait(false);

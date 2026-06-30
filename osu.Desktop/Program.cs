@@ -20,10 +20,12 @@ namespace osu.Desktop
 {
     public static class Program
     {
+        // Vanilla shares Torii's install identity so stream transitions are seamless
+        // (same data dir, library, settings/login). It is just another Torii stream.
 #if DEBUG
-        private const string base_game_name = @"osu-development";
+        private const string base_game_name = @"osu-torii-development";
 #else
-        private const string base_game_name = @"osu";
+        private const string base_game_name = @"osu-torii";
 #endif
 
         private static LegacyTcpIpcProvider? legacyIpc;
