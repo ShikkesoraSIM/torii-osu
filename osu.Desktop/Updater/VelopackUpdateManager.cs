@@ -55,13 +55,42 @@ namespace osu.Desktop.Updater
 
             try
             {
-                // torii: actualizamos desde la repo de torii (no ppy/osu!). el stream Nova usa
-                // ToriiUpdateSource para quedarse SOLO con los tags -nova (sino una estable -torii con
-                // version mas alta lo bajaria de stream); la estable usa el GithubSource normal (su
-                // includePrereleases=false ya excluye los -nova).
-                IUpdateSource updateSource = ReleaseStream.Value == Game.Configuration.ReleaseStream.Nova
-                    ? new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: @"nova")
-                    : new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                // Pull desktop updates from the Torii repository releases.
+                //
+                // Stream selection mapping:
+                // - Torii (stable) → plain `GithubSource` with
+                //   `includePrereleases = false`. The `-torii` releases are
+                //   non-prereleases, and `-nova` releases are tagged
+                //   prereleases (see build-gu.yml), so the upstream
+                //   exclusion naturally pins stable users to stable tags.
+                //   Legacy `-lazer` releases also count as stable because
+                //   they were published non-prerelease too.
+                // - Torii Nova → `ToriiUpdateSource` with `requiredTagSuffix
+                //   = "nova"` so only `-nova` tagged releases are
+                //   considered. This prevents the silent reverse-downgrade
+                //   path where a later semver-higher stable release would
+                //   otherwise "update" a Nova user back to stable.
+                // Nova and Vanilla are both GitHub prereleases, so each pins to its
+                // own `-<suffix>` tag via ToriiUpdateSource. This stops the silent
+                // reverse-downgrade where a later semver-higher stable release would
+                // otherwise "update" a Nova/Vanilla user back to stable.
+                IUpdateSource updateSource;
+
+                switch (ReleaseStream.Value)
+                {
+                    case Game.Configuration.ReleaseStream.Nova:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "nova");
+                        break;
+
+                    case Game.Configuration.ReleaseStream.Vanilla:
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: true, requiredTagSuffix: "vanilla");
+                        break;
+
+                    default:
+                        updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                        break;
+                }
+
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     // torii: NO permitimos downgrade. si un stream queda mal seteado (ej: caes a Torii con
