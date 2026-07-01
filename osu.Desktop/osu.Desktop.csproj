@@ -14,10 +14,21 @@
     <Version>0.0.0</Version>
     <FileVersion>0.0.0</FileVersion>
     <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
-    <!-- GC workstation + concurrent: colecciona mas seguido, los pause de Gen2 no congelan. -->
-    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <!-- 2026-07: Server GC to kill the ~190ms song-select GC pauses. Workstation
+         GC blocks the whole process on gen2/LOH collections (proven via
+         dotnet-counters vs official). Server GC does background gen2 across
+         heaps. On net10 that turns DATAS on by default, which resizes the heap
+         and can stutter at gameplay transitions, so DynamicAdaptationMode=0
+         (below) opts out; NoAffinitize keeps GC threads off our hot cores; and
+         RetainVM avoids decommit-on-release Gen2 cascades. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
   </PropertyGroup>
+  <ItemGroup Label="Runtime host configuration">
+    <RuntimeHostConfigurationOption Include="System.GC.DynamicAdaptationMode" Value="0" />
+    <RuntimeHostConfigurationOption Include="System.GC.NoAffinitize" Value="true" />
+  </ItemGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
   </PropertyGroup>
