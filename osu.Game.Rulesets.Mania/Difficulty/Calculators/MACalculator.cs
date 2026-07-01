@@ -111,8 +111,13 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 .Select(kvp => kvp.Value)
                 .ToList();
 
-            int maxHead = noteSeq.Max(n => n.Head);
-            int maxTail = noteSeq.Max(n => n.Tail);
+            int maxHead = noteSeq[0].Head;
+            int maxTail = noteSeq[0].Tail;
+            for (int mi = 1; mi < noteSeq.Count; mi++)
+            {
+                if (noteSeq[mi].Head > maxHead) maxHead = noteSeq[mi].Head;
+                if (noteSeq[mi].Tail > maxTail) maxTail = noteSeq[mi].Tail;
+            }
             int T = Math.Max(maxHead, maxTail) + 1;
 
             // --- Determine Corner Times for base variables and for A ---
@@ -212,6 +217,11 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 key_usage_400[k] = new double[baseCorners.Length];
             }
 
+            // Loop-invariant, hoisted out of the per-corner inner loops below. Computed with the
+            // exact original expression (`3.75 / Math.Pow(400, 2)`) so it is bit-identical to the
+            // old per-iteration value on any runtime, not just where Math.Pow(400,2) folds to 160000.
+            double anchor_falloff = 3.75 / Math.Pow(400, 2);
+
             for (int k = 0; k < keyCount; k++)
             {
                 // Get the note sequence for key k.
@@ -239,17 +249,18 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                         key_usage_400[k][i] += 3.75 + Math.Min(activeEnd - activeStart, 1500) / 150;
 
                     for (int i = start400Idx; i < startIdx; i++)
-                        key_usage_400[k][i] += 3.75 - 3.75 / Math.Pow(400, 2) * Math.Pow(baseCorners[i] - activeStart, 2);
+                        key_usage_400[k][i] += 3.75 - anchor_falloff * Sq(baseCorners[i] - activeStart);
 
                     for (int i = endIdx; i < end400Idx; i++)
-                        key_usage_400[k][i] += 3.75 - 3.75 / Math.Pow(400, 2) * Math.Pow(Math.Abs(baseCorners[i] - activeEnd), 2);
+                        key_usage_400[k][i] += 3.75 - anchor_falloff * Sq(Math.Abs(baseCorners[i] - activeEnd));
                 }
             }
 
             double[] anchor = new double[baseCorners.Length];
+            // Buffer reused across corners; every slot is overwritten from key_usage_400 each iteration.
+            double[] counts = new double[keyCount];
             for (int i = 0; i < baseCorners.Length; i++)
             {
-                double[] counts = new double[keyCount];
                 for (int k = 0; k < keyCount; k++)
                 {
                     counts[k] = key_usage_400[k][i];
@@ -258,18 +269,23 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 Array.Sort(counts);
                 Array.Reverse(counts);
 
-                double[] nonZeroCounts = counts.Where(c => c > 0).ToArray();
-                int countLength = nonZeroCounts.Length;
+                // key_usage_400 values are always >= 0, so after sort-descending the strictly
+                // positive entries form a contiguous front block counts[0..countLength).
+                int countLength = 0;
+                while (countLength < counts.Length && counts[countLength] > 0)
+                    countLength++;
 
                 if (countLength > 1)
                 {
-                    double walk = Enumerable.Range(0, countLength - 1)
-                        .Select(i => nonZeroCounts[i] * (1 - 4 * Math.Pow(0.5 - (nonZeroCounts[i + 1] / nonZeroCounts[i]), 2)))
-                        .Sum();
-
-                    double maxWalk = Enumerable.Range(0, countLength - 1)
-                        .Select(i => nonZeroCounts[i])
-                        .Sum();
+                    // Same left-to-right reduction order as the original Enumerable.Sum(), so bit-identical.
+                    double walk = 0;
+                    double maxWalk = 0;
+                    for (int j = 0; j < countLength - 1; j++)
+                    {
+                        double c = counts[j];
+                        walk += c * (1 - 4 * Sq(0.5 - (counts[j + 1] / counts[j])));
+                        maxWalk += c;
+                    }
 
                     anchor[i] = walk / maxWalk;
                 }
@@ -281,7 +297,7 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
 
             for (int i = 0; i < anchor.Length; i++)
             {
-                anchor[i] = 1 + Math.Min(anchor[i] - 0.18, 5 * Math.Pow(anchor[i] - 0.22, 3));
+                anchor[i] = 1 + Math.Min(anchor[i] - 0.18, 5 * Cube(anchor[i] - 0.22));
             }
 
             // --- Section 2.3: Compute Jbar ---
@@ -301,10 +317,7 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 J_ks[k] = new double[baseCorners.Length];
                 delta_ks[k] = new double[baseCorners.Length];
                 // Initialize delta_ks to a large value.
-                for (int j = 0; j < baseCorners.Length; j++)
-                {
-                    delta_ks[k][j] = 1e9;
-                }
+                Array.Fill(delta_ks[k], 1e9);
             }
 
             // For each column, compute unsmoothed J using a linear sweep over baseCorners.
@@ -353,7 +366,7 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 {
                     double v = Math.Max(Jbar_ks[k][j], 0);
                     double weight = 1.0 / delta_ks[k][j];
-                    num += Math.Pow(v, lambda_n) * weight;
+                    num += Pow5(v) * weight;
                     den += weight;
                 }
                 double avg = num / Math.Max(1e-9, den);
@@ -493,56 +506,72 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
             // --- Section 2.5: Compute Pbar ---
             // Console.WriteLine("2.5");
 
-            // Build LN_bodies array over time [0, T)
-            double[] LN_bodies = new double[T];
-            for (int i = 0; i < T; i++)
-                LN_bodies[i] = 0.0;
+            // LN_sum returns the exact sum over LN_bodies in the interval [a, b).
+            // Rice-only maps (no long notes) contribute 0 identically, so we skip the
+            // O(song-length) LN_bodies / cumsum arrays entirely for them. Maps WITH long
+            // notes still build the full cumsum, but skip the redundant zero-init and only
+            // clamp the range actually written (unwritten cells are 0 and Min(0, 2.5)==0).
+            Func<int, int, double> LN_sum;
 
-            // For each long note, add contributions in three segments:
-            //   from h to t0, add nothing;
-            //   from t0 to t1, add 1.3;
-            foreach (var note in LNSeq)
+            if (LNSeq.Count == 0)
             {
-                int h = note.Head;
-                int t = note.Tail;
-                int t0 = Math.Min(h + 60, t);
-                int t1 = Math.Min(h + 120, t);
-                for (int i = t0; i < t1; i++)
-                    LN_bodies[i] += 1.3;
-                for (int i = t1; i < t; i++)
-                    LN_bodies[i] += 1.0;
+                LN_sum = (a, b) => 0.0;
             }
-
-            // adjust the LN bodies count - this helps with high key inverse
-            for (int i = 0; i < LN_bodies.Length; i++)
+            else
             {
-                LN_bodies[i] = Math.Min(LN_bodies[i], 2.5 + 0.5 * LN_bodies[i]);
-            }
+                double[] LN_bodies = new double[T]; // zero-initialised by the runtime
 
-            // Compute cumulative sum over LN_bodies
-            double[] cumsum_LN = new double[T + 1];
-            cumsum_LN[0] = 0.0;
-            for (int i = 1; i <= T; i++)
-            {
-                cumsum_LN[i] = cumsum_LN[i - 1] + LN_bodies[i - 1];
-            }
+                int minWritten = T;
+                int maxWritten = 0;
 
-            // LN_sum returns the exact sum over LN_bodies in the interval [a, b)
-            Func<int, int, double> LN_sum = (a, b) => cumsum_LN[b] - cumsum_LN[a];
+                // For each long note, add contributions in three segments:
+                //   from h to t0, add nothing;
+                //   from t0 to t1, add 1.3;
+                foreach (var note in LNSeq)
+                {
+                    int h = note.Head;
+                    int t = note.Tail;
+                    int t0 = Math.Min(h + 60, t);
+                    int t1 = Math.Min(h + 120, t);
+                    for (int i = t0; i < t1; i++)
+                        LN_bodies[i] += 1.3;
+                    for (int i = t1; i < t; i++)
+                        LN_bodies[i] += 1.0;
+                    if (t0 < t)
+                    {
+                        if (t0 < minWritten) minWritten = t0;
+                        if (t > maxWritten) maxWritten = t;
+                    }
+                }
+
+                // adjust the LN bodies count - this helps with high key inverse
+                for (int i = minWritten; i < maxWritten; i++)
+                {
+                    LN_bodies[i] = Math.Min(LN_bodies[i], 2.5 + 0.5 * LN_bodies[i]);
+                }
+
+                // Compute cumulative sum over LN_bodies
+                double[] cumsum_LN = new double[T + 1];
+                cumsum_LN[0] = 0.0;
+                for (int i = 1; i <= T; i++)
+                {
+                    cumsum_LN[i] = cumsum_LN[i - 1] + LN_bodies[i - 1];
+                }
+
+                LN_sum = (a, b) => cumsum_LN[b] - cumsum_LN[a];
+            }
 
             // Stream Booster
             Func<double, double> streamBooster = (delta) =>
             {
                 double val = 7.5 / delta;
                 if (val > 160 && val < 360)
-                    return 1 + 1.7e-7 * (val - 160) * Math.Pow(val - 360, 2);
+                    return 1 + 1.7e-7 * (val - 160) * Sq(val - 360);
                 return 1.0;
             };
 
-            // Allocate P_step on the base grid.
+            // Allocate P_step on the base grid (zero-initialised by the runtime).
             double[] P_step = new double[baseCorners.Length];
-            for (int i = 0; i < baseCorners.Length; i++)
-                P_step[i] = 0.0;
 
             // Process each adjacent pair of notes in noteSeq. Since noteSeq is sorted by head time,
             // the interval [h_l, h_r) for each pair will also be in increasing order.
@@ -577,12 +606,12 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 if (delta < 2 * x / 3)
                 {
                     inc = (1.0 / delta) * Math.Pow(0.08 * (1.0 / x) *
-                        (1 - lambda_3 * (1.0 / x) * Math.Pow(delta - x / 2, 2)), 0.25) * Math.Max(bVal, v);
+                        (1 - lambda_3 * (1.0 / x) * Sq(delta - x / 2)), 0.25) * Math.Max(bVal, v);
                 }
                 else
                 {
                     inc = (1.0 / delta) * Math.Pow(0.08 * (1.0 / x) *
-                        (1 - lambda_3 * (1.0 / x) * Math.Pow(x / 6, 2)), 0.25) * Math.Max(bVal, v);
+                        (1 - lambda_3 * (1.0 / x) * Sq(x / 6)), 0.25) * Math.Max(bVal, v);
                 }
 
                 // Advance pointerP until the current base corner is at least h_l.
@@ -667,17 +696,8 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
 
             double[] R_base = new double[baseCorners.Length];
             double[] I_arr = new double[baseCorners.Length];
-            for (int i = 0; i < R_base.Length; i++)
-            {
-                R_base[i] = 0;
-                I_arr[i] = 0;
-            }
 
             double[] I_list = new double[tailSeq.Count];
-            for (int i = 0; i < I_list.Length; i++)
-            {
-                I_list[i] = 0;
-            }
 
             for (int note = 0; note < tailSeq.Count; note++)
             {
@@ -840,34 +860,38 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
                 else {
                 effectiveWeights[i] = C_arrV2[i] * gaps[i];
                 }
-            List<CornerData> cornerDataList = new List<CornerData>();
+            // Stable index sort by D (matches LINQ OrderBy's stable order: equal D falls back to
+            // original index), then read D / Weight through the permutation. Avoids allocating N
+            // CornerData objects; every downstream reduction walks the identical ordered sequence
+            // so SR / spikiness stay bit-identical.
+            int[] order = new int[N];
+            for (int i = 0; i < N; i++)
+                order[i] = i;
+            Array.Sort(order, (a, b) =>
+            {
+                int cmp = D_all[a].CompareTo(D_all[b]);
+                return cmp != 0 ? cmp : a.CompareTo(b);
+            });
+
+            double[] D_sorted = new double[N];
+            double[] W_sorted = new double[N];
             for (int i = 0; i < N; i++)
             {
-                cornerDataList.Add(new CornerData
-                {
-                    Time = allCorners[i],
-                    Jbar = Jbar[i],
-                    Xbar = Xbar[i],
-                    Pbar = Pbar[i],
-                    Abar = Abar[i],
-                    Rbar = Rbar[i],
-                    C = C_arr[i],
-                    Ks = Ks_arr[i],
-                    D = D_all[i],
-                    Weight = effectiveWeights[i]
-                });
+                D_sorted[i] = D_all[order[i]];
+                W_sorted[i] = effectiveWeights[order[i]];
             }
-            var sortedList = cornerDataList.OrderBy(cd => cd.D).ToList();
-            double[] D_sorted = sortedList.Select(cd => cd.D).ToArray();
-            double[] cumWeights = new double[sortedList.Count];
+
+            double[] cumWeights = new double[N];
             double sumW = 0.0;
-            for (int i = 0; i < sortedList.Count; i++)
+            for (int i = 0; i < N; i++)
             {
-                sumW += sortedList[i].Weight;
+                sumW += W_sorted[i];
                 cumWeights[i] = sumW;
             }
             double totalWeight = sumW;
-            double[] normCumWeights = cumWeights.Select(cw => cw / totalWeight).ToArray();
+            double[] normCumWeights = new double[N];
+            for (int i = 0; i < N; i++)
+                normCumWeights[i] = cumWeights[i] / totalWeight;
 
             double[] targetPercentiles = new double[] { 0.945, 0.935, 0.925, 0.915, 0.845, 0.835, 0.825, 0.815 };
             List<int> indices = new List<int>();
@@ -875,7 +899,7 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
             {
                 int idx = Array.FindIndex(normCumWeights, cw => cw >= tp);
                 if (idx < 0)
-                    idx = sortedList.Count - 1;
+                    idx = N - 1;
                 indices.Add(idx);
             }
             double percentile93, percentile83;
@@ -883,24 +907,24 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
             {
                 double sum93 = 0.0;
                 for (int i = 0; i < 4; i++)
-                    sum93 += sortedList[indices[i]].D;
+                    sum93 += D_sorted[indices[i]];
                 percentile93 = sum93 / 4.0;
                 double sum83 = 0.0;
                 for (int i = 4; i < 8; i++)
-                    sum83 += sortedList[indices[i]].D;
+                    sum83 += D_sorted[indices[i]];
                 percentile83 = sum83 / 4.0;
             }
             else
             {
-                percentile93 = sortedList.Average(cd => cd.D);
+                percentile93 = D_sorted.Average();
                 percentile83 = percentile93;
             }
             double numWeighted = 0.0;
             double denWeighted = 0.0;
-            for (int i = 0; i < sortedList.Count; i++)
+            for (int i = 0; i < N; i++)
             {
-                numWeighted += Math.Pow(sortedList[i].D, lambda_n) * sortedList[i].Weight;
-                denWeighted += sortedList[i].Weight;
+                numWeighted += Pow5(D_sorted[i]) * W_sorted[i];
+                denWeighted += W_sorted[i];
             }
             double weightedMean = Math.Pow(numWeighted / denWeighted, 1.0 / lambda_n);
 
@@ -916,10 +940,11 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
 
             double variance_sum_top = 0;
             double variance_sum_bottom = denWeighted;
+            double wm8 = Pow8(weightedMean);
 
             for (int i = 0; i < D_sorted.Length; i++)
             {
-                variance_sum_top += Math.Pow(Math.Pow(D_sorted[i], 8) - Math.Pow(weightedMean, 8), 2) * sortedList[i].Weight;
+                variance_sum_top += Sq(Pow8(D_sorted[i]) - wm8) * W_sorted[i];
             }
 
             double weighted_variance = Math.Pow(variance_sum_top / variance_sum_bottom, 1.0 / 8.0);
@@ -937,6 +962,15 @@ namespace osu.Game.Rulesets.Mania.Difficulty.Calculators
         }
 
         #region Helper Methods
+
+        // Integer-power helpers: repeated multiplication instead of Math.Pow for small integer
+        // exponents on the hot SR path. Faster than the libm pow() call and, unlike Math.Pow,
+        // fully deterministic across runtimes/architectures, so mania SR stays identical between
+        // the .NET 8 (master) and .NET 10 (nova) client streams. lambda_n is 5 by construction.
+        private static double Sq(double x) => x * x;
+        private static double Cube(double x) => x * x * x;
+        private static double Pow5(double x) { double x2 = x * x; return x2 * x2 * x; }
+        private static double Pow8(double x) { double x2 = x * x, x4 = x2 * x2; return x4 * x4; }
 
         private static double rescaleHigh(double sr)
         {
