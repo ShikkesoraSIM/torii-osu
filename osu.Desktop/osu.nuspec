@@ -4,15 +4,15 @@
         <id>osu-torii</id>
         <version>0.0.0</version>
         <title>Torii Vanilla</title>
-        <authors>ppy Pty Ltd</authors>
-        <owners>Dean Herbert</owners>
-        <projectUrl>https://osu.ppy.sh/</projectUrl>
-        <iconUrl>https://github.com/ppy/osu/blob/master/assets/lazer-nuget.png?raw=true</iconUrl>
+        <authors>ppy Pty Ltd, Shigetiro, Torii Team</authors>
+        <owners>Torii Team</owners>
+        <projectUrl>https://github.com/ShikkesoraSIM/torii-osu</projectUrl>
+        <iconUrl>https://github.com/shigetiro/osu/blob/master/assets/lazer-nuget.png?raw=true</iconUrl>
         <icon>icon.png</icon>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>A free-to-win rhythm game. Rhythm is just a *click* away!</description>
-        <releaseNotes>testing</releaseNotes>
-        <copyright>Copyright (c) 2025 ppy Pty Ltd</copyright>
+        <releaseNotes>Torii Vanilla - upstream lazer wired to Torii</releaseNotes>
+        <copyright>Copyright (c) 2026 Torii Team. Based on osu! (c) ppy Pty Ltd, with additional work from Shigetiro and GooGuTeam.</copyright>
         <language>en-AU</language>
     </metadata>
     <files>

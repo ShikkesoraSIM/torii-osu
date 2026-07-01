@@ -4,11 +4,11 @@
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>A free-to-win rhythm game. Rhythm is just a *click* away!</Description>
-    <AssemblyName>osu!</AssemblyName>
-    <AssemblyTitle>osu!(lazer)</AssemblyTitle>
-    <Title>osu!</Title>
-    <Product>osu!(lazer)</Product>
-    <ApplicationIcon>lazer.ico</ApplicationIcon>
+    <AssemblyName>torii</AssemblyName>
+    <AssemblyTitle>Torii Vanilla</AssemblyTitle>
+    <Title>Torii Vanilla</Title>
+    <Product>Torii Vanilla</Product>
+    <ApplicationIcon>torii.ico</ApplicationIcon>
     <Version>0.0.0</Version>
     <FileVersion>0.0.0</FileVersion>
   </PropertyGroup>
@@ -31,6 +31,7 @@
   </ItemGroup>
   <ItemGroup Label="Resources">
     <EmbeddedResource Include="lazer.ico" />
+    <EmbeddedResource Include="torii.ico" />
   </ItemGroup>
   <ItemGroup Label="Windows Icons">
     <Content Include="*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
