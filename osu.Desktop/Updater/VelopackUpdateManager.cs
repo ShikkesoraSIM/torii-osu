@@ -87,18 +87,27 @@ namespace osu.Desktop.Updater
                         break;
 
                     default:
-                        updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                        // estable tambien pasa por ToriiUpdateSource (sin filtro de sufijo,
+                        // prereleases afuera) solo para heredar la paginacion mas honda. una
+                        // racha de prereleases nova/vanilla puede empujar el ultimo estable
+                        // fuera de la ventana de 10 releases del GithubSource y frenar los
+                        // updates estables. el comportamiento es identico al GithubSource:
+                        // includePrereleases=false deja afuera -nova/-vanilla y el sufijo null
+                        // mantiene a la vista los builds -lazer estables viejos.
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: false, requiredTagSuffix: null);
                         break;
                 }
 
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
-                    // torii: NO permitimos downgrade. si un stream queda mal seteado (ej: caes a Torii con
-                    // un build Nova instalado), con downgrade=true el updater te tira para ATRAS en loop.
-                    // con false, peor caso no hay update hasta arreglarlo, pero nunca un loop de bajada.
-                    // el esquema de version es por fecha (siempre sube), asi que un "rollback" real es
-                    // igual un tag mas nuevo, no perdemos esa capacidad.
-                    AllowVersionDowngrade = false
+                    // torii: permitimos downgrade porque es lo que hace andar el switch de stream.
+                    // el usuario que esta en Nova (version mas alta) y elige Vanilla necesita que el
+                    // updater lo BAJE al build de Vanilla, aunque su version sea menor. no hay loop:
+                    // Velopack converge - despues de bajar una vez, el instalado pasa a ser igual al
+                    // ultimo del stream elegido, y el proximo check ya no encuentra update. sumado a
+                    // la paginacion honda de ToriiUpdateSource, el feed del stream destino siempre
+                    // aparece, asi que el downgrade cruzado entre streams funciona.
+                    AllowVersionDowngrade = true
                 });
 
                 UpdateInfo? update = await updateManager.CheckForUpdatesAsync().ConfigureAwait(false);
