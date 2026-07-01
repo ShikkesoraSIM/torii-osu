@@ -74,7 +74,14 @@
       stable Torii channel) where DATAS isn't default; pre-emptively set
       so the property survives any future bump to .NET 10+ on master.
     -->
-    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <!-- 2026-07: flipped to Server GC. Workstation GC blocks the whole process on
+         gen2/LOH collections, which on a large song-select library produced
+         ~190ms GC pauses while browsing (proven via dotnet-counters vs official
+         osu!lazer). Server GC collects gen2 in the background across heaps and
+         drops the pause to single digits. The DATAS-off, NoAffinitize and
+         RetainVM tunings (below) keep gameplay transitions stable, which is what
+         the earlier Workstation choice was protecting. -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
   </PropertyGroup>
