@@ -23,3 +23,5 @@ App.config text eol=crlf
 .gitattributes text eol=lf
 *.md text eol=lf
 .travis.yml text eol=lf
+# Vendored Satori GC runtime binaries (net10)
+satori-runtime/**/*.zip binary

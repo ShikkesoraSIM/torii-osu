@@ -585,6 +585,47 @@ jobs:
             -p:InformationalVersion=${{ needs.version.outputs.version }}
         fi
 
+    - name: Attach Satori GC (net10 desktop)
+      # Overlay the Satori low-pause GC runtime onto the published self-contained
+      # build, replacing the stock coreclr / clrjit / System.Private.CoreLib with
+      # Satori's. Satori is what collapses the song-select GC pauses (gen2 281 -> 16
+      # on net10 in an A/B allocation test), the same win osu ships on net8.
+      #
+      # net10 Satori has NO public release (only expiring CI artifacts from
+      # ppy/Satori's 10.0-based branch), so the runtime files are vendored in-repo
+      # under satori-runtime/net10/<rid>.zip and just unzipped in place here - no
+      # download, no auth, no expiry. Built from ppy/Satori 10.0-based run
+      # 27126600038 (.NET 10.0.4 coreclr; patch-compatible with the net10.0.x BCL
+      # the SDK publishes). Same overlay shape osu-deploy uses for net8.
+      if: matrix.runtime != 'android'
+      shell: bash
+      run: |
+        RID="${{ matrix.runtime }}"
+        PUBLISH_DIR="publish/$RID"
+        ZIP="satori-runtime/net10/$RID.zip"
+
+        if [[ ! -f "$ZIP" ]]; then
+          echo "No vendored Satori for runtime '$RID' - leaving stock GC in place."
+          exit 0
+        fi
+
+        # Satori here is net10-only; never overlay it onto a non-net10 build.
+        RCFG=$(ls "$PUBLISH_DIR"/*.runtimeconfig.json 2>/dev/null | head -1)
+        if [[ -n "$RCFG" ]] && ! grep -q 'net10' "$RCFG"; then
+          echo "Publish output is not net10 - skipping net10 Satori overlay."
+          exit 0
+        fi
+
+        # Overwrite the stock runtime files in place (coreclr/clrjit are named
+        # .dll on Windows, .so on Linux, .dylib on macOS; System.Private.CoreLib
+        # is .dll everywhere). -j flattens, -o overwrites.
+        unzip -o -j "$ZIP" -d "$PUBLISH_DIR" || { echo "::error::Failed to extract vendored Satori for ${RID}"; exit 1; }
+
+        test -f "$PUBLISH_DIR/System.Private.CoreLib.dll" || { echo "::error::Satori overlay missing System.Private.CoreLib.dll for ${RID}"; exit 1; }
+        ls "$PUBLISH_DIR"/*coreclr* >/dev/null 2>&1 || { echo "::error::Satori overlay missing coreclr for ${RID}"; exit 1; }
+        echo "Vendored net10 Satori overlaid into ${PUBLISH_DIR}."
+        ls -la "$PUBLISH_DIR"/System.Private.CoreLib.dll "$PUBLISH_DIR"/*coreclr* "$PUBLISH_DIR"/*clrjit* 2>/dev/null || true
+
     - name: Resolve desktop executable name
       if: matrix.runtime != 'android'
       shell: bash
