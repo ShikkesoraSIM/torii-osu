@@ -1364,6 +1364,14 @@ namespace osu.Game.Screens.SelectV2
         private CancellationTokenSource? onlineLookupCancellation;
         private Task<APIBeatmapSet?>? currentOnlineLookup;
 
+        // Torii: per-session cache of online-set lookups, keyed by set OnlineID.
+        // Upstream re-fires GetBeatmapSetRequest on every selection (its only
+        // guard is "same as the immediately previous lookup"), so browsing
+        // A -> B -> A re-fetches A in full and re-runs the realm-write callback
+        // each time. Caching the result for the session means a given set is
+        // fetched (and its realm row touched) at most once, so revisits are free.
+        private readonly Dictionary<int, APIBeatmapSet?> onlineLookupCache = new Dictionary<int, APIBeatmapSet?>();
+
         private void fetchOnlineInfo(bool force = false)
         {
             var beatmapSetInfo = Beatmap.Value.BeatmapSetInfo;
@@ -1380,13 +1388,29 @@ namespace osu.Game.Screens.SelectV2
                 return;
             }
 
+            // Already looked up this set this session: serve the cached result
+            // without another request or realm write.
+            if (!force && onlineLookupCache.TryGetValue(beatmapSetInfo.OnlineID, out var cached))
+            {
+                lastLookupResult.Value = BeatmapSetLookupResult.Completed(cached);
+                return;
+            }
+
             lastLookupResult.Value = BeatmapSetLookupResult.InProgress();
             onlineLookupCancellation = new CancellationTokenSource();
-            currentOnlineLookup = onlineLookupSource.GetBeatmapSetAsync(beatmapSetInfo.OnlineID, onlineLookupCancellation.Token);
+            int lookupOnlineID = beatmapSetInfo.OnlineID;
+            currentOnlineLookup = onlineLookupSource.GetBeatmapSetAsync(lookupOnlineID, onlineLookupCancellation.Token);
             currentOnlineLookup.ContinueWith(t =>
             {
                 if (t.IsCompletedSuccessfully)
-                    Schedule(() => lastLookupResult.Value = BeatmapSetLookupResult.Completed(t.GetResultSafely()));
+                {
+                    var result = t.GetResultSafely();
+                    Schedule(() =>
+                    {
+                        onlineLookupCache[lookupOnlineID] = result;
+                        lastLookupResult.Value = BeatmapSetLookupResult.Completed(result);
+                    });
+                }
 
                 if (t.Exception != null)
                 {
