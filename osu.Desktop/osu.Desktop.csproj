@@ -41,82 +41,14 @@
     <FileVersion>0.0.0</FileVersion>
     <!-- Support multiple runtime identifiers for cross-platform builds -->
     <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
-    <!--
-      Workstation + Concurrent GC: Server GC (one heap per logical core,
-      collections delayed for throughput) let the managed heap balloon to
-      2-3 GB in long song-select sessions, and the eventual blocking Gen2 then
-      froze the game for seconds. Hiccup-report data flagged that as the single
-      biggest cause of song-select stutter. Workstation + Concurrent (what
-      upstream osu! ships) keeps one smaller heap, collects more eagerly, and
-      runs Gen2 in the background, so the worst-case pauses drop sharply.
-      Promoted to stable after a positive Nova run. Trade-off: gen0/1 now run
-      on the calling thread, so a retry's allocation spike can show a small GC
-      blip in the frame-time overlay, judged well worth it against the
-      multi-second song-select freezes.
-
-      RetainVM: keep virtual memory mapped after a Gen2 collection instead of
-      decommitting pages back to the OS. Live hiccup-report data showed the
-      worst post-gameplay stutters (Player → SoloResultsScreen transition)
-      were Gen2 cascades with +gen0=46 +gen1=18 +gen2=9 in a single frame —
-      the runtime panic-collected because the working set dropped from ~500MB
-      to ~250MB the moment HitObjects / replay frames / audio buffers were
-      released. Retaining the VM eliminates the decommit trigger; next
-      gameplay round reuses the warm pages instead of re-committing them.
-      Trade-off: idle memory usage stays higher between gameplay rounds.
-      Worth it for the frame-time win at end of every map.
-
-      DynamicAdaptationMode=0: opt out of DATAS (Dynamic Adaptation To
-      Application Sizes), enabled by default on .NET 9+/10 (Nova channel).
-      DATAS aggressively right-sizes the GC heap to minimise idle memory,
-      which is the OPPOSITE of what a realtime game wants — we'd rather
-      pay a stable memory cost than have heap reorganisations show up as
-      stutter at gameplay transition boundaries. No-op on .NET 8 (the
-      stable Torii channel) where DATAS isn't default; pre-emptively set
-      so the property survives any future bump to .NET 10+ on master.
-    -->
-    <!-- 2026-07: flipped to Server GC. Workstation GC blocks the whole process on
-         gen2/LOH collections, which on a large song-select library produced
-         ~190ms GC pauses while browsing (proven via dotnet-counters vs official
-         osu!lazer). Server GC collects gen2 in the background across heaps and
-         drops the pause to single digits. The DATAS-off, NoAffinitize and
-         RetainVM tunings (below) keep gameplay transitions stable, which is what
-         the earlier Workstation choice was protecting. -->
-    <ServerGarbageCollection>true</ServerGarbageCollection>
-    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
+    <!-- GC: left at the .NET default (Workstation) on purpose. Release builds
+         overlay the Satori GC runtime (ppy/Satori) into the publish output in
+         build-gu.yml, and Satori is what collapses the song-select GC pauses
+         (~190ms/s spikes -> single digits, proven via dotnet-counters vs
+         official osu!lazer). This matches osu!lazer's own shipping config:
+         Satori runtime + default GC settings. The earlier interim Server GC +
+         DATAS/NoAffinitize/LOHThreshold tuning is superseded by Satori. -->
   </PropertyGroup>
-  <ItemGroup Label="Runtime host configuration">
-    <!-- See <RetainVMGarbageCollection> above for the GC tuning rationale.
-         DynamicAdaptationMode doesn't have a dedicated MSBuild property, so
-         it goes through RuntimeHostConfigurationOption which flows the
-         same way into runtimeconfig.json. -->
-    <RuntimeHostConfigurationOption Include="System.GC.DynamicAdaptationMode" Value="0" />
-    <!--
-      NoAffinitize: Server GC by default pins its heap-collector threads to
-      the first N logical CPUs (one per heap). On a gaming machine the OS
-      scheduler tends to put high-priority threads (audio, input, our 2000hz
-      update loop) on those same low-numbered cores, so GC pauses end up
-      fighting the hot threads for the same hardware. Letting the GC
-      threads float means the kernel picks idle cores for collection work
-      and our hot loop keeps its current core. Recommended for realtime
-      desktop workloads on Server GC (containers / fixed-affinity hosts
-      should leave this default).
-    -->
-    <RuntimeHostConfigurationOption Include="System.GC.NoAffinitize" Value="true" />
-    <!--
-      LOHThreshold: bump from default 85000 bytes to 120000. The default
-      cutoff puts audio buffers (BASS ~64KB-100KB chunks) and replay-frame
-      blocks (~80-110KB) into the Large Object Heap, which only compacts
-      during Gen2. Raising the threshold keeps those medium-lifetime
-      allocations in the small-object heap, where they're collected
-      cheaply in Gen0/Gen1 instead of pooling into Gen2 pressure.
-      120000 is conservative — covers the audio + replay sizes we
-      actually see in hiccup-report data without disturbing genuinely
-      large allocations (skin textures, score serialisation buffers etc.
-      are all well above 120KB).
-    -->
-    <RuntimeHostConfigurationOption Include="System.GC.LOHThreshold" Value="120000" />
-  </ItemGroup>
   <PropertyGroup>
     <StartupObject>osu.Desktop.Program</StartupObject>
   </PropertyGroup>

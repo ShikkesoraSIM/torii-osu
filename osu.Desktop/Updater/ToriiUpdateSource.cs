@@ -2,7 +2,9 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Velopack.Sources;
 
@@ -69,7 +71,7 @@ namespace osu.Desktop.Updater
 
         protected override async Task<GithubRelease[]> GetReleases(bool includePrereleases)
         {
-            GithubRelease[] all = await base.GetReleases(includePrereleases).ConfigureAwait(false);
+            GithubRelease[] all = await fetchAllReleases(includePrereleases).ConfigureAwait(false);
 
             if (string.IsNullOrEmpty(requiredTagSuffix))
                 return all;
@@ -99,6 +101,54 @@ namespace osu.Desktop.Updater
                 ReadOnlySpan<char> suffix = release.Name.AsSpan(lastDash + 1);
                 return suffix.Equals(requiredTagSuffix.AsSpan(), StringComparison.OrdinalIgnoreCase);
             }).ToArray();
+        }
+
+        /// <summary>
+        /// Fetches the repository's releases, paginating deeper than the base
+        /// <see cref="GithubSource"/>.
+        /// </summary>
+        /// <remarks>
+        /// Base <see cref="GithubSource.GetReleases(bool)"/> only ever asks GitHub
+        /// for the newest 10 releases (per_page=10, page=1). Torii publishes three
+        /// streams (torii / nova / vanilla) into one repository, so a given stream's
+        /// latest release routinely gets shoved past the first 10 by the other two
+        /// streams' releases. When that happens the suffix filter in
+        /// <see cref="GetReleases(bool)"/> matches nothing, the Velopack feed comes
+        /// back empty, and the update check reports "you are running the latest
+        /// release" - so the in-client stream switcher silently refuses to move the
+        /// user onto (or back down to) the stream they selected. Pull several larger
+        /// pages so each stream's latest is always in view no matter how the streams
+        /// interleave. Mirrors the base ordering (newest published first) and the
+        /// prerelease filter.
+        /// </remarks>
+        private async Task<GithubRelease[]> fetchAllReleases(bool includePrereleases)
+        {
+            const int per_page = 100;
+            const int max_pages = 5;
+
+            Uri apiBase = GetApiBaseUrl(RepoUri);
+            var collected = new List<GithubRelease>();
+
+            for (int page = 1; page <= max_pages; page++)
+            {
+                var pageUri = new Uri(apiBase, $"repos{RepoUri.AbsolutePath}/releases?per_page={per_page}&page={page}");
+                string json = await Downloader.DownloadString(pageUri.ToString(), GetRequestHeaders("application/vnd.github.v3+json")).ConfigureAwait(false);
+
+                GithubRelease[]? batch = JsonSerializer.Deserialize<GithubRelease[]>(json);
+                if (batch == null || batch.Length == 0)
+                    break;
+
+                collected.AddRange(batch);
+
+                // A short page means we've reached the end of the release history.
+                if (batch.Length < per_page)
+                    break;
+            }
+
+            return collected
+                   .OrderByDescending(r => r.PublishedAt)
+                   .Where(r => includePrereleases || !r.Prerelease)
+                   .ToArray();
         }
     }
 }

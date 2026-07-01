@@ -93,7 +93,14 @@ namespace osu.Desktop.Updater
                         break;
 
                     default:
-                        updateSource = new GithubSource(@"https://github.com/ShikkesoraSIM/torii-osu", null, false);
+                        // Stable also goes through ToriiUpdateSource (no suffix filter,
+                        // prereleases excluded) purely to inherit its deeper pagination.
+                        // A run of nova/vanilla prereleases can otherwise push the latest
+                        // stable release past GithubSource's 10-release window and stall
+                        // stable updates. Behaviour is otherwise identical to GithubSource:
+                        // includePrereleases = false keeps -nova/-vanilla out, and the null
+                        // suffix keeps legacy -lazer stable builds in view.
+                        updateSource = new ToriiUpdateSource(@"https://github.com/ShikkesoraSIM/torii-osu", prerelease: false, requiredTagSuffix: null);
                         break;
                 }
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
