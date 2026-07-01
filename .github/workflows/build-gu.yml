@@ -1257,7 +1257,7 @@ jobs:
         # Velopack's default `includePrereleases=false` never auto-update
         # into them. Torii Nova users flip that flag via the
         # ReleaseStream.Nova setting and see them.
-        prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') || contains(needs.version.outputs.version, '-nova') }}
+        prerelease: ${{ contains(needs.version.outputs.version, 'alpha') || contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'rc') || contains(needs.version.outputs.version, '-nova') || contains(needs.version.outputs.version, '-vanilla') }}
         generate_release_notes: true
         body_path: release_body.md
       env:
@@ -1318,8 +1318,9 @@ jobs:
         # distinct brands per release stream so the in-game pill can render
         # in the right colour (red for stable / amber for preview):
         #
-        #   master / -torii tags -> "Torii"
-        #   nova   / -nova  tags -> "Torii Nova"
+        #   master  / -torii   tags -> "Torii"
+        #   nova    / -nova    tags -> "Torii Nova"
+        #   vanilla / -vanilla tags -> "Torii Vanilla"
         #
         # The server now treats anything whose canonicalised name contains
         # "torii" as a valid Torii build (was a literal "osutorii" equality
@@ -1329,6 +1330,8 @@ jobs:
         # "<brand>|<os>" so the pill can show a platform icon too.
         if [[ "$VERSION" == *-nova ]]; then
           CLIENT_NAME="Torii Nova"
+        elif [[ "$VERSION" == *-vanilla ]]; then
+          CLIENT_NAME="Torii Vanilla"
         else
           CLIENT_NAME="Torii"
         fi

@@ -59,6 +59,7 @@ jobs:
           # off a non-standard branch will still produce something sensible.
           case "${GITHUB_REF_NAME}" in
             nova) STREAM_SUFFIX="nova" ;;
+            vanilla) STREAM_SUFFIX="vanilla" ;;
             master|main) STREAM_SUFFIX="torii" ;;
             *) STREAM_SUFFIX="torii" ;;
           esac
@@ -69,7 +70,7 @@ jobs:
           # a unique N. Example: with v2026.511.0-lazer + v2026.511.1-torii
           # existing, the next nova push computes v2026.511.2-nova.
           MAXN=-1
-          for SUFFIX in lazer torii nova; do
+          for SUFFIX in lazer torii nova vanilla; do
             while IFS= read -r t; do
               N=$(echo "$t" | sed -E "s/^v${BASE}\.([0-9]+)-${SUFFIX}$/\1/" || true)
               if [[ "$N" =~ ^[0-9]+$ ]]; then
