@@ -34,6 +34,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             automaticRendererInUse = renderer.Value == RendererType.Automatic;
 
             var dangerousUnlimitedNoCap = config.GetBindable<bool>(FrameworkSetting.AllowDangerousUnlimitedNoCap);
+            var toriiInputAudioHz = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
 
             IEnumerable<RendererType> availableRenderers = host.GetPreferredRenderersForCurrentPlatform().Order();
 
@@ -69,8 +70,8 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 new SettingsItemV2(new FormEnumDropdown<ToriiInputAudioHzMode>
                 {
                     Caption = "Input/audio thread rate",
-                    HintText = "How fast the input, audio and update threads run. Higher rates suit high-polling-rate mice (e.g. 8000 Hz) but cost more CPU. 2000 Hz is a safe default. Applies instantly.",
-                    Current = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz),
+                    HintText = "How fast the input, audio and update threads run. Higher rates suit high-polling-rate mice (e.g. 8000 Hz) but cost more CPU. 2000 Hz is a safe default. Applies instantly. Ignored (and greyed out) while 'I am stupid' is on, since that runs everything uncapped.",
+                    Current = toriiInputAudioHz,
                 })
                 {
                     Keywords = new[] { @"hz", @"polling", @"rate", @"input", @"audio", @"thread", @"latency", @"8000", @"performance" },
@@ -162,6 +163,10 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 dangerousUnlimitedNote.Value = v.NewValue
                     ? new SettingsNote.Data("Unsafe mode enabled: Unlimited can now uncap update/input/audio too. Disable this first if audio starts doubling, popping, or stuttering.", SettingsNote.Type.Warning)
                     : new SettingsNote.Data("Recommended: leave this off. Unlimited will still uncap rendering, but keeps audio/input/update protected.", SettingsNote.Type.Informational);
+
+                // torii: con "I am stupid" el input/audio van sin cap, asi que el dropdown de Hz no aplica:
+                // lo griseamos para dejarlo claro. propaga al gemelo de Torii > Interface por el bindable.
+                toriiInputAudioHz.Disabled = v.NewValue;
             }, true);
 
             // torii (CRITICO): el toggle "I am stupid" es peligroso en renderers Deferred. el Deferred
