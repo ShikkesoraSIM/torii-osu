@@ -50,6 +50,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
             var reflexMode = config.GetBindable<LatencyMode>(FrameworkSetting.LatencyMode);
             var frameSyncMode = config.GetBindable<FrameSync>(FrameworkSetting.FrameSync);
             var dangerousUnlimitedNoCap = config.GetBindable<bool>(FrameworkSetting.AllowDangerousUnlimitedNoCap);
+            var toriiInputAudioHz = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
 
             Children = new Drawable[]
             {
@@ -102,7 +103,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                                + "2000 Hz is the Torii default; drop to 500/1000 if your machine struggles, "
                                + "push to 4000/8000 only if you have CPU headroom to spare. "
                                + "Does not apply when 'I am stupid' is on (that mode runs fully uncapped).",
-                    Current = osuConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz),
+                    Current = toriiInputAudioHz,
                     NewFeatureId = NewFeatureRegistry.InputAudioHz,
                 })
                 {
@@ -226,6 +227,10 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 dangerousUnlimitedNote.Value = v.NewValue
                     ? new SettingsNote.Data("Unsafe mode enabled: Unlimited can now uncap update/input/audio too. Disable this first if audio starts doubling, popping, or stuttering.", SettingsNote.Type.Warning)
                     : new SettingsNote.Data("Recommended: leave this off. Unlimited will still uncap rendering, but keeps audio/input/update protected.", SettingsNote.Type.Informational);
+
+                // torii: con "I am stupid" el input/audio van sin cap, asi que el dropdown de Hz no aplica:
+                // lo griseamos para dejarlo claro.
+                toriiInputAudioHz.Disabled = v.NewValue;
             }, true);
 
             // CRITICAL safety: the "I am stupid, ignore limits" toggle is
