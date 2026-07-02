@@ -249,10 +249,11 @@ namespace osu.Game.Overlays.Cosmetics
             },
         };
 
+        // torii: hijo directo del flow Vertical de arriba (Children = content.ToArray()); tiene que
+        // compartir el anchor Y (Top) con sus hermanos (header/breakdownRow/balanceFooter son Container
+        // sin anchor explicito = TopLeft), sino la FillFlowContainer crashea (mismatch en el eje cruzado).
         private Drawable capNote() => new OsuSpriteText
         {
-            Anchor = Anchor.CentreLeft,
-            Origin = Anchor.CentreLeft,
             Text = "Daily top-play limit reached — pp bonus only",
             Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption, italics: true),
             Colour = BriefingTheme.AccentAmber.Opacity(0.85f),
