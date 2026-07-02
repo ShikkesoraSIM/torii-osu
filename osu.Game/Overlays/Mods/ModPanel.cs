@@ -7,11 +7,14 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Sprites;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.UI;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Overlays.Mods
 {
@@ -24,6 +27,9 @@ namespace osu.Game.Overlays.Mods
         protected override float ExpandedSwitchWidth => 70;
 
         private readonly ModState modState;
+
+        // rojo de la gate torii (mismo vermillion que usan los auras Founder).
+        private static readonly Color4 torii_red = new Color4(255, 80, 60, 255);
 
         public ModPanel(ModState modState)
         {
@@ -74,6 +80,44 @@ namespace osu.Game.Overlays.Mods
                 else
                     Content.EdgeEffect = default;
             }, true);
+
+            // badge "torii exclusive" con la gate roja para los mods propios de torii.
+            if (Mod is IToriiExclusiveMod)
+            {
+                MainContentContainer.Add(new Container
+                {
+                    Anchor = Anchor.BottomRight,
+                    Origin = Anchor.BottomRight,
+                    AutoSizeAxes = Axes.Both,
+                    Margin = new MarginPadding { Right = 6, Bottom = 4 },
+                    Shear = -OsuGame.SHEAR,
+                    Child = new FillFlowContainer
+                    {
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(3, 0),
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Icon = FontAwesome.Solid.ToriiGate,
+                                Size = new Vector2(9),
+                                Colour = torii_red,
+                                Anchor = Anchor.Centre,
+                                Origin = Anchor.Centre,
+                            },
+                            new OsuSpriteText
+                            {
+                                Text = "torii exclusive",
+                                Font = OsuFont.Default.With(size: 9, weight: FontWeight.SemiBold),
+                                Colour = torii_red,
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                            },
+                        },
+                    },
+                });
+            }
         }
 
         protected override void Select()

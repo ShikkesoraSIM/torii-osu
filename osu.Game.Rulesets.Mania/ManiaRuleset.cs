@@ -291,10 +291,10 @@ namespace osu.Game.Rulesets.Mania
                 case ModType.Fun:
                     return new Mod[]
                     {
+                        new ModPitchAdjust(),
                         new MultiMod(new ModWindUp(), new ModWindDown()),
                         new ManiaModMuted(),
-                        new ModAdaptiveSpeed(),
-                        new ModPitchAdjust()
+                        new ModAdaptiveSpeed()
                     };
 
                 case ModType.System:

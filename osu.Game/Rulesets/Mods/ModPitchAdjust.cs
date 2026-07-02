@@ -39,7 +39,7 @@ namespace osu.Game.Rulesets.Mods
     /// changes rate continuously while PA is trying to keep one pitch offset.
     /// </para>
     /// </remarks>
-    public class ModPitchAdjust : Mod, IApplicableToTrack
+    public class ModPitchAdjust : Mod, IApplicableToTrack, IToriiExclusiveMod
     {
         public override string Name => "Pitch Adjust";
         public override string Acronym => "PA";

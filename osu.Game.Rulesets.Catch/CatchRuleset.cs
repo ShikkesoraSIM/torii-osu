@@ -150,13 +150,13 @@ namespace osu.Game.Rulesets.Catch
                 case ModType.Fun:
                     return new Mod[]
                     {
+                        new ModPitchAdjust(),
                         new MultiMod(new ModWindUp(), new ModWindDown()),
                         new CatchModFloatingFruits(),
                         new CatchModMuted(),
                         new CatchModNoScope(),
                         new CatchModMovingFast(),
                         new CatchModSynesthesia(),
-                        new ModPitchAdjust(),
                     };
 
                 case ModType.System:

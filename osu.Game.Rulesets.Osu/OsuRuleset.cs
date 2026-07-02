@@ -204,6 +204,7 @@ namespace osu.Game.Rulesets.Osu
                 case ModType.Fun:
                     return new Mod[]
                     {
+                        new ModPitchAdjust(),
                         new OsuModTransform(),
                         new OsuModWiggle(),
                         new OsuModSpinIn(),
@@ -219,8 +220,7 @@ namespace osu.Game.Rulesets.Osu
                         new OsuModBubbles(),
                         new OsuModSynesthesia(),
                         new OsuModDepth(),
-                        new OsuModBloom(),
-                        new ModPitchAdjust()
+                        new OsuModBloom()
                     };
 
                 case ModType.System:
