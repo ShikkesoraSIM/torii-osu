@@ -246,6 +246,10 @@ namespace osu.Game.Configuration
 
             // Update
             SetDefault(OsuSetting.ReleaseStream, ReleaseStream.Torii);
+            // torii: ultimo stream del BUILD que vimos, sacado del suffix de la version
+            // (-nova/-torii/-vanilla). se usa para alinear ReleaseStream al stream real
+            // del build al arrancar, sin pisar un cambio de stream a medio aplicar.
+            SetDefault(OsuSetting.LastKnownBuildStream, string.Empty);
 
             SetDefault(OsuSetting.Version, string.Empty);
 
@@ -531,6 +535,7 @@ namespace osu.Game.Configuration
         BeatmapDetailModsFilter,
         Username,
         ReleaseStream,
+        LastKnownBuildStream,
         SavePassword,
         SaveUsername,
         DisplayStarsMinimum,

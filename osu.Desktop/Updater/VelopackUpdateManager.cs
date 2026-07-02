@@ -28,9 +28,73 @@ namespace osu.Desktop.Updater
         [Resolved]
         private ILocalUserPlayInfo? localUserInfo { get; set; }
 
+        [Resolved]
+        private Game.Configuration.OsuConfigManager config { get; set; } = null!;
+
         private bool isInGameplay => localUserInfo?.PlayingState.Value != LocalUserPlayingState.NotPlaying;
 
         private ScheduledDelegate? scheduledBackgroundCheck;
+
+        protected override void LoadComplete()
+        {
+            // torii (arreglo del downgrade cruzado accidental): el build sabe en que stream
+            // es por el suffix de la version (-nova/-torii/-vanilla). alineamos el setting
+            // ReleaseStream a ese stream ANTES de que el base dispare el primer update check,
+            // asi el updater nunca te saca del stream en el que realmente estas.
+            //
+            // sin esto pasaba: instalabas Nova pero el setting quedaba en el default (Torii),
+            // y con AllowVersionDowngrade=true el check te downgradeaba Nova->Torii solo.
+            //
+            // solo re-alineamos cuando el BUILD cambio de stream desde la ultima corrida (o en
+            // la primera). si el build no cambio, NO tocamos el setting, asi respetamos un
+            // cambio de stream que el usuario hizo por el dropdown y todavia no se aplico.
+            alignReleaseStreamToBuild();
+            base.LoadComplete();
+        }
+
+        private void alignReleaseStreamToBuild()
+        {
+            if (!game.IsDeployedBuild)
+                return;
+
+            string? suffix = streamSuffixFromVersion(game.Version);
+            if (suffix == null)
+                return;
+
+            if (config.Get<string>(Game.Configuration.OsuSetting.LastKnownBuildStream) == suffix)
+                return;
+
+            config.SetValue(Game.Configuration.OsuSetting.ReleaseStream, streamFromSuffix(suffix));
+            config.SetValue(Game.Configuration.OsuSetting.LastKnownBuildStream, suffix);
+            log($"Release stream alineado al stream del build: {suffix}");
+        }
+
+        // version ej: "2026.702.1-nova" -> "nova". null si no hay suffix reconocible.
+        private static string? streamSuffixFromVersion(string version)
+        {
+            int dash = version.LastIndexOf('-');
+            if (dash < 0 || dash >= version.Length - 1)
+                return null;
+
+            switch (version[(dash + 1)..].ToLowerInvariant())
+            {
+                case "nova": return "nova";
+                case "vanilla": return "vanilla";
+                case "torii": return "torii";
+                case "lazer": return "torii"; // builds -lazer viejos = stable
+                default: return null;
+            }
+        }
+
+        private static Game.Configuration.ReleaseStream streamFromSuffix(string suffix)
+        {
+            switch (suffix)
+            {
+                case "nova": return Game.Configuration.ReleaseStream.Nova;
+                case "vanilla": return Game.Configuration.ReleaseStream.Vanilla;
+                default: return Game.Configuration.ReleaseStream.Torii;
+            }
+        }
 
         private void scheduleNextUpdateCheck()
         {
