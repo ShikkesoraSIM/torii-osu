@@ -30,6 +30,10 @@ namespace osu.Game.Overlays.Mods
 
         // rojo de la gate torii (mismo vermillion que usan los auras Founder).
         private static readonly Color4 torii_red = new Color4(255, 80, 60, 255);
+        private static readonly Color4 torii_badge_active = new Color4(70, 20, 35, 255);
+
+        private SpriteIcon toriiExclusiveIcon = null!;
+        private OsuSpriteText toriiExclusiveText = null!;
 
         public ModPanel(ModState modState)
         {
@@ -65,31 +69,21 @@ namespace osu.Game.Overlays.Mods
 
             modState.ValidForSelection.BindValueChanged(_ => updateFilterState());
             modState.MatchingTextFilter.BindValueChanged(_ => updateFilterState(), true);
-            modState.Preselected.BindValueChanged(b =>
-            {
-                if (b.NewValue)
-                {
-                    Content.EdgeEffect = new EdgeEffectParameters
-                    {
-                        Type = EdgeEffectType.Glow,
-                        Colour = AccentColour,
-                        Hollow = true,
-                        Radius = 2,
-                    };
-                }
-                else
-                    Content.EdgeEffect = default;
-            }, true);
+
+            if (Mod is ModPitchAdjust)
+                Content.BorderThickness = 3;
+
+            modState.Preselected.BindValueChanged(b => updateEdgeEffect(b.NewValue), true);
 
             // badge "torii exclusive" con la gate roja para los mods propios de torii.
             if (Mod is IToriiExclusiveMod)
             {
                 MainContentContainer.Add(new Container
                 {
-                    Anchor = Anchor.BottomRight,
-                    Origin = Anchor.BottomRight,
+                    Anchor = Anchor.TopRight,
+                    Origin = Anchor.TopRight,
                     AutoSizeAxes = Axes.Both,
-                    Margin = new MarginPadding { Right = 6, Bottom = 4 },
+                    Margin = new MarginPadding { Right = 6, Top = 5 },
                     Shear = -OsuGame.SHEAR,
                     Child = new FillFlowContainer
                     {
@@ -98,15 +92,16 @@ namespace osu.Game.Overlays.Mods
                         Spacing = new Vector2(3, 0),
                         Children = new Drawable[]
                         {
-                            new SpriteIcon
+                            toriiExclusiveIcon = new SpriteIcon
                             {
                                 Icon = FontAwesome.Solid.ToriiGate,
                                 Size = new Vector2(9),
                                 Colour = torii_red,
-                                Anchor = Anchor.Centre,
-                                Origin = Anchor.Centre,
+                                // mismo anchor X que el texto, sino el flow crashea.
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
                             },
-                            new OsuSpriteText
+                            toriiExclusiveText = new OsuSpriteText
                             {
                                 Text = "torii exclusive",
                                 Font = OsuFont.Default.With(size: 9, weight: FontWeight.SemiBold),
@@ -117,7 +112,51 @@ namespace osu.Game.Overlays.Mods
                         },
                     },
                 });
+
+                Active.BindValueChanged(_ => updateToriiBadgeColour(), true);
             }
+        }
+
+        private void updateToriiBadgeColour()
+        {
+            if (toriiExclusiveIcon == null || toriiExclusiveText == null)
+                return;
+
+            Color4 colour = Active.Value ? torii_badge_active : torii_red;
+
+            toriiExclusiveIcon.FadeColour(colour, TRANSITION_DURATION, Easing.OutQuint);
+            toriiExclusiveText.FadeColour(colour, TRANSITION_DURATION, Easing.OutQuint);
+        }
+
+        private void updateEdgeEffect(bool preselected)
+        {
+            if (preselected)
+            {
+                Content.EdgeEffect = new EdgeEffectParameters
+                {
+                    Type = EdgeEffectType.Glow,
+                    Colour = AccentColour,
+                    Hollow = true,
+                    Radius = 2,
+                };
+
+                return;
+            }
+
+            if (Mod is ModPitchAdjust)
+            {
+                Content.EdgeEffect = new EdgeEffectParameters
+                {
+                    Type = EdgeEffectType.Glow,
+                    Colour = torii_red,
+                    Hollow = true,
+                    Radius = 3,
+                };
+
+                return;
+            }
+
+            Content.EdgeEffect = default;
         }
 
         protected override void Select()

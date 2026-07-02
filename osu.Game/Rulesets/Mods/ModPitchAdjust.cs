@@ -8,6 +8,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
+using osu.Game.Graphics;
 using osu.Game.Online.API;
 using osu.Game.Overlays.Settings;
 using osu.Game.Utils;
@@ -43,7 +44,7 @@ namespace osu.Game.Rulesets.Mods
     {
         public override string Name => "Pitch Adjust";
         public override string Acronym => "PA";
-        public override IconUsage? Icon => FontAwesome.Solid.Music;
+        public override IconUsage? Icon => OsuIcon.ModPitchAdjust;
         public override ModType Type => ModType.Fun;
         public override LocalisableString Description =>
             "Shift the song's pitch up or down without changing playback speed.";
