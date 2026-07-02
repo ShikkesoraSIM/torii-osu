@@ -274,6 +274,11 @@ namespace osu.Game.Graphics.UserInterface
 
         private ColourInfo getColour(double performanceRatio)
         {
+            // torii: en Unlimited (sin cap) el aim fps se va altisimo y el ratio pintaria todo rojo.
+            // lo mostramos cyan para dejar claro que esta descapeado, igual que master.
+            if (aimDrawFPS > 10000 || aimUpdateFPS > 10000)
+                return colours.Blue0;
+
             if (performanceRatio < 0.5f)
                 return Interpolation.ValueAt(performanceRatio, colours.Red, colours.Orange2, 0, 0.5);
 
