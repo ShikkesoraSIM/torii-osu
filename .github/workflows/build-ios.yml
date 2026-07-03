@@ -121,8 +121,12 @@ jobs:
         shell: bash
         run: |
           set -x
+          # MtouchInterpreter=all: usar el interprete de Mono en vez de AOT full. el AOT
+          # crashea (exit 139) compilando aot-instances.dll; el interprete lo esquiva y
+          # es un modo valido en iOS. un toque mas lento en runtime pero anda.
           dotnet build osu.iOS/osu.iOS.csproj -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
+            -p:MtouchInterpreter=all \
             -p:CheckEolWorkloads=false \
             -p:CheckEolTargetFramework=false \
             -p:TreatWarningsAsErrors=false \
