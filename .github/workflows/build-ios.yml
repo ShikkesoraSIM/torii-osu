@@ -121,17 +121,17 @@ jobs:
           SDKT=$(find /Users/runner/.dotnet/packs -name "Xamarin.Shared.Sdk.targets" 2>/dev/null | head -1)
           echo "=== SDK targets: $SDKT ==="
           grep -inE "dedup|aot-instances|AOTInstances|DedupAssembly" "$SDKT" 2>/dev/null | head -25 || true
-          echo "=== build: AOT del hot-path (framework+juego+rulesets) + interpretar la basura D3D12/Vortice ==="
-          # el AOT crasheaba (exit 139) compilando Vortice.Direct3D12.dll (binding de D3D12 de Windows que
-          # se cuela en iOS y no corre nunca ahi) + aot-instances.dll (del dedup).
-          # fix: _IsDedupEnabled=false apaga el aot-instances; y MtouchInterpreter=all,-<hot> interpreta TODO
-          # (incluida la basura Vortice/D3D12 = codigo muerto en iOS) MENOS los assemblies del hot-path, que
-          # van AOT nativo = rapido (osu.Framework tiene el loop de draw/update/input; el juego y rulesets, el
-          # gameplay). ~95% de la perf de AOT full, sin el crash.
+          # el AOT crasheaba (exit 139) en Vortice.Direct3D12.dll (binding D3D12 de Windows que se cuela en
+          # iOS y no corre nunca) + aot-instances.dll (del dedup). fix: interpretar TODO menos el hot-path
+          # (osu.Framework = loop de draw/update/input; juego + rulesets = gameplay -> AOT nativo = rapido).
+          # el valor va en osu.iOS.props porque en la CLI las comas rompen MSBuild (MSB1006).
+          echo "=== patch osu.iOS.props: MtouchInterpreter hibrido ==="
+          sed -i.bak 's#<MtouchInterpreter>-all</MtouchInterpreter>#<MtouchInterpreter>all,-osu.Framework,-osu.Framework.iOS,-osu.Game,-osu.Game.Rulesets.Osu,-osu.Game.Rulesets.Mania,-osu.Game.Rulesets.Taiko,-osu.Game.Rulesets.Catch</MtouchInterpreter>#' osu.iOS.props
+          grep -n "MtouchInterpreter" osu.iOS.props
+          echo "=== build: AOT hot-path + interpretar el resto (Vortice/D3D12 incluido) + dedup off ==="
           dotnet build osu.iOS/osu.iOS.csproj -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
             -p:_IsDedupEnabled=false \
-            "-p:MtouchInterpreter=all,-osu.Framework.dll,-osu.Framework.iOS.dll,-osu.Game.dll,-osu.Game.Rulesets.Osu.dll,-osu.Game.Rulesets.Mania.dll,-osu.Game.Rulesets.Taiko.dll,-osu.Game.Rulesets.Catch.dll" \
             -p:CheckEolWorkloads=false \
             -p:CheckEolTargetFramework=false \
             -p:TreatWarningsAsErrors=false \
