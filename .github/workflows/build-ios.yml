@@ -87,9 +87,11 @@ jobs:
 
       # PASO CLAVE (make-or-break): compila el framework fork + el juego para iOS.
       # si el fork no banca iOS, revienta ACA y ya sabemos que iOS no va sin laburo.
+      # CheckEolTargetFramework=false: el SDK de net10 marca net8.0-ios como EOL y
+      # tira error NETSDK1202 por politica (no es un error real). lo apagamos.
       - name: Compile check (osu.iOS.slnf)
         shell: bash
-        run: dotnet build -c Release osu.iOS.slnf
+        run: dotnet build -c Release osu.iOS.slnf -p:CheckEolTargetFramework=false
 
       # best-effort: build de dispositivo (ios-arm64) sin firmar + empaquetar .ipa.
       # unsigned a proposito -> AltStore lo re-firma con tu Apple ID al instalarlo.
@@ -101,6 +103,7 @@ jobs:
           set -x
           dotnet build osu.iOS/osu.iOS.csproj -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
+            -p:CheckEolTargetFramework=false \
             -p:EnableCodeSigning=false \
             -p:_RequireCodeSigning=false \
             -p:CodesignKey= \
