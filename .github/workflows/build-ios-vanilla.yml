@@ -1,0 +1,79 @@
+name: Build iOS Vanilla (unsigned .ipa)
+
+# vanilla = osu upstream + framework STOCK ppy (por NuGet) + endpoints Torii. sin fork, sin
+# D3D12/Vortice, sin hacks de desktop -> el mismo framework que osu!lazer shippea en iOS =
+# suave. AOT FULL directo (no hay Vortice que esquivar). corre al pushear ESTA branch.
+on:
+  push:
+    branches: [ ci/ios-vanilla-test ]
+  workflow_dispatch:
+
+jobs:
+  build-ios-vanilla:
+    name: Build iOS Vanilla (net8, stock framework, unsigned)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Force .NET 8 SDK + verify
+        shell: bash
+        run: |
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "8.0.100",
+              "rollForward": "latestFeature"
+            }
+          }
+          EOF
+          V=$(dotnet --version)
+          echo "dotnet --version = $V"
+          case "$V" in 8.*) echo "OK net8" ;; *) echo "ERROR: $V"; exit 1 ;; esac
+
+      - name: Use Xcode 16.4
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      # FULL AOT (osu.iOS.props Release = MtouchInterpreter=-all). el framework stock no tiene
+      # Vortice/D3D12, asi que el AOT no crashea. _IsDedupEnabled=false por las dudas del aot-instances.
+      - name: Build device .app + package unsigned .ipa
+        id: pack
+        shell: bash
+        run: |
+          set -x
+          dotnet build osu.iOS/osu.iOS.csproj -c Release \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:_IsDedupEnabled=false \
+            -p:CheckEolWorkloads=false \
+            -p:CheckEolTargetFramework=false \
+            -p:TreatWarningsAsErrors=false \
+            -p:EnableCodeSigning=false \
+            -p:_RequireCodeSigning=false \
+            -p:CodesignKey= \
+            -p:ArchiveOnBuild=false
+          APP=$(find osu.iOS/bin/Release -maxdepth 5 -name "*.app" -type d | head -1)
+          echo "app bundle: $APP"
+          if [[ -z "$APP" ]]; then echo "no .app produced"; exit 1; fi
+          rm -rf payload_stage && mkdir -p payload_stage/Payload
+          cp -R "$APP" payload_stage/Payload/
+          ( cd payload_stage && zip -qr ../torii-ios-vanilla-unsigned.ipa Payload )
+          ls -la torii-ios-vanilla-unsigned.ipa
+
+      - name: Upload unsigned .ipa
+        if: steps.pack.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: torii-ios-vanilla-unsigned-ipa
+          path: torii-ios-vanilla-unsigned.ipa
+          if-no-files-found: warn
