@@ -117,12 +117,17 @@ jobs:
         shell: bash
         run: |
           set -x
-          # MtouchInterpreter=all: usar el interprete de Mono en vez de AOT full. el AOT
-          # crashea (exit 139) compilando aot-instances.dll; el interprete lo esquiva y
-          # es un modo valido en iOS. un toque mas lento en runtime pero anda.
+          # diagnostico: qué propiedad controla el dedup / aot-instances.dll en el SDK
+          SDKT=$(find /Users/runner/.dotnet/packs -name "Xamarin.Shared.Sdk.targets" 2>/dev/null | head -1)
+          echo "=== SDK targets: $SDKT ==="
+          grep -inE "dedup|aot-instances|AOTInstances|DedupAssembly" "$SDKT" 2>/dev/null | head -25 || true
+          echo "=== build: AOT FULL (osu default -all) + dedup OFF (evita el aot-instances.dll que crashea) ==="
+          # NO forzamos MtouchInterpreter -> queda el default de osu.iOS.props en Release (=-all, AOT full).
+          # _MtouchDedup=false: apaga el dedup que genera aot-instances.dll (exit 139). full AOT = nativo = rapido.
           dotnet build osu.iOS/osu.iOS.csproj -c Release \
             -p:RuntimeIdentifier=ios-arm64 \
-            -p:MtouchInterpreter=all \
+            -p:_MtouchDedup=false \
+            -p:MtouchDedup=false \
             -p:CheckEolWorkloads=false \
             -p:CheckEolTargetFramework=false \
             -p:TreatWarningsAsErrors=false \
