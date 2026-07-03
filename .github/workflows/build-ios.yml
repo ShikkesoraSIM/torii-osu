@@ -109,15 +109,11 @@ jobs:
           done
           ls -la bin/Packages/Release | tail -20
 
-      # make-or-break: compila osu.iOS (net8.0-ios) + el framework fork para iOS.
-      - name: Compile check (osu.iOS, net8.0-ios)
-        shell: bash
-        run: dotnet build osu.iOS/osu.iOS.csproj -c Release -p:CheckEolWorkloads=false -p:CheckEolTargetFramework=false -p:TreatWarningsAsErrors=false
-
-      # best-effort: build de dispositivo (ios-arm64) sin firmar + empaquetar .ipa.
+      # build de dispositivo (ios-arm64) con INTERPRETE (esquiva el crash del AOT), sin
+      # firmar, + empaquetar el .ipa. este build ya compila el managed primero, asi que
+      # si hay un error de codigo real, revienta aca (no hace falta un compile-check aparte).
       - name: Build device .app + package unsigned .ipa
         id: pack
-        continue-on-error: true
         shell: bash
         run: |
           set -x
