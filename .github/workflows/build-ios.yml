@@ -95,20 +95,17 @@ jobs:
           echo "Local feed contents:"
           ls -la bin/Packages/Release | tail -20
 
-      # net10 en iOS = iOS 26 -> necesita Xcode 26.x. listamos lo que hay y elegimos el
-      # mas nuevo (si el runner trae Xcode 26.x, matchea el workload net10.0-ios).
-      - name: Select newest Xcode
+      # el runner trae Xcode 26.3 como default (+ varios 16.x). net10.0-ios = iOS 26, asi
+      # que usamos el default 26.3 y NO reinstalamos el workload: el pre-instalado del
+      # runner matchea su Xcode 26.3. (mi 'workload install ios' lo subia a 26.5, que
+      # exige Xcode 26.5 y el runner no lo tiene -> el mismatch que veniamos pegando.)
+      - name: Use runner default Xcode + report workload
         shell: bash
         run: |
-          echo "Xcodes disponibles:"
-          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(ninguno listado)"
-          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
-          echo "seleccionando: $NEWEST"
-          sudo xcode-select -switch "$NEWEST/Contents/Developer" 2>/dev/null || sudo xcode-select -switch "$NEWEST" || true
+          echo "xcode dir: $(xcode-select -p)"
           xcodebuild -version || true
-
-      - name: Install iOS workload
-        run: dotnet workload install ios
+          echo "--- workloads instalados en el runner ---"
+          dotnet workload list || true
 
       # PASO CLAVE (make-or-break): compila el framework fork + el juego para iOS.
       # si el fork no banca iOS, revienta ACA y ya sabemos que iOS no va sin laburo.
