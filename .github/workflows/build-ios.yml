@@ -1,8 +1,10 @@
 name: Build iOS (unsigned .ipa)
 
-# experimento para ver si el framework fork banca iOS y sacar un .ipa unsigned para
-# sideloadear (AltStore lo re-firma). corre al pushear ESTA branch; no toca releases
-# (build-gu solo dispara en main/master/develop).
+# experimento para sacar un .ipa unsigned de Torii (master/net8) para sideloadear con
+# AltStore. corre al pushear ESTA branch; no toca releases (build-gu solo dispara en
+# main/master/develop). CAMINO net8.0-ios: el runner tiene Xcode 16.4, que es el que
+# quiere net8-ios; net10-ios pediria Xcode 26.5 (no esta). NO es Nova: en iOS igual seria
+# Mono AOT + Metal (sin Satori/D3D12).
 on:
   push:
     branches: [ ci/ios-build-test ]
@@ -59,28 +61,41 @@ jobs:
           mv osu-resources ../osu-resources
           mv torii-veldrid ../torii-veldrid
 
-      - name: Setup .NET
+      # SOLO net8: nada de net10 para que no haya ambiguedad de SDK.
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            8.0.x
-            10.0.x
+          dotnet-version: '8.0.x'
 
-      # el toolchain del repo es net10; los cabezales iOS son net8.0-ios y el sdk net10
-      # no los resuelve (TargetPlatformVersion=1.0 -> NETSDK1135). en vez de pelear con
-      # eso, subimos los cabezales iOS a net10.0-ios para que matcheen el toolchain. en
-      # iOS igual es Mono AOT + Metal (NO hay Satori ni D3D12) pero compila parejo.
-      - name: Bump iOS heads to net10.0-ios (match the net10 toolchain)
+      # el repo pinea net10 en su global.json; lo pisamos por net8 y ABORTAMOS si no
+      # quedo en 8.x (asi no volvemos a buildear sin querer con el sdk net10).
+      - name: Force .NET 8 SDK + verify
         shell: bash
         run: |
-          for f in osu.iOS/osu.iOS.csproj ../osu-framework/osu.Framework.iOS/osu.Framework.iOS.csproj; do
-            if [[ -f "$f" ]]; then
-              sed -i.bak 's#net8\.0-ios#net10.0-ios#g' "$f"
-              echo "== $f =="; grep -i "TargetFramework" "$f" | head -2
-            else
-              echo "!! no existe: $f"
-            fi
-          done
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "8.0.100",
+              "rollForward": "latestFeature"
+            }
+          }
+          EOF
+          V=$(dotnet --version)
+          echo "dotnet --version = $V"
+          case "$V" in
+            8.*) echo "OK, SDK net8" ;;
+            *) echo "ERROR: no quedo en net8 (es $V)"; exit 1 ;;
+          esac
+
+      - name: Use Xcode 16.4
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+
+      - name: Install iOS workload (net8 band)
+        shell: bash
+        run: |
+          dotnet workload install ios
+          echo "--- workloads ---"
+          dotnet workload list
 
       - name: Pack Torii.Veldrid into local NuGet feed
         shell: bash
@@ -92,31 +107,14 @@ jobs:
               dotnet pack "$proj" -c Release -o bin/Packages/Release --nologo
             fi
           done
-          echo "Local feed contents:"
           ls -la bin/Packages/Release | tail -20
 
-      # el runner trae Xcode 26.3 como default (+ varios 16.x). net10.0-ios = iOS 26, asi
-      # que usamos el default 26.3 y NO reinstalamos el workload: el pre-instalado del
-      # runner matchea su Xcode 26.3. (mi 'workload install ios' lo subia a 26.5, que
-      # exige Xcode 26.5 y el runner no lo tiene -> el mismatch que veniamos pegando.)
-      - name: Use runner default Xcode + report workload
-        shell: bash
-        run: |
-          echo "xcode dir: $(xcode-select -p)"
-          xcodebuild -version || true
-          echo "--- workloads instalados en el runner ---"
-          dotnet workload list || true
-
-      # PASO CLAVE (make-or-break): compila el framework fork + el juego para iOS.
-      # si el fork no banca iOS, revienta ACA y ya sabemos que iOS no va sin laburo.
-      # CheckEolTargetFramework=false: el SDK de net10 marca net8.0-ios como EOL y
-      # tira error NETSDK1202 por politica (no es un error real). lo apagamos.
-      - name: Compile check (osu.iOS)
+      # make-or-break: compila osu.iOS (net8.0-ios) + el framework fork para iOS.
+      - name: Compile check (osu.iOS, net8.0-ios)
         shell: bash
         run: dotnet build osu.iOS/osu.iOS.csproj -c Release -p:CheckEolWorkloads=false -p:CheckEolTargetFramework=false -p:TreatWarningsAsErrors=false
 
       # best-effort: build de dispositivo (ios-arm64) sin firmar + empaquetar .ipa.
-      # unsigned a proposito -> AltStore lo re-firma con tu Apple ID al instalarlo.
       - name: Build device .app + package unsigned .ipa
         id: pack
         continue-on-error: true
