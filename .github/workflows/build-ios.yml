@@ -66,6 +66,22 @@ jobs:
             8.0.x
             10.0.x
 
+      # el repo pinea net10 (para nova/android), pero net8.0-ios NECESITA el SDK de
+      # net8: con el sdk net10, net8.0-ios no resuelve (TargetPlatformVersion queda en
+      # 1.0 -> NETSDK1135). pisamos global.json para forzar net8 solo en este build.
+      - name: Pin .NET 8 SDK for the iOS build
+        shell: bash
+        run: |
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "8.0.100",
+              "rollForward": "latestFeature"
+            }
+          }
+          EOF
+          echo "dotnet SDK ahora: $(dotnet --version)"
+
       - name: Pack Torii.Veldrid into local NuGet feed
         shell: bash
         run: |
