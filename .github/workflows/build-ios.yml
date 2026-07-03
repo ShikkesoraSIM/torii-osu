@@ -95,8 +95,17 @@ jobs:
           echo "Local feed contents:"
           ls -la bin/Packages/Release | tail -20
 
-      - name: Use Xcode 16.4
-        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+      # net10 en iOS = iOS 26 -> necesita Xcode 26.x. listamos lo que hay y elegimos el
+      # mas nuevo (si el runner trae Xcode 26.x, matchea el workload net10.0-ios).
+      - name: Select newest Xcode
+        shell: bash
+        run: |
+          echo "Xcodes disponibles:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "(ninguno listado)"
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          echo "seleccionando: $NEWEST"
+          sudo xcode-select -switch "$NEWEST/Contents/Developer" 2>/dev/null || sudo xcode-select -switch "$NEWEST" || true
+          xcodebuild -version || true
 
       - name: Install iOS workload
         run: dotnet workload install ios
