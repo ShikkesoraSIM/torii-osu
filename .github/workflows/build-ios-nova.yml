@@ -13,7 +13,7 @@ on:
 env:
   # framework limpio net8: core net8.0 + osu.Framework.iOS net8.0-ios (nova-unlimited-nocap original)
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '32974cded87da78c014f330928f0bb481d9847a9'
+  FRAMEWORK_REF: '0dd6db86b438c3236e577b6875c85ea48aab4888'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: 'e2442fadd68e5d440ca807295e700b2b7a6b8aaf'
 
