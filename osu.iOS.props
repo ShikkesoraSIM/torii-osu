@@ -16,7 +16,12 @@
     <UseInterpreter>false</UseInterpreter>
     <MtouchInterpreter>-all</MtouchInterpreter>
   </PropertyGroup>
+  <!-- torii/ios: framework iOS por FUENTE (no NuGet). el osu.Game ya referencia el core
+       osu.Framework local (toriirefresh-framework), asi que el host iOS tambien tiene que ser
+       ese source, si no chocan dos osu.Framework. importamos el Workarounds.targets del framework
+       (que el nupkg importaria solo) para que las libs nativas iOS (runtimes/) se bundleen bien. -->
   <ItemGroup>
-    <PackageReference Include="ppy.osu.Framework.iOS" Version="2026.527.0" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.csproj" />
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.Workarounds.targets" />
 </Project>

@@ -1,0 +1,114 @@
+name: Build iOS toriirefresh (unsigned .ipa)
+
+# toriirefresh = rebuild de Torii sobre ppy/osu-framework LIMPIO (NO el fork de shigetiro con
+# D3D12/Deferred/Satori). usa ppy.Veldrid STOCK por nuget -> FULL AOT limpio (sin Vortice que
+# crashee ni que interpretar) = suave como vanilla PERO con todos los features de Torii.
+# net10.0-ios porque el juego es net10; eso necesita Xcode 26.5 -> runner macos-26.
+# corre al pushear ESTA branch; no toca releases.
+on:
+  push:
+    branches: [ ci/ios-toriirefresh ]
+  workflow_dispatch:
+
+env:
+  # framework LIMPIO (ppy + cambios minimos de Torii) con osu.Framework.iOS a net10.0-ios
+  FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
+  FRAMEWORK_REF: '4ce55a2f3a9d09318423a539fc776e40e92f24b3'
+  RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
+  RESOURCES_REF: 'e2442fad'
+
+jobs:
+  build-ios-refresh:
+    name: Build iOS toriirefresh (net10, clean framework, full AOT, unsigned)
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout game
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout framework dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.FRAMEWORK_REPOSITORY }}
+          fetch-depth: 1
+          ref: ${{ env.FRAMEWORK_REF }}
+          path: toriirefresh-framework
+
+      - name: Checkout resources dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.RESOURCES_REPOSITORY }}
+          fetch-depth: 1
+          ref: ${{ env.RESOURCES_REF }}
+          path: toriirefresh-resources
+
+      # los ProjectReference del juego apuntan a ..\..\toriirefresh-framework y
+      # ..\..\toriirefresh-resources (siblings del repo del juego). los movemos ahi.
+      - name: Place dependencies in expected sibling paths
+        shell: bash
+        run: |
+          rm -rf ../toriirefresh-framework ../toriirefresh-resources
+          mv toriirefresh-framework ../toriirefresh-framework
+          mv toriirefresh-resources ../toriirefresh-resources
+          echo "--- siblings ---"
+          ls -la .. | grep toriirefresh
+
+      # net10: NO pisamos el global.json (queda 10.0.100). setup-dotnet trae el SDK net10.
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify .NET 10
+        shell: bash
+        run: |
+          V=$(dotnet --version)
+          echo "dotnet --version = $V"
+          case "$V" in 10.*) echo "OK net10" ;; *) echo "ERROR: no es net10 (es $V)"; exit 1 ;; esac
+
+      # macos-26 default ya es Xcode 26.5, pero lo fijamos para determinismo (el workload
+      # net10-ios matchea 26.5).
+      - name: Use Xcode 26.5
+        run: sudo xcode-select -switch /Applications/Xcode_26.5.app
+
+      - name: Install iOS workload (net10 band)
+        shell: bash
+        run: |
+          dotnet workload install ios
+          echo "--- workloads ---"
+          dotnet workload list
+
+      # FULL AOT (osu.iOS.props Release = MtouchInterpreter=-all). el framework limpio usa
+      # ppy.Veldrid stock (sin Vortice/D3D12), asi que el AOT no crashea -> binario ~vanilla.
+      - name: Build device .app + package unsigned .ipa
+        id: pack
+        shell: bash
+        run: |
+          set -x
+          dotnet build osu.iOS/osu.iOS.csproj -c Release \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:_IsDedupEnabled=false \
+            -p:CheckEolWorkloads=false \
+            -p:CheckEolTargetFramework=false \
+            -p:TreatWarningsAsErrors=false \
+            -p:EnableCodeSigning=false \
+            -p:_RequireCodeSigning=false \
+            -p:CodesignKey= \
+            -p:ArchiveOnBuild=false
+          APP=$(find osu.iOS/bin/Release -maxdepth 5 -name "*.app" -type d | head -1)
+          echo "app bundle: $APP"
+          if [[ -z "$APP" ]]; then echo "no .app produced"; exit 1; fi
+          rm -rf payload_stage && mkdir -p payload_stage/Payload
+          cp -R "$APP" payload_stage/Payload/
+          ( cd payload_stage && zip -qr ../torii-ios-refresh-unsigned.ipa Payload )
+          ls -la torii-ios-refresh-unsigned.ipa
+
+      - name: Upload unsigned .ipa
+        if: steps.pack.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: torii-ios-refresh-unsigned-ipa
+          path: torii-ios-refresh-unsigned.ipa
+          if-no-files-found: warn

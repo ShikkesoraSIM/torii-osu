@@ -11,20 +11,26 @@ namespace osu.Game.Online
     public class ToriiEndpointConfiguration : EndpointConfiguration
     {
         public ToriiEndpointConfiguration()
+            // prod: todo cuelga del mismo host y los hubs van bajo /signalr.
+            : this(@"https://lazer-api.shikkesora.com", @"https://lazer.shikkesora.com", @"https://lazer-api.shikkesora.com/signalr")
         {
-            const string api_url = @"https://lazer-api.shikkesora.com";
+        }
 
-            APIUrl = api_url;
-            WebsiteUrl = @"https://lazer.shikkesora.com";
+        // torii: ctor parametrizado para apuntar a un stack local en debug (api en un
+        // puerto, los hubs del spectator en otro) sin tocar el comportamiento de prod.
+        public ToriiEndpointConfiguration(string apiUrl, string websiteUrl, string signalrBase)
+        {
+            APIUrl = apiUrl;
+            WebsiteUrl = websiteUrl;
 
             // g0v0 mirrors the osu-web OAuth surface, so the stock public client works.
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";
             APIClientID = "5";
 
-            SpectatorUrl = $@"{api_url}/signalr/spectator";
-            MultiplayerUrl = $@"{api_url}/signalr/multiplayer";
-            MetadataUrl = $@"{api_url}/signalr/metadata";
-            BeatmapSubmissionServiceUrl = $@"{api_url}/beatmap-submission";
+            SpectatorUrl = $@"{signalrBase}/spectator";
+            MultiplayerUrl = $@"{signalrBase}/multiplayer";
+            MetadataUrl = $@"{signalrBase}/metadata";
+            BeatmapSubmissionServiceUrl = $@"{apiUrl}/beatmap-submission";
         }
     }
 }

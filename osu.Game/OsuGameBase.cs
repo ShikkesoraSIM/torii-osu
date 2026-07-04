@@ -109,7 +109,14 @@ namespace osu.Game
         // toriirefresh: hard-locked to the Torii server. The official osu.ppy.sh
         // production / development endpoints are intentionally unreachable so the
         // client can only ever connect to Torii's API + hubs.
-        public virtual EndpointConfiguration CreateEndpoints() => new ToriiEndpointConfiguration();
+        // en debug apunta al stack local via caddy (https://torii.local -> g0v0 :9000,
+        // /signalr/* -> spectator :8016); el cliente fuerza https, por eso va por caddy. release queda en prod.
+        public virtual EndpointConfiguration CreateEndpoints() =>
+#if DEBUG
+            new ToriiEndpointConfiguration(@"https://torii.local", @"https://web.torii.local", @"https://torii.local/signalr");
+#else
+            new ToriiEndpointConfiguration();
+#endif
 
         protected override OnlineStore CreateOnlineStore() => new TrustedDomainOnlineStore();
 
