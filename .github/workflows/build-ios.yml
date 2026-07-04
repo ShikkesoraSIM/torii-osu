@@ -1,10 +1,13 @@
 name: Build iOS (unsigned .ipa)
 
-# experimento para sacar un .ipa unsigned de Torii (master/net8) para sideloadear con
-# AltStore. corre al pushear ESTA branch; no toca releases (build-gu solo dispara en
-# main/master/develop). CAMINO net8.0-ios: el runner tiene Xcode 16.4, que es el que
-# quiere net8-ios; net10-ios pediria Xcode 26.5 (no esta). NO es Nova: en iOS igual seria
-# Mono AOT + Metal (sin Satori/D3D12).
+# .ipa unsigned de Torii (master/net8) con TODOS los features, para sideloadear con AltStore.
+# corre al pushear ESTA branch; no toca releases (build-gu solo dispara en main/master/develop).
+# CAMINO net8.0-ios: el runner tiene Xcode 16.4, que es el que quiere net8-ios; net10-ios
+# pediria Xcode 26.5 (no esta). NO es Nova: en iOS igual seria Mono AOT + Metal (sin Satori/D3D12).
+#
+# SMOOTH: apunta al framework con el clamp de Hz movil (ios-mobile-hz-clamp @ df082dd3a). el fork
+# corria input/audio/update a 2000hz en iOS (un solo core -> se fundia). ahora clampea a 240hz en
+# movil = mismo comportamiento que vanilla (que anda de lujo) pero manteniendo los features de Torii.
 on:
   push:
     branches: [ ci/ios-build-test ]
@@ -12,7 +15,7 @@ on:
 
 env:
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '80e9490aa0464f57084e4c1cfbb8adffb98de27c'
+  FRAMEWORK_REF: 'df082dd3a22e1e4067a09de63af5a4d978be0a2e'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: '25ad583064fb19ecd604813446226cb5c0c7bd35'
   VELDRID_REPOSITORY: 'ShikkesoraSIM/torii-veldrid'
@@ -144,13 +147,13 @@ jobs:
           if [[ -z "$APP" ]]; then echo "no .app produced — packaging skipped"; exit 1; fi
           rm -rf payload_stage && mkdir -p payload_stage/Payload
           cp -R "$APP" payload_stage/Payload/
-          ( cd payload_stage && zip -qr ../torii-ios-unsigned.ipa Payload )
-          ls -la torii-ios-unsigned.ipa
+          ( cd payload_stage && zip -qr ../torii-ios-smooth-unsigned.ipa Payload )
+          ls -la torii-ios-smooth-unsigned.ipa
 
       - name: Upload unsigned .ipa
         if: steps.pack.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: torii-ios-unsigned-ipa
-          path: torii-ios-unsigned.ipa
+          name: torii-ios-smooth-unsigned-ipa
+          path: torii-ios-smooth-unsigned.ipa
           if-no-files-found: warn
