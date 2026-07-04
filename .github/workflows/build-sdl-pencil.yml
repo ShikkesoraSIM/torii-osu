@@ -67,15 +67,26 @@ jobs:
         shell: bash
         run: |
           set -x
-          # el device slice: ios-arm64/SDL3.framework/SDL3 (NO el simulator)
-          BIN=$(find sdl3cs sdlbuild sdlderived -path "*SDL3.xcframework/ios-arm64/SDL3.framework/SDL3" 2>/dev/null | head -1)
+          ROOTS="$HOME/Library/Developer/Xcode/DerivedData sdl3cs sdlbuild sdlderived"
+          echo "=== xcframeworks encontrados ==="
+          find $ROOTS -name "SDL3.xcframework" -type d 2>/dev/null
+          echo "=== todos los binarios SDL3 dentro de un .framework ==="
+          find $ROOTS -path "*.framework/SDL3" -type f 2>/dev/null | head -30
+          # preferencia: el slice ios-arm64 del xcframework (device iOS, NO simulator/tvos/macos)
+          BIN=$(find $ROOTS -path "*SDL3.xcframework/ios-arm64/SDL3.framework/SDL3" -type f 2>/dev/null | head -1)
           if [[ -z "$BIN" ]]; then
-            # fallback: cualquier SDL3.framework/SDL3 de device arm64 (no-simulator)
-            BIN=$(find sdl3cs sdlbuild sdlderived -path "*ios-arm64/SDL3.framework/SDL3" -not -path "*simulator*" 2>/dev/null | head -1)
+            # fallback 1: el archive de device iphoneos (device iOS)
+            BIN=$(find $ROOTS -path "*Release-iphoneos/SDL3.framework/SDL3" -type f -not -path "*simulator*" 2>/dev/null | head -1)
           fi
-          echo "device SDL3 binary: $BIN"
-          if [[ -z "$BIN" ]]; then echo "ERROR: no encontre el SDL3 de device"; find sdl3cs sdlbuild sdlderived -name "SDL3" -path "*.framework*" 2>/dev/null | head; exit 1; fi
+          if [[ -z "$BIN" ]]; then
+            # fallback 2: cualquier ios-arm64 device (excluir simulator/tvos/macos/watchos)
+            BIN=$(find $ROOTS -path "*ios-arm64/SDL3.framework/SDL3" -type f -not -path "*simulator*" -not -path "*tvos*" -not -path "*macos*" 2>/dev/null | head -1)
+          fi
+          echo "device SDL3 binary elegido: $BIN"
+          if [[ -z "$BIN" ]]; then echo "ERROR: no encontre el SDL3 de device iOS"; exit 1; fi
           file "$BIN"
+          # confirmar que es arm64 device (Mach-O arm64) y NO x86_64/simulator
+          file "$BIN" | grep -qi "arm64" || { echo "ERROR: el binario no es arm64"; exit 1; }
           mkdir -p out
           cp "$BIN" out/SDL3
           ls -la out/SDL3
