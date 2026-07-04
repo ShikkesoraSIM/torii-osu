@@ -61,12 +61,14 @@ namespace osu.Game.Overlays.ReplayRender
         private Container panel;
         private OsuTextFlowContainer bodyFlow;
         private FormDropdown<string> resolutionDropdown;
-        private FormTextBox skinTextBox;
+        private OrdrSkinSelector skinSelector;
         private FormCheckBox motionBlurCheckBox;
         private FormCheckBox shareCheckBox;
         private Container motionBlurRow;
         private RenderPillButton generateButton;
         private OsuSpriteText cooldownText;
+        private FillFlowContainer recentSection;
+        private FillFlowContainer recentFlow;
         private Sample samplePopIn;
         private Sample samplePopOut;
 
@@ -124,13 +126,31 @@ namespace osu.Game.Overlays.ReplayRender
                     ShadowOpacity = 0.4f,
                     ShadowRadius = 30,
                     RelativeContentSize = Axes.X,
-                    Child = content = new FillFlowContainer
+                    // el contenido va en un Container (posicion absoluta) asi el boton de
+                    // cerrar flota en la esquina sup-derecha sin meterse en el FillFlow
+                    // vertical (que crashea con anchors mezclados).
+                    Child = new Container
                     {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Vertical,
-                        Spacing = new Vector2(0, BriefingTheme.SpacingMd),
-                        Padding = new MarginPadding(BriefingTheme.SpacingXl),
+                        Children = new Drawable[]
+                        {
+                            content = new FillFlowContainer
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Direction = FillDirection.Vertical,
+                                Spacing = new Vector2(0, BriefingTheme.SpacingMd),
+                                Padding = new MarginPadding(BriefingTheme.SpacingXl),
+                            },
+                            new CloseButton
+                            {
+                                Anchor = Anchor.TopRight,
+                                Origin = Anchor.TopRight,
+                                Margin = new MarginPadding(BriefingTheme.SpacingMd),
+                                Action = Hide,
+                            },
+                        },
                     },
                 },
             };
@@ -193,16 +213,11 @@ namespace osu.Game.Overlays.ReplayRender
                             resolutionDropdown = new FormDropdown<string>
                             {
                                 Caption = "Resolution",
-                                HintText = "720p is available to everyone. Higher tiers are a supporter perk.",
+                                HintText = "720p for everyone. 1080p comes with supporter.",
                                 Items = new[] { @"960x540", @"1280x720" },
                                 NewFeatureId = NewFeatureRegistry.ReplayRender,
                             },
-                            skinTextBox = new FormTextBox
-                            {
-                                Caption = "Skin",
-                                HintText = "Exact o!rdr skin name — browse them at ordr.issou.best/skins. \"default\" is danser's built-in skin.",
-                                PlaceholderText = @"default",
-                            },
+                            skinSelector = new OrdrSkinSelector(),
                             motionBlurRow = new Container
                             {
                                 RelativeSizeAxes = Axes.X,
@@ -210,13 +225,14 @@ namespace osu.Game.Overlays.ReplayRender
                                 Child = motionBlurCheckBox = new FormCheckBox
                                 {
                                     Caption = "Motion blur",
-                                    HintText = "Renders at 960fps and blends frames. Supporter perk.",
+                                    HintText = "Smooths fast motion (960fps). Supporter only.",
                                 },
                             },
                             shareCheckBox = new FormCheckBox
                             {
-                                Caption = "Share in the Torii Discord",
-                                HintText = "When the video is ready, ToriiHalo posts it in the community renders channel.",
+                                Caption = "Also share it in Discord",
+                                HintText = "Off keeps it to you — the link still lands here and in your recent renders. "
+                                           + "On also drops it in the community renders channel.",
                             },
                         },
                     },
@@ -237,20 +253,46 @@ namespace osu.Game.Overlays.ReplayRender
                     LabelText = "Generate video",
                     Action = submit,
                 },
+                // renders recientes: para reabrir un video aunque no lo hayas
+                // compartido. oculto si no hay ninguno.
+                recentSection = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, BriefingTheme.SpacingSm),
+                    Alpha = 0,
+                    Children = new Drawable[]
+                    {
+                        new OsuSpriteText
+                        {
+                            Text = "YOUR RECENT RENDERS",
+                            Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.Bold),
+                            Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
+                        },
+                        recentFlow = new FillFlowContainer
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Direction = FillDirection.Vertical,
+                            Spacing = new Vector2(0, 2),
+                        },
+                    },
+                },
             });
 
-            bodyFlow.Text = "Your replay gets rendered to a shareable MP4 by o!rdr's community renderers. "
-                            + "It usually takes a few minutes depending on their queue — we'll notify you when it's ready. "
-                            + "One video every 10 minutes per player.";
+            bodyFlow.Text = "o!rdr turns your replay into a video you can share or keep. It renders on "
+                            + "volunteer machines, so it lands anywhere from a minute to a few, depending on how "
+                            + "busy they are. You'll see it come together right here.";
 
             // persistencia: el panel recuerda lo ultimo que elegiste.
             resolutionDropdown.Current.Value = configResolution.Value;
-            skinTextBox.Current.Value = configSkin.Value;
+            skinSelector.Current.Value = configSkin.Value;
             motionBlurCheckBox.Current.Value = configMotionBlur.Value;
             shareCheckBox.Current.Value = configShare.Value;
 
             resolutionDropdown.Current.BindValueChanged(v => configResolution.Value = v.NewValue);
-            skinTextBox.Current.BindValueChanged(v => configSkin.Value = v.NewValue);
+            skinSelector.Current.BindValueChanged(v => configSkin.Value = v.NewValue);
             motionBlurCheckBox.Current.BindValueChanged(v => configMotionBlur.Value = v.NewValue);
             shareCheckBox.Current.BindValueChanged(v => configShare.Value = v.NewValue);
         }
@@ -275,8 +317,41 @@ namespace osu.Game.Overlays.ReplayRender
             motionBlurRow.Alpha = supporter ? 1 : 0;
             motionBlurRow.AlwaysPresent = false;
 
+            skinSelector.Prime();
             refreshCooldown();
+            loadRecentRenders();
             Show();
+        }
+
+        private void loadRecentRenders()
+        {
+            recentSection.Alpha = 0;
+
+            var req = new GetMyReplayRendersRequest();
+            req.Success += resp => Schedule(() =>
+            {
+                if (IsDisposed) return;
+
+                recentFlow.Clear();
+                int shown = 0;
+                foreach (var r in resp.Renders)
+                {
+                    // solo los que tienen video ya listo son reabribles.
+                    if (string.IsNullOrEmpty(r.VideoUrl))
+                        continue;
+
+                    string url = r.VideoUrl;
+                    string title = string.IsNullOrWhiteSpace(r.BeatmapTitle) ? "replay" : r.BeatmapTitle;
+                    recentFlow.Add(new RecentRenderRow(title, () => game?.OpenUrlExternally(url)));
+
+                    if (++shown >= 4)
+                        break;
+                }
+
+                recentSection.Alpha = shown > 0 ? 1 : 0;
+            });
+            req.Failure += _ => { };
+            api?.Queue(req);
         }
 
         private void refreshCooldown()
@@ -334,7 +409,7 @@ namespace osu.Game.Overlays.ReplayRender
             submitting = true;
             generateButton.Enabled.Value = false;
 
-            string skinName = string.IsNullOrWhiteSpace(skinTextBox.Current.Value) ? @"default" : skinTextBox.Current.Value.Trim();
+            string skinName = string.IsNullOrWhiteSpace(skinSelector.Current.Value) ? @"default" : skinSelector.Current.Value.Trim();
             bool supporter = api?.LocalUser?.Value?.IsSupporter == true;
 
             var req = new SubmitReplayRenderRequest(
@@ -376,8 +451,8 @@ namespace osu.Game.Overlays.ReplayRender
         {
             var notification = new ProgressNotification
             {
-                Text = $"Render queued on o!rdr — {scoreTitle}",
-                CompletionText = $"Video ready! Click to watch — {scoreTitle}",
+                Text = $"In o!rdr's queue — {scoreTitle}",
+                CompletionText = $"Video's ready — click to watch: {scoreTitle}",
                 State = ProgressNotificationState.Queued,
             };
 
@@ -424,9 +499,15 @@ namespace osu.Game.Overlays.ReplayRender
                         return;
                     }
 
-                    string progress = status.Progress ?? "Waiting in queue...";
-                    notification.Text = $"{progress} — {scoreTitle}";
-                    notification.State = ProgressNotificationState.Active;
+                    // o!rdr manda "progress" como texto libre ("Rendering 45%", "Uploading...",
+                    // "In queue"...). lo mostramos tal cual + el host que renderiza cuando hay.
+                    string progress = string.IsNullOrWhiteSpace(status.Progress) ? "Waiting in the queue" : status.Progress.Trim();
+                    bool inQueue = progress.Contains("queue", StringComparison.OrdinalIgnoreCase);
+
+                    string host = string.IsNullOrWhiteSpace(status.Renderer) ? null : status.Renderer.Trim();
+                    string line = host != null && !inQueue ? $"{progress} · {host}" : progress;
+                    notification.Text = $"{line} — {scoreTitle}";
+                    notification.State = inQueue ? ProgressNotificationState.Queued : ProgressNotificationState.Active;
 
                     var match = progress_percent.Match(progress);
                     if (match.Success && float.TryParse(match.Groups[1].Value, out float pct))
@@ -479,6 +560,129 @@ namespace osu.Game.Overlays.ReplayRender
 
             this.FadeOut(BriefingTheme.DismissDuration, Easing.OutQuint);
             panel.ScaleTo(0.97f, BriefingTheme.DismissDuration, Easing.OutQuint);
+        }
+
+        /// <summary>boton circular de cerrar (X) en la esquina del panel.</summary>
+        private partial class CloseButton : OsuClickableContainer
+        {
+            private Box background;
+            private SpriteIcon icon;
+
+            public CloseButton()
+            {
+                Size = new Vector2(28);
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = 14;
+
+                Children = new Drawable[]
+                {
+                    background = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Color4.White.Opacity(0.08f),
+                    },
+                    icon = new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Icon = FontAwesome.Solid.Times,
+                        Size = new Vector2(12),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                background.FadeColour(Color4.White.Opacity(0.16f), 120, Easing.OutQuint);
+                icon.FadeColour(Color4.White, 120, Easing.OutQuint);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                background.FadeColour(Color4.White.Opacity(0.08f), 200, Easing.OutQuint);
+                icon.FadeColour(Color4.White.Opacity(BriefingTheme.InkSecondary), 200, Easing.OutQuint);
+                base.OnHoverLost(e);
+            }
+        }
+
+        /// <summary>fila de un render pasado; click abre el video.</summary>
+        private partial class RecentRenderRow : OsuClickableContainer
+        {
+            private readonly string title;
+            private Box hover;
+
+            public RecentRenderRow(string title, Action action)
+            {
+                this.title = title;
+                Action = action;
+                RelativeSizeAxes = Axes.X;
+                Height = 24;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = BriefingTheme.CornerSm;
+
+                Children = new Drawable[]
+                {
+                    hover = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Color4.White.Opacity(0.06f),
+                        Alpha = 0,
+                    },
+                    new FillFlowContainer
+                    {
+                        RelativeSizeAxes = Axes.Y,
+                        AutoSizeAxes = Axes.X,
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(BriefingTheme.SpacingSm, 0),
+                        Padding = new MarginPadding { Left = BriefingTheme.SpacingSm, Right = BriefingTheme.SpacingSm },
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Icon = FontAwesome.Solid.PlayCircle,
+                                Size = new Vector2(11),
+                                Colour = BriefingTheme.AccentPink,
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Text = title,
+                                Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                                Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                            },
+                        },
+                    },
+                };
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                hover.FadeIn(80);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                hover.FadeOut(120);
+                base.OnHoverLost(e);
+            }
         }
 
         /// <summary>pill CTA estilo briefing, con enabled/disabled para el cooldown.</summary>

@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Collections.Generic;
 using Newtonsoft.Json;
 
 namespace osu.Game.Online.API.Requests.Responses
@@ -29,6 +30,10 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty("progress")]
         public string? Progress { get; set; }
 
+        /// <summary>Name of the o!rdr host machine rendering this replay (e.g. "Phil's PC"). Null while queued.</summary>
+        [JsonProperty("renderer")]
+        public string? Renderer { get; set; }
+
         /// <summary>The final share link. Null until the render completes.</summary>
         [JsonProperty("video_url")]
         public string? VideoUrl { get; set; }
@@ -52,5 +57,60 @@ namespace osu.Game.Online.API.Requests.Responses
     {
         [JsonProperty("seconds_remaining")]
         public int SecondsRemaining { get; set; }
+    }
+
+    /// <summary>A single o!rdr skin as surfaced by the server's skin-search proxy.</summary>
+    public class APIOrdrSkin
+    {
+        /// <summary>Internal skin id/name — this is what gets sent when rendering.</summary>
+        [JsonProperty("skin")]
+        public string Skin { get; set; } = string.Empty;
+
+        /// <summary>Pretty display name (e.g. "WhiteCat (CK 2.0)").</summary>
+        [JsonProperty("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonProperty("preview")]
+        public string? Preview { get; set; }
+
+        [JsonProperty("author")]
+        public string? Author { get; set; }
+
+        [JsonProperty("times_used")]
+        public long TimesUsed { get; set; }
+    }
+
+    public class APIOrdrSkinList
+    {
+        [JsonProperty("skins")]
+        public List<APIOrdrSkin> Skins { get; set; } = new List<APIOrdrSkin>();
+    }
+
+    /// <summary>One of the local user's past renders (for the "recent renders" list).</summary>
+    public class APIMyReplayRender
+    {
+        [JsonProperty("render_id")]
+        public long RenderId { get; set; }
+
+        [JsonProperty("beatmap_title")]
+        public string? BeatmapTitle { get; set; }
+
+        [JsonProperty("status")]
+        public string? Status { get; set; }
+
+        [JsonProperty("video_url")]
+        public string? VideoUrl { get; set; }
+
+        [JsonProperty("share")]
+        public bool Share { get; set; }
+
+        [JsonProperty("created_at")]
+        public string? CreatedAt { get; set; }
+    }
+
+    public class APIMyReplayRenders
+    {
+        [JsonProperty("renders")]
+        public List<APIMyReplayRender> Renders { get; set; } = new List<APIMyReplayRender>();
     }
 }
