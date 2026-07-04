@@ -128,8 +128,14 @@ jobs:
           # iOS y no corre nunca) + aot-instances.dll (del dedup). fix: interpretar TODO menos el hot-path
           # (osu.Framework = loop de draw/update/input; juego + rulesets = gameplay -> AOT nativo = rapido).
           # el valor va en osu.iOS.props porque en la CLI las comas rompen MSBuild (MSB1006).
-          echo "=== patch osu.iOS.props: MtouchInterpreter hibrido ==="
-          sed -i.bak 's#<MtouchInterpreter>-all</MtouchInterpreter>#<MtouchInterpreter>all,-osu.Framework,-osu.Framework.iOS,-osu.Game,-osu.Game.Rulesets.Osu,-osu.Game.Rulesets.Mania,-osu.Game.Rulesets.Taiko,-osu.Game.Rulesets.Catch</MtouchInterpreter>#' osu.iOS.props
+          echo "=== patch osu.iOS.props: MtouchInterpreter hibrido (AOT el hot-path GRAFICO) ==="
+          # el hot-path por-frame en iOS es Veldrid (traduce draw calls a Metal) + MetalBindings. si eso
+          # corre INTERPRETADO (como en el build hibrido viejo) cada frame pasa por el interprete de Mono
+          # -> jank (por eso vanilla full-AOT vuela y el fork hibrido no). asi que ademas del framework/juego/
+          # rulesets, AOT-eamos Veldrid + MetalBindings + SPIRV + ManagedBass (todo lo que se toca cada frame).
+          # Vortice.Direct3D12 (el que crasheaba el AOT, exit 139) SIGUE interpretado: en iOS es codigo muerto
+          # (el renderer es Metal), nunca se ejecuta, asi que interpretarlo no cuesta nada.
+          sed -i.bak 's#<MtouchInterpreter>-all</MtouchInterpreter>#<MtouchInterpreter>all,-osu.Framework,-osu.Framework.iOS,-osu.Game,-osu.Game.Rulesets.Osu,-osu.Game.Rulesets.Mania,-osu.Game.Rulesets.Taiko,-osu.Game.Rulesets.Catch,-ppy.Veldrid,-ppy.Veldrid.MetalBindings,-ppy.Veldrid.SPIRV,-ppy.ManagedBass</MtouchInterpreter>#' osu.iOS.props
           grep -n "MtouchInterpreter" osu.iOS.props
           echo "=== build: AOT hot-path + interpretar el resto (Vortice/D3D12 incluido) + dedup off ==="
           dotnet build osu.iOS/osu.iOS.csproj -c Release \
@@ -147,13 +153,13 @@ jobs:
           if [[ -z "$APP" ]]; then echo "no .app produced — packaging skipped"; exit 1; fi
           rm -rf payload_stage && mkdir -p payload_stage/Payload
           cp -R "$APP" payload_stage/Payload/
-          ( cd payload_stage && zip -qr ../torii-ios-smooth-unsigned.ipa Payload )
-          ls -la torii-ios-smooth-unsigned.ipa
+          ( cd payload_stage && zip -qr ../torii-ios-aotgfx-unsigned.ipa Payload )
+          ls -la torii-ios-aotgfx-unsigned.ipa
 
       - name: Upload unsigned .ipa
         if: steps.pack.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: torii-ios-smooth-unsigned-ipa
-          path: torii-ios-smooth-unsigned.ipa
+          name: torii-ios-aotgfx-unsigned-ipa
+          path: torii-ios-aotgfx-unsigned.ipa
           if-no-files-found: warn
