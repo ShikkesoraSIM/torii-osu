@@ -1,10 +1,9 @@
 name: Build iOS Nova (unsigned .ipa)
 
-# nova = el rebuild limpio de Torii sobre ppy/osu-framework (toriirefresh-framework, SIN el fork
-# shigetiro con D3D12/Deferred/Satori) usando ppy.Veldrid STOCK -> FULL AOT limpio en iOS = suave
-# como vanilla PERO con todos los features de nova (cosmetics/briefing/points/pulse/etc).
-# net10.0-ios porque el juego es net10 -> Xcode 26.5 -> runner macos-26.
-# sin trimming (MtouchLink=None) porque el ILLink de net10 crashea trimmeando.
+# nova (rebuild limpio de Torii sobre ppy/osu-framework, ppy.Veldrid STOCK, sin Vortice/D3D12)
+# buildeado como VANILLA: net8.0-ios + full AOT + trim SdkOnly (que en net8 SI funciona) = binario
+# nativo ~266MB, suave, PERO con todos los features de nova. net10-ios quedo descartado: su ILLink
+# crashea trimmeando (IL1012) y el no-trim tarda una eternidad. net8 = receta probada de vanilla.
 # corre al pushear ESTA branch; no toca releases.
 on:
   push:
@@ -12,17 +11,17 @@ on:
   workflow_dispatch:
 
 env:
-  # framework limpio (ppy + Hz) con osu.Framework.iOS a net10.0-ios
+  # framework limpio net8: core net8.0 + osu.Framework.iOS net8.0-ios (nova-unlimited-nocap original)
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '4ce55a2f3a9d09318423a539fc776e40e92f24b3'
+  FRAMEWORK_REF: '32974cded87da78c014f330928f0bb481d9847a9'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: 'e2442fadd68e5d440ca807295e700b2b7a6b8aaf'
 
 jobs:
   build-ios-nova:
-    name: Build iOS Nova (net10, clean framework, full AOT, unsigned)
-    runs-on: macos-26
-    timeout-minutes: 120
+    name: Build iOS Nova (net8, clean framework, full AOT, unsigned)
+    runs-on: macos-15
+    timeout-minutes: 90
     steps:
       - name: Checkout game
         uses: actions/checkout@v4
@@ -54,30 +53,40 @@ jobs:
           echo "--- siblings ---"
           ls -la .. | grep toriirefresh
 
-      - name: Setup .NET 10
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '8.0.x'
 
-      - name: Verify .NET 10
+      # el repo pinea net10 en global.json; lo pisamos por net8 (el juego ya esta a net8 en esta branch)
+      # y ABORTAMOS si no quedo en 8.x.
+      - name: Force .NET 8 SDK + verify
         shell: bash
         run: |
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "8.0.100",
+              "rollForward": "latestFeature"
+            }
+          }
+          EOF
           V=$(dotnet --version)
           echo "dotnet --version = $V"
-          case "$V" in 10.*) echo "OK net10" ;; *) echo "ERROR: no es net10 (es $V)"; exit 1 ;; esac
+          case "$V" in 8.*) echo "OK net8" ;; *) echo "ERROR: no es net8 (es $V)"; exit 1 ;; esac
 
-      - name: Use Xcode 26.5
-        run: sudo xcode-select -switch /Applications/Xcode_26.5.app
+      - name: Use Xcode 16.4
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
 
-      - name: Install iOS workload (net10 band)
+      - name: Install iOS workload (net8 band)
         shell: bash
         run: |
           dotnet workload install ios
           echo "--- workloads ---"
           dotnet workload list
 
-      # FULL AOT (MtouchInterpreter=-all) + SIN trimming (MtouchLink=None, esquiva el crash del
-      # ILLink net10). framework limpio con ppy.Veldrid stock -> el AOT no crashea (no hay Vortice).
+      # receta de vanilla: full AOT (MtouchInterpreter=-all) + trim SdkOnly (default). el framework
+      # limpio usa ppy.Veldrid stock -> el AOT no crashea (no hay Vortice). binario nativo ~266MB.
       - name: Build device .app + package unsigned .ipa
         id: pack
         shell: bash
