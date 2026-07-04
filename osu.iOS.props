@@ -23,10 +23,15 @@
   </PropertyGroup>
   <!-- torii/ios: framework iOS por FUENTE (no NuGet). el osu.Game ya referencia el core
        osu.Framework local (toriirefresh-framework), asi que el host iOS tambien tiene que ser
-       ese source, si no chocan dos osu.Framework. importamos el Workarounds.targets del framework
-       (que el nupkg importaria solo) para que las libs nativas iOS (runtimes/) se bundleen bien. -->
+       ese source, si no chocan dos osu.Framework. -->
   <ItemGroup>
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.csproj" />
   </ItemGroup>
-  <Import Project="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.Workarounds.targets" />
+  <!-- importamos el osu.Framework.iOS.props de la RAIZ del framework (lo que hace UseLocalFramework y
+       lo que hace master): declara los NativeReference de las libs nativas iOS (bass, ffmpeg,
+       metal-mono-workaround) con ForceLoad, + copia los stubs de Veldrid + saca los frameworks de macOS.
+       sin esto el linker no encuentra metal_mono_workaround.framework (los NativeReference NO fluyen por
+       ProjectReference, tienen que estar en el consumidor via props). OJO: NO el Workarounds.targets de
+       adentro de osu.Framework.iOS/, ese solo tiene stubs, no las NativeReference. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS.props" />
 </Project>
