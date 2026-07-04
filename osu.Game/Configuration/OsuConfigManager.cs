@@ -285,6 +285,13 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiKeyDebounceEnabled, false);
             SetDefault(OsuSetting.ToriiKeyDebounceThresholdMs, 15.0, 1.0, 50.0);
 
+            // torii: render de replays a video via o!rdr (panel de la results screen).
+            // el panel recuerda lo ultimo elegido; la key de o!rdr vive solo en el server.
+            SetDefault(OsuSetting.ToriiRenderResolution, "1280x720");
+            SetDefault(OsuSetting.ToriiRenderSkin, "default");
+            SetDefault(OsuSetting.ToriiRenderMotionBlur, false);
+            SetDefault(OsuSetting.ToriiRenderShare, true);
+
             // torii: auto-esconder la toolbar. aparece al llevar el mouse bien arriba y se va sola tras
             // un ratito. pensado para el legacy song select (toolbar abajo = experiencia 16:9 completa).
             SetDefault(OsuSetting.ToriiAutoHideToolbar, false);
@@ -645,6 +652,10 @@ namespace osu.Game.Configuration
         ToriiNovaRendererMigrated,
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,
+        ToriiRenderResolution,
+        ToriiRenderSkin,
+        ToriiRenderMotionBlur,
+        ToriiRenderShare,
         ToriiAutoHideToolbar,
         ToriiToolbarHintShown,
         ToriiStablePromoShown,

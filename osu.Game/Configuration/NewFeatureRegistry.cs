@@ -180,6 +180,13 @@ namespace osu.Game.Configuration
         public const string LegacySongSelectFooter = "v2026.620.0:legacy-song-select-footer";
 
         /// <summary>
+        /// Marks the resolution dropdown inside the replay-render panel (results screen ->
+        /// "Render to video"). The whole panel is new, so one badge on its first control is
+        /// enough to signal the feature without spamming NEW on every row.
+        /// </summary>
+        public const string ReplayRender = "v2026.705.0:replay-render";
+
+        /// <summary>
         /// Set of every registered ID. Built once at startup from the
         /// constants above via reflection-free explicit enumeration —
         /// kept as a hand-written list rather than reflecting over the
@@ -200,6 +207,7 @@ namespace osu.Game.Configuration
             KeyDebounce,
             AutoHideToolbar,
             LegacySongSelectFooter,
+            ReplayRender,
         };
 
         /// <summary>

@@ -1388,6 +1388,10 @@ namespace osu.Game
             // torii: popup de recalculo de dificultad. se auto-dispara si hay mapas pendientes; va en la capa
             // top-most (no en la pantalla) para que no quede dimmeado.
             loadComponentSingleFile(new osu.Game.Overlays.ToriiBriefing.DifficultyRecalcOverlay(), topMostOverlayContent.Add, true);
+            // torii: panel de render de replays a video (o!rdr). vive aca y no en la results screen
+            // para que el polling del render sobreviva a salir de la pantalla (y cero riesgo de
+            // async-after-disposal contra drawables de screen).
+            loadComponentSingleFile(new osu.Game.Overlays.ReplayRender.ReplayRenderOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);

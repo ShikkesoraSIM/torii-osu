@@ -201,6 +201,11 @@ namespace osu.Game.Screens.Ranking
                     Width = 300
                 });
 
+                // torii: render a video via o!rdr. solo para scores subidos al server (el server
+                // lee el .osr guardado); sin Anchor/Origin custom (regla del FillFlow horizontal).
+                if (Score?.OnlineID > 0)
+                    buttons.Add(new RenderVideoButton(Score));
+
                 // for simplicity, only allow this when coming from a replay player where we know the replay is ready to be played.
                 //
                 // if we show it in all cases, consider the case where a user comes from song select and potentially has to download
