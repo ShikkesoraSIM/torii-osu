@@ -67,29 +67,29 @@ jobs:
         shell: bash
         run: |
           set -x
-          ROOTS="$HOME/Library/Developer/Xcode/DerivedData sdl3cs sdlbuild sdlderived"
-          echo "=== xcframeworks encontrados ==="
-          find $ROOTS -name "SDL3.xcframework" -type d 2>/dev/null
-          echo "=== todos los binarios SDL3 dentro de un .framework ==="
-          find $ROOTS -path "*.framework/SDL3" -type f 2>/dev/null | head -30
-          # preferencia: el slice ios-arm64 del xcframework (device iOS, NO simulator/tvos/macos)
-          BIN=$(find $ROOTS -path "*SDL3.xcframework/ios-arm64/SDL3.framework/SDL3" -type f 2>/dev/null | head -1)
-          if [[ -z "$BIN" ]]; then
-            # fallback 1: el archive de device iphoneos (device iOS)
-            BIN=$(find $ROOTS -path "*Release-iphoneos/SDL3.framework/SDL3" -type f -not -path "*simulator*" 2>/dev/null | head -1)
+          # el xcframework final (el log dice: .../Xcode/SDL/build/SDL3.xcframework, + copia en native/ios/)
+          XCF=$(find sdl3cs -name "SDL3.xcframework" -type d 2>/dev/null | head -1)
+          echo "xcframework: $XCF"
+          if [[ -z "$XCF" ]]; then echo "ERROR: no encontre el SDL3.xcframework"; exit 1; fi
+          echo "=== slices del xcframework ==="
+          ls -la "$XCF"
+          # el slice de device iOS: 'ios-arm64' exacto (NO ios-arm64_x86_64-simulator, NO tvos/xros)
+          SLICE=$(ls "$XCF" | grep -xE 'ios-arm64' | head -1)
+          if [[ -z "$SLICE" ]]; then
+            SLICE=$(ls "$XCF" | grep -E '^ios-arm64' | grep -viE 'simulator' | head -1)
           fi
-          if [[ -z "$BIN" ]]; then
-            # fallback 2: cualquier ios-arm64 device (excluir simulator/tvos/macos/watchos)
-            BIN=$(find $ROOTS -path "*ios-arm64/SDL3.framework/SDL3" -type f -not -path "*simulator*" -not -path "*tvos*" -not -path "*macos*" 2>/dev/null | head -1)
-          fi
-          echo "device SDL3 binary elegido: $BIN"
-          if [[ -z "$BIN" ]]; then echo "ERROR: no encontre el SDL3 de device iOS"; exit 1; fi
-          file "$BIN"
-          # confirmar que es arm64 device (Mach-O arm64) y NO x86_64/simulator
-          file "$BIN" | grep -qi "arm64" || { echo "ERROR: el binario no es arm64"; exit 1; }
+          echo "slice device: $SLICE"
+          if [[ -z "$SLICE" ]]; then echo "ERROR: no encontre el slice ios-arm64 device"; exit 1; fi
+          echo "=== contenido del framework device ==="
+          ls -la "$XCF/$SLICE/SDL3.framework/"
+          BIN="$XCF/$SLICE/SDL3.framework/SDL3"
+          if [[ ! -e "$BIN" ]]; then echo "ERROR: no existe $BIN"; exit 1; fi
           mkdir -p out
-          cp "$BIN" out/SDL3
+          cp -L "$BIN" out/SDL3   # -L sigue el symlink SDL3 -> Versions/Current/SDL3
+          echo "=== binario staged ==="
           ls -la out/SDL3
+          file out/SDL3
+          file out/SDL3 | grep -qi "arm64" || { echo "ERROR: no es arm64"; exit 1; }
 
       - name: Upload patched SDL3 binary
         uses: actions/upload-artifact@v4
