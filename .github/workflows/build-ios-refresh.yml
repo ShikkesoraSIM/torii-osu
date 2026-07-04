@@ -15,7 +15,7 @@ env:
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
   FRAMEWORK_REF: '4ce55a2f3a9d09318423a539fc776e40e92f24b3'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
-  RESOURCES_REF: 'e2442fad'
+  RESOURCES_REF: 'e2442fadd68e5d440ca807295e700b2b7a6b8aaf'
 
 jobs:
   build-ios-refresh:
