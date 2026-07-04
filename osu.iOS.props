@@ -14,7 +14,12 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <!-- On release configurations, we use AOT compiler for optimal performance, along with Mono Interpreter as a fallback for libraries such as AutoMapper. -->
     <UseInterpreter>false</UseInterpreter>
-    <MtouchInterpreter>-all</MtouchInterpreter>
+    <!-- torii/ios: full AOT (-all) EXCEPTO los bindings de Vortice (D3D de Windows), que ppy.Veldrid
+         arrastra como dependencia transitiva. en iOS el renderer es Metal, esos DLLs son codigo MUERTO
+         (nunca se ejecutan) pero el AOT igual intenta compilarlos y crashea (exit code 1). los dejamos
+         interpretados: costo cero en runtime (no corren) y el resto queda full-nativo = suave.
+         OJO: el valor con comas rompe la CLI de MSBuild (MSB1006), por eso va aca en el .props. -->
+    <MtouchInterpreter>-all,Vortice.Direct3D11,Vortice.D3DCompiler,Vortice.DXGI,Vortice.Direct3D12,Vortice.Mathematics,Vortice.DirectX</MtouchInterpreter>
   </PropertyGroup>
   <!-- torii/ios: framework iOS por FUENTE (no NuGet). el osu.Game ya referencia el core
        osu.Framework local (toriirefresh-framework), asi que el host iOS tambien tiene que ser
