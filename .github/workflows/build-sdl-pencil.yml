@@ -1,0 +1,88 @@
+name: Build SDL3 iOS (pencil coalesced patch)
+
+# compila el SDL3.framework de iOS patcheado con coalesced touches (recupera el 240hz del Apple
+# Pencil que SDL hoy colapsa a ~120). base = ppy.SDL3-CS tag 2026.520.0 (submodulo libsdl-org/SDL
+# @ f31ca02, el mismo pin que usa toriirefresh-framework). el binario resultante se inyecta despues
+# en el .ipa (post-build cp, porque SDL3 es un dylib cargado por P/Invoke, el AOT no lo linkea estatico).
+# NO es cmake: es el SDL.xcodeproj + xcodebuild. corre al pushear ESTA branch.
+on:
+  push:
+    branches: [ ci/sdl-pencil ]
+  workflow_dispatch:
+
+jobs:
+  build-sdl:
+    name: Build patched SDL3.framework (ios-arm64)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Checkout toriirefresh (trae el patch script)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout ppy/SDL3-CS @ 2026.520.0 (recursive -> SDL submodule pineado)
+        uses: actions/checkout@v4
+        with:
+          repository: ppy/SDL3-CS
+          ref: '2026.520.0'
+          submodules: recursive
+          path: sdl3cs
+
+      - name: Use Xcode 16.4
+        run: sudo xcode-select -switch /Applications/Xcode_16.4.app
+
+      - name: Patch SDL_uikitview.m (coalesced touches)
+        shell: bash
+        run: |
+          set -e
+          SRC="sdl3cs/External/SDL/src/video/uikit/SDL_uikitview.m"
+          echo "SDL submodule HEAD:"
+          git -C sdl3cs/External/SDL rev-parse HEAD || true
+          if [[ ! -f "$SRC" ]]; then echo "ERROR: no encontre $SRC"; exit 1; fi
+          python3 sdl-pencil-patch/patch_uikitview.py "$SRC"
+          echo "--- confirmacion (coalesced presente) ---"
+          grep -n "coalescedTouchesForTouch" "$SRC" || { echo "ERROR: patch no aplico"; exit 1; }
+
+      - name: Build SDL3.xcframework (xcodebuild)
+        shell: bash
+        run: |
+          set -x
+          XCPROJ=$(find sdl3cs/External/SDL/Xcode -maxdepth 3 -name "SDL.xcodeproj" -type d | head -1)
+          echo "xcodeproj: $XCPROJ"
+          if [[ -z "$XCPROJ" ]]; then echo "ERROR: no encontre SDL.xcodeproj"; exit 1; fi
+          echo "--- targets disponibles ---"
+          xcodebuild -project "$XCPROJ" -list || true
+          xcodebuild -project "$XCPROJ" \
+            -target "SDL3.xcframework" \
+            -configuration Release \
+            SYMROOT="$PWD/sdlbuild" || \
+          xcodebuild -project "$XCPROJ" \
+            -scheme "SDL3.xcframework" \
+            -configuration Release \
+            -derivedDataPath "$PWD/sdlderived"
+
+      - name: Locate + stage the device SDL3 binary
+        id: stage
+        shell: bash
+        run: |
+          set -x
+          # el device slice: ios-arm64/SDL3.framework/SDL3 (NO el simulator)
+          BIN=$(find sdl3cs sdlbuild sdlderived -path "*SDL3.xcframework/ios-arm64/SDL3.framework/SDL3" 2>/dev/null | head -1)
+          if [[ -z "$BIN" ]]; then
+            # fallback: cualquier SDL3.framework/SDL3 de device arm64 (no-simulator)
+            BIN=$(find sdl3cs sdlbuild sdlderived -path "*ios-arm64/SDL3.framework/SDL3" -not -path "*simulator*" 2>/dev/null | head -1)
+          fi
+          echo "device SDL3 binary: $BIN"
+          if [[ -z "$BIN" ]]; then echo "ERROR: no encontre el SDL3 de device"; find sdl3cs sdlbuild sdlderived -name "SDL3" -path "*.framework*" 2>/dev/null | head; exit 1; fi
+          file "$BIN"
+          mkdir -p out
+          cp "$BIN" out/SDL3
+          ls -la out/SDL3
+
+      - name: Upload patched SDL3 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdl3-ios-arm64-pencil
+          path: out/SDL3
+          if-no-files-found: warn
