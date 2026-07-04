@@ -15,8 +15,18 @@
     <!-- On release configurations, we use AOT compiler for optimal performance, along with Mono Interpreter as a fallback for libraries such as AutoMapper. -->
     <UseInterpreter>false</UseInterpreter>
     <MtouchInterpreter>-all</MtouchInterpreter>
+    <!-- torii/ios: NO trimming. el ILLink de net10 (10.0.9) crashea (IL1012 / NETSDK1144
+         "Optimizing assemblies for size failed") al trimmear para net10.0-ios. el trim NO hace
+         falta para el AOT, y ademas osu usa mucho reflection (rulesets, [BackgroundDependencyLoader])
+         que el trim puede romper. sin trim = todo se AOT-ea nativo = mas grande pero suave y seguro. -->
+    <MtouchLink>None</MtouchLink>
   </PropertyGroup>
+  <!-- torii/ios: framework iOS por FUENTE (no NuGet). el osu.Game ya referencia el core
+       osu.Framework local (toriirefresh-framework), asi que el host iOS tambien tiene que ser
+       ese source, si no chocan dos osu.Framework. importamos el Workarounds.targets del framework
+       (que el nupkg importaria solo) para que las libs nativas iOS (runtimes/) se bundleen bien. -->
   <ItemGroup>
-    <PackageReference Include="ppy.osu.Framework.iOS" Version="2026.527.0" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.csproj" />
   </ItemGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.iOS\osu.Framework.iOS.Workarounds.targets" />
 </Project>
