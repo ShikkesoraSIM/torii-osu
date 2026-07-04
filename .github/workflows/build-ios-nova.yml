@@ -107,13 +107,21 @@ jobs:
           if [[ -z "$APP" ]]; then echo "no .app produced"; exit 1; fi
           rm -rf payload_stage && mkdir -p payload_stage/Payload
           cp -R "$APP" payload_stage/Payload/
-          ( cd payload_stage && zip -qr ../torii-ios-nova-unsigned.ipa Payload )
-          ls -la torii-ios-nova-unsigned.ipa
+          # torii pencil #2: inyectar el SDL3 patcheado (coalesced touches -> 240hz apple pencil) pisando
+          # el del NuGet. SDL3 es un dylib cargado por P/Invoke, el AOT NO lo linkea estatico, asi que
+          # pisar el binario es transparente; sideload re-firma todo el .app al instalar (cero fricción firma).
+          SDLDST="payload_stage/Payload/$(basename "$APP")/Frameworks/SDL3.framework/SDL3"
+          if [[ ! -f "$SDLDST" ]]; then echo "ERROR: no encontre SDL3 en el bundle: $SDLDST"; ls -la "payload_stage/Payload/$(basename "$APP")/Frameworks/" || true; exit 1; fi
+          cp -f sdl-pencil-patch/ios-arm64/SDL3.framework/SDL3 "$SDLDST"
+          echo "SDL3 patcheado (pencil coalesced 240hz) inyectado en el bundle"
+          file "$SDLDST"
+          ( cd payload_stage && zip -qr ../torii-ios-nova-pencil-unsigned.ipa Payload )
+          ls -la torii-ios-nova-pencil-unsigned.ipa
 
       - name: Upload unsigned .ipa
         if: steps.pack.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: torii-ios-nova-unsigned-ipa
-          path: torii-ios-nova-unsigned.ipa
+          name: torii-ios-nova-pencil-unsigned-ipa
+          path: torii-ios-nova-pencil-unsigned.ipa
           if-no-files-found: warn
