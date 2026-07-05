@@ -15,6 +15,7 @@ using osu.Framework.Logging;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Localisation;
+using osu.Game.Online.Chat;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
@@ -43,6 +44,11 @@ namespace osu.Game.Updater
         [Resolved]
         private OsuGameBase game { get; set; } = null!;
 
+        // el juego completo (no la base) expone OpenUrlExternally; nullable por si
+        // algun host de test no lo cachea.
+        [Resolved(canBeNull: true)]
+        private OsuGame? osuGame { get; set; }
+
         [Resolved]
         protected INotificationOverlay Notifications { get; private set; } = null!;
 
@@ -62,9 +68,21 @@ namespace osu.Game.Updater
                 if (FixedReleaseStream != null)
                     config.SetValue(OsuSetting.ReleaseStream, FixedReleaseStream.Value);
 
-                // notify the user if they're using a build that is not officially sanctioned.
+                // Torii es un fork no oficial: en vez del aviso stock, invitamos a apoyar y
+                // contribuir al proyecto original. clickeable -> abre el github de ppy/osu.
                 if (RuntimeInfo.EntryAssembly.GetCustomAttribute<OfficialBuildAttribute>() == null)
-                    Notifications.Post(new SimpleNotification { Text = NotificationsStrings.NotOfficialBuild });
+                {
+                    Notifications.Post(new SimpleNotification
+                    {
+                        Text = NotificationsStrings.ToriiUnofficialFork,
+                        Icon = FontAwesome.Brands.Github,
+                        Activated = () =>
+                        {
+                            osuGame?.OpenUrlExternally(@"https://github.com/ppy/osu", LinkWarnMode.NeverWarn);
+                            return true;
+                        },
+                    });
+                }
             }
             else
             {

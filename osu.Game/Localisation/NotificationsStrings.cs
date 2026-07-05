@@ -121,6 +121,11 @@ Click to see what's new!", version);
         public static LocalisableString NotOfficialBuild => new TranslatableString(getKey(@"not_official_build"), @"This is not an official build of the game. Scores will not be submitted and other online systems may not work as intended.");
 
         /// <summary>
+        /// "This is Torii, an unofficial fork of the game. Please support and contribute to the original project. Click here to open osu!'s GitHub page."
+        /// </summary>
+        public static LocalisableString ToriiUnofficialFork => new TranslatableString(getKey(@"torii_unofficial_fork"), @"This is Torii, an unofficial fork of the game. Please support and contribute to the original project. Click here to open osu!'s GitHub page.");
+
+        /// <summary>
         /// "Downloading update..."
         /// </summary>
         public static LocalisableString DownloadingUpdate => new TranslatableString(getKey(@"downloading_update"), @"Downloading update...");
