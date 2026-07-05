@@ -201,10 +201,13 @@ namespace osu.Game.Screens.Ranking
                     Width = 300
                 });
 
-                // torii: render a video via o!rdr. solo para scores subidos al server (el server
-                // lee el .osr guardado); sin Anchor/Origin custom (regla del FillFlow horizontal).
-                if (Score?.OnlineID > 0)
-                    buttons.Add(new RenderVideoButton(Score));
+                // torii: render a video via o!rdr. bindeado a SelectedScore (como el download)
+                // asi tambien aparece en playlist/multi/daily challenge, donde el score se
+                // resuelve despues del load; el boton se auto-muestra cuando tiene OnlineID.
+                buttons.Add(new RenderVideoButton(SelectedScore.Value)
+                {
+                    Score = { BindTarget = SelectedScore },
+                });
 
                 // for simplicity, only allow this when coming from a replay player where we know the replay is ready to be played.
                 //
