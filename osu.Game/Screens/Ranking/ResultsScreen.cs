@@ -209,6 +209,12 @@ namespace osu.Game.Screens.Ranking
                     Score = { BindTarget = SelectedScore },
                 });
 
+                // torii: nota de la play (glow azul). solo scores propios online.
+                buttons.Add(new AddNoteButton(SelectedScore.Value)
+                {
+                    Score = { BindTarget = SelectedScore },
+                });
+
                 // for simplicity, only allow this when coming from a replay player where we know the replay is ready to be played.
                 //
                 // if we show it in all cases, consider the case where a user comes from song select and potentially has to download

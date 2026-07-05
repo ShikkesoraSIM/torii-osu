@@ -459,6 +459,16 @@ namespace osu.Game.Screens.Select
                                 }
                             }
                         },
+                    },
+                    // torii: iconito de nota de score. arranca invisible y aparece solo
+                    // cuando el ScoreNoteStore confirma que este score tiene nota; hover
+                    // muestra el mini briefing con el texto + imagen. hijo directo del
+                    // container raiz (posicion absoluta, sin regla de fillflow).
+                    new osu.Game.Online.ScoreNotes.ScoreNoteIcon(Score.OnlineID)
+                    {
+                        Anchor = Anchor.TopRight,
+                        Origin = Anchor.TopRight,
+                        Margin = new MarginPadding { Top = 4, Right = grade_width + 8 },
                     }
                 }
             };

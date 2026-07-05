@@ -1392,6 +1392,10 @@ namespace osu.Game
             // para que el polling del render sobreviva a salir de la pantalla (y cero riesgo de
             // async-after-disposal contra drawables de screen).
             loadComponentSingleFile(new osu.Game.Overlays.ReplayRender.ReplayRenderOverlay(), topMostOverlayContent.Add, true);
+            // torii: notas de score. el store batchea los lookups de los iconitos del leaderboard
+            // (una request por tanda) y cachea; el overlay es el panel de escribir la nota.
+            loadComponentSingleFile(new osu.Game.Online.ScoreNotes.ScoreNoteStore(), Add, true);
+            loadComponentSingleFile(new osu.Game.Overlays.ScoreNotes.ScoreNoteOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(Settings = new SettingsOverlay(), leftFloatingOverlayContent.Add, true);
