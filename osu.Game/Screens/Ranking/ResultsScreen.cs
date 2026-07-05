@@ -201,20 +201,6 @@ namespace osu.Game.Screens.Ranking
                     Width = 300
                 });
 
-                // torii: render a video via o!rdr. bindeado a SelectedScore (como el download)
-                // asi tambien aparece en playlist/multi/daily challenge, donde el score se
-                // resuelve despues del load; el boton se auto-muestra cuando tiene OnlineID.
-                buttons.Add(new RenderVideoButton(SelectedScore.Value)
-                {
-                    Score = { BindTarget = SelectedScore },
-                });
-
-                // torii: nota de la play (glow azul). solo scores propios online.
-                buttons.Add(new AddNoteButton(SelectedScore.Value)
-                {
-                    Score = { BindTarget = SelectedScore },
-                });
-
                 // for simplicity, only allow this when coming from a replay player where we know the replay is ready to be played.
                 //
                 // if we show it in all cases, consider the case where a user comes from song select and potentially has to download
@@ -227,6 +213,19 @@ namespace osu.Game.Screens.Ranking
                 buttons.Add(new RetryButton { Width = 300 });
                 allowHotkeyRetry = true;
             }
+
+            // torii: render a video (rojo) + nota de la play (azul), entre retry y
+            // collections. bindeados a SelectedScore asi tambien salen en playlist/
+            // multi/daily challenge (el score se resuelve despues del load); cada boton
+            // se auto-muestra cuando aplica (render: score online; nota: propio online).
+            buttons.Add(new RenderVideoButton(SelectedScore.Value)
+            {
+                Score = { BindTarget = SelectedScore },
+            });
+            buttons.Add(new AddNoteButton(SelectedScore.Value)
+            {
+                Score = { BindTarget = SelectedScore },
+            });
 
             if (allowHotkeyRetry)
             {

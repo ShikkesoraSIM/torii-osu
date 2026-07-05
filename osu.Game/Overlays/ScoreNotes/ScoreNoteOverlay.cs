@@ -227,6 +227,10 @@ namespace osu.Game.Overlays.ScoreNotes
                             {
                                 Caption = "Image (optional)",
                                 HintText = "Attached images get shrunk to a small thumbnail server-side.",
+                                // el placeholder llena la linea de texto y de paso alinea el
+                                // caption arriba (como el de Note); el drag & drop ya viene
+                                // integrado en FormFileSelector (RegisterImportHandler).
+                                PlaceholderText = "click to browse — or drag an image into this box",
                             },
                         },
                     },
