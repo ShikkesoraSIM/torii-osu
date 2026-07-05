@@ -3,10 +3,13 @@
 
 #nullable disable
 
+using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Extensions;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -134,7 +137,9 @@ namespace osu.Game.Overlays.ReplayRender
                                     {
                                         RelativeSizeAxes = Axes.Both,
                                         OpenInBrowser = url => game?.OpenUrlExternally(url),
-                                        LoadTexture = url => textures.Get(url),
+                                        // ASYNC: baja+decodifica en background. si fuera sincronico
+                                        // (textures.Get) bloquearia el update thread = FREEZE del juego.
+                                        LoadTextureAsync = (url, ct) => textures.GetAsync(url, ct),
                                     },
                                 },
                             },
@@ -440,13 +445,14 @@ namespace osu.Game.Overlays.ReplayRender
         /// <summary>caja de preview: muestra la imagen de la skin hovereada + su nombre.</summary>
         private partial class SkinPreviewBox : CompositeDrawable
         {
-            public System.Action<string> OpenInBrowser;
-            public System.Func<string, Texture> LoadTexture;
+            public Action<string> OpenInBrowser;
+            public Func<string, CancellationToken, Task<Texture>> LoadTextureAsync;
 
             private Sprite image;
             private OsuSpriteText nameText;
             private OsuSpriteText hint;
             private string currentSkinId;
+            private CancellationTokenSource previewCancel;
 
             [BackgroundDependencyLoader]
             private void load()
@@ -496,31 +502,51 @@ namespace osu.Game.Overlays.ReplayRender
 
                 currentSkinId = skin.Skin;
 
+                // cancelamos la carga anterior: si hovereaste otra, la de antes no se
+                // aplica ni sigue ocupando la red.
+                previewCancel?.Cancel();
+                previewCancel = new CancellationTokenSource();
+
                 nameText.Text = string.IsNullOrWhiteSpace(skin.Name) ? skin.Skin : skin.Name;
                 nameText.FadeIn(120);
 
                 // "default" no tiene preview subido; mostramos un hint.
                 if (string.IsNullOrEmpty(skin.Preview) || skin.Skin == "default")
                 {
+                    image.Texture = null;
                     image.FadeOut(80);
                     hint.Text = skin.Skin == "default" ? "danser's built-in" : "no preview";
                     hint.FadeIn(80);
                     return;
                 }
 
-                hint.FadeOut(80);
+                image.FadeOut(80);
+                hint.Text = "loading…";
+                hint.FadeIn(80);
 
-                // carga best-effort: si la textura no viene (bloqueada/timeout), queda la
-                // caja vacia con el hint, nunca crashea.
-                var tex = LoadTexture?.Invoke(skin.Preview);
-                image.Texture = tex;
-                image.FadeTo(tex != null ? 1 : 0, 150);
+                string targetSkin = skin.Skin;
+                var token = previewCancel.Token;
 
-                if (tex == null)
+                // CARGA ASINCRONICA: baja+decodifica en un hilo de fondo, NUNCA en el
+                // update thread. cuando termina, volvemos al update thread con Schedule.
+                // si el usuario ya hovereo otra skin, el guard de currentSkinId la descarta.
+                LoadTextureAsync?.Invoke(skin.Preview, token).ContinueWith(t => Schedule(() =>
                 {
-                    hint.Text = "preview unavailable";
-                    hint.FadeIn(80);
-                }
+                    if (IsDisposed || currentSkinId != targetSkin || token.IsCancellationRequested)
+                        return;
+
+                    Texture tex = t.Status == TaskStatus.RanToCompletion ? t.GetResultSafely() : null;
+                    image.Texture = tex;
+                    image.FadeTo(tex != null ? 1 : 0, 150);
+
+                    if (tex != null)
+                        hint.FadeOut(80);
+                    else
+                    {
+                        hint.Text = "preview unavailable";
+                        hint.FadeIn(80);
+                    }
+                }), TaskContinuationOptions.None);
             }
         }
     }
