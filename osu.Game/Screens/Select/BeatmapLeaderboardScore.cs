@@ -459,21 +459,23 @@ namespace osu.Game.Screens.Select
                                 }
                             }
                         },
-                    },
-                    // torii: iconito de nota de score. arranca invisible y aparece solo
-                    // cuando el ScoreNoteStore confirma que este score tiene nota; hover
-                    // muestra el mini briefing con el texto + imagen. va en la esquina
-                    // superior derecha del panel, contra-sheareado para no verse inclinado.
-                    new osu.Game.Online.ScoreNotes.ScoreNoteIcon(Score.OnlineID)
-                    {
-                        Anchor = Anchor.TopRight,
-                        Origin = Anchor.TopRight,
-                        Size = new Vector2(14),
-                        Margin = new MarginPadding { Top = 2, Right = 2 },
-                        Shear = sheared ? -OsuGame.SHEAR : Vector2.Zero,
                     }
                 }
             };
+
+            // torii: iconito de nota de score. arranca invisible y aparece solo cuando
+            // el ScoreNoteStore confirma que este score tiene nota; hover muestra el
+            // mini briefing con el texto + imagen. va FUERA del container maskeado
+            // (Add = hermano en el content, sin masking encima), con el CENTRO clavado
+            // en la esquina superior derecha del panel; contra-sheareado.
+            Add(new osu.Game.Online.ScoreNotes.ScoreNoteIcon(Score.OnlineID)
+            {
+                Anchor = Anchor.TopRight,
+                Origin = Anchor.Centre,
+                Size = new Vector2(14),
+                Shear = sheared ? -OsuGame.SHEAR : Vector2.Zero,
+            });
+
             innerAvatar.OnLoadComplete += d => d.FadeInFromZero(200);
         }
 
