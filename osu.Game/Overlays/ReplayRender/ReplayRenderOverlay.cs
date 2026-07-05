@@ -87,11 +87,20 @@ namespace osu.Game.Overlays.ReplayRender
         public ReplayRenderOverlay()
         {
             RelativeSizeAxes = Axes.Both;
+
+            // CLAVE: el seguimiento del render (poll cada 5s) corre en el Scheduler de este
+            // overlay. un VisibilityContainer escondido (Alpha 0, sin AlwaysPresent) DEJA de
+            // updatearse -> el Scheduler se congela -> la notificacion nunca avanza ni se
+            // completa. AlwaysPresent lo mantiene vivo aunque este oculto; abajo evitamos
+            // que capture input cuando no esta visible.
+            AlwaysPresent = true;
         }
 
-        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => true;
-        protected override bool OnClick(ClickEvent e) => true;
-        protected override bool OnMouseDown(MouseDownEvent e) => true;
+        // solo capturamos input (scrim) cuando el panel esta realmente visible; escondido
+        // no debe morder clicks aunque siga presente por el AlwaysPresent.
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => State.Value == Visibility.Visible;
+        protected override bool OnClick(ClickEvent e) => State.Value == Visibility.Visible;
+        protected override bool OnMouseDown(MouseDownEvent e) => State.Value == Visibility.Visible;
 
         [BackgroundDependencyLoader]
         private void load(AudioManager audio, OsuConfigManager config)
