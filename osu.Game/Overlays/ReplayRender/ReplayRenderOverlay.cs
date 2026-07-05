@@ -266,7 +266,7 @@ namespace osu.Game.Overlays.ReplayRender
                             shareCheckBox = new FormCheckBox
                             {
                                 Caption = "Also share it in Discord",
-                                HintText = "Off keeps it to you — the link still lands here and in your recent renders. "
+                                HintText = "Off keeps it to you (the link still lands here and in your recent renders). "
                                            + "On also drops it in the community renders channel.",
                             },
                         },
@@ -487,8 +487,8 @@ namespace osu.Game.Overlays.ReplayRender
         {
             var notification = new ProgressNotification
             {
-                Text = $"In o!rdr's queue — {scoreTitle}",
-                CompletionText = $"Video's ready — click to watch: {scoreTitle}",
+                Text = $"In o!rdr's queue: {scoreTitle}",
+                CompletionText = $"Video's ready! Click to watch: {scoreTitle}",
                 State = ProgressNotificationState.Queued,
             };
 
@@ -542,7 +542,7 @@ namespace osu.Game.Overlays.ReplayRender
 
                     string host = string.IsNullOrWhiteSpace(status.Renderer) ? null : status.Renderer.Trim();
                     string line = host != null && !inQueue ? $"{progress} · {host}" : progress;
-                    notification.Text = $"{line} — {scoreTitle}";
+                    notification.Text = $"{line}: {scoreTitle}";
                     notification.State = inQueue ? ProgressNotificationState.Queued : ProgressNotificationState.Active;
 
                     var match = progress_percent.Match(progress);

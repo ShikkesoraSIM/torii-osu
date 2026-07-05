@@ -93,7 +93,7 @@ namespace osu.Game.Overlays.ReplayRender
                     search = new FormTextBox
                     {
                         Caption = "Skin",
-                        HintText = "Search o!rdr's skins and pick from the list — hover one to preview it.",
+                        HintText = "Search o!rdr's skins and pick from the list. Hover one to preview it.",
                         PlaceholderText = "type a skin name…",
                     },
                     selectedLabel = new OsuSpriteText

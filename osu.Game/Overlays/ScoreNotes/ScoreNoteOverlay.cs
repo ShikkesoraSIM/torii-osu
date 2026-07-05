@@ -200,7 +200,7 @@ namespace osu.Game.Overlays.ScoreNotes
                     AutoSizeAxes = Axes.Y,
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                     Text = "Leave a note on this score. Anyone browsing the leaderboard can hover it "
-                           + "and read what happened — choked, one-handed it, whatever needs saying.",
+                           + "and read what happened. Choked, one-handed it, whatever needs saying.",
                 },
                 new BriefingGlass
                 {
@@ -237,7 +237,7 @@ namespace osu.Game.Overlays.ScoreNotes
                 },
                 deleteHint = new OsuSpriteText
                 {
-                    Text = "This play already has a note — saving replaces it. Right-click the save button to delete it.",
+                    Text = "This play already has a note. Saving replaces it, right-click the save button to delete it.",
                     Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                     Colour = BriefingTheme.AccentAmber,
                     Alpha = 0,
@@ -288,7 +288,7 @@ namespace osu.Game.Overlays.ScoreNotes
             string text = (noteText.Current.Value ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(text))
             {
-                notifications?.Post(new SimpleErrorNotification { Text = "Write something first — the note can't be empty." });
+                notifications?.Post(new SimpleErrorNotification { Text = "Write something first, the note can't be empty." });
                 return;
             }
 
