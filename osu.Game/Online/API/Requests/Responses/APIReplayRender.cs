@@ -70,8 +70,13 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty("name")]
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>Server-proxied PNG preview URL (loadable in-client — it's on our trusted host).</summary>
         [JsonProperty("preview")]
         public string? Preview { get; set; }
+
+        /// <summary>Raw o!rdr high-res preview URL — opened in the browser by the "eye" button.</summary>
+        [JsonProperty("high_res")]
+        public string? HighRes { get; set; }
 
         [JsonProperty("author")]
         public string? Author { get; set; }

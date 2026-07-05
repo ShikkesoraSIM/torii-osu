@@ -3,19 +3,22 @@
 
 #nullable disable
 
-using System;
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.Textures;
+using osu.Framework.Input.Events;
 using osu.Framework.Threading;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
@@ -27,11 +30,14 @@ using osuTK.Graphics;
 namespace osu.Game.Overlays.ReplayRender
 {
     /// <summary>
-    /// selector de skin de o!rdr para el panel de render. reemplaza el textbox pelado:
-    /// escribís y te busca en el catálogo de o!rdr en vivo (via el proxy del server),
-    /// y elegís de una lista en vez de adivinar el nombre exacto. sin nada escrito
-    /// muestra las más usadas. <see cref="Current"/> guarda el id interno de la skin
-    /// (lo que espera o!rdr), pero mostramos el nombre lindo.
+    /// selector de skin de o!rdr para el panel de render. lista scrolleable con muchas
+    /// skins (las mas usadas sin buscar), busqueda en vivo, y una caja de preview a la
+    /// derecha que carga la imagen de la skin al pasar el mouse por una fila. el ojito
+    /// abre el preview full en el navegador. elegir una NO cierra la lista: la resalta.
+    ///
+    /// nota anti-crash: layout con GridContainer + ScrollContainer (no FillFlow con
+    /// anchors mezclados); las imagenes se cargan best-effort (si fallan, caja vacia,
+    /// nunca crash) y solo via el proxy de nuestro server (dominio confiable).
     /// </summary>
     public partial class OrdrSkinSelector : CompositeDrawable
     {
@@ -41,11 +47,20 @@ namespace osu.Game.Overlays.ReplayRender
         [Resolved]
         private IAPIProvider api { get; set; }
 
+        [Resolved]
+        private LargeTextureStore textures { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private OsuGame game { get; set; }
+
         private FormTextBox search;
         private OsuSpriteText selectedLabel;
-        private FillFlowContainer resultsFlow;
+        private FillFlowContainer rowsFlow;
+        private SkinPreviewBox previewBox;
         private ScheduledDelegate debounce;
         private int searchToken;
+
+        private readonly List<SkinRow> rows = new List<SkinRow>();
 
         public OrdrSkinSelector()
         {
@@ -67,7 +82,7 @@ namespace osu.Game.Overlays.ReplayRender
                     search = new FormTextBox
                     {
                         Caption = "Skin",
-                        HintText = "Search o!rdr's skins and pick one — no need to remember exact names.",
+                        HintText = "Search o!rdr's skins and pick from the list — hover one to preview it.",
                         PlaceholderText = "type a skin name…",
                     },
                     selectedLabel = new OsuSpriteText
@@ -75,12 +90,47 @@ namespace osu.Game.Overlays.ReplayRender
                         Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
                         Colour = BriefingTheme.AccentPink,
                     },
-                    resultsFlow = new FillFlowContainer
+                    // lista (izq) + preview (der). GridContainer evita cualquier tema de
+                    // anchors del FillFlow, y le da altura fija a la lista scrolleable.
+                    new Container
                     {
                         RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Vertical,
-                        Spacing = new Vector2(0, 2),
+                        Height = 176,
+                        Child = new GridContainer
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            ColumnDimensions = new[]
+                            {
+                                new Dimension(),
+                                new Dimension(GridSizeMode.Absolute, BriefingTheme.SpacingSm),
+                                new Dimension(GridSizeMode.Absolute, 168),
+                            },
+                            Content = new[]
+                            {
+                                new[]
+                                {
+                                    new OsuScrollContainer
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        ScrollbarVisible = true,
+                                        Child = rowsFlow = new FillFlowContainer
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            AutoSizeAxes = Axes.Y,
+                                            Direction = FillDirection.Vertical,
+                                            Spacing = new Vector2(0, 2),
+                                        },
+                                    },
+                                    Empty(),
+                                    previewBox = new SkinPreviewBox
+                                    {
+                                        RelativeSizeAxes = Axes.Both,
+                                        OpenInBrowser = url => game?.OpenUrlExternally(url),
+                                        LoadTexture = url => textures.Get(url),
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             };
@@ -89,12 +139,10 @@ namespace osu.Game.Overlays.ReplayRender
             Current.BindValueChanged(e => updateSelectedLabel(e.NewValue), true);
         }
 
-        /// <summary>arranca (o resetea) el selector cada vez que se abre el panel: limpia
-        /// la busqueda y muestra las skins mas usadas para elegir sin escribir.</summary>
+        /// <summary>cada vez que se abre el panel: limpia la busqueda y trae las mas usadas.</summary>
         public void Prime()
         {
             search.Current.Value = string.Empty;
-            resultsFlow.Clear();
             runSearch(string.Empty);
         }
 
@@ -103,6 +151,9 @@ namespace osu.Game.Overlays.ReplayRender
             selectedLabel.Text = string.IsNullOrWhiteSpace(skinId) || skinId == "default"
                 ? "Using: Default (danser)"
                 : $"Using: {skinId}";
+
+            foreach (var row in rows)
+                row.SetSelected(row.SkinId == skinId);
         }
 
         private void scheduleSearch(string query)
@@ -123,61 +174,72 @@ namespace osu.Game.Overlays.ReplayRender
 
                 populate(list, string.IsNullOrWhiteSpace(query));
             });
-            req.Failure += _ => { }; // sin resultados no rompemos nada; queda lo elegido
+            req.Failure += _ => { };
 
             api?.Queue(req);
         }
 
         private void populate(APIOrdrSkinList list, bool emptyQuery)
         {
-            resultsFlow.Clear();
+            rowsFlow.Clear();
+            rows.Clear();
 
-            var skins = list?.Skins ?? new System.Collections.Generic.List<APIOrdrSkin>();
-
-            // sin búsqueda, mostramos las más usadas arriba (o!rdr las manda alfabéticas).
+            var skins = list?.Skins ?? new List<APIOrdrSkin>();
             if (emptyQuery)
                 skins = skins.OrderByDescending(s => s.TimesUsed).ToList();
 
-            // pin "Default (danser)" arriba de todo cuando no hay búsqueda: es la opción
-            // que la mayoría quiere y no aparece en el catálogo de skins subidas.
-            if (emptyQuery)
-                resultsFlow.Add(new SkinRow("default", "Default (danser)", "built-in", () => pick("default")));
+            // "Default (danser)" siempre arriba: es la opcion que mas se usa y no vive
+            // en el catalogo de skins subidas.
+            addRow(new APIOrdrSkin { Skin = "default", Name = "Default (danser)", Author = "built-in" });
 
-            foreach (var s in skins.Take(6))
+            foreach (var s in skins)
             {
-                string id = s.Skin;
-                if (string.IsNullOrEmpty(id) || (emptyQuery && id == "default"))
+                if (string.IsNullOrEmpty(s.Skin) || s.Skin == "default")
                     continue;
 
-                string sub = string.IsNullOrWhiteSpace(s.Author) ? "" : $"by {s.Author}";
-                resultsFlow.Add(new SkinRow(id, string.IsNullOrWhiteSpace(s.Name) ? id : s.Name, sub, () => pick(id)));
+                addRow(s);
             }
+
+            // resaltar la que ya estaba elegida (si sigue en la lista).
+            foreach (var row in rows)
+                row.SetSelected(row.SkinId == Current.Value);
+        }
+
+        private void addRow(APIOrdrSkin skin)
+        {
+            var row = new SkinRow(skin)
+            {
+                OnPicked = id => pick(id),
+                OnHovered = s => previewBox.ShowSkin(s),
+                OnOpenBrowser = url => game?.OpenUrlExternally(url),
+            };
+            rows.Add(row);
+            rowsFlow.Add(row);
         }
 
         private void pick(string skinId)
         {
+            // elegir NO cierra la lista: solo actualiza el label + el resaltado.
             Current.Value = skinId;
-            // colapsamos la lista tras elegir; el label de arriba confirma la elección.
-            search.Current.Value = string.Empty;
-            resultsFlow.Clear();
         }
 
-        /// <summary>fila clickeable de una skin en los resultados.</summary>
-        private partial class SkinRow : CompositeDrawable, IHasTooltip
+        /// <summary>fila clickeable de una skin: nombre + autor, con ojito en hover.</summary>
+        private partial class SkinRow : CompositeDrawable
         {
-            private readonly string title;
-            private readonly string subtitle;
-            private readonly Action action;
-            private Box hover;
+            public string SkinId => skin.Skin;
 
-            public osu.Framework.Localisation.LocalisableString TooltipText { get; }
+            public System.Action<string> OnPicked;
+            public System.Action<APIOrdrSkin> OnHovered;
+            public System.Action<string> OnOpenBrowser;
 
-            public SkinRow(string id, string title, string subtitle, Action action)
+            private readonly APIOrdrSkin skin;
+            private Box background;
+            private Box selectedTint;
+            private EyeButton eye;
+
+            public SkinRow(APIOrdrSkin skin)
             {
-                this.title = title;
-                this.subtitle = subtitle;
-                this.action = action;
-                TooltipText = id;
+                this.skin = skin;
                 RelativeSizeAxes = Axes.X;
                 Height = 26;
             }
@@ -190,7 +252,13 @@ namespace osu.Game.Overlays.ReplayRender
 
                 InternalChildren = new Drawable[]
                 {
-                    hover = new Box
+                    selectedTint = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = BriefingTheme.AccentPink.Opacity(0.16f),
+                        Alpha = 0,
+                    },
+                    background = new Box
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = Color4.White.Opacity(0.06f),
@@ -204,7 +272,7 @@ namespace osu.Game.Overlays.ReplayRender
                         Origin = Anchor.CentreLeft,
                         Direction = FillDirection.Horizontal,
                         Spacing = new Vector2(BriefingTheme.SpacingSm, 0),
-                        Padding = new MarginPadding { Left = BriefingTheme.SpacingSm },
+                        Padding = new MarginPadding { Left = BriefingTheme.SpacingSm, Right = 26 },
                         Children = new Drawable[]
                         {
                             new SpriteIcon
@@ -212,45 +280,197 @@ namespace osu.Game.Overlays.ReplayRender
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
                                 Icon = FontAwesome.Solid.PaintBrush,
-                                Size = new Vector2(10),
+                                Size = new Vector2(9),
                                 Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
                             },
                             new OsuSpriteText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Text = title,
+                                Text = string.IsNullOrWhiteSpace(skin.Name) ? skin.Skin : skin.Name,
                                 Font = OsuFont.GetFont(size: BriefingTheme.TypeBody),
                             },
                             new OsuSpriteText
                             {
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Text = subtitle,
+                                Text = string.IsNullOrWhiteSpace(skin.Author) ? "" : $"· {skin.Author}",
                                 Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
                                 Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
                             },
                         },
                     },
+                    // ojito: aparece en hover, abre el preview full en el navegador.
+                    eye = new EyeButton(skin.HighRes)
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                        Margin = new MarginPadding { Right = BriefingTheme.SpacingXs },
+                        OpenInBrowser = url => OnOpenBrowser?.Invoke(url),
+                    },
                 };
             }
 
-            protected override bool OnHover(osu.Framework.Input.Events.HoverEvent e)
+            public void SetSelected(bool selected) => selectedTint.FadeTo(selected ? 1 : 0, 120);
+
+            protected override bool OnHover(HoverEvent e)
             {
-                hover.FadeIn(80);
+                background.FadeIn(80);
+                if (!string.IsNullOrEmpty(skin.HighRes))
+                    eye.FadeIn(80);
+                OnHovered?.Invoke(skin);
                 return base.OnHover(e);
             }
 
-            protected override void OnHoverLost(osu.Framework.Input.Events.HoverLostEvent e)
+            protected override void OnHoverLost(HoverLostEvent e)
             {
-                hover.FadeOut(120);
+                background.FadeOut(120);
+                eye.FadeOut(120);
                 base.OnHoverLost(e);
             }
 
-            protected override bool OnClick(osu.Framework.Input.Events.ClickEvent e)
+            protected override bool OnClick(ClickEvent e)
             {
-                action?.Invoke();
+                OnPicked?.Invoke(skin.Skin);
                 return true;
+            }
+        }
+
+        /// <summary>ojito chico que abre una URL en el navegador. arranca oculto (lo muestra el padre en hover).</summary>
+        private partial class EyeButton : OsuClickableContainer
+        {
+            public System.Action<string> OpenInBrowser;
+
+            private string url;
+            private SpriteIcon icon;
+
+            public EyeButton(string url)
+            {
+                this.url = url;
+                Size = new Vector2(20);
+                Alpha = 0;
+            }
+
+            public void SetUrl(string newUrl) => url = newUrl;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Child = icon = new SpriteIcon
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    Icon = FontAwesome.Solid.Eye,
+                    Size = new Vector2(12),
+                    Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
+                };
+
+                Action = () =>
+                {
+                    if (!string.IsNullOrEmpty(url))
+                        OpenInBrowser?.Invoke(url);
+                };
+
+                TooltipText = "View on o!rdr";
+            }
+
+            protected override bool OnHover(HoverEvent e)
+            {
+                icon.FadeColour(Color4.White, 100);
+                return base.OnHover(e);
+            }
+
+            protected override void OnHoverLost(HoverLostEvent e)
+            {
+                icon.FadeColour(Color4.White.Opacity(BriefingTheme.InkSecondary), 150);
+                base.OnHoverLost(e);
+            }
+        }
+
+        /// <summary>caja de preview: muestra la imagen de la skin hovereada + su nombre.</summary>
+        private partial class SkinPreviewBox : CompositeDrawable
+        {
+            public System.Action<string> OpenInBrowser;
+            public System.Func<string, Texture> LoadTexture;
+
+            private Sprite image;
+            private OsuSpriteText nameText;
+            private OsuSpriteText hint;
+            private string currentSkinId;
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                Masking = true;
+                CornerRadius = BriefingTheme.CornerSm;
+
+                InternalChildren = new Drawable[]
+                {
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Color4.Black.Opacity(0.25f),
+                    },
+                    image = new Sprite
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        FillMode = FillMode.Fit,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Alpha = 0,
+                    },
+                    hint = new OsuSpriteText
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Text = "hover a skin",
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption),
+                        Colour = Color4.White.Opacity(BriefingTheme.InkTertiary),
+                    },
+                    nameText = new OsuSpriteText
+                    {
+                        Anchor = Anchor.BottomLeft,
+                        Origin = Anchor.BottomLeft,
+                        Margin = new MarginPadding(4),
+                        Font = OsuFont.GetFont(size: BriefingTheme.TypeCaption, weight: FontWeight.SemiBold),
+                        Colour = Color4.White,
+                        Alpha = 0,
+                    },
+                };
+            }
+
+            public void ShowSkin(APIOrdrSkin skin)
+            {
+                if (skin == null || skin.Skin == currentSkinId)
+                    return;
+
+                currentSkinId = skin.Skin;
+
+                nameText.Text = string.IsNullOrWhiteSpace(skin.Name) ? skin.Skin : skin.Name;
+                nameText.FadeIn(120);
+
+                // "default" no tiene preview subido; mostramos un hint.
+                if (string.IsNullOrEmpty(skin.Preview) || skin.Skin == "default")
+                {
+                    image.FadeOut(80);
+                    hint.Text = skin.Skin == "default" ? "danser's built-in" : "no preview";
+                    hint.FadeIn(80);
+                    return;
+                }
+
+                hint.FadeOut(80);
+
+                // carga best-effort: si la textura no viene (bloqueada/timeout), queda la
+                // caja vacia con el hint, nunca crashea.
+                var tex = LoadTexture?.Invoke(skin.Preview);
+                image.Texture = tex;
+                image.FadeTo(tex != null ? 1 : 0, 150);
+
+                if (tex == null)
+                {
+                    hint.Text = "preview unavailable";
+                    hint.FadeIn(80);
+                }
             }
         }
     }
