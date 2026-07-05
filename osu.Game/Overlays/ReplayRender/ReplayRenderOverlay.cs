@@ -59,6 +59,7 @@ namespace osu.Game.Overlays.ReplayRender
         private OsuGame game { get; set; }
 
         private Container panel;
+        private Container panelScaleWrapper;
         private OsuTextFlowContainer bodyFlow;
         private FormDropdown<string> resolutionDropdown;
         private OrdrSkinSelector skinSelector;
@@ -102,6 +103,24 @@ namespace osu.Game.Overlays.ReplayRender
         protected override bool OnClick(ClickEvent e) => State.Value == Visibility.Visible;
         protected override bool OnMouseDown(MouseDownEvent e) => State.Value == Visibility.Visible;
 
+        protected override void Update()
+        {
+            base.Update();
+
+            // fit-scale: achica el panel lo justo para que SIEMPRE entre en pantalla
+            // (ventana chica, UI scale alto, o muchos recent renders). se calcula sobre
+            // el tamanio NATURAL del panel (pre-scale, no hay feedback) y solo achica.
+            if (panelScaleWrapper == null)
+                return;
+
+            Vector2 natural = panelScaleWrapper.DrawSize;
+            if (natural.X <= 0 || natural.Y <= 0 || DrawHeight <= 0 || DrawWidth <= 0)
+                return;
+
+            float fit = Math.Min(1f, Math.Min(DrawHeight * 0.95f / natural.Y, DrawWidth * 0.95f / natural.X));
+            panelScaleWrapper.Scale = new Vector2(fit);
+        }
+
         [BackgroundDependencyLoader]
         private void load(AudioManager audio, OsuConfigManager config)
         {
@@ -123,23 +142,29 @@ namespace osu.Game.Overlays.ReplayRender
                     Colour = Color4.Black,
                     Alpha = 0.6f,
                 },
-                panel = new BriefingGlass
+                // wrapper que ESCALA el panel para que siempre entre en la pantalla
+                // (ventana chica / UI scale alto / muchos recent renders). el fit-scale
+                // se calcula en Update() sobre el tamanio natural del panel.
+                panelScaleWrapper = new Container
                 {
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
-                    Width = 560,
-                    AutoSizeAxes = Axes.Y,
-                    CornerSize = BriefingTheme.CornerLg,
-                    SpecularStrength = 0.18f,
-                    SpecularHeight = 70,
-                    ShadowOpacity = 0.4f,
-                    ShadowRadius = 30,
-                    RelativeContentSize = Axes.X,
-                    // el contenido va en un Container (posicion absoluta) asi el boton de
-                    // cerrar flota en la esquina sup-derecha sin meterse en el FillFlow
-                    // vertical (que crashea con anchors mezclados).
-                    Child = new Container
+                    AutoSizeAxes = Axes.Both,
+                    Child = panel = new BriefingGlass
                     {
+                        Width = 560,
+                        AutoSizeAxes = Axes.Y,
+                        CornerSize = BriefingTheme.CornerLg,
+                        SpecularStrength = 0.18f,
+                        SpecularHeight = 70,
+                        ShadowOpacity = 0.4f,
+                        ShadowRadius = 30,
+                        RelativeContentSize = Axes.X,
+                        // el contenido va en un Container (posicion absoluta) asi el boton de
+                        // cerrar flota en la esquina sup-derecha sin meterse en el FillFlow
+                        // vertical (que crashea con anchors mezclados).
+                        Child = new Container
+                        {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
                         Children = new Drawable[]
@@ -160,6 +185,7 @@ namespace osu.Game.Overlays.ReplayRender
                                 Action = Hide,
                             },
                         },
+                    },
                     },
                 },
             };
@@ -353,7 +379,8 @@ namespace osu.Game.Overlays.ReplayRender
                     string title = string.IsNullOrWhiteSpace(r.BeatmapTitle) ? "replay" : r.BeatmapTitle;
                     recentFlow.Add(new RecentRenderRow(title, () => game?.OpenUrlExternally(url)));
 
-                    if (++shown >= 4)
+                    // cap fijo: el panel no debe crecer sin limite con el historial.
+                    if (++shown >= 3)
                         break;
                 }
 
@@ -558,9 +585,10 @@ namespace osu.Game.Overlays.ReplayRender
         {
             samplePopIn?.Play();
 
+            // entrada solo fade + slide: el SCALE lo maneja el fit-scale del wrapper
+            // (en Update), asi no pelean por la propiedad Scale.
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
-            panel.ScaleTo(0.94f).ScaleTo(1f, BriefingTheme.EntranceDuration, Easing.OutBack)
-                 .MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
+            panel.MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
         }
 
         protected override void PopOut()
@@ -568,7 +596,7 @@ namespace osu.Game.Overlays.ReplayRender
             samplePopOut?.Play();
 
             this.FadeOut(BriefingTheme.DismissDuration, Easing.OutQuint);
-            panel.ScaleTo(0.97f, BriefingTheme.DismissDuration, Easing.OutQuint);
+            panel.MoveToY(10, BriefingTheme.DismissDuration, Easing.OutQuint);
         }
 
         /// <summary>boton circular de cerrar (X) en la esquina del panel.</summary>
