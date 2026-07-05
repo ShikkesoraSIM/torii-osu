@@ -122,11 +122,17 @@ namespace osu.Game.Screens.Select
                             AutoSizeAxes = Axes.Y,
                             Padding = new MarginPadding
                             {
-                                Top = 5,
+                                // torii: 8 arriba (antes 5) para que la burbujita de nota del
+                                // primer score no se corte contra el masking del scroll.
+                                Top = 8,
                                 // Left padding offsets the shear to create a visually appealing list display.
                                 // With the unslanted toggle on (OsuGame.SHEAR.X == 0) the slant doesn't exist
                                 // and 80f turns into dead space, so collapse to 35f to keep the list sane.
                                 Left = OsuGame.SHEAR.X != 0 ? 80f : 35f,
+                                // torii: aire a la derecha para la burbujita de nota (su centro va
+                                // clavado en la esquina del panel y sobresale ~7px; sin esto el
+                                // masking del scroll la corta a la mitad).
+                                Right = 9f,
                                 // Bottom padding ensures the last entry's full width is displayed
                                 // (ie it is fully on screen after shear is considered).
                                 Bottom = BeatmapLeaderboardScore.HEIGHT * 3
