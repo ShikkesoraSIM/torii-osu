@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Globalization;
 using osu.Framework.IO.Network;
 using osu.Game.Online.API.Requests.Responses;
 
@@ -10,10 +11,12 @@ namespace osu.Game.Online.API.Requests
     public class SearchOrdrSkinsRequest : APIRequest<APIOrdrSkinList>
     {
         private readonly string query;
+        private readonly int page;
 
-        public SearchOrdrSkinsRequest(string query)
+        public SearchOrdrSkinsRequest(string query, int page = 1)
         {
             this.query = query;
+            this.page = page;
         }
 
         protected override WebRequest CreateWebRequest()
@@ -21,6 +24,8 @@ namespace osu.Game.Online.API.Requests
             var req = base.CreateWebRequest();
             if (!string.IsNullOrWhiteSpace(query))
                 req.AddParameter(@"search", query.Trim(), RequestParameterType.Query);
+            if (page > 1)
+                req.AddParameter(@"page", page.ToString(CultureInfo.InvariantCulture), RequestParameterType.Query);
             return req;
         }
 

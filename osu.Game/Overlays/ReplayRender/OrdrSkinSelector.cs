@@ -55,10 +55,18 @@ namespace osu.Game.Overlays.ReplayRender
 
         private FormTextBox search;
         private OsuSpriteText selectedLabel;
+        private OsuScrollContainer scroll;
         private FillFlowContainer rowsFlow;
         private SkinPreviewBox previewBox;
         private ScheduledDelegate debounce;
+        private ScheduledDelegate previewDebounce;
         private int searchToken;
+
+        // paginacion (infinite scroll): vamos pidiendo paginas a medida que bajas.
+        private string currentQuery = string.Empty;
+        private int currentPage = 1;
+        private bool loadingPage;
+        private bool hasMore = true;
 
         private readonly List<SkinRow> rows = new List<SkinRow>();
 
@@ -109,7 +117,7 @@ namespace osu.Game.Overlays.ReplayRender
                             {
                                 new[]
                                 {
-                                    new OsuScrollContainer
+                                    scroll = new OsuScrollContainer
                                     {
                                         RelativeSizeAxes = Axes.Both,
                                         ScrollbarVisible = true,
@@ -139,11 +147,11 @@ namespace osu.Game.Overlays.ReplayRender
             Current.BindValueChanged(e => updateSelectedLabel(e.NewValue), true);
         }
 
-        /// <summary>cada vez que se abre el panel: limpia la busqueda y trae las mas usadas.</summary>
+        /// <summary>cada vez que se abre el panel: limpia la busqueda y trae la primera pagina.</summary>
         public void Prime()
         {
             search.Current.Value = string.Empty;
-            runSearch(string.Empty);
+            resetAndSearch(string.Empty);
         }
 
         private void updateSelectedLabel(string skinId)
@@ -159,50 +167,80 @@ namespace osu.Game.Overlays.ReplayRender
         private void scheduleSearch(string query)
         {
             debounce?.Cancel();
-            debounce = Scheduler.AddDelayed(() => runSearch(query), 350);
+            debounce = Scheduler.AddDelayed(() => resetAndSearch(query), 350);
         }
 
-        private void runSearch(string query)
+        /// <summary>arranca una busqueda nueva desde la pagina 1 (limpia la lista).</summary>
+        private void resetAndSearch(string query)
         {
-            int token = ++searchToken;
-            var req = new SearchOrdrSkinsRequest(query);
+            searchToken++;
+            currentQuery = query ?? string.Empty;
+            currentPage = 1;
+            hasMore = true;
+            loadingPage = false;
+
+            rowsFlow.Clear();
+            rows.Clear();
+
+            // "Default (danser)" siempre primero: no vive en el catalogo de skins subidas.
+            addRow(new APIOrdrSkin { Skin = "default", Name = "Default (danser)", Author = "built-in" });
+
+            loadPage(1);
+        }
+
+        /// <summary>infinite scroll: al acercarse al fondo, pide la pagina siguiente.</summary>
+        protected override void Update()
+        {
+            base.Update();
+
+            if (scroll == null || loadingPage || !hasMore)
+                return;
+
+            // margen para pedir antes de tocar fondo, asi no se corta el scroll.
+            if (scroll.ScrollableExtent > 0 && scroll.Current >= scroll.ScrollableExtent - 80)
+                loadPage(currentPage + 1);
+        }
+
+        private void loadPage(int page)
+        {
+            if (loadingPage || !hasMore)
+                return;
+
+            loadingPage = true;
+            int token = searchToken;
+            var req = new SearchOrdrSkinsRequest(currentQuery, page);
 
             req.Success += list => Schedule(() =>
             {
                 if (IsDisposed || token != searchToken)
                     return;
 
-                populate(list, string.IsNullOrWhiteSpace(query));
+                var skins = list?.Skins ?? new List<APIOrdrSkin>();
+                int added = 0;
+
+                foreach (var s in skins)
+                {
+                    if (string.IsNullOrEmpty(s.Skin) || s.Skin == "default")
+                        continue;
+                    addRow(s);
+                    added++;
+                }
+
+                // si esta pagina no trajo nada, no hay mas (o!rdr devuelve vacio al pasarse).
+                hasMore = added > 0;
+                currentPage = page;
+                loadingPage = false;
+
+                foreach (var row in rows)
+                    row.SetSelected(row.SkinId == Current.Value);
             });
-            req.Failure += _ => { };
+            req.Failure += _ => Schedule(() =>
+            {
+                if (IsDisposed) return;
+                loadingPage = false; // reintentara al seguir scrolleando
+            });
 
             api?.Queue(req);
-        }
-
-        private void populate(APIOrdrSkinList list, bool emptyQuery)
-        {
-            rowsFlow.Clear();
-            rows.Clear();
-
-            var skins = list?.Skins ?? new List<APIOrdrSkin>();
-            if (emptyQuery)
-                skins = skins.OrderByDescending(s => s.TimesUsed).ToList();
-
-            // "Default (danser)" siempre arriba: es la opcion que mas se usa y no vive
-            // en el catalogo de skins subidas.
-            addRow(new APIOrdrSkin { Skin = "default", Name = "Default (danser)", Author = "built-in" });
-
-            foreach (var s in skins)
-            {
-                if (string.IsNullOrEmpty(s.Skin) || s.Skin == "default")
-                    continue;
-
-                addRow(s);
-            }
-
-            // resaltar la que ya estaba elegida (si sigue en la lista).
-            foreach (var row in rows)
-                row.SetSelected(row.SkinId == Current.Value);
         }
 
         private void addRow(APIOrdrSkin skin)
@@ -210,11 +248,23 @@ namespace osu.Game.Overlays.ReplayRender
             var row = new SkinRow(skin)
             {
                 OnPicked = id => pick(id),
-                OnHovered = s => previewBox.ShowSkin(s),
+                OnHovered = queuePreview,
                 OnOpenBrowser = url => game?.OpenUrlExternally(url),
             };
             rows.Add(row);
             rowsFlow.Add(row);
+        }
+
+        /// <summary>debounce del preview: solo carga la imagen si el cursor DESCANSA en la fila
+        /// ~400ms. asi barrer la lista con el mouse no dispara decenas de cargas (que laggean).</summary>
+        private void queuePreview(APIOrdrSkin skin)
+        {
+            previewDebounce?.Cancel();
+            previewDebounce = Scheduler.AddDelayed(() =>
+            {
+                if (!IsDisposed)
+                    previewBox.ShowSkin(skin);
+            }, 400);
         }
 
         private void pick(string skinId)
