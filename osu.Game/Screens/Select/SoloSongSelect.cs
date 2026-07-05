@@ -78,6 +78,11 @@ namespace osu.Game.Screens.Select
                 if (beatmap.GetOnlineURL(api, Ruleset.Value) is string url)
                     yield return new OsuMenuItem(CommonStrings.CopyLink, MenuItemType.Standard, () => game?.CopyToClipboard(url));
 
+                // torii: link al osu! oficial tambien desde la dificultad individual
+                // (ya estaba en la tarjeta del set, faltaba aca).
+                if (beatmap.GetOfficialOnlineURL(Ruleset.Value) is string osuUrl)
+                    yield return new OsuMenuItem("Copy osu! link", MenuItemType.Standard, () => game?.CopyToClipboard(osuUrl));
+
                 yield return new OsuMenuItemSpacer();
             }
 
