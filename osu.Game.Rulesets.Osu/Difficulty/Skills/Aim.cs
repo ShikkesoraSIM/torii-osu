@@ -73,9 +73,14 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
 
         private double calculateModAdjustedDifficulty(DifficultyHitObject current)
         {
+            //boolean needed to identify if Relax is active to pass the context down to geometric evaluators
+            bool isRelax = Mods.Any(m => m is OsuModRelax);
+
             double snapDifficulty = SnapAimEvaluator.EvaluateDifficultyOf(current, IncludeSliders) * skillMultiplierSnap;
             double agilityDifficulty = AgilityEvaluator.EvaluateDifficultyOf(current) * skillMultiplierAgility;
-            double flowDifficulty = FlowAimEvaluator.EvaluateDifficultyOf(current, IncludeSliders) * skillMultiplierFlow;
+
+            // Pass the isRelax flag to evaluate geometry correctly when relax is on
+            double flowDifficulty = FlowAimEvaluator.EvaluateDifficultyOf(current, IncludeSliders, isRelax) * skillMultiplierFlow;
 
             double totalDifficulty = calculateTotalValue(snapDifficulty, agilityDifficulty, flowDifficulty);
 
