@@ -33,7 +33,12 @@ namespace osu.Game.Database
         /// <summary>
         /// The maximum number of concurrent imports to run per import scheduler.
         /// </summary>
-        private const int import_queue_request_concurrency = 1;
+        // torii: upstream lo serializa a 1 a proposito. nosotros usamos cores-1 (dejando un core
+        // libre para no colgar la maquina) asi el import de beatmaps aprovecha toda la CPU. el trabajo
+        // pesado (descompresion, hash, difficulty) paraleliza; los writes a realm se serializan solos
+        // por el lock interno, asi que no hay corrupcion, solo algo de contencion. mismo criterio que
+        // el recalc de dificultad ("i paid for the whole cpu" = MaxCores en ToriiDifficultyRecalc).
+        private static readonly int import_queue_request_concurrency = Math.Max(1, Environment.ProcessorCount - 1);
 
         /// <summary>
         /// The minimum number of items in a single import call in order for the import to be processed as a batch.
