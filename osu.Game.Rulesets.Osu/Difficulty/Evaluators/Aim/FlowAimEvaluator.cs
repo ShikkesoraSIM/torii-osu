@@ -64,7 +64,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
                 //this is for washing machines type streams 
                 if (isRelax)
                 {
-                    // Trigger threshold lowered to 1.2 used to be  (catches even medium-sized circular abuse)
+                    // Trigger threshold highened to 1.2 used to be 1.0  (catches even medium-sized circular abuse)
                     if (currVelocity > 1.2)
                     {
                         //The wider the curve is the harsher will be the  flow aim nerf, killing abuse maps 
@@ -114,7 +114,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
                 double overlapVelocityBuff = Math.Min(OsuDifficultyHitObject.NORMALISED_DIAMETER * 1.25 / Math.Min(osuCurrObj.AdjustedDeltaTime, osuLastObj.AdjustedDeltaTime),
                     Math.Abs(prevVelocity - currVelocity));
 
-                // --- EXTREME RELAX CHEESE FIX 3: Acceleration Buff Nullification ---
+                //acceleration buff nerf
                 if (isRelax)
                 {
                     // Trivial to track acceleration/deceleration streams in Relax, reduce the buff by 80%
