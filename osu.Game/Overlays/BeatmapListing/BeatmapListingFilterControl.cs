@@ -51,9 +51,14 @@ namespace osu.Game.Overlays.BeatmapListing
         /// </summary>
         private bool noMoreResults;
 
-        private HashSet<int> downloadedBeatmapSetIds = new HashSet<int>();
+        /// <summary>
+        /// Whether there are more pages available from the API.
+        /// False when the cursor is exhausted. Used by the overlay to decide
+        /// whether to show a "not found" dead-end or fetch the next page.
+        /// </summary>
+        public bool HasMorePages => !noMoreResults;
 
-        private int notDownloadedRetries;
+        private HashSet<int> downloadedBeatmapSetIds = new HashSet<int>();
 
         /// <summary>
         /// The current page fetched of results (zero index).
@@ -463,18 +468,17 @@ namespace osu.Game.Overlays.BeatmapListing
                     sets = sets.Where(s => !downloadedIds.Contains(s.OnlineID)).ToList();
 
                     // If every result on this page was already downloaded but more pages
-                    // exist, auto-fetch the next one. Cap at 5 retries to limit API usage.
-                    if (sets.Count == 0 && response.Cursor != null && notDownloadedRetries < 5)
+                    // exist, skip to the next one. This only triggers when a page is
+                    // completely empty, which is a rare edge case — the API load is
+                    // equivalent to what the user would generate by manually paginating.
+                    if (sets.Count == 0 && response.Cursor != null)
                     {
-                        notDownloadedRetries++;
                         lastResponse = response;
                         getSetsRequest = null;
                         performRequest();
                         return;
                     }
                 }
-
-                notDownloadedRetries = 0;
 
                 if (response.Cursor == null)
                     noMoreResults = true;
@@ -521,8 +525,6 @@ namespace osu.Game.Overlays.BeatmapListing
             getSetsRequest = null;
 
             queryChangedDebounce?.Cancel();
-
-            notDownloadedRetries = 0;
         }
 
         protected override void Dispose(bool isDisposing)
