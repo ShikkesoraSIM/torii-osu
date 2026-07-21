@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
@@ -17,6 +18,8 @@ using osu.Framework.Localisation;
 using osu.Framework.Threading;
 using osu.Game.Beatmaps.Drawables.Cards;
 using osu.Game.Configuration;
+using osu.Game.Database;
+using osu.Game.Beatmaps;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
@@ -49,6 +52,15 @@ namespace osu.Game.Overlays.BeatmapListing
         private bool noMoreResults;
 
         /// <summary>
+        /// Whether there are more pages available from the API.
+        /// False when the cursor is exhausted. Used by the overlay to decide
+        /// whether to show a "not found" dead-end or fetch the next page.
+        /// </summary>
+        public bool HasMorePages => !noMoreResults;
+
+        private HashSet<int> downloadedBeatmapSetIds = new HashSet<int>();
+
+        /// <summary>
         /// The current page fetched of results (zero index).
         /// </summary>
         public int CurrentPage { get; private set; }
@@ -71,6 +83,9 @@ namespace osu.Game.Overlays.BeatmapListing
 
         [Resolved]
         private IAPIProvider api { get; set; }
+
+        [Resolved]
+        private RealmAccess realm { get; set; } = null!;
 
         private IBindable<APIUser> apiUser;
 
@@ -176,6 +191,11 @@ namespace osu.Game.Overlays.BeatmapListing
             searchControl.Extra.CollectionChanged += (_, _) => queueUpdateSearch();
             searchControl.Ranks.CollectionChanged += (_, _) => queueUpdateSearch();
             searchControl.Played.BindValueChanged(_ => queueUpdateSearch());
+            searchControl.Downloaded.BindValueChanged(_ =>
+            {
+                refreshDownloadedIds();
+                queueUpdateSearch();
+            });
             searchControl.ExplicitContent.BindValueChanged(_ => queueUpdateSearch());
 
             sortControl.Current.BindValueChanged(_ => queueUpdateSearch());
@@ -224,8 +244,205 @@ namespace osu.Game.Overlays.BeatmapListing
             }, queryTextChanged ? 500 : 100);
         }
 
+        /// <summary>
+        /// Refreshes the cached set of locally-downloaded beatmap set IDs.
+        /// Called when the Downloaded filter tab changes so the data stays
+        /// current if maps are imported or deleted while the listing is open.
+        /// </summary>
+        private void refreshDownloadedIds()
+        {
+            if (realm == null) return;
+
+            downloadedBeatmapSetIds = realm.Run(r =>
+            {
+                var sets = r.All<BeatmapSetInfo>()
+                .Where(s => !s.DeletePending && s.OnlineID > 0)
+                .AsEnumerable()
+                .ToList();
+
+                var ids = new HashSet<int>();
+                foreach (var s in sets)
+                    ids.Add(s.OnlineID);
+                return ids;
+            });
+        }
+
+        /// <summary>
+        /// Queries the local Realm database for downloaded beatmaps and converts them
+        /// to <see cref="APIBeatmapSet"/> objects for display. Used when the
+        /// "Downloaded" filter is active — no API calls needed.
+        /// </summary>
+        /// <remarks>
+        /// The following server-side filters have no local equivalent and are
+        /// silently ignored when "Downloaded" is active:
+        ///   - General (Recommended, Converts, Follows, Spotlights, Featured Artists)
+        ///   - Genre
+        ///   - Language
+        ///   - Extra (Video, Storyboard)
+        ///   - Ranks (score rank achieved)
+        ///   - Explicit Content
+        ///
+        /// These filters rely on data only available from the osu! API and are
+        /// not stored in the local beatmap database. Only Status (Category),
+        /// Ruleset, Played, and text search are applied to local results.
+        /// </remarks>
+        private void performLocalSearch()
+        {
+            var query = searchControl.Query.Value ?? string.Empty;
+            var category = searchControl.Category.Value;
+            var ruleset = searchControl.Ruleset.Value;
+            var played = searchControl.Played.Value;
+            var sortCriteria = sortControl.Current.Value;
+            var sortDirection = sortControl.SortDirection.Value;
+
+            // Run the heavy realm query + filtering + projection off the update thread
+            // to avoid hitching frames on large libraries.
+            Task.Run(() =>
+            {
+                var apiSets = realm.Run(r =>
+                {
+                    var sets = r.All<BeatmapSetInfo>()
+                    .Where(s => !s.DeletePending && s.OnlineID > 0)
+                    .AsEnumerable()
+                    .ToList();
+
+                    // --- Filter: Status (Category) ---
+                    if (category == SearchCategory.Leaderboard || category == SearchCategory.Ranked)
+                        sets = sets.Where(s =>
+                        s.Status == BeatmapOnlineStatus.Ranked ||
+                        s.Status == BeatmapOnlineStatus.Approved).ToList();
+                    else if (category == SearchCategory.Qualified)
+                        sets = sets.Where(s => s.Status == BeatmapOnlineStatus.Qualified).ToList();
+                    else if (category == SearchCategory.Loved)
+                        sets = sets.Where(s => s.Status == BeatmapOnlineStatus.Loved).ToList();
+                    else if (category == SearchCategory.Pending || category == SearchCategory.Wip)
+                        sets = sets.Where(s =>
+                        s.Status == BeatmapOnlineStatus.Pending ||
+                        s.Status == BeatmapOnlineStatus.WIP).ToList();
+                    else if (category == SearchCategory.Graveyard)
+                        sets = sets.Where(s => s.Status == BeatmapOnlineStatus.Graveyard).ToList();
+
+                    // --- Filter: Ruleset ---
+                    if (ruleset.OnlineID >= 0)
+                    {
+                        sets = sets.Where(s =>
+                        s.Beatmaps.Any(b => b.Ruleset.OnlineID == ruleset.OnlineID)
+                        ).ToList();
+                    }
+
+                    // --- Filter: Played / Unplayed ---
+                    if (played == SearchPlayed.Played)
+                        sets = sets.Where(s => s.Beatmaps.Any(b => b.LastPlayed != null)).ToList();
+                    else if (played == SearchPlayed.Unplayed)
+                        sets = sets.Where(s => s.Beatmaps.All(b => b.LastPlayed == null)).ToList();
+
+                    // --- Filter: Search text ---
+                    if (!string.IsNullOrWhiteSpace(query))
+                    {
+                        var terms = query.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        sets = sets.Where(s =>
+                        terms.All(t =>
+                        s.Beatmaps.Any(b =>
+                        (b.Metadata.Title ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.TitleUnicode ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.Artist ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.ArtistUnicode ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.Author.Username ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.Source ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        (b.Metadata.Tags ?? "").Contains(t, StringComparison.OrdinalIgnoreCase) ||
+                        b.OnlineID.ToString() == t
+                        )
+                        )
+                        ).ToList();
+                    }
+
+                    // Convert BeatmapSetInfo → APIBeatmapSet inside realm.Run
+                    return sets.Select(s =>
+                    {
+                        var first = s.Beatmaps.FirstOrDefault();
+                        return new APIBeatmapSet
+                        {
+                            OnlineID = s.OnlineID,
+                            Status = s.Status,
+                            Title = first?.Metadata.Title ?? "",
+                            TitleUnicode = first?.Metadata.TitleUnicode ?? "",
+                            Artist = first?.Metadata.Artist ?? "",
+                            ArtistUnicode = first?.Metadata.ArtistUnicode ?? "",
+                            AuthorString = first?.Metadata.Author.Username ?? "",
+                            AuthorID = first?.Metadata.Author.OnlineID ?? 0,
+                            Source = first?.Metadata.Source ?? "",
+                            Tags = first?.Metadata.Tags ?? "",
+                            BPM = first?.BPM ?? 0,
+                            Covers = new BeatmapSetOnlineCovers
+                            {
+                                CoverLowRes = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/cover.jpg",
+                                Cover = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/cover@2x.jpg",
+                                CardLowRes = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/card.jpg",
+                                Card = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/card@2x.jpg",
+                                ListLowRes = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/list.jpg",
+                                List = $"https://assets.ppy.sh/beatmaps/{s.OnlineID}/covers/list@2x.jpg",
+                            },
+                            Beatmaps = s.Beatmaps.Select(b => new APIBeatmap
+                            {
+                                DifficultyName = b.DifficultyName,
+                                StarRating = b.StarRating,
+                                OnlineID = b.OnlineID,
+                                Length = b.Length,
+                                BPM = b.BPM,
+                                CircleSize = b.Difficulty.CircleSize,
+                                ApproachRate = b.Difficulty.ApproachRate,
+                                OverallDifficulty = b.Difficulty.OverallDifficulty,
+                                DrainRate = b.Difficulty.DrainRate,
+                                RulesetID = b.Ruleset.OnlineID,
+                                Status = b.Status,
+                            }).ToArray(),
+                        };
+                    }).ToList();
+                });
+
+                // --- Sort ---
+                bool descending = sortDirection == SortDirection.Descending;
+                apiSets = sortCriteria switch
+                {
+                    SortCriteria.Title => descending
+                    ? apiSets.OrderByDescending(s => s.Title).ToList()
+                    : apiSets.OrderBy(s => s.Title).ToList(),
+                     SortCriteria.Artist => descending
+                     ? apiSets.OrderByDescending(s => s.Artist).ToList()
+                     : apiSets.OrderBy(s => s.Artist).ToList(),
+                     SortCriteria.Difficulty => descending
+                     ? apiSets.OrderByDescending(s => s.Beatmaps.Any() ? s.Beatmaps.Max(b => (double?)b.StarRating) ?? 0 : 0).ToList()
+                     : apiSets.OrderBy(s => s.Beatmaps.Any() ? s.Beatmaps.Max(b => (double?)b.StarRating) ?? 0 : 0).ToList(),
+                     SortCriteria.Updated => descending
+                     ? apiSets.OrderByDescending(s => s.LastUpdated ?? DateTimeOffset.MinValue).ToList()
+                     : apiSets.OrderBy(s => s.LastUpdated ?? DateTimeOffset.MinValue).ToList(),
+                     _ => apiSets.OrderByDescending(s => s.Ranked).ToList(),
+                };
+
+                // Marshal results back to the update thread
+                Scheduler.Add(() =>
+                {
+                    noMoreResults = true;
+
+                    if (apiSets.Count > 0)
+                        searchControl.BeatmapSet = apiSets.First();
+
+                    SearchFinished?.Invoke(SearchResult.ResultsReturned(apiSets));
+                });
+            });
+        }
+
         private void performRequest()
         {
+            // "Downloaded" filter: use local database only, no API calls needed.
+            if (searchControl.Downloaded.Value == SearchDownloaded.Downloaded)
+            {
+                performLocalSearch();
+                return;
+            }
+
+            var downloadedIds = downloadedBeatmapSetIds;
+
             getSetsRequest = new SearchBeatmapSetsRequest(
                 searchControl.Query.Value,
                 searchControl.Ruleset.Value,
@@ -245,8 +462,25 @@ namespace osu.Game.Overlays.BeatmapListing
             {
                 var sets = response.BeatmapSets.ToList();
 
-                // If the previous request returned a null cursor, the API is indicating we can't paginate further (maybe there are no more beatmaps left).
-                if (sets.Count == 0 || response.Cursor == null)
+                // Client-side filter: Not Downloaded
+                if (searchControl.Downloaded.Value == SearchDownloaded.NotDownloaded)
+                {
+                    sets = sets.Where(s => !downloadedIds.Contains(s.OnlineID)).ToList();
+
+                    // If every result on this page was already downloaded but more pages
+                    // exist, skip to the next one. This only triggers when a page is
+                    // completely empty, which is a rare edge case — the API load is
+                    // equivalent to what the user would generate by manually paginating.
+                    if (sets.Count == 0 && response.Cursor != null)
+                    {
+                        lastResponse = response;
+                        getSetsRequest = null;
+                        performRequest();
+                        return;
+                    }
+                }
+
+                if (response.Cursor == null)
                     noMoreResults = true;
 
                 if (CurrentPage == 0)
@@ -255,7 +489,6 @@ namespace osu.Game.Overlays.BeatmapListing
                 lastResponse = response;
                 getSetsRequest = null;
 
-                // check if a non-supporter used supporter-only filters
                 if (!api.LocalUser.Value.IsSupporter)
                 {
                     List<LocalisableString> filters = new List<LocalisableString>();

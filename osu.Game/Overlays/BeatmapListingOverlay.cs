@@ -167,9 +167,18 @@ namespace osu.Game.Overlays
 
             if (filterControl.CurrentPage == 0)
             {
-                //No matches case
+                //No matches case — but only dead-end if the API is truly exhausted
                 if (!newCards.Any())
                 {
+                    // If the API still has more pages, fetch the next one instead
+                    // of showing the NotFoundDrawable dead-end. This keeps the
+                    // scrollable content alive so the auto-fetch in Update()
+                    // can continue paginating.
+                    if (filterControl.HasMorePages)
+                    {
+                        filterControl.FetchNextPage();
+                        return;
+                    }
                     replaceResultsAreaContent(new NotFoundDrawable());
                     return;
                 }
