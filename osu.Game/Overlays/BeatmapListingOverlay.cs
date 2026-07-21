@@ -47,7 +47,7 @@ namespace osu.Game.Overlays
         private BeatmapListingFilterControl filterControl => Header.FilterControl;
 
         public BeatmapListingOverlay()
-        : base(OverlayColourScheme.Blue)
+            : base(OverlayColourScheme.Blue)
         {
         }
 
@@ -287,23 +287,23 @@ namespace osu.Game.Overlays
                     AutoSizeAxes = Axes.X,
                     Direction = FillDirection.Horizontal,
                     Spacing = new Vector2(10, 0),
-                            Children = new Drawable[]
-                            {
-                                new Sprite
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    RelativeSizeAxes = Axes.Both,
-                                    FillMode = FillMode.Fit,
-                                    Texture = textures.Get(@"Online/not-found")
-                                },
-                                new OsuSpriteText
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Text = BeatmapsStrings.ListingSearchNotFoundQuote,
-                                }
-                            }
+                    Children = new Drawable[]
+                    {
+                        new Sprite
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            RelativeSizeAxes = Axes.Both,
+                            FillMode = FillMode.Fit,
+                            Texture = textures.Get(@"Online/not-found")
+                        },
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = BeatmapsStrings.ListingSearchNotFoundQuote,
+                        }
+                    }
                 });
             }
         }
@@ -357,11 +357,11 @@ namespace osu.Game.Overlays
 
                 supporterRequiredText.AddText(
                     BeatmapsStrings.ListingSearchSupporterFilterQuoteDefault(string.Join(" and ", filtersUsed), "").ToString(),
-                                              t =>
-                                              {
-                                                  t.Font = OsuFont.GetFont(size: 16);
-                                                  t.Colour = Colour4.White;
-                                              }
+                    t =>
+                    {
+                        t.Font = OsuFont.GetFont(size: 16);
+                        t.Colour = Colour4.White;
+                    }
                 );
 
                 supporterRequiredText.AddLink(BeatmapsStrings.ListingSearchSupporterFilterQuoteLinkText.ToString(), @"/store/products/supporter-tag");
@@ -379,8 +379,8 @@ namespace osu.Game.Overlays
             const int pagination_scroll_distance = 500;
 
             bool shouldShowMore = panelLoadTask?.IsCompleted != false
-            && Time.Current - lastFetchDisplayedTime > time_between_fetches
-            && (ScrollFlow.ScrollableExtent > 0 && ScrollFlow.IsScrolledToEnd(pagination_scroll_distance));
+                                  && Time.Current - lastFetchDisplayedTime > time_between_fetches
+                                  && (ScrollFlow.ScrollableExtent > 0 && ScrollFlow.IsScrolledToEnd(pagination_scroll_distance));
 
             if (shouldShowMore)
                 filterControl.FetchNextPage();
