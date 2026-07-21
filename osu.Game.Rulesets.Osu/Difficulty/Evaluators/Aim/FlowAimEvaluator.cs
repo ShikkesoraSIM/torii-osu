@@ -14,10 +14,16 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
     {
         private const double velocity_change_multiplier = 0.52;
 
+        // Multipliers for flow aim on relax
+        private const double flow_angular_velocity_scale = 270.0;
+        private const double relax_washing_machine_velocity_threshold = 1.2; // Speed needed to define the difference between a normal stream and a washing machine
+        private const double relax_circularity_angular_threshold = 200.0; // How sharp a player cursor should move in order to be awarded for it
+        private const double relax_acceleration_buff_multiplier = 0.2; //How much of the acceleration difficulty bonus the player keeps when relax is on
+
         /// <summary>
         /// Evaluates difficulty of "flow aim" - aiming pattern where player doesn't stop their cursor on every object and instead "flows" through them.
         /// </summary>
-        public static double EvaluateDifficultyOf(DifficultyHitObject current, bool withSliderTravelDistance)
+        public static double EvaluateDifficultyOf(DifficultyHitObject current, bool withSliderTravelDistance, bool isRelax = false)
         {
             if (current.BaseObject is Spinner || current.Index <= 1 || current.Previous(0).BaseObject is Spinner)
                 return 0;
@@ -42,9 +48,11 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
 
             double flowDifficulty = currVelocity;
 
-            // Apply high circle size bonus to the base velocity.
-            // We use reduced CS bonus here because the bonus was made for an evaluator with a different d/t scaling
-            flowDifficulty *= Math.Sqrt(osuCurrObj.SmallCircleBonus);
+            // If Relax is active, I chose to completely strip the SmallCircleBonus for flowing objects. This can be heightened if it feels too harsh.
+            if (!isRelax)
+            {
+                flowDifficulty *= Math.Sqrt(osuCurrObj.SmallCircleBonus);
+            }
 
             // Rhythm changes are harder to flow
             flowDifficulty *= 1 + Math.Min(0.25,
@@ -57,7 +65,25 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
                 double angularVelocity = angleDifferenceAdjusted / (osuCurrObj.AdjustedDeltaTime * 0.1);
 
                 // Low angular velocity flow (angles are consistent) is easier to follow than erratic flow
-                flowDifficulty *= 0.8 + Math.Sqrt(angularVelocity / 270.0);
+                double angularMultiplier = 0.8 + Math.Sqrt(angularVelocity / flow_angular_velocity_scale);
+
+                // this is for washing machines type streams 
+                if (isRelax)
+                {
+                    // Trigger threshold heightened to 1.2 used to be 1.0 (catches even medium-sized circular abuse)
+                    if (currVelocity > relax_washing_machine_velocity_threshold)
+                    {
+                        // The wider the curve is the harsher will be the flow aim nerf, killing abuse maps 
+                        double flowConsistencyKeep = DifficultyCalculationUtils.Smoothstep(angularVelocity, 0, relax_circularity_angular_threshold);
+
+                        // Exponential velocity penalty: the larger the circle, the harder the multiplier drops, it should be able to kill pp completely at cs0 
+                        double velocityPenalty = Math.Pow(relax_washing_machine_velocity_threshold / currVelocity, 2);
+
+                        angularMultiplier *= flowConsistencyKeep + (1.0 - flowConsistencyKeep) * velocityPenalty;
+                    }
+                }
+
+                flowDifficulty *= angularMultiplier;
             }
 
             // If all three notes are overlapping - don't reward bonuses as you don't have to do additional movement
@@ -93,6 +119,13 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
                 // Reward for % distance up to 125 / strainTime for overlaps where velocity is still changing.
                 double overlapVelocityBuff = Math.Min(OsuDifficultyHitObject.NORMALISED_DIAMETER * 1.25 / Math.Min(osuCurrObj.AdjustedDeltaTime, osuLastObj.AdjustedDeltaTime),
                     Math.Abs(prevVelocity - currVelocity));
+
+                // acceleration buff nerf
+                if (isRelax)
+                {
+                    // Trivial to track acceleration/deceleration streams in Relax, reduce the buff by 80%
+                    overlapVelocityBuff *= relax_acceleration_buff_multiplier;
+                }
 
                 flowDifficulty += overlapVelocityBuff *
                                   distRatio *
