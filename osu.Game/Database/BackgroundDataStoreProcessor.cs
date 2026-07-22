@@ -88,7 +88,7 @@ namespace osu.Game.Database
             {
                 Logger.Log("Beginning background data store processing..");
 
-                clearOutdatedStarRatings();
+                reconcileDifficultyVersions();
                 populateMissingStarRatings();
                 processOnlineBeatmapSetsWithNoUpdate();
                 // Note that the previous method will also update these on a fresh run.
@@ -115,40 +115,287 @@ namespace osu.Game.Database
             });
         }
 
+        private const string recalc_journal_filename = @"torii-difficulty-recalc.journal";
+
+        // rulesets que necesitan recalculo COMPLETO in-place, separados por causa: el bump de NUESTRA
+        // version muestra el popup; el re-own tras un wipe ajeno y los resumes van en silencio.
+        private readonly HashSet<string> versionBumpRulesets = new HashSet<string>();
+        private readonly HashSet<string> foreignReownRulesets = new HashSet<string>();
+
+        // resume de una corrida interrumpida (journal privado): targets por ruleset + GUIDs pendientes.
+        private readonly Dictionary<string, int> journalTargets = new Dictionary<string, int>();
+        private readonly HashSet<Guid> journalRemaining = new HashSet<Guid>();
+
+        private readonly Dictionary<string, int> currentDifficultyVersions = new Dictionary<string, int>();
+
+        private readonly object journalLock = new object();
+
         /// <summary>
-        /// Check whether the databased difficulty calculation version matches the latest ruleset provided version.
-        /// If it doesn't, clear out any existing difficulties so they can be incrementally recalculated.
+        /// torii: reconciliacion de versiones de difficulty pensada para COMPARTIR la realm con el
+        /// cliente oficial. la clave: vanilla solo reacciona a dos cosas — el stamp compartido
+        /// (RulesetInfo.LastAppliedDifficultyVersion menor a su version => wipe total a -1) y las filas
+        /// con StarRating -1 (las repuebla con SU calculadora). nunca mira los valores. entonces:
+        ///  1. subimos el stamp compartido (solo hacia ARRIBA) al espejo de la version actual de
+        ///     upstream (<see cref="UpstreamDifficultyVersions"/>): vanilla nunca ve staleness.
+        ///  2. nuestra staleness vive en torii.ini (ToriiAppliedDifficultyVersions), nunca en la realm,
+        ///     y nuestros recalcs son IN-PLACE (jamas escribimos -1): no le dejamos trabajo colgado a
+        ///     vanilla si nos cortan a mitad de camino.
+        ///  3. si vanilla bumpeo el stamp desde la ultima vez que lo vimos (wipe ajeno, completo o
+        ///     cancelado), re-adueniamos el ruleset entero en silencio con el modo de CPU guardado.
+        /// resultado: torii->vanilla no dispara nada, vanilla->torii solo recalcula si NUESTRA version
+        /// cambio de verdad (popup) o si vanilla piso valores (silencioso). el ping-pong muere.
         /// </summary>
-        private void clearOutdatedStarRatings()
+        private void reconcileDifficultyVersions()
         {
+            loadRecalcJournal();
+
+            var applied = parseVersionMap(config.Get<string>(OsuSetting.ToriiAppliedDifficultyVersions));
+            var seen = parseVersionMap(config.Get<string>(OsuSetting.ToriiSeenRealmDifficultyVersions));
+
+            // primer arranque con stamps privados (build nueva sobre DB existente o DB vanilla ajeno).
+            bool firstBoot = applied.Count == 0 && journalTargets.Count == 0;
+
             foreach (var ruleset in rulesetStore.AvailableRulesets)
             {
+                string shortName = ruleset.ShortName;
+
                 // beatmap being passed in is arbitrary here. just needs to be non-null.
                 int currentVersion = ruleset.CreateInstance().CreateDifficultyCalculator(gameBeatmap.Value).Version;
+                currentDifficultyVersions[shortName] = currentVersion;
 
-                if (ruleset.LastAppliedDifficultyVersion < currentVersion)
+                // stamp compartido: solo lo SUBIMOS al espejo de upstream (nunca escribimos nuestra
+                // version ni lo bajamos). con stamp >= a la version de vanilla, vanilla no wipea nada.
+                int mirror = UpstreamDifficultyVersions.For(shortName);
+
+                if (ruleset.LastAppliedDifficultyVersion < mirror)
                 {
-                    Logger.Log($"Resetting star ratings for {ruleset.Name} (difficulty calculation version updated from {ruleset.LastAppliedDifficultyVersion} to {currentVersion})");
+                    realmAccess.Write(r => r.Find<RulesetInfo>(shortName)!.LastAppliedDifficultyVersion = mirror);
+                    Logger.Log($"[difficulty] stamp compartido de {shortName} subido a {mirror} (espejo upstream, protege al cliente oficial)");
+                }
 
-                    int countReset = 0;
+                if (firstBoot)
+                    continue;
 
-                    realmAccess.Write(r =>
-                    {
-                        foreach (var b in r.All<BeatmapInfo>())
-                        {
-                            if (b.Ruleset.ShortName == ruleset.ShortName)
-                            {
-                                b.StarRating = -1;
-                                countReset++;
-                            }
-                        }
+                // resume: si quedo journal para este ruleset hay una corrida a medias — se retoma en
+                // silencio (la eleccion de CPU ya se hizo aquella vez), sin re-flaggear el bump.
+                if (journalTargets.ContainsKey(shortName))
+                    continue;
 
-                        r.Find<RulesetInfo>(ruleset.ShortName)!.LastAppliedDifficultyVersion = currentVersion;
-                    });
+                if (applied.GetValueOrDefault(shortName) < currentVersion)
+                {
+                    Logger.Log($"[difficulty] version torii de {shortName} cambio ({applied.GetValueOrDefault(shortName)} -> {currentVersion}): recalc completo con popup");
+                    versionBumpRulesets.Add(shortName);
+                    continue;
+                }
 
-                    Logger.Log($"Finished resetting {countReset} beatmap sets for {ruleset.Name}");
+                // wipe ajeno: el stamp de la realm cambio desde la ultima vez que lo vimos => vanilla
+                // recalculo (completo o cancelado, dejando -1s y/o valores suyos). re-own silencioso.
+                int realmStamp = realmAccess.Run(r => r.Find<RulesetInfo>(shortName)?.LastAppliedDifficultyVersion ?? 0);
+                int lastSeen = seen.GetValueOrDefault(shortName);
+
+                if (lastSeen != 0 && realmStamp != lastSeen)
+                {
+                    Logger.Log($"[difficulty] stamp compartido de {shortName} cambio afuera ({lastSeen} -> {realmStamp}): re-own silencioso de los star ratings");
+                    foreignReownRulesets.Add(shortName);
                 }
             }
+
+            if (firstBoot)
+                runFirstBootDifficultyMigration(applied, seen);
+        }
+
+        /// <summary>
+        /// migracion one-shot: sampleamos ~30 mapas por ruleset y comparamos el SR guardado contra
+        /// nuestra calculadora. si todo matchea, el DB ya es torii y sellamos el stamp privado SIN
+        /// recalcular (el caso comun al actualizar); si no, es un DB con valores ajenos y se flaggea
+        /// el recalc completo con popup (onboarding normal sobre un DB de vanilla).
+        /// </summary>
+        private void runFirstBootDifficultyMigration(Dictionary<string, int> applied, Dictionary<string, int> seen)
+        {
+            Logger.Log("[difficulty] primera corrida con stamps privados: sampleando SR guardados para ver de que calculadora son");
+
+            foreach (var rulesetInfo in rulesetStore.AvailableRulesets)
+            {
+                string shortName = rulesetInfo.ShortName;
+
+                var candidates = new List<Guid>();
+
+                realmAccess.Run(r =>
+                {
+                    foreach (var b in r.All<BeatmapInfo>().Where(b => b.StarRating >= 0 && b.BeatmapSet != null))
+                    {
+                        if (b.Ruleset.ShortName == shortName)
+                            candidates.Add(b.ID);
+                    }
+                });
+
+                bool matches = true;
+
+                if (candidates.Count > 0)
+                {
+                    var ruleset = rulesetInfo.CreateInstance();
+                    int step = Math.Max(1, candidates.Count / 30);
+
+                    for (int i = 0; i < candidates.Count; i += step)
+                    {
+                        var beatmap = realmAccess.Run(r => r.Find<BeatmapInfo>(candidates[i])?.Detach());
+
+                        if (beatmap == null)
+                            continue;
+
+                        try
+                        {
+                            double stored = beatmap.StarRating;
+                            double computed = ruleset.CreateDifficultyCalculator(beatmapManager.GetWorkingBeatmap(beatmap)).Calculate().StarRating;
+
+                            if (Math.Abs(stored - computed) > 0.005)
+                            {
+                                matches = false;
+                                break;
+                            }
+                        }
+                        catch
+                        {
+                            // mapa corrupto: no cuenta para la decision.
+                        }
+                    }
+                }
+
+                if (matches)
+                {
+                    applied[shortName] = currentDifficultyVersions.GetValueOrDefault(shortName);
+                    Logger.Log($"[difficulty] {shortName}: los SR guardados ya son nuestros, sello sin recalcular");
+                }
+                else
+                {
+                    Logger.Log($"[difficulty] {shortName}: los SR guardados son de otra calculadora, recalc completo con popup");
+                    versionBumpRulesets.Add(shortName);
+                }
+
+                seen[shortName] = realmAccess.Run(r => r.Find<RulesetInfo>(shortName)?.LastAppliedDifficultyVersion ?? 0);
+            }
+
+            config.SetValue(OsuSetting.ToriiAppliedDifficultyVersions, formatVersionMap(applied));
+            config.SetValue(OsuSetting.ToriiSeenRealmDifficultyVersions, formatVersionMap(seen));
+        }
+
+        private static Dictionary<string, int> parseVersionMap(string packed)
+        {
+            var result = new Dictionary<string, int>();
+
+            foreach (string part in (packed ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                int i = part.IndexOf(':');
+
+                if (i > 0 && int.TryParse(part[(i + 1)..], out int v))
+                    result[part[..i]] = v;
+            }
+
+            return result;
+        }
+
+        private static string formatVersionMap(Dictionary<string, int> map)
+            => string.Join(',', map.Select(kv => $"{kv.Key}:{kv.Value}"));
+
+        private void loadRecalcJournal()
+        {
+            try
+            {
+                if (!storage.Exists(recalc_journal_filename))
+                    return;
+
+                using (var stream = storage.GetStream(recalc_journal_filename))
+                using (var reader = new System.IO.StreamReader(stream))
+                {
+                    string? header = reader.ReadLine();
+
+                    if (string.IsNullOrEmpty(header))
+                        return;
+
+                    foreach (var kv in parseVersionMap(header))
+                        journalTargets[kv.Key] = kv.Value;
+
+                    string? line;
+
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        if (Guid.TryParse(line, out var id))
+                            journalRemaining.Add(id);
+                    }
+                }
+
+                Logger.Log($"[difficulty] journal encontrado: {journalRemaining.Count} mapas pendientes de una corrida anterior ({string.Join(", ", journalTargets.Keys)})");
+            }
+            catch (Exception e)
+            {
+                // journal corrupto: lo ignoramos; los stamps privados viejos re-flaggean el recalc
+                // completo del ruleset que corresponda (redo total, seguro aunque lento).
+                Logger.Log($"[difficulty] journal ilegible, se descarta: {e.Message}");
+                journalTargets.Clear();
+                journalRemaining.Clear();
+            }
+        }
+
+        private void writeRecalcJournal(Dictionary<string, int> targets, HashSet<Guid> remaining)
+        {
+            try
+            {
+                lock (journalLock)
+                {
+                    Guid[] snapshot;
+
+                    lock (remaining)
+                        snapshot = remaining.ToArray();
+
+                    using (var stream = storage.CreateFileSafely(recalc_journal_filename))
+                    using (var writer = new System.IO.StreamWriter(stream))
+                    {
+                        writer.WriteLine(formatVersionMap(targets));
+
+                        foreach (var id in snapshot)
+                            writer.WriteLine(id.ToString());
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"[difficulty] no pude escribir el journal: {e.Message}");
+            }
+        }
+
+        private void deleteRecalcJournal()
+        {
+            try
+            {
+                if (storage.Exists(recalc_journal_filename))
+                    storage.Delete(recalc_journal_filename);
+            }
+            catch
+            {
+            }
+        }
+
+        /// <summary>
+        /// sella los stamps privados tras una corrida completa: Applied para los rulesets recalculados
+        /// y SeenRealm con los stamps actuales de la realm (para detectar el proximo wipe ajeno).
+        /// </summary>
+        private void persistDifficultyStamps(Dictionary<string, int> completedTargets)
+        {
+            var applied = parseVersionMap(config.Get<string>(OsuSetting.ToriiAppliedDifficultyVersions));
+
+            foreach (var kv in completedTargets)
+                applied[kv.Key] = kv.Value;
+
+            var seen = new Dictionary<string, int>();
+
+            realmAccess.Run(r =>
+            {
+                foreach (var ruleset in rulesetStore.AvailableRulesets)
+                    seen[ruleset.ShortName] = r.Find<RulesetInfo>(ruleset.ShortName)?.LastAppliedDifficultyVersion ?? 0;
+            });
+
+            config.SetValue(OsuSetting.ToriiAppliedDifficultyVersions, formatVersionMap(applied));
+            config.SetValue(OsuSetting.ToriiSeenRealmDifficultyVersions, formatVersionMap(seen));
         }
 
         /// <remarks>
@@ -162,20 +409,60 @@ namespace osu.Game.Database
 
             Logger.Log("Querying for beatmaps with missing star ratings...");
 
+            // sentinels -1: imports frescos o los restos de un wipe ajeno cancelado. NOSOTROS nunca
+            // escribimos -1 (los recalcs torii son in-place, ver reconcileDifficultyVersions).
             realmAccess.Run(r =>
             {
                 foreach (var b in r.All<BeatmapInfo>().Where(b => b.StarRating < 0 && b.BeatmapSet != null))
                     beatmapIds.Add(b.ID);
             });
 
-            // torii: avisamos al popup de arranque cuantos mapas hay (0 = ninguno) y, si hay, esperamos la
-            // eleccion de cuanta CPU usar antes de arrancar. si ya eligio antes usamos su modo guardado.
-            ToriiDifficultyRecalcCoordinator.AnnouncePending(beatmapIds.Count);
+            // rulesets enteros flaggeados (bump de nuestra version / re-own tras wipe ajeno).
+            var fullRulesets = new HashSet<string>(versionBumpRulesets);
+            fullRulesets.UnionWith(foreignReownRulesets);
+
+            if (fullRulesets.Count > 0)
+            {
+                realmAccess.Run(r =>
+                {
+                    foreach (var b in r.All<BeatmapInfo>().Where(b => b.BeatmapSet != null))
+                    {
+                        if (fullRulesets.Contains(b.Ruleset.ShortName))
+                            beatmapIds.Add(b.ID);
+                    }
+                });
+            }
+
+            // resume de una corrida interrumpida.
+            beatmapIds.UnionWith(journalRemaining);
+
+            // torii: avisamos al popup de arranque cuantos mapas hay (0 = ninguno). el popup SOLO se
+            // muestra cuando nuestra propia version cambio (bump); wipes ajenos, resumes y backfills de
+            // imports corren en silencio con el modo de CPU ya guardado.
+            bool interactive = versionBumpRulesets.Count > 0;
+            ToriiDifficultyRecalcCoordinator.AnnouncePending(beatmapIds.Count, interactive);
 
             if (beatmapIds.Count == 0)
+            {
+                // nada que hacer: igual actualizamos el "ultimo stamp visto" para la deteccion de wipes.
+                persistDifficultyStamps(new Dictionary<string, int>());
                 return;
+            }
 
             Logger.Log($"Found {beatmapIds.Count} beatmaps which require star rating reprocessing.");
+
+            // journal: si hay rulesets enteros en juego, anotamos el progreso en storage privado para
+            // retomar sin re-preguntar si esta corrida se corta (crash / cierre / cancel).
+            var journalTargetsToWrite = new Dictionary<string, int>(journalTargets);
+
+            foreach (string s in fullRulesets)
+                journalTargetsToWrite[s] = currentDifficultyVersions.GetValueOrDefault(s);
+
+            bool useJournal = journalTargetsToWrite.Count > 0;
+            var remaining = useJournal ? new HashSet<Guid>(beatmapIds) : null;
+
+            if (useJournal)
+                writeRecalcJournal(journalTargetsToWrite, remaining!);
 
             ToriiDifficultyRecalcMode recalcMode = resolveDifficultyRecalcMode();
             int parallelism = ToriiDifficultyRecalc.ParallelismFor(recalcMode);
@@ -228,15 +515,51 @@ namespace osu.Game.Database
                     int done = Interlocked.Increment(ref processedCount);
                     if (done % 25 == 0 || done == beatmapIds.Count)
                         updateNotificationProgress(notification, done, beatmapIds.Count);
+
+                    if (remaining != null)
+                    {
+                        int left;
+
+                        lock (remaining)
+                        {
+                            remaining.Remove(id);
+                            left = remaining.Count;
+                        }
+
+                        // snapshot periodico del journal, asi un corte pierde como mucho ~500 mapas.
+                        if (done % 500 == 0 && left > 0)
+                            writeRecalcJournal(journalTargetsToWrite, remaining);
+                    }
                 }
                 catch (Exception e)
                 {
                     Logger.Log($"Background processing failed on {beatmap}: {e}");
                     Interlocked.Increment(ref failedCount);
+
+                    // un mapa corrupto no debe trabar el resume para siempre: lo damos por visto.
+                    if (remaining != null)
+                    {
+                        lock (remaining)
+                            remaining.Remove(id);
+                    }
                 }
             });
 
             completeNotification(notification, processedCount, beatmapIds.Count, failedCount);
+
+            bool cancelled = notification?.State == ProgressNotificationState.Cancelled;
+
+            if (!cancelled)
+            {
+                // corrida completa: sellamos stamps privados y limpiamos el journal.
+                deleteRecalcJournal();
+                persistDifficultyStamps(journalTargetsToWrite);
+            }
+            else if (useJournal)
+            {
+                // cancelada: snapshot final para retomar (en silencio) el proximo arranque.
+                writeRecalcJournal(journalTargetsToWrite, remaining!);
+            }
         }
 
         private ToriiDifficultyRecalcMode resolveDifficultyRecalcMode()

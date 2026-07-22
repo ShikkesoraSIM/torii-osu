@@ -75,6 +75,16 @@ namespace osu.Game.Overlays.ToriiBriefing
         {
             int count = ToriiDifficultyRecalcCoordinator.PendingCount;
 
+            // corrida silenciosa (re-own tras un wipe del cliente oficial / resume / backfill de
+            // imports): la eleccion de CPU ya se hizo alguna vez, la respetamos sin popup.
+            if (!ToriiDifficultyRecalcCoordinator.PendingInteractive)
+            {
+                ToriiDifficultyRecalcCoordinator.Choose(count < 200
+                    ? ToriiDifficultyRecalcMode.LazerDefault
+                    : config.Get<ToriiDifficultyRecalcMode>(OsuSetting.ToriiDifficultyRecalcMode));
+                return;
+            }
+
             // pocos mapas: el recalculo es trivial, no molestamos con el popup. modo gentil y listo.
             if (count < 200)
             {

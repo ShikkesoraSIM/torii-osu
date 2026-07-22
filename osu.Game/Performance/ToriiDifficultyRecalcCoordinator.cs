@@ -21,23 +21,31 @@ namespace osu.Game.Performance
     /// </summary>
     public static class ToriiDifficultyRecalcCoordinator
     {
-        private static readonly TaskCompletionSource<int> pending_ready =
-            new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private static readonly TaskCompletionSource<(int count, bool interactive)> pending_ready =
+            new TaskCompletionSource<(int, bool)>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private static readonly TaskCompletionSource<ToriiDifficultyRecalcMode> choice =
             new TaskCompletionSource<ToriiDifficultyRecalcMode>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>
-        /// Se completa con la cantidad de mapas que necesitan recalculo (0 si ninguno). La UI espera esto
-        /// para decidir si mostrar el popup. Llamado una sola vez por el processor.
+        /// Se completa con la cantidad de mapas que necesitan recalculo (0 si ninguno) y si la corrida
+        /// amerita popup. La UI espera esto para decidir si mostrar. Llamado una sola vez por el processor.
         /// </summary>
-        public static Task<int> PendingReady => pending_ready.Task;
+        public static Task<(int count, bool interactive)> PendingReady => pending_ready.Task;
 
         /// <summary>Cantidad de mapas pendientes una vez que <see cref="PendingReady"/> resolvio (0 si no).</summary>
-        public static int PendingCount => pending_ready.Task.IsCompletedSuccessfully ? pending_ready.Task.GetResultSafely() : 0;
+        public static int PendingCount => pending_ready.Task.IsCompletedSuccessfully ? pending_ready.Task.GetResultSafely().count : 0;
 
-        /// <summary>processor: anuncia cuantos mapas hay que recalcular (0 = ninguno).</summary>
-        public static void AnnouncePending(int count) => pending_ready.TrySetResult(count);
+        /// <summary>
+        /// true solo cuando la causa del recalculo es un cambio de version de difficulty de TORII (ahi
+        /// si corresponde preguntar cuanta CPU usar). false = corrida silenciosa (re-own tras un wipe
+        /// del cliente oficial sobre la DB compartida, resume de una corrida cortada, o backfill de
+        /// imports): se usa el modo ya guardado sin molestar.
+        /// </summary>
+        public static bool PendingInteractive => pending_ready.Task.IsCompletedSuccessfully && pending_ready.Task.GetResultSafely().interactive;
+
+        /// <summary>processor: anuncia cuantos mapas hay que recalcular (0 = ninguno) y si va popup.</summary>
+        public static void AnnouncePending(int count, bool interactive) => pending_ready.TrySetResult((count, interactive));
 
         /// <summary>UI: el usuario eligio un modo (o se cerro el popup -> el caller pasa el default).</summary>
         public static void Choose(ToriiDifficultyRecalcMode mode) => choice.TrySetResult(mode);
