@@ -25,6 +25,16 @@ namespace osu.Game.Localisation
         public static LocalisableString SnakingOutSliders => new TranslatableString(getKey(@"snaking_out_sliders"), @"Snaking out sliders");
 
         /// <summary>
+        /// "Hit animations"
+        /// </summary>
+        public static LocalisableString HitAnimations => new TranslatableString(getKey(@"hit_animations"), @"Hit animations");
+
+        /// <summary>
+        /// "When enabled, hit circles will play an animation when hit. When disabled, they will disappear almost immediately."
+        /// </summary>
+        public static LocalisableString HitAnimationsOsuTooltip => new TranslatableString(getKey(@"hit_animations_osu_tooltip"), @"When enabled, hit circles will play an animation when hit. When disabled, they will disappear almost immediately.");
+
+        /// <summary>
         /// "Cursor trail"
         /// </summary>
         public static LocalisableString CursorTrail => new TranslatableString(getKey(@"cursor_trail"), @"Cursor trail");

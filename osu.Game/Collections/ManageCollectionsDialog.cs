@@ -3,12 +3,14 @@
 
 using System;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -52,9 +54,10 @@ namespace osu.Game.Collections
         {
             Children = new Drawable[]
             {
-                new Box
+                // torii dark glass: fondo del dialog de colecciones como vidrio
+                new GlassBackdrop
                 {
-                    Colour = colours.GreySeaFoamDark,
+                    TintColour = colours.GreySeaFoamDark.Opacity(ThemeAware.GlassAlpha(0.8f)),
                     RelativeSizeAxes = Axes.Both,
                 },
                 new Container

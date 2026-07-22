@@ -947,6 +947,16 @@ namespace osu.Game.Screens.Play
         /// <remarks>
         /// A final display will only occur once all work is completed in <see cref="PrepareScoreForResultsAsync"/>. This means that even after calling this method, the results screen will never be shown until <see cref="JudgementProcessor.HasCompleted">ScoreProcessor.HasCompleted</see> becomes <see langword="true"/>.
         /// </remarks>
+        /// <summary>
+        /// torii: whether this player pushes its own (solo/multiplayer) results screen when the score
+        /// completes. Ranked play (matchmaking card-duel) muestra sus resultados via la transicion de
+        /// stage server-driven del RankedPlayScreen, y su Player hace Exit() apenas termina el score;
+        /// devolviendo false evitamos el race Exit()-vs-push que dejaba a un cliente en el results
+        /// generico (AccuracyCircle) con rank "#-1" en vez del results de ranked. NO tocamos
+        /// Configuration.ShowResults (false ahi deadlockearia el match: nunca se dispara FinishedPlay).
+        /// </summary>
+        protected virtual bool DisplayResultsScreenOnCompletion => true;
+
         /// <param name="withDelay">Whether a minimum delay (<see cref="RESULTS_DISPLAY_DELAY"/>) should be added before the screen is displayed.</param>
         private void progressToResults(bool withDelay)
         {
@@ -983,6 +993,12 @@ namespace osu.Game.Screens.Play
 
                 if (!this.IsCurrentScreen())
                     // This player instance may already be in the process of exiting.
+                    return;
+
+                // torii: ranked play no empuja su propio results (lo hace el RankedPlayScreen via
+                // el broadcast de stage del server). el score YA se preparo/envio arriba, solo
+                // saltamos la pantalla; ScreenGameplay hace Exit() y vuelve al RankedPlayScreen.
+                if (!DisplayResultsScreenOnCompletion)
                     return;
 
                 OnShowingResults?.Invoke();

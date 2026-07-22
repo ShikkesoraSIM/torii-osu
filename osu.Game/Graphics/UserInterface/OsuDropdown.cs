@@ -14,6 +14,7 @@ using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Input.Bindings;
@@ -73,10 +74,21 @@ namespace osu.Game.Graphics.UserInterface
                 ItemsContainer.Padding = new MarginPadding(5);
             }
 
+            // torii DARK GLASS: backdrop de vidrio para el fondo del dropdown (blur de lo que hay detras).
+            private GlassBackdrop? glassBackground;
+
+            protected override Drawable CreateMenuBackground()
+                => OsuColour.IsGlassTheme ? glassBackground = new GlassBackdrop() : base.CreateMenuBackground();
+
             [BackgroundDependencyLoader(true)]
             private void load(OverlayColourProvider? colourProvider, OsuColour colours, AudioManager audio)
             {
-                BackgroundColour = colourProvider?.Background5 ?? Color4.Black;
+                // torii dark glass: rutear el color de fondo al tinte del GlassBackdrop (no a .Colour, que tintaria el blur).
+                if (glassBackground != null)
+                    glassBackground.TintColour = (colourProvider?.Background5 ?? Color4.Black).Opacity(0.85f);
+                else
+                    BackgroundColour = colourProvider?.Background5 ?? Color4.Black;
+
                 HoverColour = colourProvider?.Light4 ?? colours.PinkDarker;
                 SelectionColour = colourProvider?.Background3 ?? colours.PinkDarker.Opacity(0.5f);
 
