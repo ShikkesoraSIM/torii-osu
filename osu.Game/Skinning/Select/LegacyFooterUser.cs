@@ -15,6 +15,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 using osu.Game.Rulesets;
@@ -37,6 +38,9 @@ namespace osu.Game.Skinning.Select
 
         [Resolved]
         private LocalUserStatisticsProvider userStatisticsProvider { get; set; } = null!;
+
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
@@ -130,18 +134,21 @@ namespace osu.Game.Skinning.Select
         {
             var statistics = userStatisticsProvider.GetStatisticsFor(ruleset.Value);
 
-            currentUser = statistics?.User;
+            // sin estadisticas todavia (recien logueado / offline pero con sesion): igual mostramos
+            // avatar y nombre del usuario local, como stable, en vez de un panel vacio.
+            currentUser = statistics?.User ?? (api.IsLoggedIn ? api.LocalUser.Value : null);
+            avatar.User = currentUser;
 
             if (statistics == null)
             {
-                usernameText.Text = string.Empty;
+                usernameText.Text = currentUser?.Username ?? string.Empty;
                 infoText.Text = string.Empty;
                 rankText.Text = string.Empty;
                 rulesetIcon.Hide();
             }
             else
             {
-                usernameText.Text = statistics.User.Username;
+                usernameText.Text = currentUser?.Username ?? string.Empty;
                 infoText.Clear();
                 infoText.AddText($"Performance:{statistics.PP:N0}pp");
                 infoText.NewLine();
@@ -182,7 +189,6 @@ namespace osu.Game.Skinning.Select
                     levelBar.Show();
                 }
 
-                avatar.User = statistics.User;
             }
         }
 

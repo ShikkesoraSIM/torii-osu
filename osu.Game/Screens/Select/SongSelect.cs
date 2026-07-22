@@ -32,6 +32,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Collections;
 using osu.Game.Configuration;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Carousel;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
@@ -115,6 +116,23 @@ namespace osu.Game.Screens.Select
         [Cached]
         private readonly OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Blue);
 
+        // torii DARK GLASS: fuente compartida del blur (frost) para los paneles del carousel (solo con glass).
+        private PanelBackdrop? panelBackdrop;
+        private DependencyContainer dependencies = null!;
+
+        protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        {
+            dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+
+            if (OsuColour.IsGlassTheme && !Performance.PotatoMode.Active)
+            {
+                panelBackdrop = new PanelBackdrop(4f);
+                dependencies.CacheAs<IPanelBackdrop>(panelBackdrop);
+            }
+
+            return dependencies;
+        }
+
         private BeatmapCarousel carousel = null!;
 
         protected FilterControl FilterControl { get; private set; } = null!;
@@ -137,6 +155,7 @@ namespace osu.Game.Screens.Select
         private Bindable<GroupMode> legacyGroupCollapseWatcher = null!;
         private Drawable legacyTopContainer = null!;
         private Drawable legacyLeaderboardContainer = null!;
+        private Drawable legacyModsContainer = null!;
         private Box rightGradientBackground = null!;
         private Container mainContent = null!;
         private SkinnableContainer skinnableContent = null!;
@@ -213,6 +232,10 @@ namespace osu.Game.Screens.Select
             customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Blue.GetHue(), CustomUiHueScope.Menu, api);
 
             errorSample = audio.Samples.Get(@"UI/generic-error");
+
+            // torii dark glass: fuente compartida del blur (invisible), atras de todo.
+            if (panelBackdrop != null)
+                AddInternal(panelBackdrop);
 
             AddRangeInternal(new Drawable[]
             {
@@ -396,6 +419,17 @@ namespace osu.Game.Screens.Select
                         },
                     },
                 },
+                // Torii: el readout de mods activos estilo stable (texto semi-transparente arriba
+                // del footer), en el mismo espacio 1366x768. no depende del skin, asi que no
+                // participa del rebuild del chrome.
+                legacyModsContainer = new DrawSizePreservingFillContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    TargetDrawSize = new Vector2(1366, 768),
+                    Strategy = DrawSizePreservationStrategy.Minimum,
+                    Alpha = 0,
+                    Child = new LegacyModsList { RelativeSizeAxes = Axes.Both },
+                },
                 modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
             });
 
@@ -453,6 +487,7 @@ namespace osu.Game.Screens.Select
             wedgesContainer.FadeTo(legacy ? 0 : 1, 200, Easing.OutQuint);
             legacyTopContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
             legacyLeaderboardContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
+            legacyModsContainer.FadeTo(legacy ? 1 : 0, 200, Easing.OutQuint);
 
             // torii: cuando el area es mas ancha que 16:9 (tipico con la nav-bar arriba) letterboxeamos
             // TODO el screen+footer juntos via el ScalingContainer, asi todo (carousel, chrome, footer,
@@ -1096,7 +1131,7 @@ namespace osu.Game.Screens.Select
             backgroundModeBeatmap.FadeColour(Color4.White, 250);
 
             bool backgroundRevealActive = revealBackgroundDelegate?.State == ScheduledDelegate.RunState.Running || revealBackgroundDelegate?.State == ScheduledDelegate.RunState.Complete;
-            backgroundModeBeatmap.BlurAmount.Value = configBackgroundBlur.Value && !backgroundRevealActive ? 20 : 0f;
+            backgroundModeBeatmap.BlurAmount.Value = configBackgroundBlur.Value && !backgroundRevealActive ? 20f : 0f;
         });
 
         #endregion
@@ -1453,7 +1488,7 @@ namespace osu.Game.Screens.Select
 
         #region Implementation of ISongSelect
 
-        void ISongSelect.Search(string query) => FilterControl.Search(query);
+        void ISongSelect.AddToSearch(string query) => FilterControl.AddToSearch(query);
 
         bool ISongSelect.CanPresentScore => true;
 
@@ -1558,11 +1593,7 @@ namespace osu.Game.Screens.Select
 
         public void Delete(BeatmapSetInfo beatmapSet) => dialogOverlay?.Push(new BeatmapDeleteDialog(beatmapSet));
 
-        public void RestoreAllHidden(BeatmapSetInfo beatmapSet)
-        {
-            foreach (var b in beatmapSet.Beatmaps)
-                beatmaps.Restore(b);
-        }
+        public void RestoreAllHidden(BeatmapSetInfo beatmapSet) => beatmaps.Restore(beatmapSet);
 
         private GroupedBeatmap? beforeScopedSelection;
 

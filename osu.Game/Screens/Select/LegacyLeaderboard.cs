@@ -59,6 +59,16 @@ namespace osu.Game.Screens.Select
         private InputManager inputManager = null!;
         private bool wasLeaderboardHovered;
 
+        // el scope que el usuario quiere para mapas con leaderboard online (Global por default si
+        // esta logueado, como stable); los mapas sin leaderboard fuerzan Local sin pisar esta preferencia.
+        private BeatmapLeaderboardScope preferredScope = BeatmapLeaderboardScope.Local;
+        private bool updatingScopeProgrammatically;
+
+        // el ultimo criteria que pedimos nosotros: si otro componente le pide otra cosa al
+        // LeaderboardManager compartido mientras estamos visibles, lo re-reclamamos una vez.
+        private LeaderboardCriteria? lastFetchedCriteria;
+        private bool reclaimedForeignFetch;
+
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
@@ -67,6 +77,9 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private LeaderboardManager leaderboardManager { get; set; } = null!;
+
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
 
         [Resolved]
         private IBindable<WorkingBeatmap> beatmap { get; set; } = null!;
@@ -199,16 +212,69 @@ namespace osu.Game.Screens.Select
             scores.BindTo(leaderboardManager.Scores);
             scores.BindValueChanged(_ => updateScores());
 
-            beatmap.BindValueChanged(_ => refetch());
+            // como stable: si estas logueado arrancamos mostrando el ranking Global en los mapas
+            // que tienen leaderboard online; sin login queda Local.
+            preferredScope = api.IsLoggedIn ? BeatmapLeaderboardScope.Global : BeatmapLeaderboardScope.Local;
+
+            beatmap.BindValueChanged(_ =>
+            {
+                applyScopeForBeatmap();
+                refetch();
+            });
             ruleset.BindValueChanged(_ => refetch());
-            Scope.BindValueChanged(_ => refetch());
+            Scope.BindValueChanged(scope =>
+            {
+                // solo los cambios del usuario actualizan la preferencia; los forzados a Local
+                // (mapa sin leaderboard online) no la pisan.
+                if (!updatingScopeProgrammatically)
+                    preferredScope = scope.NewValue;
+
+                refetch();
+            });
             legacyActive.BindValueChanged(active =>
             {
                 if (active.NewValue)
+                {
+                    applyScopeForBeatmap();
                     refetch();
+                }
             }, true);
 
             updateScores();
+        }
+
+        // mapas sin leaderboard online (unranked / sin online id): forzar Local; en los demas,
+        // volver al scope preferido del usuario.
+        private void applyScopeForBeatmap()
+        {
+            var target = hasOnlineLeaderboard() ? preferredScope : BeatmapLeaderboardScope.Local;
+
+            if (Scope.Value == target)
+                return;
+
+            updatingScopeProgrammatically = true;
+            Scope.Value = target;
+            updatingScopeProgrammatically = false;
+        }
+
+        private bool hasOnlineLeaderboard()
+        {
+            var info = beatmap.Value?.BeatmapInfo;
+
+            if (info == null || info.OnlineID <= 0)
+                return false;
+
+            switch (info.BeatmapSet?.Status ?? info.Status)
+            {
+                case BeatmapOnlineStatus.Ranked:
+                case BeatmapOnlineStatus.Approved:
+                case BeatmapOnlineStatus.Qualified:
+                case BeatmapOnlineStatus.Loved:
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         private void refetch()
@@ -218,13 +284,31 @@ namespace osu.Game.Screens.Select
             if (!legacyActive.Value)
                 return;
 
-            leaderboardManager.FetchWithCriteria(new LeaderboardCriteria(beatmap.Value?.BeatmapInfo, ruleset.Value, Scope.Value, null));
+            lastFetchedCriteria = new LeaderboardCriteria(beatmap.Value?.BeatmapInfo, ruleset.Value, Scope.Value, null);
+            reclaimedForeignFetch = false;
+            leaderboardManager.FetchWithCriteria(lastFetchedCriteria);
         }
 
         private void updateScores()
         {
             if (IsDisposed)
                 return;
+
+            // fetch ajeno: otro componente le pidio otra cosa al LeaderboardManager compartido
+            // mientras la UI legacy sigue activa (ej. un lookup del modo moderno). esos scores no
+            // son nuestros: no los mostramos, y re-reclamamos nuestro criteria UNA vez (sin loop:
+            // si el otro vuelve a pedir, le toca a el).
+            if (legacyActive.Value && lastFetchedCriteria != null && leaderboardManager.CurrentCriteria != null
+                && !leaderboardManager.CurrentCriteria.Equals(lastFetchedCriteria))
+            {
+                if (!reclaimedForeignFetch)
+                {
+                    reclaimedForeignFetch = true;
+                    Scheduler.AddOnce(() => leaderboardManager.FetchWithCriteria(lastFetchedCriteria));
+                }
+
+                return;
+            }
 
             var result = scores.Value;
 
@@ -428,14 +512,23 @@ namespace osu.Game.Screens.Select
                         Masking = true,
                         CornerRadius = 4,
                     },
-                    new Sprite
+                    // FillMode solo aplica con RelativeSizeAxes = Both; en un sprite de tamano fijo
+                    // es no-op y los badges de rank no cuadrados salian estirados a lo ancho. lo
+                    // envolvemos en un slot fijo y dejamos que el sprite se ajuste adentro.
+                    new Container
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
                         X = 56,
                         Size = new Vector2(44),
-                        FillMode = FillMode.Fit,
-                        Texture = skin.GetTexture($@"ranking-{score.Rank}-small"),
+                        Child = new Sprite
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            RelativeSizeAxes = Axes.Both,
+                            FillMode = FillMode.Fit,
+                            Texture = skin.GetTexture($@"ranking-{score.Rank}-small"),
+                        },
                     },
                     new FillFlowContainer
                     {

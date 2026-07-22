@@ -56,6 +56,8 @@ namespace osu.Game.Screens.Select
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.Centre,
                     Position = new Vector2(components_x + 57.6f / 2 * 1.6f, -35 * 1.6f),
+                    // stable dibuja el iconito de modo aditivo (brilla sobre la decoracion).
+                    Blending = BlendingParameters.Additive,
                 },
             };
         }

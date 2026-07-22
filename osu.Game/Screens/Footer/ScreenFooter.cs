@@ -7,7 +7,10 @@ using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input.Bindings;
@@ -50,7 +53,8 @@ namespace osu.Game.Screens.Footer
 
         private readonly List<OverlayContainer> overlays = new List<OverlayContainer>();
 
-        private Box background = null!;
+        // torii DARK GLASS: GlassBackdrop en vez de Box plano para el footer.
+        private GlassBackdrop background = null!;
         private GridContainer buttonsGrid = null!;
         private FillFlowContainer<ScreenFooterButton> buttonsFlow = null!;
         private Container overlayContentContainer = null!;
@@ -119,10 +123,10 @@ namespace osu.Game.Screens.Footer
 
             InternalChildren = new Drawable[]
             {
-                background = new Box
+                background = new GlassBackdrop
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background5
+                    TintColour = colourProvider.Background5.Opacity(ThemeAware.GlassAlpha(0.75f)) // torii dark glass
                 },
                 buttonsGrid = new GridContainer
                 {
@@ -451,7 +455,7 @@ namespace osu.Game.Screens.Footer
         {
             colourProvider.ChangeColourScheme(hue);
 
-            background.FadeColour(colourProvider.Background5, 150, Easing.OutQuint);
+            background.TintColour = colourProvider.Background5.Opacity(ThemeAware.GlassAlpha(0.75f)); // torii dark glass (TintColour: FadeColour tintaria el blur)
 
             foreach (var button in buttonsFlow)
                 button.UpdateDisplay();

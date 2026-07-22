@@ -7,7 +7,9 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Localisation;
@@ -202,7 +204,28 @@ namespace osu.Game.Screens.Select
         /// </summary>
         private Drawable topLayer(Texture? tex, float depth)
         {
-            float h = tex != null && tex.DisplayWidth > 0
+            // sin textura (ni la classic bundleada): un gradiente oscuro de fallback asi la info
+            // del beatmap y los controles se leen igual sobre cualquier fondo.
+            if (tex == null)
+            {
+                return new Container
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Width = 1,
+                    Height = panel_height,
+                    Masking = true,
+                    Depth = depth,
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Child = new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = ColourInfo.GradientVertical(new Color4(0f, 0f, 0f, 0.78f), new Color4(0f, 0f, 0f, 0f)),
+                    },
+                };
+            }
+
+            float h = tex.DisplayWidth > 0
                 ? logical_width * (tex.DisplayHeight / tex.DisplayWidth)
                 : panel_height;
 
@@ -244,9 +267,11 @@ namespace osu.Game.Screens.Select
         {
             Anchor = Anchor.TopRight,
             Origin = Anchor.BottomRight,
-            // stable pone el label grande bien abajo (base en y~64), asi los descendentes (la "p" de Group)
-            // se meten sobre la fila de tabs, igualito a como se ve en stable.
-            Position = new Vector2(x, 62),
+            // stable pone el label grande bien abajo, asi los descendentes (la "p" de Group) se meten
+            // sobre la fila de tabs, igualito a como se ve en stable. detras de la decoracion (2.6 > 2),
+            // como los tabs, asi el grafico mode-button del skin queda por encima.
+            Position = new Vector2(x, 56),
+            Depth = 2.6f,
             Text = text,
             Font = LegacyFonts.Get(34, FontWeight.Light),
             // texto tintado con el contorno fino oscuro de stable (reemplaza el drop shadow suave).

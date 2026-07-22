@@ -60,6 +60,28 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 },
                 new SettingsItemV2(new FormCheckBox
                 {
+                    Caption = "Use stable font (Aller)",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiLegacyFont),
+                    HintText = "The legacy (stable-style) song select uses the modern lazer font by default. Turn this on to use osu!stable's own \"Aller\" font "
+                               + "across it for a 1:1 stable look. Applies next time you open song select.",
+                    NewFeatureId = NewFeatureRegistry.LegacyFont,
+                })
+                {
+                    Keywords = new[] { @"font", @"aller", @"typeface", @"stable", @"legacy", @"song", @"select", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Legacy (stable-style) results screen",
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiStableResults),
+                    HintText = "The score details view becomes osu!stable's ranking panel (skinnable score font, grade, hit counts, mods and full-combo banner), "
+                               + "shown automatically after playing a map. Scroll down for PP, the accuracy heatmap and map tags. Applies to results screens opened after changing this.",
+                    NewFeatureId = NewFeatureRegistry.StableResults,
+                })
+                {
+                    Keywords = new[] { @"results", @"ranking", @"panel", @"score", @"legacy", @"stable", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
                     Caption = "Legacy footer",
                     Current = footerDisplay,
                     HintText = "Shows the stable-style song-select footer (back / mode / mods / random / options + your rank panel) "

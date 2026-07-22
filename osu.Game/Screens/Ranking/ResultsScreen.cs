@@ -61,6 +61,16 @@ namespace osu.Game.Screens.Ranking
 
         private bool skipExitTransition;
 
+        /// <summary>
+        /// torii: seteado por <see cref="LegacyRankingOverlay"/> en el modo stable post-gameplay:
+        /// la vista detallada (el ranking panel legacy) es la UNICA vista — el chrome stock
+        /// (score panel list) no se ve nunca, back sale del screen directo en vez de "cerrar"
+        /// la vista de detalles, y Select no la togglea.
+        /// </summary>
+        internal bool LegacyStableDirectMode;
+
+        private LegacyRankingOverlay? legacyOverlay;
+
         protected StatisticsPanel StatisticsPanel { get; private set; } = null!;
 
         private Drawable bottomPanel = null!;
@@ -97,7 +107,7 @@ namespace osu.Game.Screens.Ranking
         }
 
         [BackgroundDependencyLoader]
-        private void load(AudioManager audio)
+        private void load(AudioManager audio, Configuration.OsuConfigManager config)
         {
             FillFlowContainer buttons;
 
@@ -179,16 +189,28 @@ namespace osu.Game.Screens.Ranking
                 }
             };
 
+            // torii: results estilo stable. post-gameplay en solo (SoloResultsScreen cubre tambien
+            // replay y spectator) se entra DIRECTO a la vista legacy desde el primer frame; en
+            // multi/playlists se mantiene la lista stock de paneles (ver los scores de todos) y el
+            // panel legacy abre al clickear un score, como siempre.
+            bool stableResults = config.Get<bool>(Configuration.OsuSetting.ToriiStableResults);
+            bool stableAutoShow = stableResults && player != null && this is SoloResultsScreen;
+
             if (Score != null)
             {
                 // only show flair / animation when arriving after watching a play that isn't autoplay.
-                bool shouldFlair = player != null && !Score.User.IsBot;
+                // torii: en el modo stable directo el accuracy circle queda tapado por el panel legacy
+                // desde el frame uno — sin flair, que si no sonaria (ticks + aplauso) detras de un
+                // panel invisible. el aplauso lo dispara el overlay al entrar, como stable.
+                bool shouldFlair = player != null && !Score.User.IsBot && !stableAutoShow;
 
                 ScorePanelList.AddScore(Score, shouldFlair);
                 // this is mostly for medal display.
                 // we don't want the medal animation to trample on the results screen animation, so we (ab)use `OverlayActivationMode`
                 // to give the results screen enough time to play the animation out before the medals can be shown.
-                Scheduler.AddDelayed(() => OverlayActivationMode.Value = OverlayActivation.All, shouldFlair ? AccuracyCircle.TOTAL_DURATION + 1000 : 0);
+                // torii: en el modo stable directo la animacion de entrada del panel legacy dura
+                // ~3-4s; sin esta demora las medallas caerian encima apenas arranca.
+                Scheduler.AddDelayed(() => OverlayActivationMode.Value = OverlayActivation.All, shouldFlair ? AccuracyCircle.TOTAL_DURATION + 1000 : stableAutoShow ? 4000 : 0);
             }
 
             bool allowHotkeyRetry = false;
@@ -246,6 +268,14 @@ namespace osu.Game.Screens.Ranking
 
             if (Score?.BeatmapInfo?.BeatmapSet != null && Score.BeatmapInfo.BeatmapSet.OnlineID > 0)
                 buttons.Add(new FavouriteButton(Score.BeatmapInfo.BeatmapSet));
+
+            // torii: results estilo stable. montado ENCIMA de todo el contenido del screen: la
+            // vista de detalles (statistics panel) pasa a mostrarse como el ranking panel de
+            // stable, la barra stock de abajo se re-estiliza flotante y el back button pasa a ser
+            // el legacy skineado. Depth MinValue: los subclasses (multi team results) agregan su
+            // chrome DESPUES de este load y quedaria dibujado encima del panel legacy si no.
+            if (stableResults)
+                AddInternal(legacyOverlay = new LegacyRankingOverlay(this, StatisticsPanel, VerticalScrollContent, bottomPanel, autoShowDetails: stableAutoShow) { Depth = float.MinValue });
         }
 
         protected override void LoadComplete()
@@ -439,6 +469,12 @@ namespace osu.Game.Screens.Ranking
 
         public override bool OnBackButton()
         {
+            // torii: en el modo stable directo no hay vista intermedia a la que "volver" (el
+            // chrome stock no se ve nunca): si la vista esta scrolleada en los extras primero
+            // vuelve arriba, y despues back sale del screen de una, como stable.
+            if (LegacyStableDirectMode)
+                return legacyOverlay?.HandleBackScroll() == true;
+
             if (StatisticsPanel.State.Value == Visibility.Visible)
             {
                 StatisticsPanel.Hide();
@@ -522,6 +558,11 @@ namespace osu.Game.Screens.Ranking
                     break;
 
                 case GlobalAction.Select:
+                    // torii: en el modo stable directo la vista detallada es la unica vista;
+                    // togglearla revelaria el chrome stock escondido.
+                    if (LegacyStableDirectMode)
+                        return true;
+
                     if (SelectedScore.Value != null)
                         StatisticsPanel.ToggleVisibility();
                     return true;

@@ -78,6 +78,10 @@ namespace osu.Game.Screens.Select
 
         private partial class SearchTextBox : FocusedTextBox
         {
+            // las flechas izquierda/derecha quedan libres para el carousel (grupo anterior/siguiente),
+            // como en stable; el caret no las necesita con busquedas cortas.
+            public override bool HandleLeftRightArrows => false;
+
             public SearchTextBox()
             {
                 PlaceholderText = @"Type to search!";

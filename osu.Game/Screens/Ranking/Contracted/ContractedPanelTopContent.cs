@@ -37,7 +37,9 @@ namespace osu.Game.Screens.Ranking.Contracted
         {
             base.LoadComplete();
 
-            ScorePosition.BindValueChanged(pos => text.Text = pos.NewValue != null ? $"#{pos.NewValue}" : string.Empty, true);
+            // torii: ultima linea de defensa. una posicion valida siempre es >= 1; si llega null,
+            // 0 o negativa (un centinela roto del server) no mostramos "#-1"/"#0", mostramos vacio.
+            ScorePosition.BindValueChanged(pos => text.Text = pos.NewValue is int p && p > 0 ? $"#{p}" : string.Empty, true);
         }
     }
 }

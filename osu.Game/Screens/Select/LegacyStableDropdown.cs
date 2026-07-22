@@ -85,7 +85,7 @@ namespace osu.Game.Screens.Select
 
                 Masking = true;
                 CornerRadius = 5;
-                BorderThickness = 1;
+                BorderThickness = 2;
 
                 // semitransparente asi el color de la decoracion skinnable de arriba se transluce por la
                 // caja (las cajas Group/Sort/ranking de stable estan tinteadas, no negro solido).

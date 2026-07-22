@@ -2,11 +2,13 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Screens;
+using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Skinning;
@@ -55,6 +57,9 @@ namespace osu.Game.Screens.Footer
 
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
+
+        [Resolved]
+        private IBindable<WorkingBeatmap> beatmap { get; set; } = null!;
 
         private readonly IBindable<Skin> currentSkin = new Bindable<Skin>();
         private Bindable<bool> footerUseSkin = null!;
@@ -168,7 +173,9 @@ namespace osu.Game.Screens.Footer
                 BackAction = () => BackButtonPressed?.Invoke(),
                 ModsAction = () => Footer.TriggerFooterButton(0),
                 RandomAction = () => Footer.TriggerFooterButton(1),
-                OptionsAction = () => Footer.TriggerFooterButton(2),
+                // el boton options abre el popup estilo stable del propio footer (las mismas
+                // acciones forward del song select que el menu contextual del carousel).
+                OptionsMenuItems = getStableOptionsMenuItems,
             };
 
             // Render at the same 1366x768 logical space the upstream PR calibrates against,
@@ -195,6 +202,19 @@ namespace osu.Game.Screens.Footer
                 AddInternal(loaded);
                 updateLegacyFooter();
             });
+        }
+
+        private osu.Framework.Graphics.UserInterface.MenuItem[] getStableOptionsMenuItems()
+        {
+            if (screenTracker.LeadingScreen is not Select.ISongSelect songSelect)
+                return Array.Empty<osu.Framework.Graphics.UserInterface.MenuItem>();
+
+            var beatmapInfo = beatmap.Value?.BeatmapInfo;
+
+            if (beatmapInfo == null)
+                return Array.Empty<osu.Framework.Graphics.UserInterface.MenuItem>();
+
+            return songSelect.GetForwardActions(beatmapInfo).Cast<osu.Framework.Graphics.UserInterface.MenuItem>().ToArray();
         }
 
         private void onScreenChanged(IScreen lastScreen, IScreen newScreen)
@@ -313,6 +333,11 @@ namespace osu.Game.Screens.Footer
             /// </summary>
             // ReSharper disable once FunctionRecursiveOnAllPaths (TODO: remove after fixed https://youtrack.jetbrains.com/issue/RIDER-135036/Incorrect-recursive-on-all-execution-paths-inspection)
             private IScreen leadingScreen => subScreenTracker?.leadingScreen ?? stack.CurrentScreen;
+
+            /// <summary>
+            /// The screen currently bound to the footer (the most nested subscreen).
+            /// </summary>
+            public IScreen? LeadingScreen => leadingScreen;
 
             public ScreenStackTracker(ScreenStack stack)
             {

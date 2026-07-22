@@ -31,11 +31,15 @@ namespace osu.Game.Skinning.Select
         /// </summary>
         public bool SuppressBaseGlyph { get; init; }
 
-        // el slot del boton de stable. el hit area clickeable queda fijado a esto asi nunca depende del
-        // tamaño de la textura del skin (un selection-* que falta / es 0 / es enorme no puede dejar el
-        // boton sin click ni comerse a los de al lado). los glyphs se dibujan solo visual encima.
+        // el slot del boton de stable. el hit area clickeable es COMO MINIMO esto, asi una textura que
+        // falta / es 0x0 nunca deja el boton sin click; y crece hasta cubrir el glyph de hover cuando el
+        // skin trae botones mas grandes (stable toma el input del sprite -over, o sea que su hit area
+        // tambien escala con la textura).
         private const float slot_width = 74;
         private const float slot_height = 90;
+
+        // mas alla de esto la textura es arte de decoracion del footer, no un glyph de boton.
+        private const float max_glyph_dimension = 250;
 
         public LegacyFooterButton(string kind)
         {
@@ -47,16 +51,26 @@ namespace osu.Game.Skinning.Select
         [BackgroundDependencyLoader]
         private void load(ISkinSource skin, SkinManager skins)
         {
-            Width = slot_width;
-            Height = slot_height;
+            // los botones pueden quedar de alturas distintas cuando el skin trae glyphs oversized;
+            // anclados abajo quedan alineados por la base dentro de la fila del footer.
+            Anchor = Anchor.BottomLeft;
+            Origin = Anchor.BottomLeft;
 
             ISkin source = TextureSource ?? skin;
-            const Anchor spriteAnchor = Anchor.BottomLeft;
+            const Anchor sprite_anchor = Anchor.BottomLeft;
 
-            // si el skin activo no trae estas texturas, caemos al classic bundleado. si no, un
-            // "selection-{kind}-over" que falta colapsa el boton (y su hit area, que sale del sprite de
-            // hover) a 0x0, o sea invisible y sin click en algunos skins.
-            Texture? texture(string name) => source.GetTexture(name) ?? skins.DefaultClassicSkin.GetTexture(name);
+            Texture? texture(string name)
+            {
+                var tex = source.GetTexture(name) ?? skins.DefaultClassicSkin.GetTexture(name);
+
+                // una textura tamaño-decoracion no sirve como glyph de boton (hay skins que meten
+                // el arte entero del footer en estos slots); caemos al glyph classic bundleado en
+                // vez de dibujarla gigante encima de todo.
+                if (tex != null && Math.Max(tex.DisplayWidth, tex.DisplayHeight) > max_glyph_dimension)
+                    tex = skins.DefaultClassicSkin.GetTexture(name);
+
+                return tex;
+            }
 
             // las dos texturas: el glyph base (siempre visible) y el "-over" (glow aditivo de hover, como
             // en stable). si el skin no trae el "-over" caemos al base asi igual hay feedback en hover.
@@ -71,29 +85,25 @@ namespace osu.Game.Skinning.Select
                 overTex = null;
             }
 
-            // nudge fino del glow -over para que calce con el grafico del boton (el -over del skin cae un
-            // toque abajo-izquierda respecto al "+", asi que lo corremos un poco arriba-derecha).
-            // +x = derecha, -y = arriba. AJUSTABLE: si queda corrido, mover estos dos numeros.
-            var hoverNudge = new Vector2(1, -6);
+            var overSize = overTex != null ? new Vector2(overTex.DisplayWidth, overTex.DisplayHeight) : Vector2.Zero;
+            Size = Vector2.ComponentMax(new Vector2(slot_width, slot_height), overSize);
 
             Children = new Drawable[]
             {
-                // glyph base, anclado abajo-izquierda como stable. tamaño natural (clampeado al slot si la
-                // textura del skin viene enorme). el hit area del boton es fijo (74x90) aparte.
                 new Sprite
                 {
-                    Anchor = spriteAnchor,
-                    Origin = spriteAnchor,
+                    Anchor = sprite_anchor,
+                    Origin = sprite_anchor,
                     Texture = baseTex,
                     BypassAutoSizeAxes = Axes.Both,
                     Size = sizeFor(baseTex),
                 },
-                // glow "-over" del hover: mismo anclaje + tamaño natural que el base, + el nudge fino.
+                // stable dibuja el -over EXACTAMENTE en la misma posicion que el base (mismo
+                // field/origin/position), solo fadeado por alpha en hover. nada de nudges.
                 hoverSprite = new Sprite
                 {
-                    Anchor = spriteAnchor,
-                    Origin = spriteAnchor,
-                    Position = hoverNudge,
+                    Anchor = sprite_anchor,
+                    Origin = sprite_anchor,
                     Texture = overTex,
                     BypassAutoSizeAxes = Axes.Both,
                     Size = sizeFor(overTex),
@@ -105,17 +115,8 @@ namespace osu.Game.Skinning.Select
                 clickSound = new SkinnableSound(new SampleInfo("click-short-confirm")),
             };
 
-            Vector2 sizeFor(Texture? tex)
-            {
-                if (tex == null)
-                    return Vector2.Zero;
-
-                var size = new Vector2(tex.DisplayWidth, tex.DisplayHeight);
-                float maxDim = Math.Max(tex.DisplayWidth, tex.DisplayHeight);
-                if (maxDim > slot_height)
-                    size *= slot_height / maxDim;
-                return size;
-            }
+            // tamaño natural, como stable: un boton grande simplemente sobresale de la barra del footer.
+            Vector2 sizeFor(Texture? tex) => tex == null ? Vector2.Zero : new Vector2(tex.DisplayWidth, tex.DisplayHeight);
         }
 
         protected override bool OnHover(HoverEvent e)

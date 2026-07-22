@@ -194,6 +194,25 @@ namespace osu.Game.Configuration
         /// register, and so refactoring tools can't accidentally orphan
         /// an entry by renaming the constant without updating the list.
         /// </summary>
+        /// <summary>
+        /// Marks the "Legacy (stable-style) results screen" toggle in
+        /// Settings → Torii → Song Select. When on, the results screen's
+        /// details view becomes osu!stable's ranking panel (skinnable,
+        /// with the score font, grade, hit counts, mods and FC banner),
+        /// opening automatically after playing a map, with the stock
+        /// bottom bar restyled as a floating stable-like bar.
+        /// </summary>
+        public const string StableResults = "v2026.716.0:stable-results";
+
+        /// <summary>
+        /// Marks the "Use stable font (Aller)" toggle in Settings → Torii →
+        /// Song Select. The legacy (stable-style) song-select UI defaults to
+        /// the modern lazer font; this switches it to osu!stable's Aller font
+        /// for a 1:1 stable look. Off by default, applies next time song
+        /// select is opened.
+        /// </summary>
+        public const string LegacyFont = "v2026.722.0:legacy-font";
+
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
@@ -208,6 +227,8 @@ namespace osu.Game.Configuration
             AutoHideToolbar,
             LegacySongSelectFooter,
             ReplayRender,
+            StableResults,
+            LegacyFont,
         };
 
         /// <summary>

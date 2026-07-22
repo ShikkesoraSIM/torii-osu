@@ -39,6 +39,9 @@ namespace osu.Game.Skinning.Select
                 BypassAutoSizeAxes = Axes.Both,
                 X = 57.6f / 2 * 1.6f,
                 Y = -35 * 1.6f,
+                // stable lo dibuja aditivo (s_modeSprite.Additive = true); los skins con iconos de
+                // mode sobre fondo negro dependen de que el negro quede invisible.
+                Blending = BlendingParameters.Additive,
             });
         }
 
@@ -61,20 +64,18 @@ namespace osu.Game.Skinning.Select
 
                 string name = $@"mode-{r.NewValue.ShortName}-small";
                 var tex = source.GetTexture(name) ?? skins.DefaultClassicSkin.GetTexture(name);
+
+                // algunos skins traen un mode-*-small gigante como decoracion "skinnable top" (lo
+                // dibuja aparte y atras del chrome el LegacyTopDecoration); para eso caemos al icono
+                // classic bundleado en vez de redibujar la decoracion sobre el footer. los iconos
+                // normales van a tamaño natural como stable, aunque sobresalgan un poco del slot.
+                if (tex != null && Math.Max(tex.DisplayWidth, tex.DisplayHeight) > 250)
+                    tex = skins.DefaultClassicSkin.GetTexture(name);
+
                 modeIcon.Texture = tex;
 
                 if (tex != null)
-                {
-                    // mantener el icono de mode del footer en tamaño boton normal. algunos skins traen un
-                    // mode-*-small gigante como decoracion "skinnable top" (lo dibuja aparte y atras del
-                    // chrome el LegacyTopDecoration); sin este clamp el footer volveria a dibujar esa
-                    // textura enorme encima de todo. a los iconos normales les dejamos el tamaño nativo,
-                    // solo achicamos los que vienen pasados.
-                    const float max_icon = 70f;
-                    float maxDim = Math.Max(tex.DisplayWidth, tex.DisplayHeight);
-                    float scale = maxDim > max_icon ? max_icon / maxDim : 1f;
-                    modeIcon.Size = new Vector2(tex.DisplayWidth * scale, tex.DisplayHeight * scale);
-                }
+                    modeIcon.Size = new Vector2(tex.DisplayWidth, tex.DisplayHeight);
             }, true);
         }
     }

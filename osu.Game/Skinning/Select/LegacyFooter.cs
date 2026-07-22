@@ -9,9 +9,11 @@ using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Screens.Menu;
 using osuTK;
 using osuTK.Graphics;
@@ -35,6 +37,36 @@ namespace osu.Game.Skinning.Select
         public Action? ModsAction { get; init; }
         public Action? RandomAction { get; init; }
         public Action? OptionsAction { get; init; }
+
+        /// <summary>
+        /// items para el popup de opciones estilo stable (el menucito que sale arriba del boton
+        /// options con las acciones del beatmap). si esta seteado y OptionsAction es null, el boton
+        /// abre este menu en vez del overlay moderno.
+        /// </summary>
+        public Func<MenuItem[]>? OptionsMenuItems { get; init; }
+
+        private OsuMenu optionsMenu = null!;
+
+        /// <summary>
+        /// abre/cierra el popup de opciones estilo stable (tambien lo dispara el hotkey F3 del
+        /// song select cuando el chrome legacy esta activo).
+        /// </summary>
+        public void ShowOptions()
+        {
+            if (optionsMenu.State == MenuState.Open)
+            {
+                optionsMenu.Close();
+                return;
+            }
+
+            var items = OptionsMenuItems?.Invoke();
+
+            if (items == null || items.Length == 0)
+                return;
+
+            optionsMenu.Items = items;
+            optionsMenu.Open();
+        }
 
         [BackgroundDependencyLoader]
         private void load(ISkinSource skin, OsuConfigManager config, SkinManager skins)
@@ -148,19 +180,30 @@ namespace osu.Game.Skinning.Select
                     Origin = Anchor.BottomLeft,
                     RelativeSizeAxes = Axes.Both,
                     X = buttons_pos_16_9,
-                    Child = new Container
+                    Children = new Drawable[]
                     {
-                        Anchor = Anchor.BottomLeft,
-                        Origin = Anchor.BottomLeft,
-                        AutoSizeAxes = Axes.Both,
-                        Children = new[]
+                        // el popup de opciones estilo stable, anclado arriba del boton options.
+                        optionsMenu = new OsuMenu(Direction.Vertical)
                         {
-                            new LegacyRulesetFooterButton { TextureSource = buttonSource, SuppressBaseGlyph = skinFooterDecoration },
-                            new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
-                            new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
-                            new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction, TextureSource = buttonSource },
-                        }
-                    }
+                            Anchor = Anchor.BottomLeft,
+                            Origin = Anchor.BottomLeft,
+                            Position = new Vector2(options_button_off, -(90 + 6)),
+                            MaxHeight = 420,
+                        },
+                        new Container
+                        {
+                            Anchor = Anchor.BottomLeft,
+                            Origin = Anchor.BottomLeft,
+                            AutoSizeAxes = Axes.Both,
+                            Children = new LegacyFooterButton[]
+                            {
+                                new LegacyRulesetFooterButton { TextureSource = buttonSource, SuppressBaseGlyph = skinFooterDecoration },
+                                new LegacyFooterButton("mods") { X = mods_button_off, Action = ModsAction, TextureSource = buttonSource },
+                                new LegacyFooterButton("random") { X = random_button_off, Action = RandomAction, TextureSource = buttonSource },
+                                new LegacyFooterButton("options") { X = options_button_off, Action = OptionsAction ?? ShowOptions, TextureSource = buttonSource },
+                            },
+                        },
+                    },
                 },
                 (logoTrackingContainer = new LogoTrackingContainer
                 {

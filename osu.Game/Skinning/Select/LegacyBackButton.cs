@@ -30,6 +30,8 @@ namespace osu.Game.Skinning.Select
                 {
                     Anchor = Anchor.BottomLeft,
                     Origin = Anchor.BottomLeft,
+                    // skinned menu-back renders 2px too low otherwise.
+                    Y = -2,
                 };
             }
             else

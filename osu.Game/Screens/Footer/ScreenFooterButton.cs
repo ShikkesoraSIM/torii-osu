@@ -15,6 +15,7 @@ using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Input.Bindings;
@@ -92,7 +93,12 @@ namespace osu.Game.Screens.Footer
 
         protected Container TextContainer;
         private readonly Box bar;
-        private readonly Box backgroundBox;
+
+        // torii DARK GLASS: el fondo del boton es un Box plano normalmente, o un GlassBackdrop (blur de
+        // la escena detras) con el tema glass. glassBackgroundBox != null solo en ese caso, para rutear
+        // el color de estado al tinte en vez de a .Colour.
+        private readonly Drawable backgroundBox;
+        private readonly GlassBackdrop? glassBackgroundBox;
         private readonly Box glowBox;
         private readonly Box flashLayer;
 
@@ -103,6 +109,12 @@ namespace osu.Game.Screens.Footer
             Overlay = overlay;
 
             Size = new Vector2(BUTTON_WIDTH, HEIGHT);
+
+            // torii dark glass: fondo del boton como vidrio con el tema activo
+            if (OsuColour.IsGlassTheme)
+                backgroundBox = glassBackgroundBox = new GlassBackdrop { RelativeSizeAxes = Axes.Both };
+            else
+                backgroundBox = new Box { RelativeSizeAxes = Axes.Both };
 
             Children = new Drawable[]
             {
@@ -122,10 +134,7 @@ namespace osu.Game.Screens.Footer
                     RelativeSizeAxes = Axes.Both,
                     Children = new Drawable[]
                     {
-                        backgroundBox = new Box
-                        {
-                            RelativeSizeAxes = Axes.Both
-                        },
+                        backgroundBox,
                         glowBox = new Box
                         {
                             RelativeSizeAxes = Axes.Both
@@ -244,7 +253,11 @@ namespace osu.Game.Screens.Footer
             else if (IsHovered)
                 backgroundColour = backgroundColour.Lighten(0.2f);
 
-            backgroundBox.FadeColour(backgroundColour, 150, Easing.OutQuint);
+            // torii dark glass: rutear el color de estado al tinte del vidrio (no a .Colour, que tintaria el blur)
+            if (glassBackgroundBox != null)
+                glassBackgroundBox.TintColour = backgroundColour.Opacity(0.6f);
+            else
+                backgroundBox.FadeColour(backgroundColour, 150, Easing.OutQuint);
 
             if (!Enabled.Value)
                 textColour = textColour.Opacity(0.6f);

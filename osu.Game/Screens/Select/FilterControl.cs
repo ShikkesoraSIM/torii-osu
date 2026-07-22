@@ -103,6 +103,7 @@ namespace osu.Game.Screens.Select
                     {
                         Anchor = Anchor.TopRight,
                         Scale = new Vector2(-1, 1),
+                        Glass = true, // torii dark glass
                     }
                 },
                 new ReverseChildIDFillFlowContainer<Drawable>
@@ -346,6 +347,20 @@ namespace osu.Game.Screens.Select
         public void Search(string query)
         {
             searchTextBox.Current.Value = query;
+        }
+
+        /// <summary>
+        /// Set the query to the search text box.
+        /// </summary>
+        /// <param name="query">The string to search.</param>
+        public void AddToSearch(string query)
+        {
+            string existingQuery = searchTextBox.Current.Value;
+
+            if (existingQuery.Contains(query))
+                return;
+
+            searchTextBox.Current.Value = string.Join(' ', existingQuery.Trim(), query);
         }
 
         /// <summary>
