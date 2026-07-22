@@ -9,23 +9,25 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
-using osu.Framework.Localisation;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Multiplayer.MatchTypes.RankedPlay;
 using osu.Game.Overlays;
-using osu.Game.Users;
 using osu.Game.Users.Drawables;
 using osuTK;
 using osuTK.Graphics;
 
 namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 {
+    /// <summary>
+    /// torii: fila compacta de una partida reciente en la cola. Rediseñada: se fue el cover-art
+    /// grande y ruidoso; ahora es una fila limpia con los dos jugadores, el marcador de rondas al
+    /// medio, el ganador resaltado y el perdedor apagado, mas una franja de resultado abajo.
+    /// </summary>
     public partial class RankedPlayMatchPanel : CompositeDrawable
     {
         [Resolved]
@@ -39,17 +41,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private readonly RankedPlayRoomState state;
 
-        private Drawable leftResultLight = null!;
-        private Drawable rightResultLight = null!;
-        private OsuSpriteText leftLifeText = null!;
-        private OsuSpriteText rightLifeText = null!;
-
         public RankedPlayMatchPanel(RankedPlayRoomState state)
         {
             this.state = state;
 
-            Width = 280;
-            AutoSizeAxes = Axes.Y;
+            Height = 60;
+            AutoSizeAxes = Axes.None;
         }
 
         [BackgroundDependencyLoader]
@@ -57,340 +54,191 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
         {
             Masking = true;
             CornerRadius = 10;
-            BorderThickness = 2;
-            BorderColour = colours.YellowDarker;
 
             (int UserId, RankedPlayUserInfo Info)[] users = state.Users.Select(kvp => (kvp.Key, kvp.Value)).ToArray();
-            Task<APIUser?> leftUser = userLookupCache.GetUserAsync(users[0].UserId);
-            Task<APIUser?> rightUser = userLookupCache.GetUserAsync(users[1].UserId);
-            Task.WhenAll(leftUser, rightUser).WaitSafely();
+            Task<APIUser?> leftLookup = userLookupCache.GetUserAsync(users[0].UserId);
+            Task<APIUser?> rightLookup = userLookupCache.GetUserAsync(users[1].UserId);
+            Task.WhenAll(leftLookup, rightLookup).WaitSafely();
 
-            FillFlowContainer userLeft;
-            FillFlowContainer userRight;
+            APIUser left = leftLookup.GetResultSafely() ?? new APIUser { Username = "Unknown" };
+            APIUser right = rightLookup.GetResultSafely() ?? new APIUser { Username = "Unknown" };
+
+            RankedPlayUserInfo leftInfo = users[0].Info;
+            RankedPlayUserInfo rightInfo = users[1].Info;
+
+            bool leftWin = leftInfo.Life > rightInfo.Life;
+            bool rightWin = rightInfo.Life > leftInfo.Life;
+
+            Color4 leftResult = leftWin ? colours.Green : rightWin ? colours.Red : colours.Yellow;
+            Color4 rightResult = rightWin ? colours.Green : leftWin ? colours.Red : colours.Yellow;
+
+            Color4 winnerName = Color4.White;
+            Color4 loserName = new Color4(0.62f, 0.62f, 0.68f, 1f);
 
             InternalChildren = new Drawable[]
             {
                 new Box
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background4
+                    Colour = colourProvider.Background4,
                 },
+                // tinte suave del lado de cada jugador segun su resultado.
+                new Box
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    RelativeSizeAxes = Axes.Both,
+                    Width = 0.5f,
+                    Colour = ColourInfo.GradientHorizontal(leftResult.Opacity(0.16f), leftResult.Opacity(0f)),
+                },
+                new Box
+                {
+                    Anchor = Anchor.CentreRight,
+                    Origin = Anchor.CentreRight,
+                    RelativeSizeAxes = Axes.Both,
+                    Width = 0.5f,
+                    Colour = ColourInfo.GradientHorizontal(rightResult.Opacity(0f), rightResult.Opacity(0.16f)),
+                },
+                // avatares.
+                avatar(left, Anchor.CentreLeft, new MarginPadding { Left = 10 }),
+                avatar(right, Anchor.CentreRight, new MarginPadding { Right = 10 }),
+                // nombre + vida de cada lado.
+                sideInfo(left.Username, leftInfo, leftWin, Anchor.CentreLeft, new MarginPadding { Left = 54 }, winnerName, loserName),
+                sideInfo(right.Username, rightInfo, rightWin, Anchor.CentreRight, new MarginPadding { Right = 54 }, winnerName, loserName),
+                // marcador de rondas al medio.
                 new FillFlowContainer
                 {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(6, 0),
                     Children = new Drawable[]
                     {
-                        new BufferedContainer
+                        new OsuSpriteText
                         {
-                            Name = "Middle part",
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            BackgroundColour = colourProvider.Background4.Opacity(0),
-                            Children = new[]
-                            {
-                                new Container
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Height = 0.5f,
-                                    Masking = true,
-                                    Colour = ColourInfo.GradientHorizontal(Color4.White.Opacity(0.7f), colourProvider.Background4.Opacity(0)),
-                                    Child = new UserCoverBackground
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        User = leftUser.GetResultSafely()
-                                    }
-                                },
-                                new Container
-                                {
-                                    Anchor = Anchor.BottomCentre,
-                                    Origin = Anchor.BottomCentre,
-                                    RelativeSizeAxes = Axes.Both,
-                                    Height = 0.5f,
-                                    Masking = true,
-                                    Colour = ColourInfo.GradientHorizontal(colourProvider.Background4.Opacity(0), Color4.White.Opacity(0.7f)),
-                                    Child = new UserCoverBackground
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        User = rightUser.GetResultSafely()
-                                    }
-                                },
-                                leftResultLight = new Container
-                                {
-                                    Anchor = Anchor.CentreLeft,
-                                    Origin = Anchor.CentreLeft,
-                                    RelativeSizeAxes = Axes.X,
-                                    Size = new Vector2(0.4f, 3),
-                                    Child = new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = ColourInfo.GradientHorizontal(Color4.White, Color4.White.Opacity(0))
-                                    }
-                                },
-                                rightResultLight = new Container
-                                {
-                                    Anchor = Anchor.CentreRight,
-                                    Origin = Anchor.CentreRight,
-                                    RelativeSizeAxes = Axes.X,
-                                    Size = new Vector2(0.4f, 3),
-                                    Child = new Box
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        Colour = ColourInfo.GradientHorizontal(Color4.White.Opacity(0), Color4.White)
-                                    },
-                                },
-                                new OsuSpriteText
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Text = "vs",
-                                    Font = OsuFont.GetFont(size: 50, weight: FontWeight.Bold),
-                                    UseFullGlyphHeight = false,
-                                    Colour = colourProvider.Light3,
-                                },
-                                new FillFlowContainer
-                                {
-                                    RelativeSizeAxes = Axes.X,
-                                    AutoSizeAxes = Axes.Y,
-                                    Direction = FillDirection.Vertical,
-                                    Children = new Drawable[]
-                                    {
-                                        userLeft = new FillFlowContainer
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            AutoSizeAxes = Axes.Y,
-                                            Direction = FillDirection.Horizontal,
-                                            Colour = Color4.White.Opacity(0.4f),
-                                            Padding = new MarginPadding(5),
-                                            Spacing = new Vector2(5),
-                                            Children = new Drawable[]
-                                            {
-                                                new CircularContainer
-                                                {
-                                                    Anchor = Anchor.CentreLeft,
-                                                    Origin = Anchor.CentreLeft,
-                                                    Size = new Vector2(25),
-                                                    Masking = true,
-                                                    Child = new UpdateableAvatar(leftUser.GetResultSafely())
-                                                    {
-                                                        RelativeSizeAxes = Axes.Both
-                                                    }
-                                                },
-                                                new OsuSpriteText
-                                                {
-                                                    Anchor = Anchor.CentreLeft,
-                                                    Origin = Anchor.CentreLeft,
-                                                    Text = leftUser.GetResultSafely()?.Username ?? "Unknown",
-                                                    Font = OsuFont.GetFont(weight: FontWeight.SemiBold),
-                                                    UseFullGlyphHeight = false,
-                                                },
-                                            }
-                                        },
-                                        userRight = new FillFlowContainer
-                                        {
-                                            RelativeSizeAxes = Axes.X,
-                                            AutoSizeAxes = Axes.Y,
-                                            Direction = FillDirection.Horizontal,
-                                            Colour = Color4.White.Opacity(0.4f),
-                                            Padding = new MarginPadding(5),
-                                            Spacing = new Vector2(5),
-                                            Children = new Drawable[]
-                                            {
-                                                new CircularContainer
-                                                {
-                                                    Anchor = Anchor.CentreRight,
-                                                    Origin = Anchor.CentreRight,
-                                                    Size = new Vector2(25),
-                                                    Masking = true,
-                                                    Child = new UpdateableAvatar(rightUser.GetResultSafely())
-                                                    {
-                                                        RelativeSizeAxes = Axes.Both
-                                                    }
-                                                },
-                                                new OsuSpriteText
-                                                {
-                                                    Anchor = Anchor.CentreRight,
-                                                    Origin = Anchor.CentreRight,
-                                                    Text = rightUser.GetResultSafely()?.Username ?? "Unknown",
-                                                    Font = OsuFont.GetFont(weight: FontWeight.SemiBold),
-                                                    UseFullGlyphHeight = false,
-                                                },
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = leftInfo.RoundsWon.ToString(),
+                            Font = OsuFont.Torus.With(size: 24, weight: FontWeight.Bold),
+                            Colour = leftWin ? colours.Green : Color4.White,
+                            UseFullGlyphHeight = false,
                         },
-                        new Container
+                        new OsuSpriteText
                         {
-                            Name = "Bottom part",
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            Children = new Drawable[]
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = "-",
+                            Font = OsuFont.Torus.With(size: 20, weight: FontWeight.Regular),
+                            Colour = new Color4(0.5f, 0.5f, 0.56f, 1f),
+                            UseFullGlyphHeight = false,
+                        },
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Text = rightInfo.RoundsWon.ToString(),
+                            Font = OsuFont.Torus.With(size: 24, weight: FontWeight.Bold),
+                            Colour = rightWin ? colours.Green : Color4.White,
+                            UseFullGlyphHeight = false,
+                        },
+                    }
+                },
+                // franja de resultado abajo (mitad y mitad).
+                new Box
+                {
+                    Anchor = Anchor.BottomLeft,
+                    Origin = Anchor.BottomLeft,
+                    RelativeSizeAxes = Axes.X,
+                    Width = 0.5f,
+                    Height = 3,
+                    Colour = leftResult,
+                },
+                new Box
+                {
+                    Anchor = Anchor.BottomRight,
+                    Origin = Anchor.BottomRight,
+                    RelativeSizeAxes = Axes.X,
+                    Width = 0.5f,
+                    Height = 3,
+                    Colour = rightResult,
+                },
+            };
+        }
+
+        private Drawable avatar(APIUser user, Anchor anchor, MarginPadding margin) => new CircularContainer
+        {
+            Anchor = anchor,
+            Origin = anchor,
+            Size = new Vector2(36),
+            Masking = true,
+            Margin = margin,
+            Child = new UpdateableAvatar(user)
+            {
+                RelativeSizeAxes = Axes.Both,
+            }
+        };
+
+        private Drawable sideInfo(string username, RankedPlayUserInfo info, bool win, Anchor anchor, MarginPadding margin, Color4 winnerName, Color4 loserName)
+        {
+            bool right = (anchor & Anchor.x2) != 0;
+            Anchor textAnchor = right ? Anchor.TopRight : Anchor.TopLeft;
+
+            return new FillFlowContainer
+            {
+                Anchor = anchor,
+                Origin = anchor,
+                AutoSizeAxes = Axes.Both,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 2),
+                Margin = margin,
+                Children = new Drawable[]
+                {
+                    new OsuSpriteText
+                    {
+                        Anchor = textAnchor,
+                        Origin = textAnchor,
+                        Text = username,
+                        Font = OsuFont.GetFont(size: 15, weight: FontWeight.SemiBold),
+                        Colour = win ? winnerName : loserName,
+                        UseFullGlyphHeight = false,
+                    },
+                    new FillFlowContainer
+                    {
+                        Anchor = textAnchor,
+                        Origin = textAnchor,
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(3, 0),
+                        Children = new Drawable[]
+                        {
+                            new SpriteIcon
                             {
-                                new Box
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Colour = colourProvider.Background5
-                                },
-                                new Container
-                                {
-                                    RelativeSizeAxes = Axes.X,
-                                    AutoSizeAxes = Axes.Y,
-                                    Padding = new MarginPadding(5),
-                                    Child = new FillFlowContainer
-                                    {
-                                        RelativeSizeAxes = Axes.X,
-                                        AutoSizeAxes = Axes.Y,
-                                        Direction = FillDirection.Vertical,
-                                        Spacing = new Vector2(5),
-                                        Children = new Drawable[]
-                                        {
-                                            new Container
-                                            {
-                                                RelativeSizeAxes = Axes.X,
-                                                AutoSizeAxes = Axes.Y,
-                                                Children = new Drawable[]
-                                                {
-                                                    new IconWithTooltip
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.Centre,
-                                                        Size = new Vector2(12),
-                                                        Icon = FontAwesome.Solid.Heart,
-                                                        Colour = Color4.Red,
-                                                        TooltipText = "Remaining Life"
-                                                    },
-                                                    leftLifeText = new OsuSpriteText
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.CentreRight,
-                                                        X = -15,
-                                                        Colour = colourProvider.Foreground1,
-                                                        Text = users[0].Info.Life.ToString("N0"),
-                                                        UseFullGlyphHeight = false,
-                                                    },
-                                                    rightLifeText = new OsuSpriteText
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.CentreLeft,
-                                                        X = 15,
-                                                        Colour = colourProvider.Foreground1,
-                                                        Text = users[1].Info.Life.ToString("N0"),
-                                                        UseFullGlyphHeight = false,
-                                                    }
-                                                },
-                                            },
-                                            new Container
-                                            {
-                                                RelativeSizeAxes = Axes.X,
-                                                AutoSizeAxes = Axes.Y,
-                                                Children = new Drawable[]
-                                                {
-                                                    new IconWithTooltip
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.Centre,
-                                                        Size = new Vector2(10),
-                                                        Colour = colourProvider.Foreground1,
-                                                        Icon = FontAwesome.Solid.Trophy,
-                                                        TooltipText = "Rounds Won",
-                                                    },
-                                                    new OsuSpriteText
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.CentreRight,
-                                                        X = -15,
-                                                        Colour = colourProvider.Foreground1,
-                                                        Text = users[0].Info.RoundsWon.ToString(),
-                                                        UseFullGlyphHeight = false,
-                                                    },
-                                                    new OsuSpriteText
-                                                    {
-                                                        Anchor = Anchor.Centre,
-                                                        Origin = Anchor.CentreLeft,
-                                                        X = 15,
-                                                        Colour = colourProvider.Foreground1,
-                                                        Text = users[1].Info.RoundsWon.ToString(),
-                                                        UseFullGlyphHeight = false,
-                                                    }
-                                                },
-                                            }
-                                        }
-                                    }
-                                },
-                                new BufferedContainer(cachedFrameBuffer: true)
-                                {
-                                    Name = "Status pill",
-                                    Anchor = Anchor.BottomLeft,
-                                    Origin = Anchor.BottomLeft,
-                                    AutoSizeAxes = Axes.Both,
-                                    Masking = true,
-                                    CornerRadius = 10,
-                                    CornerExponent = 6,
-                                    Padding = new MarginPadding { Left = 10, Bottom = 10 },
-                                    Margin = new MarginPadding { Left = -10, Bottom = -10 },
-                                    Children = new Drawable[]
-                                    {
-                                        new Box
-                                        {
-                                            RelativeSizeAxes = Axes.Both,
-                                            Colour = colours.YellowDarker
-                                        },
-                                        new OsuSpriteText
-                                        {
-                                            Anchor = Anchor.Centre,
-                                            Origin = Anchor.Centre,
-                                            Margin = new MarginPadding { Horizontal = 8, Vertical = 5 },
-                                            Colour = colourProvider.Background5,
-                                            Text = "Completed",
-                                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                                            UseFullGlyphHeight = false,
-                                        }
-                                    }
-                                }
-                            }
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Icon = FontAwesome.Solid.Heart,
+                                Size = new Vector2(9),
+                                Colour = colours.Red.Opacity(win ? 1f : 0.6f),
+                            },
+                            new OsuSpriteText
+                            {
+                                Anchor = Anchor.CentreLeft,
+                                Origin = Anchor.CentreLeft,
+                                Text = info.Life.ToString("N0"),
+                                Font = OsuFont.GetFont(size: 11, weight: FontWeight.SemiBold),
+                                Colour = win ? new Color4(0.8f, 0.8f, 0.85f, 1f) : loserName,
+                                UseFullGlyphHeight = false,
+                            },
                         }
                     }
                 }
             };
-
-            bool leftWin = users[0].Info.Life > users[1].Info.Life;
-            bool rightWin = users[1].Info.Life > users[0].Info.Life;
-            bool isDraw = users[0].Info.Life == users[1].Info.Life;
-
-            if (isDraw)
-            {
-                leftResultLight.Colour = colours.Yellow;
-                rightResultLight.Colour = colours.Yellow;
-            }
-            else if (leftWin)
-            {
-                leftResultLight.Colour = colours.Green;
-                rightResultLight.Colour = colours.Red;
-
-                leftLifeText.Colour = userLeft.Colour = Color4.White;
-                leftLifeText.Font = OsuFont.GetFont(weight: FontWeight.SemiBold);
-            }
-            else if (rightWin)
-            {
-                leftResultLight.Colour = colours.Red;
-                rightResultLight.Colour = colours.Green;
-
-                rightLifeText.Colour = userRight.Colour = Color4.White;
-                rightLifeText.Font = OsuFont.GetFont(weight: FontWeight.SemiBold);
-            }
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            this.FadeInFromZero(750, Easing.OutQuint);
-        }
-
-        private partial class IconWithTooltip : SpriteIcon, IHasTooltip
-        {
-            public LocalisableString TooltipText { get; set; }
+            this.FadeInFromZero(500, Easing.OutQuint);
         }
     }
 }

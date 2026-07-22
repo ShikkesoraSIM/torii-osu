@@ -317,7 +317,10 @@ namespace osu.Game.Screens.Play
             request.Success += s =>
             {
                 score.ScoreInfo.OnlineID = s.ID;
-                score.ScoreInfo.Position = s.Position;
+                // torii: normalizamos en la entrada. una posicion valida es >= 1; un centinela
+                // (-1/0) del server lo bajamos a null asi ningun consumidor (ScorePanel, exports)
+                // ve una posicion no-positiva y termina mostrando "#-1".
+                score.ScoreInfo.Position = s.Position is int p && p > 0 ? p : null;
 
                 scoreSubmissionSource.SetResult(true);
                 Logger.Log($"Score submission completed! (token:{token.Value} id:{s.ID})");

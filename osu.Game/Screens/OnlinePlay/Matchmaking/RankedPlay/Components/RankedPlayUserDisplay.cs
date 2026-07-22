@@ -19,10 +19,13 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Online.Multiplayer.MatchTypes.RankedPlay;
 using osu.Game.Online.Rooms;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.UI;
 using osu.Game.Users.Drawables;
 using osuTK;
 using osuTK.Graphics;
@@ -51,8 +54,14 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
 
         private BeatmapAvailability availability = BeatmapAvailability.Unknown();
 
+        private FillFlowContainer modIcons = null!;
+        private string lastModsKey = string.Empty;
+
         [Resolved]
         private MultiplayerClient client { get; set; } = null!;
+
+        [Resolved]
+        private RulesetStore rulesets { get; set; } = null!;
 
         [Resolved]
         private RankedPlayCornerPiece? cornerPiece { get; set; }
@@ -109,6 +118,23 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
                             }
                         }
                     ]
+                },
+                // torii: iconito(s) del/los mod(s) equipado(s) por el jugador (ej HD), pegado al
+                // borde de abajo de la foto de perfil (como vanilla lo muestra en el participant panel).
+                new Container
+                {
+                    Name = "Mod icons",
+                    Anchor = contentAnchor,
+                    Origin = contentAnchor,
+                    Size = new Vector2(72),
+                    Child = modIcons = new FillFlowContainer
+                    {
+                        Anchor = Anchor.BottomCentre,
+                        Origin = Anchor.Centre,
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(-6, 0),
+                    }
                 },
                 new FillFlowContainer
                 {
@@ -205,6 +231,38 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
         {
             updateBeatmapState();
             updateDamageMultiplier();
+            updateMods();
+        }
+
+        // torii: muestra el/los mod(s) equipado(s) por el jugador como iconito(s) sobre la foto.
+        // Solo reconstruye si cambiaron (RoomUpdated dispara seguido).
+        private void updateMods()
+        {
+            var multiplayerUser = client.Room?.Users.SingleOrDefault(u => u.UserID == user.Id);
+
+            string key = multiplayerUser == null ? string.Empty : string.Join(",", multiplayerUser.Mods.Select(m => m.Acronym));
+            if (key == lastModsKey)
+                return;
+
+            lastModsKey = key;
+            modIcons.Clear();
+
+            if (multiplayerUser == null || !multiplayerUser.Mods.Any())
+                return;
+
+            var rulesetInfo = client.Room?.CurrentPlaylistItem == null ? null : rulesets.GetRuleset(client.Room.CurrentPlaylistItem.RulesetID);
+            if (rulesetInfo == null)
+                return;
+
+            var ruleset = rulesetInfo.CreateInstance();
+
+            foreach (var apiMod in multiplayerUser.Mods)
+            {
+                modIcons.Add(new ModIcon(apiMod.ToMod(ruleset))
+                {
+                    Scale = new Vector2(0.3f),
+                });
+            }
         }
 
         private void updateBeatmapState()

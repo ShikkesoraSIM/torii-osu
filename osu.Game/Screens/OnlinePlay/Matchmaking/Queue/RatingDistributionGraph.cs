@@ -48,6 +48,10 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private (int x, int y)[] data = [];
         private int? userRating;
+
+        // torii: en placement el rating es un seed provisional (del star-pick), no ganado. cambia
+        // el label del marcador y la descripcion asi no dice "sos mejor que X%" con 0 partidas.
+        private bool provisional;
         private (int min, int max, int step) xRange;
         private (int min, int max) yRange;
         private int xDivisionStep = 1;
@@ -227,10 +231,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             updateGraph();
         }
 
-        public void SetData((int x, int y)[] data, int? userRating)
+        public void SetData((int x, int y)[] data, int? userRating, bool provisional = false)
         {
             this.data = data;
             this.userRating = userRating;
+            this.provisional = provisional;
 
             xRange = (
                 data.Select(d => d.x).DefaultIfEmpty().Min(),
@@ -372,12 +377,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
             if (userRating != null)
             {
-                userRatingContainer.Add(new UserRatingLine(userRating.Value)
+                userRatingContainer.Add(new UserRatingLine(userRating.Value, provisional)
                 {
                     RelativeSizeAxes = Axes.Y,
                     RelativePositionAxes = Axes.X,
                     X = pointOnGraph(userRating.Value, 0).X,
-                    Colour = colours.Green
+                    Colour = provisional ? colours.Gray7 : colours.Green
                 });
             }
 
@@ -385,6 +390,8 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                 descriptionText.Text = "No games have been played yet.";
             else if (userRating == null)
                 descriptionText.Text = "Play more games to get rated!";
+            else if (provisional)
+                descriptionText.Text = "Provisional rating. Play placement games to lock in your rank.";
             else
             {
                 int countPlayersBelow = data.Where(d => d.x < userRating).Sum(d => d.y);
@@ -471,9 +478,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
                 minDistToCursor = Vector2.Distance(e.ScreenSpaceMousePosition, userRatingPos1);
                 closestPointToCursor = userRatingPos1;
-                closestColourToCursor = colours.Green;
+                closestColourToCursor = provisional ? colours.Gray7 : colours.Green;
                 closestRatingToCursor = userRating.Value;
-                closestValueToCursor = $"Your rating ({userRating})";
+                closestValueToCursor = provisional ? "Provisional rating" : $"Your rating ({userRating})";
 
                 float d = Vector2.Distance(e.ScreenSpaceMousePosition, userRatingPos2);
 
@@ -570,7 +577,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private partial class UserRatingLine : CompositeDrawable
         {
-            public UserRatingLine(int rating)
+            public UserRatingLine(int rating, bool provisional = false)
             {
                 InternalChildren = new Drawable[]
                 {
@@ -598,7 +605,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.BottomCentre,
                         Y = -4,
-                        Text = $"Your rating ({rating})",
+                        Text = provisional ? "Provisional" : $"Your rating ({rating})",
                         Font = OsuFont.Torus.With(size: 12),
                     }
                 };

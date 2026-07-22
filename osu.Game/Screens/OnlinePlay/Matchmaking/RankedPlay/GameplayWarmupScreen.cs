@@ -4,9 +4,11 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions;
+using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
@@ -14,17 +16,23 @@ using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Game.Beatmaps;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Online.Multiplayer.MatchTypes.RankedPlay;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays;
+using osu.Game.Screens.OnlinePlay.Match;
 using osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Card;
+using osu.Game.Screens.OnlinePlay.Multiplayer.Match;
 using osu.Game.Screens.Select;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 {
@@ -64,10 +72,17 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         [Resolved]
         private Bindable<IReadOnlyList<Mod>> globalMods { get; set; } = null!;
 
+        [Resolved(CanBeNull = true)]
+        private IOverlayManager? overlayManager { get; set; }
+
         private Container<RankedPlayCard> cardColumn = null!;
         private Drawable separator = null!;
         private Drawable detailsColumn = null!;
         private Drawable wedgesContainer = null!;
+
+        // torii: toggle de HD (en vez del mod-select completo) + aviso de que HD no da score extra.
+        private Components.RankedPlayHiddenToggle hdToggle = null!;
+        private OsuSpriteText hdWarning = null!;
 
         [BackgroundDependencyLoader]
         private void load()
@@ -148,6 +163,34 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                             }
                         }
                     }
+                },
+                // torii: toggle de HD (playstyle) + aviso amarillo de que HD no da score extra.
+                new FillFlowContainer
+                {
+                    Anchor = Anchor.BottomCentre,
+                    Origin = Anchor.BottomCentre,
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(0, 8),
+                    Margin = new MarginPadding { Bottom = 30 },
+                    Children = new Drawable[]
+                    {
+                        hdWarning = new OsuSpriteText
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            Text = "HD does not give extra Score in ranked play",
+                            Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold),
+                            Colour = new Color4(1f, 0.84f, 0.22f, 1f),
+                            Alpha = 0,
+                        },
+                        hdToggle = new Components.RankedPlayHiddenToggle
+                        {
+                            Anchor = Anchor.TopCentre,
+                            Origin = Anchor.TopCentre,
+                            OnToggle = toggleHidden,
+                        },
+                    }
                 }
             ];
         }
@@ -159,18 +202,82 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             MultiplayerPlaylistItem item = Client.Room!.CurrentPlaylistItem;
 
             RulesetInfo ruleset = rulesets.GetRuleset(item.RulesetID)!;
-            Ruleset rulesetInstance = ruleset.CreateInstance();
             BeatmapInfo? localBeatmap = beatmapManager.QueryOnlineBeatmapId(item.BeatmapID);
 
             globalBeatmap.Value = beatmapManager.GetWorkingBeatmap(localBeatmap);
             globalRuleset.Value = ruleset;
-            globalMods.Value = item.RequiredMods.Select(m => m.ToMod(rulesetInstance)).ToArray();
+            updateGlobalMods();
+
+            // torii: recomponer los global mods + sincronizar el toggle cada vez que cambian los
+            // mods del jugador (el toggle dispara ChangeUserMods, el server los eco-broadcastea, y
+            // ahi actualizamos lo que se juega/submitea + el estado visual del toggle).
+            Client.UserModsChanged += onUserModsChanged;
+            syncHiddenState();
 
             // Play the new track from its preview point.
             globalBeatmap.Value.PrepareTrackForPreview(false);
             musicController.Play(true);
 
             Client.ChangeState(MultiplayerUserState.Ready).FireAndForget();
+        }
+
+        // torii FREEMODS: global Mods = free-mods elegidos por el jugador + required mods de la carta.
+        // el player/submission leen el global Mods bindable, asi los mods llegan a gameplay + score.
+        private void updateGlobalMods()
+        {
+            MultiplayerPlaylistItem? item = Client.Room?.CurrentPlaylistItem;
+            if (item == null)
+                return;
+
+            Ruleset rulesetInstance = rulesets.GetRuleset(item.RulesetID)!.CreateInstance();
+            IEnumerable<APIMod> userMods = Client.LocalUser?.Mods ?? Enumerable.Empty<APIMod>();
+
+            globalMods.Value = userMods.Concat(item.RequiredMods)
+                                       .Select(m => m.ToMod(rulesetInstance)).ToArray();
+        }
+
+        private void onUserModsChanged(MultiplayerRoomUser user)
+        {
+            if (user.UserID == Client.LocalUser?.UserID)
+            {
+                updateGlobalMods();
+                syncHiddenState();
+            }
+        }
+
+        // torii: el click del toggle pide prender/apagar HD. Mandamos ChangeUserMods; el estado
+        // visual del toggle lo sincroniza syncHiddenState cuando el server eco-broadcastea.
+        private void toggleHidden(bool wantHidden)
+        {
+            Ruleset? ruleset = globalRuleset.Value?.CreateInstance();
+            if (ruleset == null)
+                return;
+
+            if (wantHidden)
+            {
+                Mod? hd = ruleset.CreateModFromAcronym(@"HD");
+                if (hd != null)
+                    Client.ChangeUserMods(new[] { hd }).FireAndForget();
+            }
+            else
+                Client.ChangeUserMods(Array.Empty<Mod>()).FireAndForget();
+        }
+
+        // torii: refleja el estado real de los mods del jugador (server-authoritative) en el toggle
+        // + el aviso amarillo. HD = tiene el mod HD prendido.
+        private void syncHiddenState()
+        {
+            bool hasHidden = Client.LocalUser?.Mods.Any(m => m.Acronym == @"HD") ?? false;
+            hdToggle.SetActive(hasHidden);
+            hdWarning.FadeTo(hasHidden ? 1 : 0, 150, Easing.OutQuint);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            base.Dispose(isDisposing);
+
+            if (Client.IsNotNull())
+                Client.UserModsChanged -= onUserModsChanged;
         }
 
         public override void OnEntering(RankedPlaySubScreen? previous)

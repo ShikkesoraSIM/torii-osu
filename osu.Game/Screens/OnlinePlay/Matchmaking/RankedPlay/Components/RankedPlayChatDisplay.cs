@@ -63,7 +63,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
                     RelativeSizeAxes = Axes.X,
                     Height = 30,
                     CornerRadius = 10,
-                    ReleaseFocusOnCommit = true,
+                    // torii: el foco NO se suelta al mandar, asi podes escribir varios mensajes seguidos
+                    // sin re-abrir el chat cada vez (estilo discord). Escape lo cierra (ver OnPressed/Back).
+                    ReleaseFocusOnCommit = false,
                     HoldFocus = false,
                     Focus = onFocusGained,
                     FocusLost = onFocusLost

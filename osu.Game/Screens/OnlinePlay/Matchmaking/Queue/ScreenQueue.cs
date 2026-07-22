@@ -16,6 +16,7 @@ using osu.Framework.Extensions;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Audio;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
@@ -30,6 +31,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Input.Bindings;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Chat;
 using osu.Game.Online.Matchmaking;
@@ -58,8 +60,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private Container mainContent = null!;
         private CloudVisualisation cloud = null!;
-        private RatingDistributionGraph ratingGraph = null!;
+        private RankHeroCard rankHero = null!;
         private FillFlowContainer resultPanelContainer = null!;
+
+        // ultimo percentil "mejor que X%" calculado del RatingDistribution; lo cachea el status y
+        // lo reusa el fetch de g0v0 para no perder el dato entre updates.
+        private double? lastPercentile;
 
         [Resolved]
         private OsuColour colours { get; set; } = null!;
@@ -82,6 +88,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
         [Resolved]
         private DashboardOverlay? dashboardOverlay { get; set; }
 
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
+
         private readonly IBindable<MatchmakingScreenState> currentState = new Bindable<MatchmakingScreenState>();
 
         private readonly Bindable<MatchmakingPool[]?> availablePools = new Bindable<MatchmakingPool[]?>();
@@ -101,6 +110,17 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private int? userRating;
 
+        // torii: si el jugador sigue en placement (pocas partidas ranked). mientras es true el
+        // badge muestra "Provisional" en vez del tier real, asi un seed fresco del star-pick no
+        // se lee como "Master" sin haber jugado. lo trae g0v0 (que sabe el plays count); el
+        // contrato MessagePack del spectator es NuGet-pinned y no puede cargar el flag.
+        private bool userProvisional;
+        private GetMatchmakingRankRequest? rankRequest;
+
+        // torii: gate del star-rating pick. false hasta que el jugador eligio (o ya tenia) su
+        // dificultad comoda de la season; mientras, el estado Idle muestra el picker en vez del boton.
+        private bool comfortPickReady;
+
         private GridContainer mainGrid = null!;
 
         private IBindable<bool> isConnected = null!;
@@ -111,12 +131,158 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
         }
 
         [BackgroundDependencyLoader]
-        private void load(AudioManager audio, IAPIProvider api)
+        private void load(AudioManager audio)
         {
             enqueueSample = audio.Samples.Get(@"Multiplayer/Matchmaking/enqueue");
             matchFoundSample = audio.Samples.Get(@"Multiplayer/Matchmaking/match-found");
 
             LinkFlowContainer experimentalText;
+
+            // torii revamp: layout de bandas (banner / hero / cuerpo) en vez del viejo grid 2x2.
+            // los paneles del cuerpo se construyen como locals ACA (incondicional) para que los
+            // campos (cloud, mainContent, ratingGraph, resultPanelContainer) queden asignados
+            // siempre, y despues se acomodan distinto en desktop (2 columnas) vs mobile (apilado).
+
+            // panel principal: la accion (pool selector + boton begin) sobre un backdrop del cloud de jugadores en cola.
+            Drawable mainStagePanel = glass(new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Children = new Drawable[]
+                {
+                    cloud = new CloudVisualisation
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        RelativeSizeAxes = Axes.Both,
+                        Size = new Vector2(0.9f),
+                    },
+                    new GridContainer
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Padding = new MarginPadding(12),
+                        RowDimensions =
+                        [
+                            new Dimension(GridSizeMode.AutoSize)
+                        ],
+                        Content = new[]
+                        {
+                            new Drawable[] { new QueueSectionHeader(poolType == MatchmakingPoolType.RankedPlay ? "Ranked queue" : "Quick play queue") },
+                            new Drawable[]
+                            {
+                                mainContent = new Container
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Padding = new MarginPadding(20),
+                                    Alpha = 0,
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // panel de rank: el crest grande del tier + barra de progreso + "mejor que X%".
+            // reemplaza la vieja curva de distribucion (densa y poco util en la cola).
+            Drawable ratingsPanel = glass(new GridContainer
+            {
+                RelativeSizeAxes = Axes.Both,
+                Padding = new MarginPadding(12),
+                RowDimensions =
+                [
+                    new Dimension(GridSizeMode.AutoSize)
+                ],
+                Content = new[]
+                {
+                    new Drawable[] { new QueueSectionHeader("Your rank") },
+                    new Drawable[]
+                    {
+                        new Container
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Child = rankHero = new RankHeroCard()
+                        }
+                    }
+                }
+            });
+
+            // panel de partidas recientes.
+            Drawable recentPanel = glass(new GridContainer
+            {
+                RelativeSizeAxes = Axes.Both,
+                Padding = new MarginPadding(12) { Bottom = 0 },
+                RowDimensions =
+                [
+                    new Dimension(GridSizeMode.AutoSize)
+                ],
+                Content = new[]
+                {
+                    new Drawable[] { new QueueSectionHeader("Recent matches") },
+                    new Drawable[]
+                    {
+                        new OsuScrollContainer(Direction.Vertical)
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            ScrollbarOverlapsContent = false,
+                            Child = resultPanelContainer = new FillFlowContainer
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                AutoSizeAxes = Axes.Y,
+                                Spacing = new Vector2(10),
+                            }
+                        }
+                    }
+                }
+            });
+
+            // cuerpo responsive: desktop = stage grande a la izquierda + sidebar (ratings arriba, recientes abajo);
+            // mobile = todo apilado en vertical para no quedar apretado.
+            Drawable body = RuntimeInfo.IsMobile
+                ? new GridContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    RowDimensions =
+                    [
+                        new Dimension(),
+                        new Dimension(GridSizeMode.Relative, 0.34f),
+                        new Dimension(GridSizeMode.Relative, 0.34f)
+                    ],
+                    Content = new[]
+                    {
+                        new Drawable[] { mainStagePanel },
+                        new Drawable[] { ratingsPanel },
+                        new Drawable[] { recentPanel },
+                    }
+                }
+                : new GridContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    ColumnDimensions =
+                    [
+                        new Dimension(GridSizeMode.Relative, 0.62f),
+                        new Dimension()
+                    ],
+                    Content = new[]
+                    {
+                        new Drawable[]
+                        {
+                            mainStagePanel,
+                            new GridContainer
+                            {
+                                RelativeSizeAxes = Axes.Both,
+                                RowDimensions =
+                                [
+                                    new Dimension(GridSizeMode.Relative, 0.5f),
+                                    new Dimension()
+                                ],
+                                Content = new[]
+                                {
+                                    new Drawable[] { ratingsPanel },
+                                    new Drawable[] { recentPanel },
+                                }
+                            }
+                        }
+                    }
+                };
 
             InternalChild = new InverseScalingDrawSizePreservingFillContainer
             {
@@ -136,219 +302,98 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                         },
                         RowDimensions =
                         [
-                            new Dimension(),
-                            new Dimension(GridSizeMode.Relative, RuntimeInfo.IsMobile ? 0.55f : 0.35f)
+                            new Dimension(GridSizeMode.AutoSize),
+                            new Dimension(GridSizeMode.Absolute, RuntimeInfo.IsMobile ? 128 : 112),
+                            new Dimension()
                         ],
                         Content = new[]
                         {
+                            // ── banda 1: aviso de desarrollo (franja amarilla full-width) ──
                             new Drawable[]
                             {
                                 new Container
                                 {
-                                    RelativeSizeAxes = Axes.Both,
+                                    RelativeSizeAxes = Axes.X,
+                                    AutoSizeAxes = Axes.Y,
                                     Padding = new MarginPadding(5),
                                     Child = new Container
                                     {
-                                        RelativeSizeAxes = Axes.Both,
-                                        CornerRadius = 10f,
+                                        RelativeSizeAxes = Axes.X,
+                                        AutoSizeAxes = Axes.Y,
                                         Masking = true,
+                                        CornerRadius = 8,
                                         Children = new Drawable[]
                                         {
-                                            new PanelBackground(),
-                                            new GridContainer
+                                            new Box
                                             {
                                                 RelativeSizeAxes = Axes.Both,
-                                                Padding = new MarginPadding(10),
-                                                RowDimensions =
-                                                [
-                                                    new Dimension(GridSizeMode.AutoSize)
-                                                ],
-                                                Content = new[]
-                                                {
-                                                    new Drawable[]
-                                                    {
-                                                        new FillFlowContainer
-                                                        {
-                                                            RelativeSizeAxes = Axes.X,
-                                                            AutoSizeAxes = Axes.Y,
-                                                            Children = new Drawable[]
-                                                            {
-                                                                new Container
-                                                                {
-                                                                    RelativeSizeAxes = Axes.X,
-                                                                    AutoSizeAxes = Axes.Y,
-                                                                    Masking = true,
-                                                                    CornerRadius = 5,
-                                                                    Children = new Drawable[]
-                                                                    {
-                                                                        new Box
-                                                                        {
-                                                                            RelativeSizeAxes = Axes.Both,
-                                                                            Colour = colours.Yellow
-                                                                        },
-                                                                        experimentalText = new ExperimentalLinkFlowContainer
-                                                                        {
-                                                                            RelativeSizeAxes = Axes.X,
-                                                                            AutoSizeAxes = Axes.Y,
-                                                                            Padding = new MarginPadding(10),
-                                                                        }
-                                                                    }
-                                                                },
-                                                                new QueueSectionHeader("Queued players")
-                                                            }
-                                                        }
-                                                    },
-                                                    new Drawable[]
-                                                    {
-                                                        new Container
-                                                        {
-                                                            RelativeSizeAxes = Axes.Both,
-                                                            Children = new Drawable[]
-                                                            {
-                                                                cloud = new CloudVisualisation
-                                                                {
-                                                                    Anchor = Anchor.Centre,
-                                                                    Origin = Anchor.Centre,
-                                                                    RelativeSizeAxes = Axes.Both,
-                                                                    Size = new Vector2(0.6f)
-                                                                },
-                                                                new MatchmakingAvatar(api.LocalUser.Value, true)
-                                                                {
-                                                                    Anchor = Anchor.Centre,
-                                                                    Origin = Anchor.Centre,
-                                                                    Scale = new Vector2(3),
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                new Container
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Padding = new MarginPadding(5),
-                                    Child = new Container
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        CornerRadius = 10f,
-                                        Masking = true,
-                                        Children = new Drawable[]
-                                        {
-                                            new PanelBackground(),
-                                            new GridContainer
+                                                Colour = colours.Yellow
+                                            },
+                                            experimentalText = new ExperimentalLinkFlowContainer
                                             {
-                                                RelativeSizeAxes = Axes.Both,
-                                                Padding = new MarginPadding(10) { Bottom = 0 },
-                                                RowDimensions =
-                                                [
-                                                    new Dimension(GridSizeMode.AutoSize)
-                                                ],
-                                                Content = new[]
-                                                {
-                                                    new Drawable[] { new QueueSectionHeader("Recent Matches") },
-                                                    new Drawable[]
-                                                    {
-                                                        new OsuScrollContainer(Direction.Vertical)
-                                                        {
-                                                            RelativeSizeAxes = Axes.Both,
-                                                            ScrollbarOverlapsContent = false,
-                                                            Child = resultPanelContainer = new FillFlowContainer
-                                                            {
-                                                                RelativeSizeAxes = Axes.X,
-                                                                AutoSizeAxes = Axes.Y,
-                                                                Spacing = new Vector2(10),
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                                RelativeSizeAxes = Axes.X,
+                                                AutoSizeAxes = Axes.Y,
+                                                Padding = new MarginPadding { Horizontal = 14, Vertical = 8 },
                                             }
                                         }
                                     }
                                 }
                             },
+                            // ── banda 2: hero con identidad (avatar + nombre) + rank badge ──
                             new Drawable[]
                             {
-                                new Container
+                                glass(new Container
                                 {
                                     RelativeSizeAxes = Axes.Both,
-                                    Padding = new MarginPadding(5),
-                                    Child = new Container
+                                    Padding = new MarginPadding { Horizontal = 22, Vertical = 12 },
+                                    Children = new Drawable[]
                                     {
-                                        RelativeSizeAxes = Axes.Both,
-                                        CornerRadius = 10f,
-                                        Masking = true,
-                                        Children = new Drawable[]
+                                        new FillFlowContainer
                                         {
-                                            new PanelBackground(),
-                                            new GridContainer
+                                            // cluster izquierdo. flow horizontal: todos los hijos con el mismo
+                                            // Anchor.Y (CentreLeft) o crashea cada frame. ver [[reference_briefingglass_fillflow_crash]].
+                                            Anchor = Anchor.CentreLeft,
+                                            Origin = Anchor.CentreLeft,
+                                            AutoSizeAxes = Axes.Both,
+                                            Direction = FillDirection.Horizontal,
+                                            Spacing = new Vector2(16, 0),
+                                            Children = new Drawable[]
                                             {
-                                                RelativeSizeAxes = Axes.Both,
-                                                Padding = new MarginPadding(10),
-                                                RowDimensions =
-                                                [
-                                                    new Dimension(GridSizeMode.AutoSize)
-                                                ],
-                                                Content = new[]
+                                                new MatchmakingAvatar(api.LocalUser.Value, true)
                                                 {
-                                                    new Drawable[] { new QueueSectionHeader("Queues") },
-                                                    new Drawable[]
+                                                    Anchor = Anchor.CentreLeft,
+                                                    Origin = Anchor.CentreLeft,
+                                                    Size = new Vector2(64),
+                                                },
+                                                new FillFlowContainer
+                                                {
+                                                    Anchor = Anchor.CentreLeft,
+                                                    Origin = Anchor.CentreLeft,
+                                                    AutoSizeAxes = Axes.Both,
+                                                    Direction = FillDirection.Vertical,
+                                                    Spacing = new Vector2(0, 3),
+                                                    Children = new Drawable[]
                                                     {
-                                                        mainContent = new Container
+                                                        new OsuSpriteText
                                                         {
-                                                            RelativeSizeAxes = Axes.Both,
-                                                            Padding = new MarginPadding(20),
-                                                            Alpha = 0,
+                                                            Text = api.LocalUser.Value.Username,
+                                                            Font = OsuFont.GetFont(size: 26, weight: FontWeight.SemiBold, typeface: Typeface.TorusAlternate),
+                                                        },
+                                                        new OsuSpriteText
+                                                        {
+                                                            Text = poolType == MatchmakingPoolType.RankedPlay ? "Ranked Play" : "Quick Play",
+                                                            Font = OsuFont.GetFont(size: 14, weight: FontWeight.SemiBold),
+                                                            Colour = new Color4(0.66f, 0.66f, 0.72f, 1f),
                                                         },
                                                     }
                                                 }
                                             }
-                                        }
+                                        },
                                     }
-                                },
-                                new Container
-                                {
-                                    RelativeSizeAxes = Axes.Both,
-                                    Padding = new MarginPadding(5),
-                                    Child = new Container
-                                    {
-                                        RelativeSizeAxes = Axes.Both,
-                                        CornerRadius = 10f,
-                                        Masking = true,
-                                        Children = new Drawable[]
-                                        {
-                                            new PanelBackground(),
-                                            new GridContainer
-                                            {
-                                                RelativeSizeAxes = Axes.Both,
-                                                Padding = new MarginPadding(10),
-                                                RowDimensions =
-                                                [
-                                                    new Dimension(GridSizeMode.AutoSize)
-                                                ],
-                                                Content = new[]
-                                                {
-                                                    new Drawable[] { new QueueSectionHeader("Ratings") },
-                                                    new Drawable[]
-                                                    {
-                                                        new Container
-                                                        {
-                                                            RelativeSizeAxes = Axes.Both,
-                                                            Padding = new MarginPadding { Top = -10 },
-                                                            Child = ratingGraph = new RatingDistributionGraph
-                                                            {
-                                                                RelativeSizeAxes = Axes.Both,
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                                })
+                            },
+                            // ── banda 3: cuerpo ──
+                            new Drawable[] { body }
                         }
                     }
                 }
@@ -388,7 +433,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             currentState.BindValueChanged(s => SetState(s.NewValue));
 
             selectedPool.BindTo(queue.SelectedPool);
-            selectedPool.BindValueChanged(e => refreshLobbyData());
+            selectedPool.BindValueChanged(e =>
+            {
+                refreshLobbyData();
+                fetchMatchmakingRank();
+            });
 
             isConnected = client.IsConnected.GetBoundCopy();
             isConnected.BindValueChanged(connected => Schedule(() =>
@@ -408,7 +457,20 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
         private async Task populateAvailablePools()
         {
-            MatchmakingPool[] pools = await client.GetMatchmakingPoolsOfType(poolType).ConfigureAwait(false);
+            MatchmakingPool[] pools;
+
+            try
+            {
+                pools = await client.GetMatchmakingPoolsOfType(poolType).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // torii: al entrar a la pantalla la conexion del hub puede no estar activa todavia
+                // (esta (re)conectando), y GetMatchmakingPoolsOfType tira "connection is not active".
+                // el bind de IsConnected vuelve a disparar esto cuando el hub conecta de verdad, asi
+                // que tragamos el error transitorio en vez de spamear notificaciones de error.
+                return;
+            }
 
             Schedule(() =>
             {
@@ -436,10 +498,49 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             if (status.UserRating != null)
                 userRating = status.UserRating;
 
-            ratingGraph.SetData(status.RatingDistribution, userRating);
+            // percentil "mejor que X%" derivado del RatingDistribution (la unica data del viejo
+            // grafico que vale la pena conservar; ahora va como una linea chica en el hero card).
+            double? percentile = null;
+
+            if (userRating != null && status.RatingDistribution.Length > 0)
+            {
+                int below = status.RatingDistribution.Where(d => d.Rating < userRating).Sum(d => d.Count);
+                int total = status.RatingDistribution.Sum(d => d.Count);
+                if (total > 0)
+                    percentile = (double)below / total;
+            }
+
+            lastPercentile = percentile;
+            rankHero.SetData(userRating, userProvisional, percentile);
 
             loadRecentMatches(status.RecentMatches.OfType<RankedPlayRoomState>().ToArray()).FireAndForget();
         });
+
+        // torii: trae el rango de ranked play (rating + placement) de g0v0 para el badge. El
+        // contrato del status (MessagePack, ppy.osu.Game NuGet-pinned en el spectator) no puede
+        // cargar el flag provisional, asi que lo pedimos aparte. Cambia lento (solo cuando termina
+        // el placement), asi que alcanza con refetchearlo al cambiar de pool/ruleset.
+        private void fetchMatchmakingRank()
+        {
+            rankRequest?.Cancel();
+
+            if (selectedPool.Value == null)
+                return;
+
+            var req = rankRequest = new GetMatchmakingRankRequest(selectedPool.Value.RulesetId);
+            req.Success += rank => Schedule(() =>
+            {
+                if (req != rankRequest)
+                    return;
+
+                userProvisional = rank.Provisional;
+                // el mu de g0v0 y el del spectator salen de la misma tabla; usamos el del status
+                // como fuente viva del numero, pero si todavia no llego uno, sembramos con este.
+                userRating ??= rank.Rating;
+                rankHero.SetData(userRating, userProvisional, lastPercentile);
+            });
+            api.Queue(req);
+        }
 
         private int historyInsertOrder;
 
@@ -457,7 +558,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                     resultPanelContainer.Insert(historyInsertOrder--, new RankedPlayMatchPanel(match)
                     {
                         RelativeSizeAxes = Axes.X,
-                        Width = 0.48f
+                        // full width: en el revamp los recientes van en un sidebar/columna angosta,
+                        // asi que apilan de a uno en vez de dos por fila.
+                        Width = 1f
                     });
                 }
 
@@ -478,14 +581,16 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
             if (selectedPool.Value == null)
             {
-                client.MatchmakingLeaveLobby().FireAndForget();
+                // onError vacio: mismo motivo que populateAvailablePools, el hub puede estar
+                // reconectando al entrar y no queremos spamear notificaciones de error.
+                client.MatchmakingLeaveLobby().FireAndForget(onError: _ => { });
                 return;
             }
 
             client.MatchmakingJoinLobbyWithParams(new MatchmakingJoinLobbyRequest
             {
                 PoolId = selectedPool.Value.Id
-            }).FireAndForget();
+            }).FireAndForget(onError: _ => { });
         }
 
         private void clearLobbyData()
@@ -493,7 +598,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             resultPanelContainer.Clear();
             resultPanelContainer.LayoutDuration = 0;
             userRating = null;
-            ratingGraph.SetData([], null);
+            userProvisional = false;
+            lastPercentile = null;
+            rankHero.Clear();
 
             cloud.Users = Array.Empty<APIUser>();
         }
@@ -563,6 +670,30 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             switch (newState)
             {
                 case MatchmakingScreenState.Idle:
+                    // torii: gate del star-rating pick. Hasta que no eligas tu dificultad comoda de la
+                    // season, mostramos el picker en vez del boton de queue. OnReady se dispara al elegir
+                    // (o si ya elegiste) y re-entra a Idle para mostrar el flujo normal.
+                    if (!comfortPickReady)
+                    {
+                        mainContent.Child = new ComfortPickPanel(ruleset.Value.OnlineID)
+                        {
+                            Anchor = Anchor.Centre,
+                            Origin = Anchor.Centre,
+                            Width = 0.9f,
+                            OnReady = () =>
+                            {
+                                comfortPickReady = true;
+                                // deferir a un frame limpio: SetState hace mainContent.Clear(), que
+                                // dispone este ComfortPickPanel. Si lo disponemos mientras corre su
+                                // propio callback (el OnReady sale de ahi), revienta con
+                                // ObjectDisposedException en el update siguiente.
+                                if (currentState.Value == MatchmakingScreenState.Idle)
+                                    Schedule(() => SetState(MatchmakingScreenState.Idle));
+                            },
+                        };
+                        break;
+                    }
+
                     LinkFlowContainer duelHint;
 
                     mainContent.Child = new FillFlowContainer
@@ -737,6 +868,8 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
 
             stopWaitingLoopPlayback();
 
+            rankRequest?.Cancel();
+
             if (client.IsNotNull())
                 client.MatchmakingLobbyStatusChanged -= onMatchmakingLobbyStatusChanged;
         }
@@ -772,6 +905,23 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             waitingLoopChannel?.Dispose();
         }
 
+        /// <summary>
+        /// torii: envuelve un contenido en un panel dark-glass redondeado (fondo <see cref="PanelBackground"/>
+        /// + masking). se usa para cada panel del revamp del queue.
+        /// </summary>
+        private static Container glass(Drawable content) => new Container
+        {
+            RelativeSizeAxes = Axes.Both,
+            Padding = new MarginPadding(5),
+            Child = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                CornerRadius = 12f,
+                Masking = true,
+                Children = new Drawable[] { new PanelBackground(), content },
+            },
+        };
+
         public partial class PanelBackground : CompositeDrawable
         {
             [Resolved]
@@ -780,14 +930,36 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             [BackgroundDependencyLoader]
             private void load()
             {
+                // torii: panel dark-glass. base oscura semi-transparente + tinte del tema +
+                // un highlight sutil arriba (brillo de vidrio) + borde tenue. el parent ya
+                // maskea con corner radius 12, replicamos aca para que el borde acompanie.
                 RelativeSizeAxes = Axes.Both;
+                Masking = true;
+                CornerRadius = 12f;
+                BorderThickness = 1.5f;
+                BorderColour = new Color4(1f, 1f, 1f, 0.08f);
 
-                InternalChild = new Box
+                InternalChildren = new Drawable[]
                 {
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = colourProvider.Background3,
-                    Blending = BlendingParameters.Additive,
-                    Alpha = 0.3f,
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = new Color4(0.05f, 0.06f, 0.08f, 0.55f),
+                    },
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = colourProvider.Background3,
+                        Blending = BlendingParameters.Additive,
+                        Alpha = 0.22f,
+                    },
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Height = 0.5f,
+                        Colour = ColourInfo.GradientVertical(new Color4(1f, 1f, 1f, 0.05f), new Color4(1f, 1f, 1f, 0f)),
+                        Blending = BlendingParameters.Additive,
+                    },
                 };
             }
         }

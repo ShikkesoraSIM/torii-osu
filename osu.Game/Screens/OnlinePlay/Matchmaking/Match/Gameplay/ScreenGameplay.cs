@@ -17,6 +17,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match.Gameplay
         {
         }
 
+        // torii: ranked play muestra el results propio (card-duel) via la transicion de stage del
+        // RankedPlayScreen. Este Player NUNCA debe empujar el results generico de solo/MP (era el
+        // que aparecia con el AccuracyCircle F + rank "#-1" cuando ganaba el race contra Exit()).
+        protected override bool DisplayResultsScreenOnCompletion => false;
+
         protected override async Task PrepareScoreForResultsAsync(Score score)
         {
             await base.PrepareScoreForResultsAsync(score).ConfigureAwait(false);
