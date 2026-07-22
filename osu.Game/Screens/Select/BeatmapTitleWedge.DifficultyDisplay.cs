@@ -79,7 +79,7 @@ namespace osu.Game.Screens.Select
 
                 InternalChildren = new Drawable[]
                 {
-                    new WedgeBackground(),
+                    new WedgeBackground { Glass = true }, // torii dark glass
                     new FillFlowContainer
                     {
                         RelativeSizeAxes = Axes.X,

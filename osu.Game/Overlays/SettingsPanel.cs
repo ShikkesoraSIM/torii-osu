@@ -13,6 +13,8 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Extensions.IEnumerableExtensions;
 using osu.Framework.Graphics;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Effects;
@@ -78,7 +80,8 @@ namespace osu.Game.Overlays
 
         // Torii custom UI hue: re-tints the panel live when the user changes the hue.
         private System.IDisposable customUiHueBinding;
-        private Box panelBackground = null!;
+        // torii DARK GLASS: GlassBackdrop en vez de Box plano, para blurear la escena detras del panel.
+        private GlassBackdrop panelBackground = null!;
 
         [Resolved(CanBeNull = true)]
         private osu.Game.Online.API.IAPIProvider api { get; set; }
@@ -105,13 +108,13 @@ namespace osu.Game.Overlays
                 RelativeSizeAxes = Axes.Y,
                 Children = new Drawable[]
                 {
-                    panelBackground = new Box
+                    panelBackground = new GlassBackdrop
                     {
                         Anchor = Anchor.TopRight,
                         Origin = Anchor.TopRight,
                         Scale = new Vector2(2, 1), // over-extend to the left for transitions
                         RelativeSizeAxes = Axes.Both,
-                        Colour = colourProvider.Background4,
+                        TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)), // torii dark glass
                         Alpha = 1,
                     },
                     loading = new LoadingLayer
@@ -244,7 +247,7 @@ namespace osu.Game.Overlays
         private void updateTheme()
         {
             if (panelBackground != null)
-                panelBackground.Colour = colourProvider.Background4;
+                panelBackground.TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)); // torii dark glass
         }
 
         protected override void Dispose(bool isDisposing)
@@ -359,7 +362,7 @@ namespace osu.Game.Overlays
             {
                 HeaderBackground = new Box
                 {
-                    Colour = colourProvider.Background5,
+                    Colour = colourProvider.Background5.Opacity(ThemeAware.GlassAlpha(0.85f)), // torii dark glass
                     RelativeSizeAxes = Axes.Both
                 };
 

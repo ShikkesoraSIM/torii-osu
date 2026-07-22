@@ -93,13 +93,23 @@ namespace osu.Game.Overlays
         // body, mod-select tray, song-select stats wedge). Torii's
         // upstream values land on a "dim navy" feel; fsyori's
         // grayscale pulls them to almost-or-actually-black.
+        // Torii DARK GLASS: aca solo se OSCURECE la lightness de los Background* (vidrio
+        // oscuro, entre el torii default y el negro de fsyori). El ALPHA del vidrio NO va
+        // centralizado a proposito: estos slots se usan tambien como color de FOREGROUND
+        // (chevrons del carousel, tints de iconos, texto de pills) en decenas de call sites,
+        // y un icono translucido se ve roto. La transparencia se aplica POR SITIO en los
+        // fills de paneles con ThemeAware.GlassAlpha (ver FullscreenOverlay, SettingsPanel,
+        // Toolbar, ChatOverlay, etc).
+        // torii dark glass: la lightness va MENOS oscura que un near-black (frost gris-azulado,
+        // no negro) porque el fondo detras ya viene blureado; el film solo tiñe. No sube mas
+        // arriba porque el texto de la UI es claro y necesita una base oscura para contraste.
         public Color4 Foreground1 => getColour(0.1f, ThemeAware.Pick(0.6f, 0.3f));
-        public Color4 Background1 => getColour(0.1f, ThemeAware.Pick(0.4f, 0.1f));
-        public Color4 Background2 => getColour(0.1f, ThemeAware.Pick(0.3f, 0.1f));
-        public Color4 Background3 => getColour(0.1f, ThemeAware.Pick(0.25f, 0.0f));
-        public Color4 Background4 => getColour(0.1f, ThemeAware.Pick(0.2f, 0.02f));
-        public Color4 Background5 => getColour(0.1f, ThemeAware.Pick(0.15f, 0.0f));
-        public Color4 Background6 => getColour(0.1f, ThemeAware.Pick(0.1f, 0.0f));
+        public Color4 Background1 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.4f, 0.1f), 0.24f));
+        public Color4 Background2 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.3f, 0.1f), 0.22f));
+        public Color4 Background3 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.25f, 0.0f), 0.20f));
+        public Color4 Background4 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.2f, 0.02f), 0.18f));
+        public Color4 Background5 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.15f, 0.0f), 0.16f));
+        public Color4 Background6 => getColour(0.1f, ThemeAware.PickGlass(ThemeAware.Pick(0.1f, 0.0f), 0.14f));
 
         /// <summary>
         /// Changes the <see cref="Hue"/> to a different degree.
@@ -176,6 +186,7 @@ namespace osu.Game.Overlays
 
             return normalised;
         }
+
 
         // Torii: chrome + accent generators check the global UI-theme
         // flag and adjust the HSL rampe per theme.

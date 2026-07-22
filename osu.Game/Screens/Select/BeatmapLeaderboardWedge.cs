@@ -158,7 +158,7 @@ namespace osu.Game.Screens.Select
                         Alpha = 0f,
                         Children = new Drawable[]
                         {
-                            new WedgeBackground(),
+                            new WedgeBackground { Glass = true }, // torii dark glass
                             // Required because wedge background blocks input from passing through
                             // to the main context menu container above.
                             new OsuContextMenuContainer

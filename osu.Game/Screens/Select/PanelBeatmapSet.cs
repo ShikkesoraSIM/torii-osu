@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -21,6 +22,7 @@ using osu.Game.Beatmaps.Drawables;
 using osu.Game.Collections;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Carousel;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -40,7 +42,8 @@ namespace osu.Game.Screens.Select
 
         public Bindable<HashSet<BeatmapInfo>?> VisibleBeatmaps { get; } = new Bindable<HashSet<BeatmapInfo>?>();
 
-        private Box chevronBackground = null!;
+        // torii dark glass: Box blanco plano normalmente; GlassBackdrop blanco-frost con el theme glass.
+        private Drawable chevronBackground = null!;
         private PanelSetBackground setBackground = null!;
         private ScheduledDelegate? scheduledBackgroundRetrieval;
 
@@ -105,12 +108,26 @@ namespace osu.Game.Screens.Select
                 },
             };
 
-            Background = chevronBackground = new Box
+            // torii dark glass: el "cosito" blanco del set expandido se vuelve vidrio blanco-frost
+            // (blur de la escena detras teñido de blanco) en vez de blanco plano.
+            if (OsuColour.IsGlassTheme)
             {
-                RelativeSizeAxes = Axes.Both,
-                Colour = Color4.White,
-                Alpha = 0f,
-            };
+                Background = chevronBackground = new GlassBackdrop
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    TintColour = Color4.White.Opacity(0.25f), // bien transparente: que se note el blur atras
+                    Alpha = 0f,
+                };
+            }
+            else
+            {
+                Background = chevronBackground = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = Color4.White,
+                    Alpha = 0f,
+                };
+            }
 
             Content.Children = new Drawable[]
             {

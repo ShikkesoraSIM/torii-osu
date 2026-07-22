@@ -19,6 +19,7 @@ using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Online.API;
 using osu.Game.Overlays.Notifications;
@@ -55,7 +56,8 @@ namespace osu.Game.Overlays
         [Cached]
         private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Purple);
         private IDisposable? customUiHueBinding;
-        private Box background = null!;
+        // torii DARK GLASS: GlassBackdrop en vez de Box plano para el fondo del panel de notis.
+        private GlassBackdrop background = null!;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
@@ -111,10 +113,10 @@ namespace osu.Game.Overlays
                     },
                     Children = new Drawable[]
                     {
-                        background = new Box
+                        background = new GlassBackdrop
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Colour = colourProvider.Background4,
+                            TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)), // torii dark glass
                         },
                         new OsuScrollContainer
                         {
@@ -146,7 +148,7 @@ namespace osu.Game.Overlays
             customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Purple.GetHue(), CustomUiHueScope.Overlays, api);
 
             if (background != null)
-                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, (b, p) => b.TintColour = p.Background4.Opacity(ThemeAware.GlassAlpha(0.8f))); // torii dark glass
         }
 
         private IDisposable? backgroundThemeBinding;

@@ -13,6 +13,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osuTK;
 using osuTK.Graphics;
 using Realms;
@@ -61,9 +62,10 @@ namespace osu.Game.Overlays.Music
                     },
                     Children = new Drawable[]
                     {
-                        new Box
+                        // torii dark glass: fondo del panel de playlist como vidrio
+                        new GlassBackdrop
                         {
-                            Colour = colours.Gray3,
+                            TintColour = colours.Gray3.Opacity(ThemeAware.GlassAlpha(0.8f)),
                             RelativeSizeAxes = Axes.Both,
                         },
                         list = new Playlist

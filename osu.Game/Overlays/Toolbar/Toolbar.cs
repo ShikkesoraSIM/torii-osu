@@ -287,7 +287,7 @@ namespace osu.Game.Overlays.Toolbar
                 if (solidBackground == null)
                     return;
 
-                solidBackground.Colour = new OverlayColourProvider(hue).Background6;
+                solidBackground.Colour = new OverlayColourProvider(hue).Background6.Opacity(ThemeAware.GlassAlpha(0.7f)); // torii dark glass
             }
 
             protected override void LoadComplete()

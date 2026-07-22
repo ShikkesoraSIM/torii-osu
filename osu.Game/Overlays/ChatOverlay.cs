@@ -19,7 +19,9 @@ using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Online.API;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
 using osu.Game.Graphics.UserInterface;
@@ -76,7 +78,8 @@ namespace osu.Game.Overlays
         [Cached]
         private readonly OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Pink);
         private IDisposable? customUiHueBinding;
-        private Box background = null!;
+        // torii DARK GLASS: GlassBackdrop en vez de Box plano para el fondo del chat.
+        private GlassBackdrop background = null!;
 
         [Cached]
         private readonly Bindable<Channel?> currentChannel = new Bindable<Channel?>();
@@ -124,10 +127,10 @@ namespace osu.Game.Overlays
                     Padding = new MarginPadding { Top = top_bar_height },
                     Children = new Drawable[]
                     {
-                        background = new Box
+                        background = new GlassBackdrop
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Colour = colourProvider.Background4,
+                            TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)), // torii dark glass
                         },
                         new OnlineViewContainer("Sign in to chat")
                         {
@@ -193,7 +196,7 @@ namespace osu.Game.Overlays
             customUiHueBinding = CustomUiHueHelper.BindFullScheme(config, colourProvider, OverlayColourScheme.Pink.GetHue(), CustomUiHueScope.Overlays, api);
 
             if (background != null)
-                backgroundThemeBinding = background.BindThemeColour(colourProvider, p => p.Background4);
+                backgroundThemeBinding = background.BindThemeColour(colourProvider, (b, p) => b.TintColour = p.Background4.Opacity(ThemeAware.GlassAlpha(0.8f))); // torii dark glass
         }
 
         private IDisposable? backgroundThemeBinding;

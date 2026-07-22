@@ -3,12 +3,14 @@
 
 using System;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osuTK.Graphics;
-using osu.Framework.Graphics.Shapes;
 using osu.Game.Configuration;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Cursor;
 using osu.Game.Overlays.Login;
@@ -27,7 +29,8 @@ namespace osu.Game.Overlays
         [Cached]
         private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Purple);
         private IDisposable? customUiHueBinding;
-        private Box background = null!;
+        // torii DARK GLASS: GlassBackdrop en vez de Box plano para el fondo del flyout de login.
+        private GlassBackdrop background = null!;
 
         public LoginOverlay()
         {
@@ -55,10 +58,10 @@ namespace osu.Game.Overlays
                     AutoSizeAxes = Axes.Y,
                     Children = new Drawable[]
                     {
-                        background = new Box
+                        background = new GlassBackdrop
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Colour = colourProvider.Background4,
+                            TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)), // torii dark glass
                         },
                         new Container
                         {
@@ -82,7 +85,7 @@ namespace osu.Game.Overlays
                 colourProvider.ChangeColourScheme(hue);
 
                 if (background != null)
-                    background.Colour = colourProvider.Background4;
+                    background.TintColour = colourProvider.Background4.Opacity(ThemeAware.GlassAlpha(0.8f)); // torii dark glass
             });
         }
 

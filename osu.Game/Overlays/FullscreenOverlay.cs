@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
+using osu.Game.Graphics;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
@@ -11,6 +12,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
+using osu.Game.Graphics.Backdrops;
 using osu.Game.Graphics.Containers;
 using osu.Game.Online.API;
 using osuTK.Graphics;
@@ -26,7 +28,9 @@ namespace osu.Game.Overlays
 
         public T Header { get; private set; }
 
-        protected virtual Color4 BackgroundColour => ColourProvider.Background5;
+        // torii DARK GLASS: el fondo raiz de TODOS los fullscreen overlays (listing, perfil,
+        // beatmap set, etc) se vuelve vidrio con el theme activo. En el resto, opaco igual que siempre.
+        protected virtual Color4 BackgroundColour => ColourProvider.Background5.Opacity(ThemeAware.GlassAlpha(0.8f));
 
         [Resolved]
         protected IAPIProvider API { get; private set; } = null!;
@@ -36,7 +40,9 @@ namespace osu.Game.Overlays
 
         protected override Container<Drawable> Content => content;
 
-        private readonly Box background;
+        // torii DARK GLASS: GlassBackdrop en vez de un Box plano, para que el fondo del overlay sea la
+        // escena blureada (Aero real) con el theme glass. Sin glass se comporta como el Box de siempre.
+        private readonly GlassBackdrop background;
         private readonly Container content;
 
         // Torii custom UI hue: the overlay's own scheme hue, used as the fallback when the
@@ -69,7 +75,7 @@ namespace osu.Game.Overlays
 
             base.Content.AddRange(new Drawable[]
             {
-                background = new Box
+                background = new GlassBackdrop
                 {
                     RelativeSizeAxes = Axes.Both,
                 },
@@ -133,7 +139,7 @@ namespace osu.Game.Overlays
             Waves.SecondWaveColour = ColourProvider.Light3;
             Waves.ThirdWaveColour = ColourProvider.Dark4;
             Waves.FourthWaveColour = ColourProvider.Dark3;
-            background.Colour = BackgroundColour;
+            background.TintColour = BackgroundColour;
         }
 
         protected override void PopIn()

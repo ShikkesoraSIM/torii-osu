@@ -106,6 +106,24 @@ namespace osu.Game.Graphics
         public static bool UsesGrayscaleStructure => IsGrayscaleTheme || IsMidnightTheme;
 
         /// <summary>
+        /// True when the active theme is Dark Glass (item de la store). Mantiene la paleta
+        /// de acentos de Torii intacta; lo que cambia es el CHROME: superficies translucidas
+        /// oscuras (ver <see cref="osu.Game.Overlays.OverlayColourProvider"/>), esquinas MAS
+        /// redondas que vanilla (al reves de grayscale que las afila). El slant del song select
+        /// queda como el lazer normal (toggleable con <c>UnslantedSongSelectUI</c>).
+        /// </summary>
+        public static bool IsGlassTheme => activeTheme == UIThemeOption.LiquidGlass;
+
+        /// <summary>
+        /// Eje ortogonal a <see cref="UsesGrayscaleStructure"/>: themes que fuerzan el layout
+        /// PLANO (song select sin slant / shear cero). Solo grayscale (fsyori), cuyas esquinas
+        /// cuadradas chocan con el slant. Glass NO lo fuerza: arranca slanted como el lazer normal
+        /// y respeta el toggle del usuario (<c>UnslantedSongSelectUI</c>). Los call sites de
+        /// shear/layout consultan esto, no el flag de estructura.
+        /// </summary>
+        public static bool UsesFlatLayout => IsGrayscaleTheme;
+
+        /// <summary>
         /// Theme-aware replacement for <see cref="Color4Extensions.FromHex"/>
         /// used by every chrome-accent instance field in this class.
         /// In the default <see cref="UIThemeOption.Torii"/> theme this

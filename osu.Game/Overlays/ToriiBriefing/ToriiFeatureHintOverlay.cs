@@ -3,6 +3,7 @@
 
 #nullable disable
 
+using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
@@ -105,7 +106,7 @@ namespace osu.Game.Overlays.ToriiBriefing
 
             // todos los hijos del flow vertical quedan anclados arriba (Top-Y); no mezclar con Centre-Y
             // para evitar el crash de FillFlow con anchors mezclados en el eje cruzado.
-            content.AddRange(new Drawable[]
+            var items = new List<Drawable>(new Drawable[]
             {
                 // kicker: badge torii-gate + label, la firma del briefing.
                 new FillFlowContainer
@@ -146,8 +147,13 @@ namespace osu.Game.Overlays.ToriiBriefing
                     AutoSizeAxes = Axes.Y,
                     Colour = Color4.White.Opacity(BriefingTheme.InkSecondary),
                 },
-                // tarjeta con el toggle real adentro, asi lo prende sin ir a settings.
-                new BriefingGlass
+            });
+
+            // el toggle es opcional: un popup puramente informativo (ej. "cambio el theme default") no
+            // ofrece nada para prender, asi que sin Toggle mostramos solo el cuerpo + el boton de cierre.
+            if (Toggle != null)
+            {
+                items.Add(new BriefingGlass
                 {
                     RelativeSizeAxes = Axes.X,
                     AutoSizeAxes = Axes.Y,
@@ -166,17 +172,20 @@ namespace osu.Game.Overlays.ToriiBriefing
                             Current = { BindTarget = Toggle },
                         },
                     },
-                },
-                new DismissButton(Accent)
-                {
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.TopCentre,
-                    Width = 320,
-                    Height = 44,
-                    LabelText = "Got it",
-                    Action = Hide,
-                },
+                });
+            }
+
+            items.Add(new DismissButton(Accent)
+            {
+                Anchor = Anchor.TopCentre,
+                Origin = Anchor.TopCentre,
+                Width = 320,
+                Height = 44,
+                LabelText = "Got it",
+                Action = Hide,
             });
+
+            content.AddRange(items);
         }
 
         /// <summary>setea el cuerpo segun el contexto y muestra el popup (con sonido + animacion).</summary>

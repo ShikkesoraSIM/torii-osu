@@ -29,6 +29,7 @@ using osu.Game.Resources.Localisation.Web;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Screens.Select
 {
@@ -55,6 +56,10 @@ namespace osu.Game.Screens.Select
 
         [Resolved]
         private IRulesetStore rulesets { get; set; } = null!;
+
+        // torii dark glass: fuente compartida del blur (frost) del wallpaper para el fondo del panel.
+        [Resolved(CanBeNull = true)]
+        private IPanelBackdrop? panelBackdrop { get; set; }
 
         [Resolved]
         private BeatmapDifficultyCache difficultyCache { get; set; } = null!;
@@ -92,13 +97,29 @@ namespace osu.Game.Screens.Select
                 RelativeSizeAxes = Axes.Both,
             };
 
-            Content.Children = new Drawable[]
+            Drawable panelFill;
+
+            // torii dark glass: fondo del panel = VISTA del frost compartido (wallpaper blureado, alineado a la
+            // posicion en pantalla del panel). Un solo blur para todos, continuo al scrollear. Encima va un tint
+            // suave del color de la dificultad (en Update). Sin glass/backdrop, fill opaco vanilla.
+            if (OsuColour.IsGlassTheme && panelBackdrop != null)
             {
-                new Box
+                var view = panelBackdrop.CreateView();
+                view.RelativeSizeAxes = Axes.Both;
+                panelFill = view;
+            }
+            else
+            {
+                panelFill = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
                     Colour = ColourInfo.GradientHorizontal(colourProvider.Background3, colourProvider.Background4),
-                },
+                };
+            }
+
+            Content.Children = new Drawable[]
+            {
+                panelFill,
                 backgroundDifficultyTint = new Box
                 {
                     RelativeSizeAxes = Axes.Both,
@@ -282,10 +303,16 @@ namespace osu.Game.Screens.Select
                 AccentColour = diffColour;
                 starCounter.Colour = diffColour;
 
+                // backgroundBorder = cap accent de la izquierda (se ve en la franja del icono). opaco siempre.
                 backgroundBorder.Colour = diffColour;
-                backgroundDifficultyTint.Colour = ColourInfo.GradientHorizontal(diffColour.Opacity(0.25f), diffColour.Opacity(0f));
 
-                triangles.Colour = ColourInfo.GradientVertical(diffColour.Opacity(0.25f), diffColour.Opacity(0f));
+                // glass: tint suave del color SOBRE el wallpaper blureado (mas a la izquierda para el texto,
+                // se destiñe a la derecha para que se vea mas el frost). vanilla: el tint de siempre.
+                backgroundDifficultyTint.Colour = OsuColour.IsGlassTheme
+                    ? ColourInfo.GradientHorizontal(diffColour.Opacity(0.38f), diffColour.Opacity(0.12f))
+                    : ColourInfo.GradientHorizontal(diffColour.Opacity(0.25f), diffColour.Opacity(0f));
+
+                triangles.Colour = ColourInfo.GradientVertical(diffColour.Opacity(OsuColour.IsGlassTheme ? 0.1f : 0.25f), diffColour.Opacity(0f));
             }
 
             if (difficultyIcon.Colour != starRatingDisplay.DisplayedDifficultyTextColour)

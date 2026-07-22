@@ -28,7 +28,11 @@ namespace osu.Game.Screens.Select
 {
     public abstract partial class Panel : PoolableDrawable, ICarouselPanel, IHasContextMenu
     {
-        public const float CORNER_RADIUS = 10;
+        // torii dark glass: esquinas mas redondas que vanilla (10) con el theme activo. static
+        // readonly (no const) para poder leer el flag de theme; se hornea al primer uso del tipo,
+        // despues del pin de theme en OsuGameBase, asi que agarra el valor correcto. Precedente:
+        // RankedPlayCard.CORNER_RADIUS ya es static readonly por la misma razon.
+        public static readonly float CORNER_RADIUS = ThemeAware.PickGlass(10f, 16f);
 
         private const float active_x_offset = 25f;
 
@@ -309,7 +313,10 @@ namespace osu.Game.Screens.Select
         {
             bool selectedOrExpanded = Expanded.Value || Selected.Value;
 
-            var edgeEffectColour = accentColour ?? Color4Extensions.FromHex(@"4EBFFF");
+            // torii: el contorno de seleccion cae a blanco (antes era un cyan fijo #4EBFFF que se
+            // veia en todos los paneles de set, que no setean accentColour). simetrico con el fondo
+            // de seleccion de arriba que ya cae a Color4.White.
+            var edgeEffectColour = accentColour ?? Color4.White;
 
             if (selectedOrExpanded)
             {

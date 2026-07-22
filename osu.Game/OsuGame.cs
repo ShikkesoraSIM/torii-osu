@@ -40,6 +40,8 @@ using osu.Game.Collections;
 using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Backdrops;
+using osu.Game.Performance;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Input;
@@ -160,6 +162,8 @@ namespace osu.Game
         private Bindable<bool> legacyStableDisclaimerWatcher;
         private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay autoHideHint;
         private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay stableSongSelectPromo;
+        private osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay newDefaultThemeHint;
+        private bool newThemeHintScheduled;
 
         // torii: preview transitorio del tamano de cursor, lo dispara el hotkey Ctrl+Shift+rueda/+/-.
         private CursorSizePreviewOverlay cursorSizePreview;
@@ -410,6 +414,35 @@ namespace osu.Game
         protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent) =>
             dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
 
+        // Torii DARK GLASS: the scene capture buffer, non-null only while the glass theme is active.
+        private BufferedContainer sceneCaptureBuffer;
+
+        /// <summary>
+        /// Torii DARK GLASS: wraps the scene (background + screens) in a <see cref="BufferedContainer"/> that
+        /// draws the scene sharp to the screen while also keeping its texture, so glass panels can sample and
+        /// blur what sits behind them. Only done when the glass theme is active and Potato Mode is off; otherwise
+        /// the scene is returned untouched (zero overhead / zero regression risk for everyone else).
+        /// </summary>
+        private Drawable wrapSceneCaptureIfGlass(Drawable sceneContent)
+        {
+            if (!OsuColour.IsGlassTheme || Performance.PotatoMode.Active)
+                return sceneContent;
+
+            sceneCaptureBuffer = new BufferedContainer(cachedFrameBuffer: false)
+            {
+                RelativeSizeAxes = Axes.Both,
+                // A no-effect buffered container already blits its captured content to the screen exactly once
+                // (CurrentEffectBuffer == MainBuffer when no blur is applied), so the scene renders normally;
+                // the buffer is kept purely to be re-sampled by glass panels. DrawOriginal would add a second
+                // redundant full-screen blit per frame AND double the scene sampling inside every open panel.
+                RedrawOnScale = false,
+                Child = sceneContent,
+            };
+
+            dependencies.CacheAs<IBackdropProvider>(new SceneBufferBackdropProvider(sceneCaptureBuffer));
+            return sceneCaptureBuffer;
+        }
+
         private readonly List<string> dragDropFiles = new List<string>();
         private ScheduledDelegate dragDropImportSchedule;
 
@@ -556,11 +589,11 @@ namespace osu.Game
             // SetUnslantedUI flips OsuGame.SHEAR between DEFAULT_SHEAR and
             // Vector2.Zero; components reading the property at construction time
             // pick up the new value when next built (re-entering song select is
-            // enough, no full app restart required). Also forced on for the
-            // grayscale (fsyori) theme, whose squared-corner aesthetic clashes
-            // with the slant.
+            // enough, no full app restart required). Solo se fuerza on para grayscale
+            // (fsyori), cuyo look de esquinas cuadradas choca con el slant. Glass NO se
+            // fuerza: arranca slanted como el lazer normal y respeta este toggle.
             unslantedSongSelectUI = LocalConfig.GetBindable<bool>(OsuSetting.UnslantedSongSelectUI);
-            unslantedSongSelectUI.BindValueChanged(v => SetUnslantedUI(v.NewValue || OsuColour.IsGrayscaleTheme), true);
+            unslantedSongSelectUI.BindValueChanged(v => SetUnslantedUI(v.NewValue || OsuColour.UsesFlatLayout), true);
         }
 
         private ExternalLinkOpener externalLinkOpener;
@@ -1198,45 +1231,46 @@ namespace osu.Game
 
             Container logoContainer;
 
+            ScreenContainer = new ScalingContainer(ScalingMode.ExcludeOverlays)
+            {
+                RelativeSizeAxes = Axes.Both,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Children = new Drawable[]
+                {
+                    backReceptor = new ScreenFooter.BackReceptor(),
+                    ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
+                    logoContainer = new Container { RelativeSizeAxes = Axes.Both },
+                    // TODO: what is this? why is this?
+                    // TODO: this is being screen scaled even though it's probably AN OVERLAY.
+                    footerBasedOverlayContent = new Container
+                    {
+                        Depth = -1,
+                        RelativeSizeAxes = Axes.Both,
+                    },
+                    new PopoverContainer
+                    {
+                        // Ensure the footer is displayed above any content and/or overlays.
+                        Depth = -1,
+                        RelativeSizeAxes = Axes.Both,
+                        Child = screenStackFooter = new ScreenStackFooter(ScreenStack, backReceptor)
+                        {
+                            // TODO: this is really really weird and should not exist.
+                            RequestLogoInFront = inFront => ScreenContainer.ChangeChildDepth(logoContainer, inFront ? float.MinValue : 0),
+                            BackButtonPressed = handleBackButton
+                        },
+                    },
+                }
+            };
+
             AddRange(new Drawable[]
             {
                 ScreenOffsetContainer = new Container
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Children = new Drawable[]
-                    {
-                        ScreenContainer = new ScalingContainer(ScalingMode.ExcludeOverlays)
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            Anchor = Anchor.Centre,
-                            Origin = Anchor.Centre,
-                            Children = new Drawable[]
-                            {
-                                backReceptor = new ScreenFooter.BackReceptor(),
-                                ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
-                                logoContainer = new Container { RelativeSizeAxes = Axes.Both },
-                                // TODO: what is this? why is this?
-                                // TODO: this is being screen scaled even though it's probably AN OVERLAY.
-                                footerBasedOverlayContent = new Container
-                                {
-                                    Depth = -1,
-                                    RelativeSizeAxes = Axes.Both,
-                                },
-                                new PopoverContainer
-                                {
-                                    // Ensure the footer is displayed above any content and/or overlays.
-                                    Depth = -1,
-                                    RelativeSizeAxes = Axes.Both,
-                                    Child = screenStackFooter = new ScreenStackFooter(ScreenStack, backReceptor)
-                                    {
-                                        // TODO: this is really really weird and should not exist.
-                                        RequestLogoInFront = inFront => ScreenContainer.ChangeChildDepth(logoContainer, inFront ? float.MinValue : 0),
-                                        BackButtonPressed = handleBackButton
-                                    },
-                                },
-                            }
-                        },
-                    }
+                    // Torii DARK GLASS: with the glass theme active (and Potato Mode off), capture the whole
+                    // scene (background + screens) into a buffer so glass panels can blur what's behind them.
+                    Child = wrapSceneCaptureIfGlass(ScreenContainer),
                 },
                 overlayOffsetContainer = new Container
                 {
@@ -1330,6 +1364,29 @@ namespace osu.Game
                 Accent = osu.Game.Overlays.ToriiBriefing.BriefingTheme.AccentCyan,
                 Toggle = LocalConfig.GetBindable<bool>(OsuSetting.ToriiLegacyFooterUseSkin),
             }, topMostOverlayContent.Add);
+
+            // torii: aviso (una sola vez) de que glass es el nuevo theme default. sin toggle, solo informa;
+            // el que quiera el look de antes tiene "Torii Legacy" en settings. lo prende la migracion de
+            // OsuGameBase (flag pending) y sale cuando el menu esta listo (ver showNewDefaultThemeHint).
+            loadComponentSingleFile(newDefaultThemeHint = new osu.Game.Overlays.ToriiBriefing.ToriiFeatureHintOverlay
+            {
+                Title = "There's a new default theme!",
+                Accent = osu.Game.Overlays.ToriiBriefing.BriefingTheme.AccentCyan,
+            }, topMostOverlayContent.Add);
+
+            // esperamos a que la activacion sea All (menu listo, no intro/gameplay) y recien ahi mostramos,
+            // con un respiro para que asiente la entrada. el flag pending gatea que salga solo a los migrados.
+            OverlayActivationMode.BindValueChanged(mode =>
+            {
+                if (newThemeHintScheduled || mode.NewValue != OverlayActivation.All)
+                    return;
+
+                if (!LocalConfig.Get<bool>(OsuSetting.ToriiNewThemePopupPending))
+                    return;
+
+                newThemeHintScheduled = true;
+                Scheduler.AddDelayed(showNewDefaultThemeHint, 900);
+            }, true);
 
             // torii: preview del tamano de cursor (lo dispara el hotkey de cursor size).
             loadComponentSingleFile(cursorSizePreview = new CursorSizePreviewOverlay(), topMostOverlayContent.Add, true);
@@ -2043,6 +2100,28 @@ namespace osu.Game
             LocalConfig.SetValue(OsuSetting.ToriiStablePromoShown, true);
 
             stableSongSelectPromo?.Present("We brought back a classic stable-style song select. Want to try it? Turn it on below, or any time in Settings, Torii, Interface.");
+        }
+
+        /// <summary>
+        /// torii: popup (una sola vez) que avisa que glass paso a ser el theme default. lo dispara la
+        /// migracion de OsuGameBase via el flag pending; al mostrarlo consumimos el flag asi el aviso no
+        /// vuelve a salir nunca mas, aunque el usuario cierre el juego antes de llegar al menu.
+        /// </summary>
+        private void showNewDefaultThemeHint()
+        {
+            // no pisamos gameplay/intros con un modal; el flag queda pendiente y reintenta al proximo All.
+            if (OverlayActivationMode.Value == OverlayActivation.Disabled)
+            {
+                newThemeHintScheduled = false;
+                return;
+            }
+
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiNewThemePopupPending))
+                return;
+
+            LocalConfig.SetValue(OsuSetting.ToriiNewThemePopupPending, false);
+
+            newDefaultThemeHint?.Present("Torii now opens with a new glass look. We moved your old default over to it. Prefer the classic style? Pick \"Torii Legacy\" any time in Settings, Torii, Interface.");
         }
 
         /// <summary>

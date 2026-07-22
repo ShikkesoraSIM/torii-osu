@@ -70,5 +70,37 @@ namespace osu.Game.Graphics
             if (OsuColour.IsGrayscaleTheme) return grayscale;
             return torii;
         }
+
+        /// <summary>
+        /// Eje estructural del theme Dark Glass, ortogonal a <see cref="Pick{T}"/>: glass va
+        /// para el lado OPUESTO de grayscale (esquinas mas redondas que vanilla, superficies
+        /// translucidas) asi que no puede colgarse de UsesGrayscaleStructure. Devuelve
+        /// <paramref name="glass"/> solo con Dark Glass activo; el resto de los themes
+        /// (Torii, Grayscale, Midnight) recibe <paramref name="normal"/>, que en los call
+        /// sites tipicos ya es a su vez un <see cref="Pick{T}"/>. Mismo invariante de
+        /// restart-baked que el resto: leer solo en construccion.
+        /// </summary>
+        public static T PickGlass<T>(T normal, T glass)
+            => OsuColour.IsGlassTheme ? glass : normal;
+
+        /// <summary>
+        /// Alpha del vidrio para FILLS de paneles: devuelve <paramref name="glassAlpha"/> con
+        /// Dark Glass activo y 1 (opaco) en el resto. Uso tipico:
+        /// <code>Colour = colourProvider.Background5.Opacity(ThemeAware.GlassAlpha(0.8f))</code>
+        /// Se aplica POR SITIO (solo en fondos de panel) y nunca centralizado en
+        /// OverlayColourProvider, porque los slots Background* tambien pintan foreground
+        /// (iconos/texto) y esos deben quedar opacos. No usar en texto ni por debajo de ~0.7
+        /// en superficies con texto encima (contraste sobre fondos brillantes).
+        /// </summary>
+        public static float GlassAlpha(float glassAlpha)
+            => OsuColour.IsGlassTheme ? glassAlpha * LIQUID_CLARITY : 1f;
+
+        /// <summary>
+        /// LIQUID GLASS: escala GLOBAL de opacidad de todo el chrome de vidrio (menus, settings, chat,
+        /// overlays, toolbar, footer, dialogs...). Mas bajo = MUCHO mas transparente/clear (se ve mas del
+        /// blur/escena atras), menos "dark". Perilla unica: cambiala y todo el vidrio se re-tinta.
+        /// 1.0 = como estaba; 0.5 = la mitad de tinte (mucho mas clear).
+        /// </summary>
+        public const float LIQUID_CLARITY = 0.5f;
     }
 }

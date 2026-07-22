@@ -32,10 +32,32 @@ namespace osu.Game.Configuration
     public enum UIThemeOption
     {
         /// <summary>
-        /// Default Torii palette: full-saturation accents (pink, blue,
-        /// yellow, etc.) on the standard dark backgrounds.
+        /// Torii (glass): el theme por defecto. chrome translucido oscuro
+        /// en todos los paneles (el juego se ve a traves de la UI), esquinas
+        /// bien redondas (mas que vanilla, al reves del afilado de grayscale).
+        /// El slant del song select queda como el lazer normal y es toggleable
+        /// con <c>UnslantedSongSelectUI</c> (a diferencia de grayscale, que lo
+        /// fuerza plano). La paleta de acentos queda la de Torii.
+        ///
+        /// El enum identifier sigue siendo <c>LiquidGlass</c> asi los configs
+        /// que ya lo tenian elegido (cuando era el "Liquid Glass" aparte) no
+        /// pierden la seleccion; el label ahora es "Torii" porque es el look
+        /// principal. Ya no esta gateado por la store: es gratis y default.
         /// </summary>
         [Description("Torii")]
+        LiquidGlass,
+
+        /// <summary>
+        /// Torii Legacy: la paleta clasica de lazer, full-saturation (pink,
+        /// blue, yellow, etc.) sobre los fondos oscuros de siempre, con el
+        /// chrome slanted. Era el default hasta que glass paso a serlo; queda
+        /// para quien prefiera el look de siempre.
+        ///
+        /// Enum identifier sigue siendo <c>Torii</c> asi los configs viejos
+        /// no pierden la seleccion. La migracion one-shot (ver OsuGameBase)
+        /// pasa a glass a quien estaba en este valor por default.
+        /// </summary>
+        [Description("Torii Legacy")]
         Torii,
 
         /// <summary>
