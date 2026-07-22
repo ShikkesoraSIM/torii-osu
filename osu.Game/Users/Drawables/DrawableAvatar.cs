@@ -7,6 +7,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Game.Users.Drawables
@@ -31,12 +32,15 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures)
+        private void load(LargeTextureStore textures, IAPIProvider api)
         {
             if (user != null && user.OnlineID > 1)
                 // TODO: The fallback here should not need to exist. Users should be looked up and populated via UserLookupCache or otherwise
                 // in remaining cases where this is required (chat tabs, local leaderboard), at which point this should be removed.
-                Texture = textures.Get((user as APIUser)?.AvatarUrl ?? $@"https://a.ppy.sh/{user.OnlineID}");
+                // torii: el fallback por id apunta a NUESTRO server, no a a.ppy.sh: los ids de torii
+                // colisionan con los de osu! oficial y el leaderboard local mostraba la foto de otra
+                // persona (o ninguna). el AvatarUrl del API (scores online) sigue teniendo prioridad.
+                Texture = textures.Get((user as APIUser)?.AvatarUrl ?? $@"{api.Endpoints.APIUrl}/users/{user.OnlineID}/avatar");
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }

@@ -18,6 +18,21 @@ namespace osu.Game.Overlays.Profile.Header.Components
 
         public readonly Bindable<UserProfileData?> User = new Bindable<UserProfileData?>();
 
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            // torii: los tabs del perfil incluyen los modos exclusivos del server (osu!relax,
+            // osu!autopilot, taiko relax) como entradas visibles propias, intercaladas despues de
+            // su ruleset base. re-armamos la lista que ya poblo el selector base (solo legacy).
+            var tabs = ProfileRulesetVariants.BuildProfileTabs(Rulesets);
+
+            foreach (var item in Items.ToList())
+                RemoveItem(item);
+
+            foreach (var tab in tabs)
+                AddItem(tab);
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();

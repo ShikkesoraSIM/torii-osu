@@ -149,7 +149,11 @@ namespace osu.Game.Overlays
             if (changeOverlayColours(profileHue))
                 recreateBaseContent();
 
-            var actualRuleset = rulesets.GetRuleset(userRuleset?.ShortName ?? loadedUser.PlayMode).AsNonNull();
+            // torii: los modos de perfil exclusivos del server (osurx/osuap/taikorx) no existen en
+            // el RulesetStore — se resuelven al RulesetInfo fake del registry de variants.
+            var actualRuleset = Profile.ProfileRulesetVariants.IsVariant(userRuleset)
+                ? Profile.ProfileRulesetVariants.TryGet(userRuleset!.ShortName, rulesets).AsNonNull()
+                : rulesets.GetRuleset(userRuleset?.ShortName ?? loadedUser.PlayMode).AsNonNull();
 
             var userProfile = new UserProfileData(loadedUser, actualRuleset);
             Header.User.Value = userProfile;

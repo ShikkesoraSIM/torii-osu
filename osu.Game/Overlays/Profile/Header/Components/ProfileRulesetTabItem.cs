@@ -5,6 +5,8 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
+using osu.Game.Graphics;
+using osu.Game.Graphics.Sprites;
 using osu.Game.Resources.Localisation.Web;
 using osu.Game.Rulesets;
 using osuTK;
@@ -37,14 +39,29 @@ namespace osu.Game.Overlays.Profile.Header.Components
             {
                 base.AccentColour = value;
                 icon.FadeColour(value, 120, Easing.OutQuint);
+                variantLabel?.FadeColour(value, 120, Easing.OutQuint);
             }
         }
 
         private readonly SpriteIcon icon;
+        private readonly OsuSpriteText? variantLabel;
 
         public ProfileRulesetTabItem(RulesetInfo value)
             : base(value)
         {
+            // torii: los modos exclusivos del server (relax/autopilot) llevan un label al lado
+            // del icono del ruleset base, asi cada entrada se explica sola sin dropdown.
+            if (ProfileRulesetVariants.IsVariant(value))
+            {
+                Add(variantLabel = new OsuSpriteText
+                {
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
+                    Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
+                    Text = ProfileRulesetVariants.LabelFor(value),
+                });
+            }
+
             Add(icon = new DefaultRulesetIcon { Alpha = 0 });
         }
 
