@@ -256,8 +256,14 @@ namespace osu.Game.Configuration
             // Torii: server pulse toolbar widget (live "currently playing" stats).
             SetDefault(OsuSetting.ToriiServerPulseEnabled, true);
 
-            // Torii: cosmetic UI theme (default / grayscale / midnight variants).
-            SetDefault(OsuSetting.UITheme, UIThemeOption.Torii);
+            // Torii: cosmetic UI theme. glass es el default nuevo; el look clasico quedo como "Torii Legacy".
+            SetDefault(OsuSetting.UITheme, UIThemeOption.LiquidGlass);
+
+            // Torii: migracion one-shot del theme default (Torii clasico -> glass) + su popup de aviso.
+            // el flag "migrated" corre la migracion una sola vez; el "pending" lo prende la migracion solo
+            // si movio a alguien, y lo consume el popup al mostrarse (asi el aviso sale una unica vez).
+            SetDefault(OsuSetting.ToriiGlassDefaultMigrated, false);
+            SetDefault(OsuSetting.ToriiNewThemePopupPending, false);
 
             // Torii: Potato Mode (extreme-perf preset, read once at startup, restart-gated).
             SetDefault(OsuSetting.ToriiPotatoMode, false);
@@ -334,8 +340,26 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
             SetDefault(OsuSetting.EnableOboeAudio, true);
-            SetDefault(OsuSetting.ToriiLegacyFooterUseSkin, true);
+            // torii: el stable song select es OPT-IN (se ofrece via el promo "try this!" tras varias
+            // visitas). arranca APAGADO. era true por error: caia en modo stable sin que el usuario lo
+            // pidiera y ademas tapaba el promo (el guard cortaba + el contador de visitas nunca subia).
+            SetDefault(OsuSetting.ToriiLegacyFooterUseSkin, false);
+            // migracion one-shot: a quien lo heredo prendido (cuando el default era true) lo apagamos 1 vez.
+            SetDefault(OsuSetting.ToriiStableOptInMigrated, false);
             SetDefault(OsuSetting.ToriiLegacySongSelectFooter, false);
+            // Torii: stamps PRIVADOS de version de difficulty ("osu:20260621,mania:..."). viven aca (torii.ini)
+            // y no en la realm compartida a proposito: el stamp de la realm queda para el cliente oficial, y
+            // asi cambiar de cliente no dispara recalcs cruzados de star rating. Applied = ultima version
+            // torii recalculada; SeenRealm = ultimo stamp de la realm que vimos (para detectar wipes ajenos).
+            SetDefault(OsuSetting.ToriiAppliedDifficultyVersions, string.Empty);
+            SetDefault(OsuSetting.ToriiSeenRealmDifficultyVersions, string.Empty);
+            // Torii: results screen estilo stable (la vista de detalles pasa a ser el ranking
+            // panel de stable, y se abre sola despues de jugar un mapa). OPT-IN igual que el
+            // stable song select: arranca APAGADO asi el look default (glass) queda coherente.
+            SetDefault(OsuSetting.ToriiStableResults, false);
+            // Torii: la UI legacy usa la fuente moderna de lazer por default; este toggle la
+            // pasa a "Aller" (la fuente real de osu!stable) para un look 1:1 stable.
+            SetDefault(OsuSetting.ToriiLegacyFont, false);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
@@ -382,6 +406,7 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.MultiplayerRoomFilter, RoomPermissionsFilter.All);
             SetDefault(OsuSetting.MultiplayerShowInProgressFilter, true);
+            SetDefault(OsuSetting.MultiplayerShowFullFilter, false);
 
             SetDefault(OsuSetting.LastProcessedMetadataId, -1);
 
@@ -623,6 +648,7 @@ namespace osu.Game.Configuration
         EditorAdjustExistingObjectsOnTimingChanges,
         AlwaysRequireHoldingForPause,
         MultiplayerShowInProgressFilter,
+        MultiplayerShowFullFilter,
         BeatmapListingFeaturedArtistFilter,
         ShowMobileDisclaimer,
         EditorShowStoryboard,
@@ -646,6 +672,8 @@ namespace osu.Game.Configuration
         ForceSDL3,
         ToriiServerPulseEnabled,
         UITheme,
+        ToriiGlassDefaultMigrated,
+        ToriiNewThemePopupPending,
         ToriiPotatoMode,
         ToriiInputAudioHz,
         ToriiInputAudioHzAutoTuned,
@@ -692,7 +720,12 @@ namespace osu.Game.Configuration
         ToriiSkipBreaksBriefingSeen,
         EnableOboeAudio,
         ToriiLegacyFooterUseSkin,
+        ToriiStableOptInMigrated,
         ToriiLegacySongSelectFooter,
+        ToriiStableResults,
+        ToriiLegacyFont,
         ToriiDifficultyRecalcMode,
+        ToriiAppliedDifficultyVersions,
+        ToriiSeenRealmDifficultyVersions,
     }
 }

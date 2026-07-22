@@ -12,10 +12,14 @@ namespace osu.Game.Online
     {
         public ToriiEndpointConfiguration()
         {
-            const string api_url = @"https://lazer-api.shikkesora.com";
+            // override local para dev: TORII_API_URL / TORII_WEB_URL apuntan el cliente al
+            // stack local (torii.local) sin tocar el default de prod. sin las envs seteadas
+            // se comporta identico a siempre.
+            string api_url = System.Environment.GetEnvironmentVariable("TORII_API_URL")?.TrimEnd('/') ?? @"https://lazer-api.shikkesora.com";
+            string web_url = System.Environment.GetEnvironmentVariable("TORII_WEB_URL")?.TrimEnd('/') ?? @"https://lazer.shikkesora.com";
 
             APIUrl = api_url;
-            WebsiteUrl = @"https://lazer.shikkesora.com";
+            WebsiteUrl = web_url;
 
             // g0v0 mirrors the osu-web OAuth surface, so the stock public client works.
             APIClientSecret = @"FGc9GAtyHzeQDshWP5Ah7dega8hJACAJpQtw6OXk";

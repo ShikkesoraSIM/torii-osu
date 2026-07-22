@@ -12,9 +12,13 @@ namespace osu.Game.Online
         protected override string GetLookupUrl(string url)
         {
             // Trust the Torii server's file host (avatars, team flags, etc.) alongside ppy.sh.
+            // torii.local es el host del stack de dev; solo resuelve a 127.0.0.1 via el hosts, asi
+            // que confiarlo es inofensivo en prod (no resuelve en una maquina normal).
             if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
                 || !(uri.Host.EndsWith(@".ppy.sh", StringComparison.OrdinalIgnoreCase)
-                     || uri.Host.EndsWith(@".shikkesora.com", StringComparison.OrdinalIgnoreCase)))
+                     || uri.Host.EndsWith(@".shikkesora.com", StringComparison.OrdinalIgnoreCase)
+                     || uri.Host.Equals(@"torii.local", StringComparison.OrdinalIgnoreCase)
+                     || uri.Host.EndsWith(@".torii.local", StringComparison.OrdinalIgnoreCase)))
             {
                 Logger.Log($@"Blocking resource lookup from external website: {url}", LoggingTarget.Network, LogLevel.Important);
                 return string.Empty;

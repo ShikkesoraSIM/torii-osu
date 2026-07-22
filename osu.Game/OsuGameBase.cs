@@ -245,6 +245,10 @@ namespace osu.Game
 
         private readonly BindableNumber<double> globalTrackVolumeAdjust = new BindableNumber<double>(global_track_volume_adjust);
 
+        // Torii: fuente de la UI legacy (Aller vs lazer). Campo persistente asi el weak-ref del bindable
+        // no lo colecta el GC; empuja el valor al flag estatico LegacyFonts.UseAllerFont en cada cambio.
+        private readonly Bindable<bool> legacyFontSetting = new BindableBool();
+
         private Bindable<string> frameworkLocale = null!;
 
         private IBindable<LocalisationParameters> localisationParameters = null!;
@@ -393,9 +397,46 @@ namespace osu.Game
             dependencies.Cache(SessionStatics = new SessionStatics());
             dependencies.Cache(hitErrorTracker = new SessionAverageHitErrorTracker());
 
+            // Torii: glass es el theme default nuevo. una sola vez, a quien venia en el Torii clasico (el
+            // default viejo, ahora "Torii Legacy") lo pasamos a glass y marcamos el popup de aviso. el que
+            // eligio otra cosa (midnight, grayscale) o ya estaba en glass queda intacto. corre ACA, antes
+            // del bake de OsuColour, asi el theme nuevo aplica ya en este arranque sin pedir restart.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiGlassDefaultMigrated))
+            {
+                if (LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme) == UIThemeOption.Torii)
+                {
+                    LocalConfig.SetValue(OsuSetting.UITheme, UIThemeOption.LiquidGlass);
+                    LocalConfig.SetValue(OsuSetting.ToriiNewThemePopupPending, true);
+                }
+
+                LocalConfig.SetValue(OsuSetting.ToriiGlassDefaultMigrated, true);
+                // flush ya: si el juego se cierra sin salir prolijo (crash/kill), el flag migrated tiene
+                // que quedar igual asi la migracion + el popup no se repiten al proximo arranque.
+                LocalConfig.Save();
+            }
+
+            // Torii: el stable-style song select es OPT-IN (se ofrece con el promo "try this!" tras varias
+            // visitas). arrancaba prendido por un default erroneo, asi que a quien lo tiene heredado en true
+            // lo apagamos UNA sola vez; el que lo quiera lo re-activa desde el promo o Settings > Torii. el
+            // que ya lo tenia apagado no se toca. mismo patron one-shot que la migracion del theme de arriba.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiStableOptInMigrated))
+            {
+                if (LocalConfig.Get<bool>(OsuSetting.ToriiLegacyFooterUseSkin))
+                    LocalConfig.SetValue(OsuSetting.ToriiLegacyFooterUseSkin, false);
+
+                LocalConfig.SetValue(OsuSetting.ToriiStableOptInMigrated, true);
+                LocalConfig.Save();
+            }
+
             // Torii: pin the cosmetic UI theme BEFORE OsuColour is constructed (its palette is
             // captured into the instance at build time). The dropdown prompts a restart on change.
             OsuColour.SetThemeFromConfig(LocalConfig.Get<UIThemeOption>(OsuSetting.UITheme));
+
+            // Torii: la UI legacy (song select estilo stable) usa la fuente moderna de lazer por default;
+            // este setting la pasa a Aller (fuente de osu!stable). Bindeado (no read-once) asi re-entrar al
+            // song select ya toma la fuente nueva sin reiniciar; LegacyFonts.Get lo lee en construccion.
+            LocalConfig.BindWith(OsuSetting.ToriiLegacyFont, legacyFontSetting);
+            legacyFontSetting.BindValueChanged(e => Screens.Select.LegacyFonts.UseAllerFont = e.NewValue, true);
 
             // Torii: Potato Mode read-once flag (heavy visuals check it at construction). Restart-gated.
             Performance.PotatoMode.SetFromConfig(LocalConfig.Get<bool>(OsuSetting.ToriiPotatoMode));
