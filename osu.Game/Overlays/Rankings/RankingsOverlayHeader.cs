@@ -22,7 +22,9 @@ namespace osu.Game.Overlays.Rankings
 
         protected override OverlayTitle CreateTitle() => new RankingsTitle();
 
-        protected override Drawable CreateTabControlContent() => rulesetSelector = new OverlayRulesetSelector();
+        // torii: selector con los modos exclusivos del server (osu!relax, osu!autopilot, taiko relax)
+        // intercalados, para tener el leaderboard RX/AP igual que el perfil RX/AP.
+        protected override Drawable CreateTabControlContent() => rulesetSelector = new RankingsRulesetSelector();
 
         protected override Drawable CreateContent() => countryFilter = new CountryFilter();
 
