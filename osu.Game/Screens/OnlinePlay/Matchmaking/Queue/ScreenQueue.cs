@@ -842,14 +842,27 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                     {
                         pushScreenDelegate = Schedule(() =>
                         {
+                            // torii: durante los 2s de "Good luck!" la room se puede caer (el rival se
+                            // va, el match aborta, se corta la conexion). si client.Room quedo null y
+                            // empujamos igual, el ctor de la screen NREa en room.Settings y la excepcion
+                            // no manejada hard-lockea el juego (ni alt-F4 cierra). guardamos y volvemos
+                            // a la cola en vez de romper.
+                            var room = client.Room;
+
+                            if (room == null)
+                            {
+                                SetState(MatchmakingScreenState.Idle);
+                                return;
+                            }
+
                             switch (poolType)
                             {
                                 case MatchmakingPoolType.QuickPlay:
-                                    this.Push(new ScreenMatchmaking(client.Room!));
+                                    this.Push(new ScreenMatchmaking(room));
                                     break;
 
                                 case MatchmakingPoolType.RankedPlay:
-                                    this.Push(new RankedPlayScreen(client.Room!));
+                                    this.Push(new RankedPlayScreen(room));
                                     break;
                             }
                         });
