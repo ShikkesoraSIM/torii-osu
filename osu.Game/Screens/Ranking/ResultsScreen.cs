@@ -189,12 +189,14 @@ namespace osu.Game.Screens.Ranking
                 }
             };
 
-            // torii: results estilo stable. post-gameplay en solo (SoloResultsScreen cubre tambien
-            // replay y spectator) se entra DIRECTO a la vista legacy desde el primer frame; en
-            // multi/playlists se mantiene la lista stock de paneles (ver los scores de todos) y el
-            // panel legacy abre al clickear un score, como siempre.
+            // torii: results estilo stable. en solo (SoloResultsScreen cubre post-gameplay, replay,
+            // spectator Y ver un score del leaderboard desde el song select) se entra DIRECTO a la vista
+            // legacy desde el primer frame — antes esto pedia player != null, asi que al clickear un score
+            // del leaderboard (sin player) caia en la lista de paneles de lazer en vez de la results stable
+            // con el boton de watch replay. en multi/playlists se mantiene la lista stock de paneles (ver
+            // los scores de todos) y el panel legacy abre al clickear un score, como siempre.
             bool stableResults = config.Get<bool>(Configuration.OsuSetting.ToriiStableResults);
-            bool stableAutoShow = stableResults && player != null && this is SoloResultsScreen;
+            bool stableAutoShow = stableResults && this is SoloResultsScreen;
 
             if (Score != null)
             {
