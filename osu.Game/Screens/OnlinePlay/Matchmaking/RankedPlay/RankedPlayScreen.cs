@@ -117,6 +117,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         [Cached]
         private readonly SongPreviewParticleContainer particleContainer;
 
+        // torii GHOST CURSOR: el cursor del rival flotando sobre el lobby de cartas.
+        private readonly RankedPlayGhostCursorOverlay ghostCursors;
+
+        // torii DIBUJITO: pizarra compartida en las fases de mano (se esconde sola cuando el centro se ocupa).
+        private readonly RankedPlayDrawingLayer drawingLayer;
+
         [Cached]
         private BackgroundMusicManager backgroundMusic;
 
@@ -161,8 +167,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                         {
                             RelativeSizeAxes = Axes.Both,
                         },
+                        drawingLayer = new RankedPlayDrawingLayer(),
                         overlayContainer = new CardDetailsOverlayContainer(),
                         particleContainer = new SongPreviewParticleContainer(),
+                        // ultimo = arriba de todo dentro del espacio virtual: un cursor siempre flota.
+                        ghostCursors = new RankedPlayGhostCursorOverlay(),
                     },
                 },
                 chat = new RankedPlayChatDisplay(room)
@@ -370,6 +379,13 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             backgroundMusic.Stop();
             previewTrackManager.StopAnyPlaying(this);
 
+            // torii GHOST CURSOR: con otra pantalla encima (gameplay) no mandamos ni procesamos nada.
+            ghostCursors.Active = false;
+            ghostCursors.FadeOut(200, Easing.OutQuint);
+
+            // torii DIBUJITO: idem — la pizarra se guarda pero no molesta durante el gameplay.
+            drawingLayer.Active = false;
+
             base.OnSuspending(e);
         }
 
@@ -419,6 +435,13 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         public override void OnResuming(ScreenTransitionEvent e)
         {
             base.OnResuming(e);
+
+            // torii GHOST CURSOR: de vuelta en el lobby, se reactiva.
+            ghostCursors.Active = true;
+            ghostCursors.FadeIn(300, Easing.OutQuint);
+
+            // torii DIBUJITO: los dibujos siguen en memoria; reaparecen si la fase tiene el centro libre.
+            drawingLayer.Active = true;
 
             if (e.Last is not MultiplayerPlayerLoader playerLoader)
                 return;

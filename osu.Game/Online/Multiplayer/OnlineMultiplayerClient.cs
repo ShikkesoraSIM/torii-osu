@@ -19,6 +19,7 @@ using osu.Game.Online.Multiplayer.MatchTypes.RankedPlay;
 using osu.Game.Online.RankedPlay;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays.Notifications;
+using osuTK;
 
 namespace osu.Game.Online.Multiplayer
 {
@@ -94,10 +95,68 @@ namespace osu.Game.Online.Multiplayer
 
                     connection.On(nameof(IStatefulUserHubClient.DisconnectRequested), ((IStatefulUserHubClient)this).DisconnectRequested);
                     connection.On(nameof(IStatefulUserHubClient.ServerShuttingDown), ((IStatefulUserHubClient)this).ServerShuttingDown);
+
+                    // torii GHOST CURSOR: relay por NOMBRE de metodo (no toca los tipos MessagePack
+                    // del protocolo) — un server/cliente que no lo conoce simplemente lo ignora.
+                    connection.On<int, float, float>(@"RankedPlayCursor", (userId, x, y) => TriggerRankedPlayCursorReceived(userId, new Vector2(x, y)));
+
+                    // torii DIBUJITO: mismo esquema que el cursor — relay por nombre, arrays de
+                    // primitivos, cero tipos nuevos en el protocolo.
+                    connection.On<int, int, float[], float[], int, float, bool>(@"RankedPlayDrawStroke", (userId, strokeId, xs, ys, colour, thickness, done) =>
+                    {
+                        int count = Math.Min(xs.Length, ys.Length);
+                        var points = new Vector2[count];
+
+                        for (int i = 0; i < count; i++)
+                            points[i] = new Vector2(xs[i], ys[i]);
+
+                        TriggerRankedPlayDrawStrokeReceived(userId, strokeId, points, colour, thickness, done);
+                    });
+                    connection.On<int>(@"RankedPlayDrawClear", TriggerRankedPlayDrawClearReceived);
                 };
 
                 IsConnected.BindTo(connector.IsConnected);
             }
+        }
+
+        public override Task SendRankedPlayCursor(Vector2 normalisedPosition)
+        {
+            // torii GHOST CURSOR: fire-and-forget total — es cosmetica, no estado del match. Sin
+            // conexion no hay nada que mandar, y un fallo puntual de red se ignora en el caller.
+            if (!IsConnected.Value || connection == null)
+                return Task.CompletedTask;
+
+            return connection.SendAsync(@"RankedPlayCursor", normalisedPosition.X, normalisedPosition.Y);
+        }
+
+        public override Task SendRankedPlayDrawStroke(int strokeId, Vector2[] points, int colour, float thickness, bool done)
+        {
+            // torii DIBUJITO: misma politica que el cursor — cosmetica pura, sin conexion no se manda.
+            var conn = connection;
+
+            if (!IsConnected.Value || conn == null || points.Length == 0)
+                return Task.CompletedTask;
+
+            float[] xs = new float[points.Length];
+            float[] ys = new float[points.Length];
+
+            for (int i = 0; i < points.Length; i++)
+            {
+                xs[i] = points[i].X;
+                ys[i] = points[i].Y;
+            }
+
+            return conn.SendAsync(@"RankedPlayDrawStroke", strokeId, xs, ys, colour, thickness, done);
+        }
+
+        public override Task SendRankedPlayDrawClear()
+        {
+            var conn = connection;
+
+            if (!IsConnected.Value || conn == null)
+                return Task.CompletedTask;
+
+            return conn.SendAsync(@"RankedPlayDrawClear");
         }
 
         protected override async Task<MultiplayerRoom> CreateRoomInternal(MultiplayerRoom room)
@@ -358,20 +417,26 @@ namespace osu.Game.Online.Multiplayer
 
         public override Task<MatchmakingPool[]> GetMatchmakingPoolsOfType(MatchmakingPoolType type)
         {
-            if (!IsConnected.Value)
+            // torii: capturar la conexion en un local y tratar null como desconectado. Durante un
+            // reconnect hay una ventana en la que IsConnected==true pero CurrentConnection es null;
+            // el Debug.Assert de antes crasheaba el build debug (la cola pollea estos metodos) y en
+            // release era un NRE latente.
+            var conn = connection;
+
+            if (!IsConnected.Value || conn == null)
                 return Task.FromResult(Array.Empty<MatchmakingPool>());
 
-            Debug.Assert(connection != null);
-            return connection.InvokeAsync<MatchmakingPool[]>(nameof(IMatchmakingServer.GetMatchmakingPoolsOfType), type);
+            return conn.InvokeAsync<MatchmakingPool[]>(nameof(IMatchmakingServer.GetMatchmakingPoolsOfType), type);
         }
 
         public override Task<MatchmakingJoinLobbyResponse> MatchmakingJoinLobbyWithParams(MatchmakingJoinLobbyRequest request)
         {
-            if (!IsConnected.Value)
+            var conn = connection;
+
+            if (!IsConnected.Value || conn == null)
                 return Task.FromResult(new MatchmakingJoinLobbyResponse());
 
-            Debug.Assert(connection != null);
-            return connection.InvokeAsync<MatchmakingJoinLobbyResponse>(nameof(IMatchmakingServer.MatchmakingJoinLobbyWithParams), request);
+            return conn.InvokeAsync<MatchmakingJoinLobbyResponse>(nameof(IMatchmakingServer.MatchmakingJoinLobbyWithParams), request);
         }
 
         public override Task MatchmakingLeaveLobby()

@@ -27,6 +27,7 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay;
 using osu.Game.Utils;
+using osuTK;
 
 namespace osu.Game.Online.Multiplayer
 {
@@ -114,6 +115,44 @@ namespace osu.Game.Online.Multiplayer
         /// Invoked when the multiplayer server has finished collating results.
         /// </summary>
         public event Action? ResultsReady;
+
+        /// <summary>
+        /// torii GHOST CURSOR: posicion de cursor (normalizada 0..1) de otro jugador de la room,
+        /// relayeada por el server en las pantallas de ranked play. OJO: llega en un thread de
+        /// SignalR — el consumidor debe agendar al update thread.
+        /// </summary>
+        public event Action<int, Vector2>? RankedPlayCursorReceived;
+
+        protected void TriggerRankedPlayCursorReceived(int userId, Vector2 normalisedPosition)
+            => RankedPlayCursorReceived?.Invoke(userId, normalisedPosition);
+
+        /// <summary>
+        /// torii GHOST CURSOR: manda la posicion local (normalizada 0..1) al server para que la
+        /// relayee al resto de la room. Fire-and-forget; no-op sin conexion (o en tests).
+        /// </summary>
+        public virtual Task SendRankedPlayCursor(Vector2 normalisedPosition) => Task.CompletedTask;
+
+        /// <summary>
+        /// torii DIBUJITO: chunk de trazo de la pizarra de ranked play de otro jugador. Los puntos
+        /// vienen normalizados (0..1), <c>colour</c> es un indice a la paleta compartida y
+        /// <c>done</c> marca el ultimo chunk del trazo. Mismo caveat que el cursor: thread SignalR.
+        /// </summary>
+        public event Action<int, int, Vector2[], int, float, bool>? RankedPlayDrawStrokeReceived;
+
+        /// <summary>torii DIBUJITO: un jugador borro TODOS sus trazos.</summary>
+        public event Action<int>? RankedPlayDrawClearReceived;
+
+        protected void TriggerRankedPlayDrawStrokeReceived(int userId, int strokeId, Vector2[] points, int colour, float thickness, bool done)
+            => RankedPlayDrawStrokeReceived?.Invoke(userId, strokeId, points, colour, thickness, done);
+
+        protected void TriggerRankedPlayDrawClearReceived(int userId)
+            => RankedPlayDrawClearReceived?.Invoke(userId);
+
+        /// <summary>torii DIBUJITO: manda un chunk del trazo local. Fire-and-forget; no-op sin conexion.</summary>
+        public virtual Task SendRankedPlayDrawStroke(int strokeId, Vector2[] points, int colour, float thickness, bool done) => Task.CompletedTask;
+
+        /// <summary>torii DIBUJITO: borra los trazos propios en todos los clientes de la room.</summary>
+        public virtual Task SendRankedPlayDrawClear() => Task.CompletedTask;
 
         public event Action<MultiplayerCountdown>? CountdownStarted;
 
