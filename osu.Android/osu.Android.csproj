@@ -1,7 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\osu.Android.props" />
   <PropertyGroup>
-    <TargetFramework>net8.0-android</TargetFramework>
+    <!-- android se queda en net10.0-android (CoreCLR): el framework solo publica
+         osu.Framework.Android para net10.0-android, y net8.0-android esta EOL
+         (NETSDK1202). el objetivo "net8 estable" es para DESKTOP, donde estaban
+         los hiccups de GC; android es un runtime mobile aparte. osu.Game (net8.0)
+         es compatible-hacia-abajo con la app net10.0-android. -->
+    <TargetFramework>net10.0-android</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>osu.Android</RootNamespace>
     <AssemblyName>osu.Android</AssemblyName>
