@@ -1,0 +1,92 @@
+{
+  "SchemaVersion": 1,
+  "Id": "aura-summer",
+  "Name": "Summer 2026",
+  "Type": "Aura",
+  "Tier": "Basic",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 260,
+    "SpawnJitterMs": 180,
+    "MaxAlive": 9,
+    "Glow": {
+      "Colour": "#FFD98C",
+      "MinAlpha": 0.45,
+      "MaxAlpha": 0.85,
+      "BlurSigma": 4.5,
+      "PulseMs": 1700,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 5,
+        "Shape": "circle",
+        "SizePx": [3, 5],
+        "Blend": "additive",
+        "Palette": ["#FFE9A8", "#FFD27A", "#FFF4D0"],
+        "ColourPick": "random",
+        "SpawnX": [0, 1],
+        "SpawnY": [0.4, 0.95],
+        "Motion": "drift",
+        "DriftX": [-0.08, 0.08],
+        "DriftY": [-0.7, -0.35],
+        "LifetimeMs": [1500, 2200],
+        "Anim": {
+          "FadeInMs": 220,
+          "PeakAlpha": [0.7, 1.0],
+          "FadeOutMs": 400,
+          "FadeKeyframes": [
+            { "Mul": 1.0, "Ms": 220, "Easing": "OutQuad" },
+            { "Mul": 0.4, "Ms": 260, "Easing": "InOutSine" },
+            { "Mul": 0.95, "Ms": 260, "Easing": "InOutSine" }
+          ]
+        }
+      },
+      {
+        "Weight": 3,
+        "SizePx": [8, 12],
+        "Blend": "additive",
+        "Palette": ["#8FD4FF", "#FFFFFF"],
+        "SpawnX": [0, 1],
+        "SpawnY": [0.45, 0.95],
+        "Motion": "drift",
+        "DriftX": [-0.05, 0.05],
+        "DriftY": [-0.6, -0.3],
+        "LifetimeMs": [1800, 2600],
+        "Layers": [
+          { "Shape": "ring", "SizeRatio": 1.0, "ColourRef": 0, "Alpha": 0.7, "Blend": "additive" },
+          { "Shape": "circle", "SizeRatio": 0.22, "ColourRef": 1, "Alpha": 0.9, "Blend": "additive", "Offset": [-0.18, -0.18] }
+        ],
+        "Anim": {
+          "FadeInMs": 260,
+          "PeakAlpha": [0.6, 0.85],
+          "FadeOutMs": 480,
+          "ScaleIn": { "From": 0.4, "To": 1, "Ms": 320, "Easing": "OutBack" }
+        }
+      },
+      {
+        "Weight": 1,
+        "Icon": "sun",
+        "SizePx": [10, 13],
+        "Blend": "additive",
+        "Palette": ["#FFCB57"],
+        "ColourPick": "fixed",
+        "SpawnX": [-0.1, 1.1],
+        "SpawnY": [0.1, 0.5],
+        "Motion": "drift",
+        "DriftX": [-0.06, 0.06],
+        "DriftY": [-0.4, -0.15],
+        "LifetimeMs": [2000, 2800],
+        "Anim": {
+          "FadeInMs": 300,
+          "PeakAlpha": [0.55, 0.8],
+          "FadeOutMs": 520,
+          "ScaleIn": { "From": 0.3, "To": 1, "Ms": 360, "Easing": "OutBack" },
+          "RotateOverLife": [-40, 40],
+          "RotateOverLifeEasing": "InOutSine"
+        }
+      }
+    ]
+  }
+}

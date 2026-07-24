@@ -38,6 +38,11 @@ namespace osu.Game.Cosmetics.Definitions
         /// <summary>solo para trails: la familia de render (Dot/Ribbon/Particle). null en otros tipos.</summary>
         public CosmeticTrailFamily? Family { get; set; }
 
+        /// <summary>solo para auras: la clase de render. null en otros tipos. hoy la unica es
+        /// <see cref="Definitions.AuraKind.Particles"/> (un aura = mezcla ponderada de particulas
+        /// alrededor del nombre). analogo a <see cref="Family"/> de los trails.</summary>
+        public AuraKind? AuraKind { get; set; }
+
         /// <summary>los parametros del cosmetico (nombre de propiedad -> valor). el factory los aplica
         /// por reflection sobre la clase runtime. colores como "#RRGGBBAA", Vector2 como [x,y],
         /// enums por nombre, arrays de color como lista de hex. ver <see cref="CosmeticSettingsBinder"/>.</summary>
@@ -69,5 +74,12 @@ namespace osu.Game.Cosmetics.Definitions
         Trail,
         NameColour,
         Aura,
+    }
+
+    /// <summary>la clase de render de un aura data-driven. hoy solo particulas; se reserva espacio
+    /// para variantes futuras (ej solo-ornamento) sin romper JSONs viejos.</summary>
+    public enum AuraKind
+    {
+        Particles,
     }
 }

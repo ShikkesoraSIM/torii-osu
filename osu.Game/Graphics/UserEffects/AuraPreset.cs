@@ -174,6 +174,14 @@ namespace osu.Game.Graphics.UserEffects
         public virtual Color4? GlowColour => null;
 
         /// <summary>
+        /// torii: parámetros COMPLETOS del text-shape glow (color + pulso + intensidad + blur) para
+        /// control total. null = usar solo <see cref="GlowColour"/> con los defaults del container
+        /// (comportamiento clásico de los presets hardcodeados). Lo proveen las auras data-driven, donde
+        /// el creador controla el glow entero. <see cref="UserAuraContainer"/> lo lee cuando no es null.
+        /// </summary>
+        public virtual AuraGlowSettings? GlowSettings => null;
+
+        /// <summary>
         /// Spawns one particle into <paramref name="parent"/>, sized/positioned
         /// relative to <paramref name="parentSize"/> (the bounding box of the
         /// username being decorated). The spawned drawable is responsible for

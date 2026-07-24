@@ -2,15 +2,13 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.IO;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Rendering;
-using osu.Framework.Graphics.Sprites;
-using osu.Framework.Graphics.Textures;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
+using osu.Game.Cosmetics.Definitions;
 using osuTK;
 using osuTK.Graphics;
 
@@ -70,10 +68,6 @@ namespace osu.Game.Cosmetics
         /// <summary>Hard cap on alive particles, to bound GPU/CPU work.</summary>
         public int MaxAlive { get; set; } = 160;
 
-        // topes para la imagen custom (data de comunidad): lado max y largo max del base64.
-        private const int custom_max_dimension = 256;
-        private const int custom_max_base64_len = 700_000; // ~500KB decodificados
-
         // burst de click: agranda las particulas que se emiten durante el pop (1 = neutro).
         private float clickExpansion = 1f;
 
@@ -104,39 +98,10 @@ namespace osu.Game.Cosmetics
         {
             // si vino una imagen custom valida, se convierte en la forma de la particula (sprite) y
             // pisa el ParticleFactory de la forma built-in. es 100% data (un PNG), sin code-exec.
-            if (string.IsNullOrEmpty(CustomImage) || CustomImage.Length > custom_max_base64_len)
-                return;
-
-            try
-            {
-                byte[] bytes = Convert.FromBase64String(CustomImage);
-
-                using var stream = new MemoryStream(bytes);
-                var upload = new TextureUpload(stream);
-
-                if (upload.Width <= 0 || upload.Height <= 0 || upload.Width > custom_max_dimension || upload.Height > custom_max_dimension)
-                    return;
-
-                var texture = renderer.CreateTexture(upload.Width, upload.Height);
-                texture.SetData(upload);
-
-                // normalizamos el lado mayor a ~26px preservando el aspecto, asi una imagen grande no
-                // entra gigante (despues los sliders Start/End scale la ajustan encima).
-                float longest = Math.Max(texture.DisplayWidth, texture.DisplayHeight);
-                float scale = longest > 0 ? 26f / longest : 1f;
-                var drawSize = new Vector2(texture.DisplayWidth * scale, texture.DisplayHeight * scale);
-
-                ParticleFactory = _ => new Sprite
-                {
-                    Texture = texture,
-                    Size = drawSize,
-                    Origin = Anchor.Centre,
-                };
-            }
-            catch
-            {
-                // base64 / imagen invalida -> nos quedamos con la forma built-in (ParticleFactory ya seteada).
-            }
+            // El decode + caps + normalizacion viven en el helper compartido con las auras.
+            var customFactory = CosmeticCustomImage.Resolve(renderer, CustomImage);
+            if (customFactory != null)
+                ParticleFactory = customFactory;
         }
 
         private bool inputActive = true;

@@ -1,0 +1,51 @@
+{
+  "SchemaVersion": 1,
+  "Id": "aura-stardust",
+  "Name": "Stardust",
+  "Type": "Aura",
+  "Tier": "Basic",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 320,
+    "SpawnJitterMs": 200,
+    "MaxAlive": 7,
+    "Glow": {
+      "Colour": "#A5CDFF",
+      "MinAlpha": 0.5,
+      "MaxAlpha": 0.9,
+      "BlurSigma": 4,
+      "PulseMs": 1500,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 1,
+        "Shape": "sparkleCross",
+        "SizePx": [4, 7],
+        "Blend": "additive",
+        "InitialRotation": [-15, 15],
+        "Palette": ["#A0DCFF", "#CDE1FF", "#C8AFFF", "#FFF0D2"],
+        "ColourPick": "random",
+        "SpawnX": [0, 1],
+        "SpawnY": [0.30, 0.95],
+        "Motion": "drift",
+        "DriftX": [-0.11, 0.11],
+        "DriftY": [-0.9, -0.4],
+        "LifetimeMs": [1400, 2100],
+        "Anim": {
+          "FadeInMs": 240,
+          "PeakAlpha": [0.85, 1.0],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 450,
+          "ScaleIn": { "From": 0, "To": 1, "Ms": 260, "Easing": "OutBack" },
+          "FadeKeyframes": [
+            { "Mul": 1.0, "Ms": 240, "Easing": "OutQuad" },
+            { "Mul": 0.55, "Ms": 300, "Easing": "InOutSine" },
+            { "Mul": 1.0, "Ms": 300, "Easing": "InOutSine" }
+          ]
+        }
+      }
+    ]
+  }
+}
