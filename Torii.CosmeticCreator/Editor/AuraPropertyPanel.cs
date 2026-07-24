@@ -3,29 +3,32 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Platform;
 using osu.Game.Cosmetics.Definitions;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Overlays;
 using osu.Game.Overlays.Settings;
 using osuTK;
 
 namespace Torii.CosmeticCreator.Editor
 {
     /// <summary>
-    /// torii: panel de propiedades de un AURA. A diferencia del de trails (que escribe en un dict plano),
-    /// el aura es un modelo anidado, así que mantenemos un <see cref="DataDrivenAura"/> POCO, lo editamos
-    /// con los controles, y en cada cambio lo re-serializamos a Definition.Settings + disparamos
-    /// <see cref="Changed"/> para rearmar el preview. Expone lo de más impacto: emisión, glow (control
-    /// total), y la primera partícula (forma/tamaño/paleta/movimiento/vida). El estado del panel ES el
-    /// JSON exportable.
+    /// torii: panel de propiedades de un AURA. Un aura es una MEZCLA de tipos de partícula, así que el
+    /// panel muestra una lista de partículas: agregás las que quieras y clic en una para editarla (forma
+    /// —procedural, glyph o TU PNG—, peso en la mezcla, paleta, tamaño, movimiento, vida). Mantenemos un
+    /// <see cref="DataDrivenAura"/> POCO, lo editamos con los controles y en cada cambio lo re-serializamos
+    /// a Definition.Settings + disparamos <see cref="Changed"/> → el preview se rearma. El estado del panel
+    /// ES el JSON exportable.
     /// </summary>
     public partial class AuraPropertyPanel : CompositeDrawable
     {
@@ -33,8 +36,19 @@ namespace Torii.CosmeticCreator.Editor
 
         public event Action? Changed;
 
+        [Resolved]
+        private Storage storage { get; set; } = null!;
+
+        [Resolved]
+        private OverlayColourProvider colours { get; set; } = null!;
+
         private readonly DataDrivenAura data;
         private FillFlowContainer flow = null!;
+
+        private int selected;
+
+        // carpeta portable donde el usuario dropea sus PNGs para partículas custom (igual que trails).
+        private const string custom_particles_dir = "custom-particles";
 
         public AuraPropertyPanel(CosmeticDefinition definition)
         {
@@ -69,6 +83,7 @@ namespace Torii.CosmeticCreator.Editor
         private static ParticleSpec defaultParticle() => new ParticleSpec
         {
             Shape = "circle",
+            Weight = 1,
             SizePx = new[] { 5f, 9f },
             Palette = new[] { "#FFE9A8", "#8FD4FF" },
             SpawnY = new[] { 0.4f, 0.95f },
@@ -87,6 +102,8 @@ namespace Torii.CosmeticCreator.Editor
         {
             flow.Clear();
 
+            selected = Math.Clamp(selected, 0, data.Particles.Count - 1);
+
             header("Aura");
             nameBox();
 
@@ -98,18 +115,200 @@ namespace Torii.CosmeticCreator.Editor
             header("Glow (behind the name)");
             glowControls();
 
-            var p = data.Particles[0];
-            header("Particle");
+            header($"Particles ({data.Particles.Count})");
+            particleTabs();
+
+            var p = data.Particles[selected];
+            header($"Particle {selected + 1}");
+            sliderF("Mix weight", p.Weight, 0.1f, 10f, 0.1f, v => p.Weight = v);
             shapeControl(p);
             rangeControl("Size (px)", p.SizePx ?? new[] { 5f, 9f }, 1, 40, 0.5f, r => p.SizePx = r);
             paletteControls(p);
+
             header("Movement");
-            enumDropdown("Motion", p.Motion ?? "drift", new[] { "drift", "stationary", "expandInPlace", "holdBeam" }, v => { p.Motion = v; });
+            enumDropdown("Motion", p.Motion ?? "drift", new[] { "drift", "stationary", "expandInPlace", "holdBeam" }, v => p.Motion = v);
+            rangeControl("Spawn X (× width)", p.SpawnX ?? new[] { 0f, 1f }, -0.3f, 1.3f, 0.02f, r => p.SpawnX = r);
+            rangeControl("Spawn Y (× height)", p.SpawnY ?? new[] { 0.4f, 0.95f }, -0.3f, 1.3f, 0.02f, r => p.SpawnY = r);
             rangeControl("Drift X (× width)", p.DriftX ?? new[] { -0.1f, 0.1f }, -1f, 1f, 0.01f, r => p.DriftX = r);
             rangeControl("Drift Y (× height)", p.DriftY ?? new[] { -0.9f, -0.4f }, -1.2f, 1.2f, 0.01f, r => p.DriftY = r);
             rangeControl("Lifetime (ms)", p.LifetimeMs ?? new[] { 1500f, 2000f }, 300, 4000, 50, r => p.LifetimeMs = r);
+            rangeControl("Spin over life (deg)", p.Anim?.RotateOverLife ?? new[] { 0f, 0f }, -360, 360, 5, r => ensureAnim(p).RotateOverLife = allZero(r) ? null : r);
 
             commit();
+        }
+
+        // ─────────────────────────── partículas (lista) ───────────────────────────
+
+        private void particleTabs()
+        {
+            var row = new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Full,
+                Spacing = new Vector2(6, 6),
+                Margin = new MarginPadding { Bottom = 4 },
+            };
+
+            for (int i = 0; i < data.Particles.Count; i++)
+            {
+                int index = i;
+                row.Add(new RoundedButton
+                {
+                    Width = 52,
+                    Height = 28,
+                    Text = $"#{i + 1}",
+                    BackgroundColour = index == selected ? colours.Colour1 : colours.Background3,
+                    Action = () => { selected = index; scheduleRebuild(); },
+                });
+            }
+
+            row.Add(new RoundedButton
+            {
+                Width = 60,
+                Height = 28,
+                Text = "+ Add",
+                BackgroundColour = colours.Colour2,
+                Action = () =>
+                {
+                    data.Particles.Add(defaultParticle());
+                    selected = data.Particles.Count - 1;
+                    scheduleRebuild();
+                },
+            });
+
+            if (data.Particles.Count > 1)
+            {
+                row.Add(new RoundedButton
+                {
+                    Width = 74,
+                    Height = 28,
+                    Text = "− Remove",
+                    Action = () =>
+                    {
+                        data.Particles.RemoveAt(selected);
+                        selected = Math.Max(0, selected - 1);
+                        scheduleRebuild();
+                    },
+                });
+            }
+
+            flow.Add(row);
+        }
+
+        // ─────────────────────────── forma (con PNG propio) ───────────────────────────
+
+        private void shapeControl(ParticleSpec p)
+        {
+            var cust = storage.GetStorageForDirectory(custom_particles_dir);
+
+            string[] customFiles;
+            try
+            {
+                customFiles = cust.GetFiles(string.Empty, "*.png").Select(f => Path.GetFileName(f) ?? f).OrderBy(n => n).ToArray();
+            }
+            catch
+            {
+                customFiles = Array.Empty<string>();
+            }
+
+            var items = new List<string>();
+            items.AddRange(AuraParticleShapes.Names);
+            items.AddRange(AuraParticleShapes.GlyphNames.Select(g => "icon:" + g).OrderBy(s => s));
+            items.AddRange(customFiles.Select(f => "img:" + f));
+
+            // si ya tiene una imagen embebida (ej de un import), la representamos con una entrada propia.
+            const string uploaded = "(uploaded image)";
+            bool hasEmbedded = !string.IsNullOrEmpty(p.CustomImage);
+            if (hasEmbedded)
+                items.Insert(0, uploaded);
+
+            string start = hasEmbedded ? uploaded
+                : !string.IsNullOrEmpty(p.Icon) ? "icon:" + p.Icon
+                : (p.Shape ?? "circle");
+            if (!items.Contains(start))
+                start = "circle";
+
+            var current = new Bindable<string>(start);
+            current.BindValueChanged(v =>
+            {
+                applyShapeSelection(p, v.NewValue, cust);
+                commit();
+            });
+            flow.Add(new SettingsDropdown<string> { LabelText = "Shape / image", Items = items.ToArray(), Current = current });
+
+            flow.Add(new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(8, 0),
+                Margin = new MarginPadding { Top = 4 },
+                Children = new Drawable[]
+                {
+                    new RoundedButton { Width = 152, Height = 28, Text = "Open images folder", Action = () => { try { cust.PresentExternally(); } catch { } } },
+                    new RoundedButton { Width = 88, Height = 28, Text = "Refresh", Action = scheduleRebuild },
+                },
+            });
+
+            flow.Add(new OsuSpriteText
+            {
+                Text = "Drop a PNG (≤256px) in that folder, Refresh, then pick \"img:…\" for THIS particle.",
+                Font = OsuFont.Torus.With(size: 11),
+                Alpha = 0.6f,
+                Margin = new MarginPadding { Top = 2, Bottom = 4, Left = 2 },
+            });
+        }
+
+        private void applyShapeSelection(ParticleSpec p, string sel, Storage cust)
+        {
+            if (sel == "(uploaded image)")
+                return; // ya está embebida, no tocar.
+
+            if (sel.StartsWith("img:", StringComparison.Ordinal))
+            {
+                string file = sel.Substring(4);
+                string? b64 = readBase64(cust, file);
+                if (b64 != null)
+                {
+                    p.CustomImage = b64;
+                    p.Shape = null;
+                    p.Icon = null;
+                }
+                return;
+            }
+
+            p.CustomImage = null;
+
+            if (sel.StartsWith("icon:", StringComparison.Ordinal))
+            {
+                p.Icon = sel.Substring(5);
+                p.Shape = null;
+            }
+            else
+            {
+                p.Shape = sel;
+                p.Icon = null;
+            }
+        }
+
+        private static string? readBase64(Storage cust, string file)
+        {
+            try
+            {
+                if (!cust.Exists(file))
+                    return null;
+                using var s = cust.GetStream(file);
+                using var mem = new MemoryStream();
+                s.CopyTo(mem);
+                if (mem.Length > 0 && mem.Length <= 500_000)
+                    return Convert.ToBase64String(mem.ToArray());
+            }
+            catch
+            {
+            }
+
+            return null;
         }
 
         // ─────────────────────────── secciones ───────────────────────────
@@ -157,36 +356,6 @@ namespace Torii.CosmeticCreator.Editor
             flow.Add(new SettingsCheckbox { LabelText = "Glow pulsates", Current = pulsate });
         }
 
-        private void shapeControl(ParticleSpec p)
-        {
-            // formas procedurales + glyphs, en un solo dropdown. los glyphs llevan prefijo "icon:".
-            var shapes = AuraParticleShapes.Names.ToArray();
-            var glyphs = AuraParticleShapes.GlyphNames.Select(g => "icon:" + g).OrderBy(s => s).ToArray();
-            var items = shapes.Concat(glyphs).ToArray();
-
-            string start = !string.IsNullOrEmpty(p.Icon) ? "icon:" + p.Icon : (p.Shape ?? "circle");
-            if (!items.Contains(start))
-                start = "circle";
-
-            var current = new Bindable<string>(start);
-            current.BindValueChanged(v =>
-            {
-                if (v.NewValue.StartsWith("icon:", StringComparison.Ordinal))
-                {
-                    p.Icon = v.NewValue.Substring(5);
-                    p.Shape = null;
-                }
-                else
-                {
-                    p.Shape = v.NewValue;
-                    p.Icon = null;
-                }
-
-                commit();
-            });
-            flow.Add(new SettingsDropdown<string> { LabelText = "Shape", Items = items, Current = current });
-        }
-
         private void paletteControls(ParticleSpec p)
         {
             p.Palette ??= new[] { "#FFFFFFFF" };
@@ -217,23 +386,14 @@ namespace Torii.CosmeticCreator.Editor
                         Width = 120,
                         Height = 28,
                         Text = "Add colour",
-                        Action = () =>
-                        {
-                            p.Palette = p.Palette.Append("#FFFFFFFF").ToArray();
-                            scheduleRebuild();
-                        },
+                        Action = () => { p.Palette = p.Palette.Append("#FFFFFFFF").ToArray(); scheduleRebuild(); },
                     },
                     new RoundedButton
                     {
                         Width = 120,
                         Height = 28,
                         Text = "Remove last",
-                        Action = () =>
-                        {
-                            if (p.Palette.Length > 1)
-                                p.Palette = p.Palette.Take(p.Palette.Length - 1).ToArray();
-                            scheduleRebuild();
-                        },
+                        Action = () => { if (p.Palette.Length > 1) p.Palette = p.Palette.Take(p.Palette.Length - 1).ToArray(); scheduleRebuild(); },
                     },
                 },
             });
@@ -266,7 +426,6 @@ namespace Torii.CosmeticCreator.Editor
             flow.Add(new SettingsSlider<int> { LabelText = label, Current = current });
         }
 
-        // un rango [min,max] editado con dos sliders.
         private void rangeControl(string label, float[] range, float min, float max, float step, Action<float[]> set)
         {
             float lo = range.Length > 0 ? range[0] : min;
@@ -288,6 +447,10 @@ namespace Torii.CosmeticCreator.Editor
             current.BindValueChanged(v => { set(v.NewValue); commit(); });
             flow.Add(new SettingsDropdown<string> { LabelText = label, Items = items, Current = current });
         }
+
+        private static AnimSpec ensureAnim(ParticleSpec p) => p.Anim ??= new AnimSpec();
+
+        private static bool allZero(float[] r) => r.All(v => Math.Abs(v) < 0.01f);
 
         private static Colour4 parseHex(string hex, Colour4 fallback)
         {
