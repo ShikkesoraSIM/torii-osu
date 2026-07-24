@@ -4,10 +4,11 @@
 #nullable disable
 
 using osu.Framework.Allocation;
+using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
-using osu.Game.Online.API;
+using osu.Game.Database;
 using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Game.Users.Drawables
@@ -32,15 +33,22 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, IAPIProvider api)
+        private void load(LargeTextureStore textures, UserLookupCache userLookupCache)
         {
-            if (user != null && user.OnlineID > 1)
-                // TODO: The fallback here should not need to exist. Users should be looked up and populated via UserLookupCache or otherwise
-                // in remaining cases where this is required (chat tabs, local leaderboard), at which point this should be removed.
-                // torii: el fallback por id apunta a NUESTRO server, no a a.ppy.sh: los ids de torii
-                // colisionan con los de osu! oficial y el leaderboard local mostraba la foto de otra
-                // persona (o ninguna). el AvatarUrl del API (scores online) sigue teniendo prioridad.
-                Texture = textures.Get((user as APIUser)?.AvatarUrl ?? $@"{api.Endpoints.APIUrl}/users/{user.OnlineID}/avatar");
+            string avatarUrl = (user as APIUser)?.AvatarUrl;
+
+            // torii: a locally-stored score carries a RealmUser with no avatar_url, so
+            // resolve the full user by id through the API (UserLookupCache) to get their
+            // real Torii avatar. This is [LongRunningLoad], so we can block on the lookup
+            // here. Replaces the old hand-built `{APIUrl}/users/{id}/avatar` fallback,
+            // which missed the /api/v2 prefix and 301'd to the website (blank avatar), and
+            // never risks the osu!-id collision the old a.ppy.sh fallback had. Ids that
+            // aren't Torii users just resolve to null -> the guest placeholder.
+            if (string.IsNullOrEmpty(avatarUrl) && user != null && user.OnlineID > 1)
+                avatarUrl = userLookupCache.GetUserAsync(user.OnlineID).GetResultSafely()?.AvatarUrl;
+
+            if (!string.IsNullOrEmpty(avatarUrl))
+                Texture = textures.Get(avatarUrl);
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }
