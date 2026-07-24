@@ -130,7 +130,13 @@ namespace osu.Game.Cosmetics.Definitions
 
         // ---- movimiento ----
 
-        /// <summary>"drift" | "stationary" | "expandInPlace" | "holdBeam".</summary>
+        /// <summary>
+        /// cómo se mueve la partícula. Lineales: "drift" (deriva), "rise" (flota arriba), "fall"
+        /// (cae acelerando), "burst" (sale disparada y frena). Circulares/oscilatorios: "orbit"
+        /// (círculos), "spiral" (espiral que se abre), "zigzag" (serpentea), "pendulum" (se balancea).
+        /// En el lugar: "popInPlace" (aparece con pop), "ripple" (crece como onda), "beam" (aparece,
+        /// se queda, se va). Los circulares usan <see cref="OrbitRadius"/> + <see cref="OrbitTurns"/>.
+        /// </summary>
         public string Motion { get; set; } = "drift";
 
         /// <summary>rango [min,max] de drift en X (fracción del ancho).</summary>
@@ -138,6 +144,12 @@ namespace osu.Game.Cosmetics.Definitions
 
         /// <summary>rango [min,max] de drift en Y (fracción del alto; negativo = sube).</summary>
         public float[] DriftY { get; set; } = { -0.9f, -0.4f };
+
+        /// <summary>radio del movimiento circular/oscilatorio (orbit/spiral/zigzag/pendulum), fracción del alto. [min,max].</summary>
+        public float[] OrbitRadius { get; set; } = { 0.28f, 0.28f };
+
+        /// <summary>vueltas (orbit/spiral) o ciclos (zigzag/pendulum) completos a lo largo de la vida.</summary>
+        public float OrbitTurns { get; set; } = 1.5f;
 
         public float[] LifetimeMs { get; set; } = { 1500, 2000 };
 

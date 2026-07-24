@@ -48,7 +48,10 @@ namespace osu.Game.Cosmetics.Definitions
             var palette = resolvePalette(spec.Palette);
             Color4 baseColour = pickColour(spec, palette, random);
 
-            return new AuraParticle(spec, size, spawn, drift, lifetime, initialRotation, peakAlpha, baseColour, palette, random);
+            float orbitRadius = sampleRange(spec.OrbitRadius, 0.28f, 0.28f, random) * parentSize.Y;
+            float orbitPhase = (float)(random.NextDouble() * Math.PI * 2);
+
+            return new AuraParticle(spec, size, spawn, drift, lifetime, initialRotation, peakAlpha, baseColour, palette, random, orbitRadius, spec.OrbitTurns, orbitPhase);
         }
 
         // ---- sampleo helpers ----
@@ -175,11 +178,20 @@ namespace osu.Game.Cosmetics.Definitions
             private readonly Color4 baseColour;
             private readonly Color4[] palette;
             private readonly Random random;
+            private readonly Vector2 spawnPos;
+            private readonly float orbitRadius;
+            private readonly float orbitTurns;
+            private readonly float orbitPhase;
+
+            private string motion = "drift";
+            private bool proceduralMotion;
+            private double birthTime;
 
             private Container visual = null!;
 
             public AuraParticle(ParticleSpec spec, float size, Vector2 spawn, Vector2 drift, double lifetime,
-                                float initialRotation, float peakAlpha, Color4 baseColour, Color4[] palette, Random random)
+                                float initialRotation, float peakAlpha, Color4 baseColour, Color4[] palette, Random random,
+                                float orbitRadius, float orbitTurns, float orbitPhase)
             {
                 this.spec = spec;
                 this.size = size;
@@ -190,6 +202,10 @@ namespace osu.Game.Cosmetics.Definitions
                 this.baseColour = baseColour;
                 this.palette = palette;
                 this.random = random;
+                this.orbitRadius = orbitRadius;
+                this.orbitTurns = orbitTurns;
+                this.orbitPhase = orbitPhase;
+                spawnPos = spawn;
 
                 // la Position es medida desde el top-left del nombre (igual que los presets a mano);
                 // Origin Centre para escalar/rotar alrededor del punto.
@@ -340,7 +356,46 @@ namespace osu.Game.Cosmetics.Definitions
             protected override void LoadComplete()
             {
                 base.LoadComplete();
+                birthTime = Time.Current;
                 animate();
+            }
+
+            protected override void Update()
+            {
+                base.Update();
+
+                // movimiento procedural (orbit/spiral/zigzag/pendulum): la posición es una función del
+                // tiempo de vida, no un tween. el resto (fade/escala/rotación) sigue por transforms.
+                if (!proceduralMotion || lifetime <= 0)
+                    return;
+
+                float t = (float)Math.Clamp((Time.Current - birthTime) / lifetime, 0, 1);
+                float angle = orbitPhase + orbitTurns * MathF.PI * 2 * t;
+                Vector2 pos = spawnPos + drift * t;
+
+                switch (motion)
+                {
+                    case "orbit":
+                        pos += new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * orbitRadius;
+                        break;
+
+                    case "spiral":
+                        pos += new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * orbitRadius * t;
+                        break;
+
+                    case "zigzag":
+                        // oscilación perpendicular a la dirección de la deriva.
+                        Vector2 dir = drift.LengthSquared > 0.0001f ? drift.Normalized() : new Vector2(0, -1);
+                        Vector2 perp = new Vector2(-dir.Y, dir.X);
+                        pos += perp * orbitRadius * MathF.Sin(angle);
+                        break;
+
+                    case "pendulum":
+                        pos.X += orbitRadius * MathF.Sin(angle);
+                        break;
+                }
+
+                Position = pos;
             }
 
             private void animate()
@@ -348,21 +403,53 @@ namespace osu.Game.Cosmetics.Definitions
                 var anim = spec.Anim ?? new AnimSpec();
 
                 // ---- movimiento exterior ----
-                switch ((spec.Motion ?? "drift").ToLowerInvariant())
+                motion = (spec.Motion ?? "drift").ToLowerInvariant();
+                Vector2 driftTarget = spawnPos + drift;
+
+                switch (motion)
                 {
-                    case "stationary":
+                    case "rise":
+                        this.MoveTo(driftTarget, lifetime, Easing.OutQuad);
                         break;
 
-                    case "expandinplace":
-                        if (anim.Resize != null)
-                            visual.ScaleTo(anim.Resize.Factor, anim.Resize.Ms, ParseEasing(anim.Resize.Easing));
+                    case "fall":
+                        // cae acelerando.
+                        this.MoveTo(driftTarget, lifetime, Easing.InQuad);
                         break;
 
-                    case "holdbeam":
+                    case "burst":
+                        // sale disparada y frena.
+                        this.MoveTo(driftTarget, lifetime, Easing.OutExpo);
+                        break;
+
+                    case "orbit":
+                    case "spiral":
+                    case "zigzag":
+                    case "pendulum":
+                        // la Position la maneja Update() con una función periódica del tiempo de vida.
+                        proceduralMotion = true;
+                        break;
+
+                    case "ripple":
+                        // onda que CRECE en el lugar (siempre escala; default si no hay Resize).
+                        visual.ScaleTo(anim.Resize?.Factor ?? 2.6f, anim.Resize?.Ms ?? (float)(lifetime * 0.8), ParseEasing(anim.Resize?.Easing ?? "OutQuint"));
+                        break;
+
+                    case "popinplace":
+                        // pop de escala garantizado si el autor no puso uno (así se diferencia del beam).
+                        if (anim.ScaleIn == null && (anim.ScaleKeyframes == null || anim.ScaleKeyframes.Count == 0))
+                        {
+                            visual.Scale = new Vector2(0.2f);
+                            visual.ScaleTo(1f, 300, Easing.OutBack);
+                        }
+                        break;
+
+                    case "beam":
+                        // quieta y a tamaño fijo; el fade con hold la hace ver como un haz.
                         break;
 
                     default: // drift
-                        this.MoveTo(Position + drift, lifetime, Easing.OutSine);
+                        this.MoveTo(driftTarget, lifetime, Easing.OutSine);
                         break;
                 }
 

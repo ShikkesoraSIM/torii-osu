@@ -126,7 +126,12 @@ namespace Torii.CosmeticCreator.Editor
             paletteControls(p);
 
             header("Movement");
-            enumDropdown("Motion", p.Motion ?? "drift", new[] { "drift", "stationary", "expandInPlace", "holdBeam" }, v => p.Motion = v);
+            motionDropdown(p);
+            if (isCircular(p.Motion))
+            {
+                rangeControl("Orbit radius (× height)", p.OrbitRadius ?? new[] { 0.28f, 0.28f }, 0.05f, 0.8f, 0.01f, r => p.OrbitRadius = r);
+                sliderF("Orbit turns / cycles", p.OrbitTurns, 0.25f, 6f, 0.25f, v => p.OrbitTurns = v);
+            }
             rangeControl("Spawn X (× width)", p.SpawnX ?? new[] { 0f, 1f }, -0.3f, 1.3f, 0.02f, r => p.SpawnX = r);
             rangeControl("Spawn Y (× height)", p.SpawnY ?? new[] { 0.4f, 0.95f }, -0.3f, 1.3f, 0.02f, r => p.SpawnY = r);
             rangeControl("Drift X (× width)", p.DriftX ?? new[] { -0.1f, 0.1f }, -1f, 1f, 0.01f, r => p.DriftX = r);
@@ -447,6 +452,22 @@ namespace Torii.CosmeticCreator.Editor
             current.BindValueChanged(v => { set(v.NewValue); commit(); });
             flow.Add(new SettingsDropdown<string> { LabelText = label, Items = items, Current = current });
         }
+
+        // los modos de movimiento. cambiar el modo rearma el panel para mostrar/ocultar los controles
+        // de órbita (radio/vueltas) que solo aplican a los circulares.
+        private static readonly string[] motion_modes =
+        {
+            "drift", "rise", "fall", "burst", "orbit", "spiral", "zigzag", "pendulum", "popInPlace", "ripple", "beam",
+        };
+
+        private void motionDropdown(ParticleSpec p)
+        {
+            var current = new Bindable<string>(motion_modes.Contains(p.Motion) ? p.Motion : "drift");
+            current.BindValueChanged(v => { p.Motion = v.NewValue; scheduleRebuild(); });
+            flow.Add(new SettingsDropdown<string> { LabelText = "Motion", Items = motion_modes, Current = current });
+        }
+
+        private static bool isCircular(string? motion) => motion is "orbit" or "spiral" or "zigzag" or "pendulum";
 
         private static AnimSpec ensureAnim(ParticleSpec p) => p.Anim ??= new AnimSpec();
 
