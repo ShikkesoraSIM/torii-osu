@@ -24,4 +24,11 @@
     <ProjectReference Include="..\osu.Game.Rulesets.Mania\osu.Game.Rulesets.Mania.csproj" />
     <ProjectReference Include="..\osu.Game.Rulesets.Taiko\osu.Game.Rulesets.Taiko.csproj" />
   </ItemGroup>
+  <ItemGroup Label="Sample auras">
+    <!-- auras de ejemplo (bases para "empezar de" y para el round-trip verify). se copian al lado del
+         exe para que el editor las cargue desde AppContext.BaseDirectory/SampleAuras. -->
+    <None Include="SampleAuras\*.toriicosmetic">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

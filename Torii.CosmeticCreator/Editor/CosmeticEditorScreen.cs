@@ -3,8 +3,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
@@ -13,19 +16,22 @@ using osu.Framework.Platform;
 using osu.Game.Cosmetics;
 using osu.Game.Cosmetics.Definitions;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Overlays;
+using osu.Game.Overlays.Settings;
 using osuTK;
 using osuTK.Graphics;
 
 namespace Torii.CosmeticCreator.Editor
 {
     /// <summary>
-    /// torii: pantalla principal del editor. 3 columnas: izquierda = toolbox (elegir la familia del
-    /// trail), centro = preview en vivo con controles, derecha = propiedades + export. al cambiar de
-    /// familia se arma una definicion nueva con sus defaults y se re-crea el panel; cada edicion rearma
-    /// el preview al instante.
+    /// torii: pantalla principal del editor. 3 columnas: izquierda = toolbox (elegir qué crear — trail o
+    /// aura, o importar uno existente), centro = preview en vivo, derecha = propiedades + export. cada
+    /// edición rearma el preview al instante. soporta los DOS tipos de cosmético (trail y aura) con su
+    /// preview y su panel; el import detecta el tipo del archivo y monta el modo correcto.
     /// </summary>
     public partial class CosmeticEditorScreen : CompositeDrawable
     {
@@ -35,11 +41,15 @@ namespace Torii.CosmeticCreator.Editor
         [Resolved]
         private Storage storage { get; set; } = null!;
 
-        private TrailPreviewStage preview = null!;
+        private Container previewHost = null!;
+        private Container controlsHost = null!;
         private Container propsContent = null!;
         private OsuSpriteText statusText = null!;
 
         private CosmeticDefinition workingDefinition = null!;
+
+        private TrailPreviewStage? trailPreview;
+        private AuraPreviewStage? auraPreview;
         private bool previewPaused;
 
         private readonly Dictionary<TrailPreviewStage.PreviewMode, RoundedButton> modeButtons = new Dictionary<TrailPreviewStage.PreviewMode, RoundedButton>();
@@ -65,7 +75,6 @@ namespace Torii.CosmeticCreator.Editor
             };
 
             switchFamily(CosmeticTrailFamily.Dot);
-            setMode(TrailPreviewStage.PreviewMode.Sweep);
         }
 
         // ─────────────────────────── layout ───────────────────────────
@@ -133,19 +142,32 @@ namespace Torii.CosmeticCreator.Editor
             Children = new Drawable[]
             {
                 new Box { RelativeSizeAxes = Axes.Both, Colour = colours.Background4 },
-                new FillFlowContainer
+                new OsuScrollContainer
                 {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Direction = FillDirection.Vertical,
-                    Spacing = new Vector2(0, 8),
-                    Padding = new MarginPadding(14),
-                    Children = new Drawable[]
+                    RelativeSizeAxes = Axes.Both,
+                    ScrollbarOverlapsContent = false,
+                    Child = new FillFlowContainer
                     {
-                        sectionLabel("Start a trail"),
-                        familyButton("Dot / soft", CosmeticTrailFamily.Dot),
-                        familyButton("Ribbon", CosmeticTrailFamily.Ribbon),
-                        familyButton("Particle", CosmeticTrailFamily.Particle),
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Vertical,
+                        Spacing = new Vector2(0, 8),
+                        Padding = new MarginPadding(14),
+                        Children = new Drawable[]
+                        {
+                            sectionLabel("Start a trail"),
+                            familyButton("Dot / soft", CosmeticTrailFamily.Dot),
+                            familyButton("Ribbon", CosmeticTrailFamily.Ribbon),
+                            familyButton("Particle", CosmeticTrailFamily.Particle),
+
+                            sectionLabel("Start an aura"),
+                            auraButton("Aura — blank", () => blankAura()),
+                            auraButton("Aura — Stardust base", () => sampleAura("aura-stardust")),
+                            auraButton("Aura — Summer base", () => sampleAura("aura-summer")),
+
+                            sectionLabel("Open / import"),
+                            importControls(),
+                        },
                     },
                 },
             },
@@ -165,85 +187,11 @@ namespace Torii.CosmeticCreator.Editor
                 },
                 Content = new[]
                 {
-                    new Drawable[] { preview = new TrailPreviewStage() },
-                    new Drawable[] { previewControls() },
+                    new Drawable[] { previewHost = new Container { RelativeSizeAxes = Axes.Both } },
+                    new Drawable[] { controlsHost = new Container { RelativeSizeAxes = Axes.Both } },
                 },
             },
         };
-
-        private Drawable previewControls() => new FillFlowContainer
-        {
-            RelativeSizeAxes = Axes.X,
-            AutoSizeAxes = Axes.Y,
-            Direction = FillDirection.Vertical,
-            Spacing = new Vector2(0, 6),
-            Padding = new MarginPadding { Top = 8 },
-            Children = new Drawable[]
-            {
-                new FillFlowContainer
-                {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(8, 0),
-                    Children = new Drawable[]
-                    {
-                        modeButton("Auto sweep", TrailPreviewStage.PreviewMode.Sweep),
-                        modeButton("Follow mouse", TrailPreviewStage.PreviewMode.FollowMouse),
-                        modeButton("Simulate gameplay", TrailPreviewStage.PreviewMode.Gameplay),
-                    },
-                },
-                new FillFlowContainer
-                {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                    Direction = FillDirection.Horizontal,
-                    Spacing = new Vector2(8, 0),
-                    Children = new Drawable[]
-                    {
-                        new RoundedButton
-                        {
-                            Width = 110,
-                            Height = 28,
-                            Text = "Pause",
-                            Action = () =>
-                            {
-                                previewPaused = !previewPaused;
-                                preview.SetPaused(previewPaused);
-                            },
-                        },
-                        new RoundedButton
-                        {
-                            Width = 110,
-                            Height = 28,
-                            Text = "Reset",
-                            Action = () => preview.ResetSweep(),
-                        },
-                    },
-                },
-            },
-        };
-
-        private RoundedButton modeButton(string label, TrailPreviewStage.PreviewMode m)
-        {
-            var btn = new RoundedButton
-            {
-                Width = 138,
-                Height = 30,
-                Text = label,
-                Action = () => setMode(m),
-            };
-            modeButtons[m] = btn;
-            return btn;
-        }
-
-        private void setMode(TrailPreviewStage.PreviewMode m)
-        {
-            preview.SetMode(m);
-
-            foreach (var kvp in modeButtons)
-                kvp.Value.BackgroundColour = kvp.Key == m ? colours.Colour1 : colours.Background3;
-        }
 
         private Drawable propertiesColumn() => new Container
         {
@@ -303,7 +251,90 @@ namespace Torii.CosmeticCreator.Editor
             },
         };
 
-        // ─────────────────────────── logica ───────────────────────────
+        // ─────────────────────────── preview controls ───────────────────────────
+
+        private Drawable trailPreviewControls() => new FillFlowContainer
+        {
+            RelativeSizeAxes = Axes.X,
+            AutoSizeAxes = Axes.Y,
+            Direction = FillDirection.Vertical,
+            Spacing = new Vector2(0, 6),
+            Padding = new MarginPadding { Top = 8 },
+            Children = new Drawable[]
+            {
+                new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(8, 0),
+                    Children = new Drawable[]
+                    {
+                        modeButton("Auto sweep", TrailPreviewStage.PreviewMode.Sweep),
+                        modeButton("Follow mouse", TrailPreviewStage.PreviewMode.FollowMouse),
+                        modeButton("Simulate gameplay", TrailPreviewStage.PreviewMode.Gameplay),
+                    },
+                },
+                new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(8, 0),
+                    Children = new Drawable[]
+                    {
+                        new RoundedButton { Width = 110, Height = 28, Text = "Pause", Action = () => { previewPaused = !previewPaused; trailPreview?.SetPaused(previewPaused); } },
+                        new RoundedButton { Width = 110, Height = 28, Text = "Reset", Action = () => trailPreview?.ResetSweep() },
+                    },
+                },
+            },
+        };
+
+        private Drawable auraPreviewControls()
+        {
+            var nameBox = new Bindable<string>("Torii");
+            nameBox.BindValueChanged(v => auraPreview?.SetSampleName(v.NewValue));
+
+            return new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 6),
+                Padding = new MarginPadding { Top = 8 },
+                Children = new Drawable[]
+                {
+                    new FillFlowContainer
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(8, 0),
+                        Children = new Drawable[]
+                        {
+                            new RoundedButton { Width = 150, Height = 28, Text = "Toggle background", Action = () => auraPreview?.ToggleBackground() },
+                        },
+                    },
+                    new OsuTextBox { Width = 240, Height = 30, PlaceholderText = "sample name", Current = nameBox },
+                },
+            };
+        }
+
+        private RoundedButton modeButton(string label, TrailPreviewStage.PreviewMode m)
+        {
+            var btn = new RoundedButton { Width = 138, Height = 30, Text = label, Action = () => setMode(m) };
+            modeButtons[m] = btn;
+            return btn;
+        }
+
+        private void setMode(TrailPreviewStage.PreviewMode m)
+        {
+            trailPreview?.SetMode(m);
+            foreach (var kvp in modeButtons)
+                kvp.Value.BackgroundColour = kvp.Key == m ? colours.Colour1 : colours.Background3;
+        }
+
+        // ─────────────────────────── modo TRAIL ───────────────────────────
 
         private void switchFamily(CosmeticTrailFamily family)
         {
@@ -316,9 +347,139 @@ namespace Torii.CosmeticCreator.Editor
                 Settings = new JObject(),
             };
 
+            mountTrail();
+        }
+
+        private void mountTrail()
+        {
+            modeButtons.Clear();
+            trailPreview = new TrailPreviewStage();
+            auraPreview = null;
+            previewHost.Child = trailPreview;
+            controlsHost.Child = trailPreviewControls();
+
             var panel = new CosmeticPropertyPanel(workingDefinition) { RelativeSizeAxes = Axes.Both };
-            panel.Changed += () => preview.SetDefinition(workingDefinition);
+            panel.Changed += () => trailPreview?.SetDefinition(workingDefinition);
             propsContent.Child = panel;
+
+            setMode(TrailPreviewStage.PreviewMode.Sweep);
+            trailPreview.SetDefinition(workingDefinition);
+        }
+
+        // ─────────────────────────── modo AURA ───────────────────────────
+
+        private void blankAura()
+        {
+            workingDefinition = new CosmeticDefinition
+            {
+                Type = CosmeticType.Aura,
+                AuraKind = AuraKind.Particles,
+                Name = "Untitled aura",
+                Tier = CosmeticTier.Basic,
+                Settings = new JObject(),
+            };
+            mountAura();
+        }
+
+        private void sampleAura(string id)
+        {
+            string path = Path.Combine(AppContext.BaseDirectory, "SampleAuras", id + CosmeticExporter.EXTENSION);
+            try
+            {
+                workingDefinition = CosmeticExporter.Import(path);
+                mountAura();
+                statusText.Text = $"Loaded base: {id}";
+            }
+            catch (Exception e)
+            {
+                statusText.Text = $"Couldn't load {id}: {e.Message}";
+            }
+        }
+
+        private void mountAura()
+        {
+            trailPreview = null;
+            auraPreview = new AuraPreviewStage();
+            previewHost.Child = auraPreview;
+            controlsHost.Child = auraPreviewControls();
+
+            var panel = new AuraPropertyPanel(workingDefinition) { RelativeSizeAxes = Axes.Both };
+            panel.Changed += () => auraPreview?.SetDefinition(workingDefinition);
+            propsContent.Child = panel;
+
+            auraPreview.SetDefinition(workingDefinition);
+        }
+
+        // ─────────────────────────── import / dispatch ───────────────────────────
+
+        private Drawable importControls()
+        {
+            var picker = new SettingsDropdown<string>
+            {
+                LabelText = "Available",
+                Items = availableLabels(),
+            };
+
+            return new FillFlowContainer
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(0, 6),
+                Children = new Drawable[]
+                {
+                    picker,
+                    new RoundedButton
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        Height = 30,
+                        Text = "Load selected",
+                        Action = () => loadByLabel(picker.Current.Value),
+                    },
+                    new FillFlowContainer
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(6, 0),
+                        Children = new Drawable[]
+                        {
+                            new RoundedButton { Width = 118, Height = 28, Text = "Imports folder", Action = () => { try { CosmeticExporter.ImportsStorage(storage).PresentExternally(); } catch { } } },
+                            new RoundedButton { Width = 78, Height = 28, Text = "Refresh", Action = () => picker.Items = availableLabels() },
+                        },
+                    },
+                },
+            };
+        }
+
+        private string[] availableLabels()
+        {
+            var labels = CosmeticExporter.ListAvailable(storage).Select(x => x.label).ToArray();
+            return labels.Length > 0 ? labels : new[] { "(drop files in imports)" };
+        }
+
+        private void loadByLabel(string label)
+        {
+            var match = CosmeticExporter.ListAvailable(storage).FirstOrDefault(x => x.label == label);
+            if (match.path == null)
+            {
+                statusText.Text = "Nothing selected.";
+                return;
+            }
+
+            try
+            {
+                workingDefinition = CosmeticExporter.Import(match.path);
+                if (workingDefinition.Type == CosmeticType.Aura)
+                    mountAura();
+                else
+                    mountTrail();
+                statusText.Text = $"Loaded {Path.GetFileNameWithoutExtension(match.path)} ({workingDefinition.Type})";
+            }
+            catch (Exception e)
+            {
+                statusText.Text = $"Load failed: {e.Message}";
+            }
         }
 
         private void export()
@@ -341,7 +502,7 @@ namespace Torii.CosmeticCreator.Editor
             Text = text.ToUpperInvariant(),
             Font = OsuFont.Torus.With(size: 12, weight: FontWeight.Bold),
             Alpha = 0.7f,
-            Margin = new MarginPadding { Bottom = 2, Left = 2 },
+            Margin = new MarginPadding { Top = 6, Bottom = 2, Left = 2 },
         };
 
         private Drawable familyButton(string label, CosmeticTrailFamily family) => new RoundedButton
@@ -350,6 +511,14 @@ namespace Torii.CosmeticCreator.Editor
             Height = 34,
             Text = label,
             Action = () => switchFamily(family),
+        };
+
+        private Drawable auraButton(string label, Action action) => new RoundedButton
+        {
+            RelativeSizeAxes = Axes.X,
+            Height = 34,
+            Text = label,
+            Action = action,
         };
     }
 }
