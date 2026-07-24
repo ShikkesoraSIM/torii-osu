@@ -100,6 +100,11 @@ namespace osu.Game.Localisation
         public static LocalisableString RateAdjustedHitAnimationTooltip => new TranslatableString(getKey(@"rate_adjusted_hit_animation_tooltip"), @"Hits will fly faster or slower when beatmap rate is adjusted via mods.");
 
         /// <summary>
+        /// "When enabled, hits will fly off the screen. When disabled, hits will disappear immediately."
+        /// </summary>
+        public static LocalisableString HitAnimationsTaikoTooltip => new TranslatableString(getKey(@"hit_animations_taiko_tooltip"), @"When enabled, hits will fly off the screen. When disabled, hits will disappear immediately.");
+
+        /// <summary>
         /// "{0}ms (speed {1:N1})"
         /// </summary>
         public static LocalisableString ScrollSpeedTooltip(int scrollTime, double scrollSpeed) => new TranslatableString(getKey(@"ruleset"), @"{0}ms (speed {1:N1})", scrollTime, scrollSpeed);
