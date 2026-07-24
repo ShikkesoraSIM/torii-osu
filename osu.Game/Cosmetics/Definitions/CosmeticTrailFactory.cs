@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using Newtonsoft.Json.Linq;
 using osu.Framework.Graphics;
 
 namespace osu.Game.Cosmetics.Definitions
@@ -38,8 +39,10 @@ namespace osu.Game.Cosmetics.Definitions
                 {
                     var trail = new CosmeticParticleTrail();
 
-                    // la forma de particula viene por nombre (whitelist), no como codigo.
-                    string shape = (string)def.Settings?["ParticleShape"];
+                    // la forma de particula viene por nombre (whitelist), no como codigo. leemos con
+                    // Value<string>() (no un cast crudo) para no tirar si el JSON trae ParticleShape con
+                    // un tipo raro; si es null/desconocida, Get() cae a Bubble.
+                    string shape = def.Settings?["ParticleShape"]?.Value<string>();
                     trail.ParticleFactory = CosmeticParticleShapes.Get(shape);
 
                     // aplicamos el resto de los params, salteando los que no son propiedades reflectables.

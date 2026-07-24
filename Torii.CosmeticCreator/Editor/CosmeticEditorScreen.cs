@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -41,6 +42,8 @@ namespace Torii.CosmeticCreator.Editor
         private CosmeticDefinition workingDefinition = null!;
         private bool previewPaused;
 
+        private readonly Dictionary<TrailPreviewStage.PreviewMode, RoundedButton> modeButtons = new Dictionary<TrailPreviewStage.PreviewMode, RoundedButton>();
+
         [BackgroundDependencyLoader]
         private void load()
         {
@@ -62,6 +65,7 @@ namespace Torii.CosmeticCreator.Editor
             };
 
             switchFamily(CosmeticTrailFamily.Dot);
+            setMode(TrailPreviewStage.PreviewMode.Sweep);
         }
 
         // ─────────────────────────── layout ───────────────────────────
@@ -138,7 +142,7 @@ namespace Torii.CosmeticCreator.Editor
                     Padding = new MarginPadding(14),
                     Children = new Drawable[]
                     {
-                        sectionLabel("Cursor trail"),
+                        sectionLabel("Start a trail"),
                         familyButton("Dot / soft", CosmeticTrailFamily.Dot),
                         familyButton("Ribbon", CosmeticTrailFamily.Ribbon),
                         familyButton("Particle", CosmeticTrailFamily.Particle),
@@ -157,7 +161,7 @@ namespace Torii.CosmeticCreator.Editor
                 RowDimensions = new[]
                 {
                     new Dimension(),
-                    new Dimension(GridSizeMode.Absolute, 44),
+                    new Dimension(GridSizeMode.Absolute, 84),
                 },
                 Content = new[]
                 {
@@ -171,31 +175,75 @@ namespace Torii.CosmeticCreator.Editor
         {
             RelativeSizeAxes = Axes.X,
             AutoSizeAxes = Axes.Y,
-            Direction = FillDirection.Horizontal,
-            Spacing = new Vector2(8, 0),
+            Direction = FillDirection.Vertical,
+            Spacing = new Vector2(0, 6),
             Padding = new MarginPadding { Top = 8 },
             Children = new Drawable[]
             {
-                new RoundedButton
+                new FillFlowContainer
                 {
-                    Width = 120,
-                    Height = 30,
-                    Text = "Pause",
-                    Action = () =>
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(8, 0),
+                    Children = new Drawable[]
                     {
-                        previewPaused = !previewPaused;
-                        preview.SetPaused(previewPaused);
+                        modeButton("Auto sweep", TrailPreviewStage.PreviewMode.Sweep),
+                        modeButton("Follow mouse", TrailPreviewStage.PreviewMode.FollowMouse),
+                        modeButton("Simulate gameplay", TrailPreviewStage.PreviewMode.Gameplay),
                     },
                 },
-                new RoundedButton
+                new FillFlowContainer
                 {
-                    Width = 120,
-                    Height = 30,
-                    Text = "Reset sweep",
-                    Action = () => preview.ResetSweep(),
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(8, 0),
+                    Children = new Drawable[]
+                    {
+                        new RoundedButton
+                        {
+                            Width = 110,
+                            Height = 28,
+                            Text = "Pause",
+                            Action = () =>
+                            {
+                                previewPaused = !previewPaused;
+                                preview.SetPaused(previewPaused);
+                            },
+                        },
+                        new RoundedButton
+                        {
+                            Width = 110,
+                            Height = 28,
+                            Text = "Reset",
+                            Action = () => preview.ResetSweep(),
+                        },
+                    },
                 },
             },
         };
+
+        private RoundedButton modeButton(string label, TrailPreviewStage.PreviewMode m)
+        {
+            var btn = new RoundedButton
+            {
+                Width = 138,
+                Height = 30,
+                Text = label,
+                Action = () => setMode(m),
+            };
+            modeButtons[m] = btn;
+            return btn;
+        }
+
+        private void setMode(TrailPreviewStage.PreviewMode m)
+        {
+            preview.SetMode(m);
+
+            foreach (var kvp in modeButtons)
+                kvp.Value.BackgroundColour = kvp.Key == m ? colours.Colour1 : colours.Background3;
+        }
 
         private Drawable propertiesColumn() => new Container
         {
@@ -243,13 +291,12 @@ namespace Torii.CosmeticCreator.Editor
                             BackgroundColour = colours.Colour2,
                             Action = export,
                         },
-                        statusText = new OsuSpriteText
+                        statusText = new TruncatingSpriteText
                         {
                             Font = OsuFont.Torus.With(size: 11),
                             Colour = colours.Content2,
-                            Truncate = true,
                             RelativeSizeAxes = Axes.X,
-                            Text = "Pick a family and start tweaking.",
+                            Text = "Pick a base, make it yours, then export.",
                         },
                     },
                 },

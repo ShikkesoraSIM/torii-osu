@@ -46,6 +46,13 @@ namespace osu.Game.Cosmetics
         /// Shop previews pause while their card is scrolling/off-screen so a
         /// fast scroll through the grid doesn't rebuild a dozen trails a frame.</summary>
         void SetPaused(bool paused);
+
+        /// <summary>Momentary "click pop": scale the trail's fresh output by this
+        /// factor (1 = neutral, ~1.4 = a click burst). Mirrors how gameplay grows
+        /// the cursor/trail on click (Expand). Used by the Creator's gameplay-sim
+        /// preview so clicks read the same as in-game. Trails apply it to whatever
+        /// makes sense for them (dot part scale, ribbon width, particle size).</summary>
+        void SetClickExpansion(float scale);
     }
 
     /// <summary>Which render family a trail belongs to, so the shop can show only

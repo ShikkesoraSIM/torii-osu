@@ -31,6 +31,18 @@ namespace osu.Game.Cosmetics.Definitions
             ["galaxy-dust"] = CosmeticParticles.GalaxyDust,
             ["pixel"] = CosmeticParticles.Pixel,
             ["bolt"] = CosmeticParticles.Bolt,
+            ["moon"] = CosmeticParticles.Moon,
+            ["sun"] = CosmeticParticles.Sun,
+            ["fire"] = CosmeticParticles.Fire,
+            ["gem"] = CosmeticParticles.Gem,
+            ["leaf"] = CosmeticParticles.Leaf,
+            ["cloud"] = CosmeticParticles.Cloud,
+            ["sunburst"] = CosmeticParticles.Sunburst,
+            ["ghost"] = CosmeticParticles.Ghost,
+            ["crown"] = CosmeticParticles.Crown,
+            ["paw"] = CosmeticParticles.Paw,
+            ["ring"] = CosmeticParticles.Ring,
+            ["diamond"] = CosmeticParticles.Diamond,
         };
 
         /// <summary>los nombres disponibles (para poblar el dropdown de la Creator).</summary>

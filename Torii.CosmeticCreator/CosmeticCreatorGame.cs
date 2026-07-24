@@ -3,8 +3,10 @@
 
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Game;
+using osu.Game.Graphics.Cursor;
 using osu.Game.Overlays;
 using Torii.CosmeticCreator.Editor;
 
@@ -32,15 +34,30 @@ namespace Torii.CosmeticCreator
         {
             dependencies.CacheAs(colourProvider);
 
-            Add(new Box
+            // el OsuGameBase minimal NO trae PopoverContainer ni context-menu en la jerarquia (el juego
+            // completo los agrega recien en su screen stack). sin PopoverContainer, cualquier control que
+            // abra un popover (el colour picker de SettingsColour) tira "Cannot show or hide a popover
+            // without a parent PopoverContainer" y crashea la app. envolvemos el editor igual que OsuGame:
+            // context-menu por fuera, popover por dentro.
+            Add(new OsuContextMenuContainer
             {
                 RelativeSizeAxes = Axes.Both,
-                Colour = colourProvider.Background6,
-            });
-
-            Add(new CosmeticEditorScreen
-            {
-                RelativeSizeAxes = Axes.Both,
+                Child = new PopoverContainer
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Children = new Drawable[]
+                    {
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = colourProvider.Background6,
+                        },
+                        new CosmeticEditorScreen
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                        },
+                    },
+                },
             });
         }
     }

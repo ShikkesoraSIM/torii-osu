@@ -27,6 +27,8 @@ namespace osu.Game.Cosmetics
         private static readonly Color4 rose = new Color4(255, 90, 140, 255);
         private static readonly Color4 ice = new Color4(220, 245, 255, 255);
         private static readonly Color4 cyan = new Color4(120, 215, 255, 255);
+        private static readonly Color4 green = new Color4(130, 230, 150, 255);
+        private static readonly Color4 violet = new Color4(190, 150, 255, 255);
 
         private static readonly Color4[] sakura = { new Color4(255, 200, 222, 255), new Color4(255, 158, 195, 255), new Color4(232, 110, 170, 255) };
         private static readonly Color4[] flame = { new Color4(255, 235, 120, 255), new Color4(255, 150, 40, 255), new Color4(230, 60, 30, 255) };
@@ -206,6 +208,116 @@ namespace osu.Game.Cosmetics
             Icon = FontAwesome.Solid.Bolt,
             Size = new Vector2(14),
             Colour = index % 2 == 0 ? new Color4(255, 235, 110, 255) : new Color4(150, 215, 255, 255),
+        };
+
+        /// <summary>Crescent moon, icy.</summary>
+        public static Drawable Moon(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Moon,
+            Size = new Vector2(13),
+            Colour = ice,
+        };
+
+        /// <summary>Bright sun.</summary>
+        public static Drawable Sun(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Sun,
+            Size = new Vector2(14),
+            Colour = gold,
+        };
+
+        /// <summary>Fire glyph, warm flicker.</summary>
+        public static Drawable Fire(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Fire,
+            Size = new Vector2(13),
+            Colour = flame[index % flame.Length],
+        };
+
+        /// <summary>Cut gem, cool colours.</summary>
+        public static Drawable Gem(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Gem,
+            Size = new Vector2(13),
+            Colour = index % 2 == 0 ? cyan : pink,
+        };
+
+        /// <summary>Leaf, soft green.</summary>
+        public static Drawable Leaf(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Leaf,
+            Size = new Vector2(12),
+            Colour = green,
+        };
+
+        /// <summary>Cloud puff.</summary>
+        public static Drawable Cloud(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Cloud,
+            Size = new Vector2(14),
+            Colour = new Color4(230, 240, 255, 235),
+        };
+
+        /// <summary>Sunburst spark (certificate glyph).</summary>
+        public static Drawable Sunburst(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Certificate,
+            Size = new Vector2(13),
+            Colour = index % 2 == 0 ? gold : white,
+        };
+
+        /// <summary>Little ghost (fun).</summary>
+        public static Drawable Ghost(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Ghost,
+            Size = new Vector2(13),
+            Colour = new Color4(225, 230, 255, 240),
+        };
+
+        /// <summary>Crown, gold.</summary>
+        public static Drawable Crown(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Crown,
+            Size = new Vector2(13),
+            Colour = gold,
+        };
+
+        /// <summary>Paw print.</summary>
+        public static Drawable Paw(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Paw,
+            Size = new Vector2(13),
+            Colour = index % 2 == 0 ? pink : violet,
+        };
+
+        /// <summary>Thin hollow ring.</summary>
+        public static Drawable Ring(int index) => new CircularContainer
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(11),
+            Masking = true,
+            BorderThickness = 1.6f,
+            BorderColour = index % 2 == 0 ? cyan : violet,
+            Child = new Box { RelativeSizeAxes = Axes.Both, Colour = white, Alpha = 0f },
+        };
+
+        /// <summary>Spinning diamond (rotated square), cool palette.</summary>
+        public static Drawable Diamond(int index) => new Box
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(8),
+            Rotation = 45,
+            Colour = galaxy_palette[index % galaxy_palette.Length],
         };
     }
 }

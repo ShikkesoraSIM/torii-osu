@@ -54,19 +54,39 @@ namespace osu.Game.Cosmetics.Definitions
                 return ParseColour(token);
 
             if (target == typeof(Color4[]))
-                return ((JArray)token).Select(ParseColour).ToArray();
+            {
+                // aceptamos tanto una lista de hex como un hex suelto (degrada a paleta de 1) en vez de
+                // tirar si vino mal tipeado.
+                if (token.Type == JTokenType.String)
+                    return new[] { ParseColour(token) };
+                if (token is not JArray colArr)
+                    return Array.Empty<Color4>();
+                return colArr.Where(t => t.Type != JTokenType.Null).Select(ParseColour).ToArray();
+            }
 
             if (target == typeof(Vector2))
             {
-                var arr = (JArray)token;
-                return new Vector2((float)arr[0], (float)arr[1]);
+                if (token is not JArray vecArr)
+                    return Vector2.Zero;
+                float x = vecArr.Count > 0 ? (float)vecArr[0] : 0f;
+                float y = vecArr.Count > 1 ? (float)vecArr[1] : 0f;
+                return new Vector2(x, y);
             }
 
             if (target == typeof(BlendingParameters))
                 return ParseBlending(token);
 
             if (target.IsEnum)
-                return Enum.Parse(target, token.Value<string>(), ignoreCase: true);
+            {
+                // TryParse en vez de Parse: un nombre invalido (data de otra familia/version) cae al
+                // default del enum en vez de tirar. tambien aceptamos el enum como entero.
+                string name = token.Value<string>();
+                if (!string.IsNullOrEmpty(name) && Enum.TryParse(target, name, true, out object parsed))
+                    return parsed;
+                if (token.Type == JTokenType.Integer)
+                    return Enum.ToObject(target, token.Value<int>());
+                return Activator.CreateInstance(target);
+            }
 
             if (target == typeof(float)) return token.Value<float>();
             if (target == typeof(double)) return token.Value<double>();
@@ -93,10 +113,15 @@ namespace osu.Game.Cosmetics.Definitions
         /// <summary>colores como "#RGB" / "#RRGGBB" / "#RRGGBBAA" (recomendado) o como [r,g,b(,a)] 0-255.</summary>
         public static Color4 ParseColour(JToken token)
         {
+            if (token == null)
+                return Color4.White;
+
             if (token.Type == JTokenType.String)
                 return HexToColour(token.Value<string>());
 
-            var arr = (JArray)token;
+            if (token is not JArray arr || arr.Count < 3)
+                return Color4.White;
+
             float r = (float)arr[0], g = (float)arr[1], b = (float)arr[2];
             float a = arr.Count > 3 ? (float)arr[3] : 255f;
             return new Color4(r / 255f, g / 255f, b / 255f, a / 255f);
@@ -114,16 +139,28 @@ namespace osu.Game.Cosmetics.Definitions
 
         private static Color4 HexToColour(string hex)
         {
+            if (string.IsNullOrWhiteSpace(hex))
+                return Color4.White;
+
             hex = hex.TrimStart('#');
 
             // #RGB shorthand -> expand.
             if (hex.Length == 3)
                 hex = string.Concat(hex.Select(ch => new string(ch, 2)));
 
-            byte r = byte.Parse(hex.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            byte g = byte.Parse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            byte b = byte.Parse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-            byte a = hex.Length >= 8 ? byte.Parse(hex.Substring(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture) : (byte)255;
+            // solo RRGGBB o RRGGBBAA; cualquier otro largo (mal formado) cae a blanco en vez de tirar.
+            if (hex.Length != 6 && hex.Length != 8)
+                return Color4.White;
+
+            if (!byte.TryParse(hex.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte r)
+                || !byte.TryParse(hex.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte g)
+                || !byte.TryParse(hex.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte b))
+                return Color4.White;
+
+            byte a = 255;
+            if (hex.Length >= 8 && byte.TryParse(hex.Substring(6, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte parsedA))
+                a = parsedA;
+
             return new Color4(r / 255f, g / 255f, b / 255f, a / 255f);
         }
     }
