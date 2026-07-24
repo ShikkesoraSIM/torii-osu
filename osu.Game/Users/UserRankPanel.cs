@@ -8,6 +8,7 @@ using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Input.Events;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online;
 using osu.Game.Online.API.Requests.Responses;
@@ -162,11 +163,13 @@ namespace osu.Game.Users
                                                 },
                                                 new Drawable[]
                                                 {
-                                                    CreateUsername().With(username =>
+                                                    // Torii: local user's aura + name colour behind their
+                                                    // name in the toolbar login card.
+                                                    UserAuraContainer.Wrap(User, CreateUsername().With(username =>
                                                     {
                                                         username.Anchor = Anchor.CentreLeft;
                                                         username.Origin = Anchor.CentreLeft;
-                                                    })
+                                                    }))
                                                 }
                                             }
                                         }

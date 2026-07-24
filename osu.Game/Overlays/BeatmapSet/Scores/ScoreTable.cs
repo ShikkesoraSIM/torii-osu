@@ -132,7 +132,7 @@ namespace osu.Game.Overlays.BeatmapSet.Scores
         private Drawable[] createContent(int index, ScoreInfo score)
         {
             var username = new LinkFlowContainer(t => t.Font = OsuFont.GetFont(size: text_size)) { AutoSizeAxes = Axes.Both };
-            username.AddUserLink(score.User);
+            username.AddArbitraryDrawable(new ClickableUsername(score.User, OsuFont.GetFont(size: text_size)));
 
             var content = new List<Drawable>
             {

@@ -71,7 +71,7 @@ namespace osu.Game.Overlays.Rankings.Tables
                 RelativeSizeAxes = Axes.Y,
                 TextAnchor = Anchor.CentreLeft
             };
-            username.AddUserLink(item.User);
+            username.AddArbitraryDrawable(new ClickableUsername(item.User, OsuFont.GetFont(size: TEXT_SIZE, italics: true)));
             return [new UpdateableTeamFlag(item.User.Team) { Size = new Vector2(40, 20) }, username];
         }
 

@@ -350,11 +350,61 @@ namespace osu.Game
             // Static hooks the UserAuraContainer reads to decorate the local user's name everywhere.
             osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserProvider = () => API?.LocalUser.Value;
             osu.Game.Graphics.UserEffects.UserAuraContainer.LocalUserHasNameColour =
-                () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value);
+                () => !string.IsNullOrEmpty(toriiCosmetics.EquippedNameColourId.Value)
+                      // Also true when the local user has a derivable role colour (admin,
+                      // dev, ...) but nothing equipped, so their name still gets wrapped +
+                      // painted on surfaces whose per-row user object is stripped of groups.
+                      || osu.Game.Cosmetics.CosmeticNameColourCatalog.GetTopEarned(API?.LocalUser.Value) != null;
             osu.Game.Graphics.UserEffects.UserAuraContainer.ReducedMotion =
                 () => LocalConfig.Get<bool>(OsuSetting.CosmeticsReducedMotion);
             osu.Game.Graphics.UserEffects.UserAuraContainer.CosmeticsSuppressed =
                 () => LocalConfig.Get<bool>(OsuSetting.CosmeticsHidden) || Performance.PotatoMode.Active;
+
+            // The flat colour of the local user's EQUIPPED name colour, so the
+            // leaderboard base-colour helper (ToriiColourHelper.GetTopColour) can
+            // paint their choice even on surfaces that only hold a stripped per-row
+            // user object. Resolves buyable AND role colours from the FULL local
+            // user; null when nothing is equipped (helper then falls back to role).
+            osu.Game.Online.ToriiColourHelper.LocalEquippedNameColourProvider = () =>
+            {
+                string equippedId = toriiCosmetics.EquippedNameColourId.Value;
+                var localUser = API?.LocalUser.Value;
+                if (string.IsNullOrEmpty(equippedId) || localUser == null)
+                    return null;
+
+                var resolved = osu.Game.Cosmetics.CosmeticNameColourCatalog.GetById(equippedId, localUser);
+                if (resolved == null)
+                    return null;
+
+                var c = resolved.Primary;
+                return new Colour4(c.R, c.G, c.B, c.A);
+            };
+
+            // Persist the local user's equipped name colour server-side the moment
+            // they change it, so every other client repaints their username to match
+            // (mirrors the aura equip request). We send whatever they equipped —
+            // a bought colour OR a role colour (name-group-*) — so their EXPLICIT
+            // pick wins everywhere (leaderboards, others' clients) instead of every
+            // client re-deriving their highest-priority group. "none"/empty sends
+            // null to clear. Not run immediately: the server already holds whatever
+            // they last equipped, so a bare relaunch never re-pushes.
+            toriiCosmetics.EquippedNameColourId.BindValueChanged(e =>
+            {
+                var localUser = API?.LocalUser.Value;
+                if (localUser == null || localUser.Id <= 1)
+                    return;
+
+                // Skip the server echo when the change is SyncOwned authoritatively
+                // reconciling the equipped colour against the owned set (not a user
+                // action — SuppressEquipSound is set around it). Otherwise a
+                // transiently-incomplete owned list would clear the user's real
+                // choice server-side, cross-client and non-self-healing.
+                if (toriiCosmetics.SuppressEquipSound)
+                    return;
+
+                string payload = string.IsNullOrEmpty(e.NewValue) ? null : e.NewValue;
+                API.Queue(new osu.Game.Online.API.Requests.UpdateEquippedNameColourRequest(payload));
+            });
 
             dependencies.Cache(BeatmapDownloader = new BeatmapModelDownloader(BeatmapManager, API));
             dependencies.Cache(ScoreDownloader = new ScoreModelDownloader(ScoreManager, API));

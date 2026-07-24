@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
@@ -35,6 +36,13 @@ namespace osu.Game.Overlays.Toolbar
 
         private OsuSpriteText usernameText = null!;
 
+        // Torii: wraps usernameText so the local user's aura + name colour render
+        // behind their name in the toolbar too. Built with a null user and pointed
+        // at the real local user via SetUser once they sign in (userChanged), so
+        // it survives login-after-load. Potato mode / the aura setting suppress it
+        // from inside the container.
+        private UserAuraContainer usernameAura = null!;
+
         public ToolbarUserButton()
         {
             ButtonContent.AutoSizeAxes = Axes.X;
@@ -45,7 +53,11 @@ namespace osu.Game.Overlays.Toolbar
         {
             Flow.AddRange(new Drawable[]
             {
-                usernameText = new OsuSpriteText
+                usernameAura = new UserAuraContainer(null, usernameText = new OsuSpriteText
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                })
                 {
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
@@ -108,6 +120,10 @@ namespace osu.Game.Overlays.Toolbar
         {
             usernameText.Text = user.NewValue.Username;
             avatar.User = user.NewValue;
+            // Point the aura wrapper at the (now signed-in) local user so their
+            // cosmetic renders behind the toolbar name. Text is set first so the
+            // glow layer, which mirrors the text shape, rebuilds against it.
+            usernameAura.SetUser(user.NewValue);
         });
 
         private void onlineStateChanged(ValueChangedEvent<APIState> state) => Schedule(() =>

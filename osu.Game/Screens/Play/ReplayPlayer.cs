@@ -14,7 +14,10 @@ using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Input.Bindings;
+using osu.Game.Online;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Screens.Play.HUD;
@@ -108,7 +111,12 @@ namespace osu.Game.Screens.Play
 
             OsuTextFlowContainer message = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Style.Body) { AutoSizeAxes = Axes.Both };
             message.AddText("Watching ");
-            message.AddText(Score.ScoreInfo.User.Username, s => s.Font = s.Font.With(weight: FontWeight.SemiBold));
+            message.AddArbitraryDrawable(UserAuraContainer.Wrap(Score.ScoreInfo.User, new OsuSpriteText
+            {
+                Text = Score.ScoreInfo.User.Username,
+                Font = OsuFont.Style.Body.With(weight: FontWeight.SemiBold),
+                Colour = ToriiColourHelper.GetTopColour(Score.ScoreInfo.User) ?? Colour4.White,
+            }));
             message.AddText(" play ");
             message.AddText(Beatmap.Value.BeatmapInfo.GetDisplayTitleRomanisable(), s => s.Font = s.Font.With(weight: FontWeight.SemiBold));
             message.AddText(" on ");

@@ -163,7 +163,7 @@ namespace osu.Game.Overlays.BeatmapSet.Scores
                 achievedOn.Date = value.Date;
 
                 usernameText.Clear();
-                usernameText.AddUserLink(value.User);
+                usernameText.AddArbitraryDrawable(new ClickableUsername(value.User, OsuFont.GetFont(size: 18, weight: FontWeight.Bold, italics: true)));
 
                 rank.Rank = value.Rank;
             }

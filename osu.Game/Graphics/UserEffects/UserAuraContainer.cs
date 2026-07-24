@@ -265,7 +265,11 @@ namespace osu.Game.Graphics.UserEffects
                 // still pointing at this APIUser instance, while picking
                 // up the latest aura + group membership.
                 user.EquippedAura = refreshed.EquippedAura;
+                user.EquippedNameColour = refreshed.EquippedNameColour;
                 user.Groups = refreshed.Groups;
+                // Re-resolve the name colour from the fresh payload so a remote
+                // colour swap repaints the name too, not just the aura.
+                resolveNameColour();
                 rebuildEmitter();
             });
             api.Queue(refreshRequest);
@@ -710,22 +714,40 @@ namespace osu.Game.Graphics.UserEffects
                 emitter.Alpha = show ? 1 : 0;
         }
 
-        // Resolve the equipped name colour for the wrapped user. For now only the
-        // local user has a client-side equipped colour (kept in config); other
-        // users will pick theirs up once the server broadcasts it on APIUser.
+        // Resolve the equipped name colour for the wrapped user — for the local
+        // user AND everyone else, so a name colour rides with the username on
+        // every surface (chat, leaderboards, panels, profiles) exactly like the
+        // aura does.
         private void resolveNameColour()
         {
             nameColour = null;
 
-            var local = api?.LocalUser.Value;
-            if (user == null || cosmetics == null || local == null)
+            if (user == null)
                 return;
 
-            // Resolve from the FULL local user, not the per-row `user`: role
-            // colours (id "name-group-...") need the user's groups to resolve, and
-            // the stripped score/leaderboard user object usually has none.
-            if (user.Id == local.Id)
-                nameColour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, local);
+            var local = api?.LocalUser.Value;
+
+            // Local user: resolve from the live equipped-colour config so the
+            // picker updates every surface instantly, and against the FULL local
+            // user — role colours (id "name-group-...") need the local groups,
+            // which a stripped score/leaderboard per-row object usually lacks.
+            if (cosmetics != null && local != null && user.Id == local.Id)
+            {
+                // Equipped bought colour wins; otherwise fall back to their top role
+                // colour (admin > dev > ...) derived from groups, as a Halo.
+                nameColour = CosmeticNameColourCatalog.GetById(cosmetics.EquippedNameColourId.Value, local)
+                             ?? CosmeticNameColourCatalog.GetTopEarned(local);
+                return;
+            }
+
+            // Any other user: resolve from the id the server broadcast on their
+            // payload (equipped_name_colour) against their own groups. Buyable
+            // colours resolve directly; role colours ("name-group-...") resolve
+            // from user.Groups. If nothing is equipped, fall back to their top role
+            // colour from groups — so an admin's name glows red everywhere it shows,
+            // not only where they equipped a colour. Same payload the aura reads.
+            nameColour = CosmeticNameColourCatalog.GetById(user.EquippedNameColour, user)
+                         ?? CosmeticNameColourCatalog.GetTopEarned(user);
         }
 
         // The local user's per-row object on most surfaces (chat, leaderboards,
@@ -817,11 +839,26 @@ namespace osu.Game.Graphics.UserEffects
         // lack) OR an equipped name colour to paint.
         private static bool shouldDecorate(APIUser? user)
         {
+            if (user == null)
+                return false;
+
             if (AuraRegistry.ResolveForUser(user) != null)
                 return true;
 
+            // Any user the server broadcast a name colour for should be wrapped so
+            // that colour paints their name, even with no aura. Buyable colours and
+            // role colours ("name-group-...") both arrive on equipped_name_colour.
+            if (!string.IsNullOrEmpty(user.EquippedNameColour))
+                return true;
+
+            // Also wrap any user with a derivable role colour (a title group that
+            // carries a colour), so an admin/dev/etc name glows even when they have
+            // no aura and no bought colour equipped.
+            if (CosmeticNameColourCatalog.GetTopEarned(user) != null)
+                return true;
+
             var local = LocalUserProvider?.Invoke();
-            if (local != null && user != null && user.Id == local.Id)
+            if (local != null && user.Id == local.Id)
                 return AuraRegistry.ResolveForUser(local) != null || (LocalUserHasNameColour?.Invoke() ?? false);
 
             return false;

@@ -28,8 +28,10 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Input.Bindings;
+using osu.Game.Online;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
@@ -374,11 +376,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                                                     Spacing = new Vector2(0, 3),
                                                     Children = new Drawable[]
                                                     {
-                                                        new OsuSpriteText
+                                                        UserAuraContainer.Wrap(api.LocalUser.Value, new OsuSpriteText
                                                         {
                                                             Text = api.LocalUser.Value.Username,
                                                             Font = OsuFont.GetFont(size: 26, weight: FontWeight.SemiBold, typeface: Typeface.TorusAlternate),
-                                                        },
+                                                            Colour = ToriiColourHelper.GetTopColour(api.LocalUser.Value) ?? Color4.White,
+                                                        }),
                                                         new OsuSpriteText
                                                         {
                                                             Text = poolType == MatchmakingPoolType.RankedPlay ? "Ranked Play" : "Quick Play",

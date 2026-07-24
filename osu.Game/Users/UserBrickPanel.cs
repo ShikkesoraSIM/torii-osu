@@ -6,6 +6,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Graphics;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API.Requests.Responses;
 using osuTK;
 
@@ -50,12 +51,13 @@ namespace osu.Game.Users
                         Colour = string.IsNullOrEmpty(User.Colour) ? Color4Extensions.FromHex("0087ca") : Color4Extensions.FromHex(User.Colour)
                     }
                 },
-                CreateUsername().With(u =>
+                // Torii: aura + name colour behind the username here too.
+                UserAuraContainer.Wrap(User, CreateUsername().With(u =>
                 {
                     u.Anchor = Anchor.CentreLeft;
                     u.Origin = Anchor.CentreLeft;
                     u.Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold);
-                })
+                }))
             }
         };
     }

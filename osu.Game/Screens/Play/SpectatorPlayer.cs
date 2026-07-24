@@ -8,6 +8,9 @@ using osu.Framework.Screens;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Online;
 using osu.Game.Online.Spectator;
 using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Replays.Types;
@@ -44,7 +47,12 @@ namespace osu.Game.Screens.Play
                 // Or maybe we should completely redesign this to show the user avatar and other things if that happens.
                 OsuTextFlowContainer message = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Style.Body) { AutoSizeAxes = Axes.Both };
                 message.AddText("Watching ");
-                message.AddText(Score.ScoreInfo.User.Username, s => s.Font = s.Font.With(weight: FontWeight.SemiBold));
+                message.AddArbitraryDrawable(UserAuraContainer.Wrap(Score.ScoreInfo.User, new OsuSpriteText
+                {
+                    Text = Score.ScoreInfo.User.Username,
+                    Font = OsuFont.Style.Body.With(weight: FontWeight.SemiBold),
+                    Colour = ToriiColourHelper.GetTopColour(Score.ScoreInfo.User) ?? Colour4.White,
+                }));
                 message.AddText(" play ");
                 message.AddText(Beatmap.Value.BeatmapInfo.GetDisplayTitleRomanisable(), s => s.Font = s.Font.With(weight: FontWeight.SemiBold));
                 message.AddText(" live", s => s.Font = s.Font.With(weight: FontWeight.Bold));

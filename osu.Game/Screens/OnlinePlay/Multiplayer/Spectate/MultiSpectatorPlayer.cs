@@ -9,6 +9,9 @@ using osu.Framework.Graphics;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Online;
 using osu.Game.Scoring;
 using osu.Game.Screens.Play;
 using osu.Game.Screens.Play.Leaderboards;
@@ -64,14 +67,20 @@ namespace osu.Game.Screens.OnlinePlay.Multiplayer.Spectate
             HUDOverlay.HoldToQuit.Expire();
 
             // Player username display
-            GameplayClockContainer.Add(new OsuTextFlowContainer(cp => cp.Font = OsuFont.Style.Title.With(size: 60, weight: FontWeight.SemiBold))
+            var nameFlow = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Style.Title.With(size: 60, weight: FontWeight.SemiBold))
             {
                 Anchor = Anchor.TopCentre,
                 Origin = Anchor.TopCentre,
                 AutoSizeAxes = Axes.Both,
-                Text = Score.ScoreInfo.User.Username,
                 Y = 50,
-            });
+            };
+            nameFlow.AddArbitraryDrawable(UserAuraContainer.Wrap(Score.ScoreInfo.User, new OsuSpriteText
+            {
+                Text = Score.ScoreInfo.User.Username,
+                Font = OsuFont.Style.Title.With(size: 60, weight: FontWeight.SemiBold),
+                Colour = ToriiColourHelper.GetTopColour(Score.ScoreInfo.User) ?? Colour4.White,
+            }));
+            GameplayClockContainer.Add(nameFlow);
         }
 
         protected override void Update()

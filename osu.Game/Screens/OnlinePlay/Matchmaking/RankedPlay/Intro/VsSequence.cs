@@ -13,6 +13,8 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Graphics.Transforms;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Online;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Users.Drawables;
 using osuTK;
@@ -242,13 +244,14 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Intro
                                     Anchor = contentAnchor,
                                     Origin = contentAnchor,
                                 },
-                                new OsuSpriteText
+                                UserAuraContainer.Wrap(user.User, new OsuSpriteText
                                 {
                                     Text = user.User.Username,
+                                    Colour = ToriiColourHelper.GetTopColour(user.User) ?? Colour4.White,
                                     Font = OsuFont.Style.Title.With(size: 40, weight: FontWeight.SemiBold),
                                     Anchor = contentAnchor,
                                     Origin = contentAnchor,
-                                },
+                                }),
                             ]
                         }
                     ]

@@ -14,6 +14,8 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
+using osu.Game.Online;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 using osuTK;
@@ -83,11 +85,12 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match.Results
                                 Direction = FillDirection.Vertical,
                                 Children = new Drawable[]
                                 {
-                                    new OsuSpriteText
+                                    UserAuraContainer.Wrap(user, new OsuSpriteText
                                     {
                                         Font = OsuFont.Style.Caption1,
+                                        Colour = ToriiColourHelper.GetTopColour(user) ?? Colour4.White,
                                         Text = user.Username
-                                    },
+                                    }),
                                     new OsuSpriteText
                                     {
                                         Font = OsuFont.Style.Caption2.With(weight: FontWeight.Bold),

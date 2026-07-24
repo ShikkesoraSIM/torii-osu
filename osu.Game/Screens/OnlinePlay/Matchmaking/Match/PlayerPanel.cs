@@ -21,6 +21,7 @@ using osu.Framework.Utils;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
 using osu.Game.Online;
@@ -102,6 +103,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match
         private Drawable avatarJumpTarget = null!;
         private Drawable avatar = null!;
         private OsuSpriteText username = null!;
+        private Drawable usernameDisplay = null!;
 
         private Container mainContent = null!;
 
@@ -236,15 +238,15 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match
                                         Text = "-",
                                         Font = OsuFont.Style.Title.With(size: 55),
                                     },
-                                    username = new TruncatingSpriteText
+                                    usernameDisplay = UserAuraContainer.Wrap(User, username = new TruncatingSpriteText
                                     {
-                                        Alpha = 0,
                                         Anchor = Anchor.BottomCentre,
                                         Origin = Anchor.BottomCentre,
                                         Text = User.Username,
                                         Font = OsuFont.Style.Heading1,
-                                        MaxWidth = 120
-                                    },
+                                        MaxWidth = 120,
+                                        Colour = ToriiColourHelper.GetTopColour(User) ?? Colour4.White,
+                                    }).With(d => d.Alpha = 0),
                                     scoreText = new OsuSpriteText
                                     {
                                         Alpha = 0,
@@ -356,7 +358,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match
                 case PlayerPanelDisplayMode.AvatarOnly:
                     rankText.Hide();
                     scoreText.Hide();
-                    username.Hide();
+                    usernameDisplay.Hide();
 
                     background.FadeOut(200, Easing.OutQuint);
                     solidBackgroundLayer.FadeOut(200, Easing.OutQuint);
@@ -371,7 +373,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match
 
                     using (BeginDelayedSequence(100))
                     {
-                        username.FadeIn(600);
+                        usernameDisplay.FadeIn(600);
 
                         using (BeginDelayedSequence(100))
                         {
@@ -387,7 +389,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match
                     this.ResizeTo(horizontal ? size_horizontal : size_vertical, duration, Easing.OutPow10);
 
                     rankText.MoveTo(horizontal ? new Vector2(-40, -20) : new Vector2(-70, 0), duration, Easing.OutPow10);
-                    username.MoveTo(horizontal ? new Vector2(0, -46) : new Vector2(0, -86), duration, Easing.OutPow10);
+                    usernameDisplay.MoveTo(horizontal ? new Vector2(0, -46) : new Vector2(0, -86), duration, Easing.OutPow10);
                     scoreText.MoveTo(horizontal ? new Vector2(0, -16) : new Vector2(0, -56), duration, Easing.OutPow10);
                     quitText.MoveTo(horizontal ? new Vector2(40, 0) : new Vector2(0, 40), duration, Easing.OutPow10);
                     break;

@@ -14,7 +14,9 @@ using osu.Framework.Layout;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Screens.Play.Leaderboards;
 using osu.Game.Users;
@@ -83,6 +85,14 @@ namespace osu.Game.Screens.Play.HUD
         private Box rightLayerGradient = null!;
         private Container scoreComponents = null!;
         private OsuSpriteText usernameText = null!;
+
+        // The username as laid out in the row: either the bare usernameText or, for
+        // a user with an aura/colour, the UserAuraContainer wrapping it. Alpha is
+        // toggled on THIS (not usernameText) when the row collapses, so the aura's
+        // emitter + glow — which are children of the wrapper, not of the text —
+        // hide together with the name instead of floating over an empty row.
+        private Drawable usernameDisplay = null!;
+
         private OsuSpriteText positionText = null!;
         private OsuSpriteText accuracyText = null!;
         private OsuSpriteText scoreText = null!;
@@ -238,14 +248,18 @@ namespace osu.Game.Screens.Play.HUD
                                         {
                                             new[]
                                             {
-                                                usernameText = new TruncatingSpriteText
+                                                // Torii: wrap the username so the player's aura renders behind their name
+                                                // in the in-game leaderboard too — same UserAuraContainer as every other
+                                                // surface, so potato mode / the aura setting suppress it automatically, and
+                                                // the seals are dropped here (isInsideGameplayLeaderboard) to fit the tiny row.
+                                                usernameDisplay = UserAuraContainer.Wrap(User as APIUser, usernameText = new TruncatingSpriteText
                                                 {
                                                     Anchor = Anchor.BottomLeft,
                                                     Origin = Anchor.BottomLeft,
                                                     Text = User?.Username ?? string.Empty,
                                                     Font = OsuFont.Style.Caption1.With(weight: FontWeight.SemiBold),
                                                     RelativeSizeAxes = Axes.X,
-                                                },
+                                                }),
                                                 accuracyText = new OsuSpriteText
                                                 {
                                                     Anchor = Anchor.BottomLeft,
@@ -402,7 +416,9 @@ namespace osu.Game.Screens.Play.HUD
 
             bool showUsernameAndScore = rightLayer.Width >= username_score_width_cutoff;
 
-            usernameText.Alpha = showUsernameAndScore ? 1 : 0;
+            // Toggle the wrapper (usernameDisplay), not usernameText, so the aura's
+            // emitter + glow hide with the name when the row collapses.
+            usernameDisplay.Alpha = showUsernameAndScore ? 1 : 0;
             scoreText.Alpha = showUsernameAndScore ? 1 : 0;
         }
 

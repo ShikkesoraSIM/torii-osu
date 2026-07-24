@@ -60,6 +60,9 @@ namespace osu.Game.Screens.Ranking.Expanded
                         CornerExponent = 2.5f,
                         Masking = true,
                     },
+                    // Torii: ClickableUsername wraps its own name text with the aura
+                    // (so the player's aura + name/role colour show on the results
+                    // screen too), so no extra wrapping is needed here.
                     new ClickableUsername(user)
                     {
                         Anchor = Anchor.TopCentre,

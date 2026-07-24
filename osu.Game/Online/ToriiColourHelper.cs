@@ -2,8 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Linq;
-using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Game.Cosmetics;
 using osu.Game.Graphics.UserEffects;
@@ -22,13 +20,6 @@ namespace osu.Game.Online
     /// </summary>
     public static class ToriiColourHelper
     {
-        private static readonly string[] torii_title_priority =
-        {
-            "torii-admin", "torii-dev", "torii-mod", "torii-qat", "torii-pooler",
-            "torii-tournament", "torii-advisor", "torii-alumni", "torii-supporter",
-            "torii-goof",
-        };
-
         /// <summary>
         /// Wired at startup: the local user's EQUIPPED name colour (flat), or null
         /// when they have none equipped. Kept as a provider so this static helper
@@ -88,17 +79,15 @@ namespace osu.Game.Online
 
         private static Colour4? topGroupColour(APIUser? user)
         {
-            if (user?.Groups is not { Length: > 0 } groups)
+            // Delegate to the single source of truth so the flat leaderboard colour
+            // and the rich halo (UserAuraContainer) always resolve the same role
+            // colour from the same TitlePriority order.
+            var earned = CosmeticNameColourCatalog.GetTopEarned(user);
+            if (earned == null)
                 return null;
 
-            foreach (string id in torii_title_priority)
-            {
-                var match = groups.FirstOrDefault(g => g.Identifier == id);
-                if (match?.Colour != null)
-                    return Color4Extensions.FromHex(match.Colour);
-            }
-
-            return null;
+            var c = earned.Primary;
+            return new Colour4(c.R, c.G, c.B, c.A);
         }
     }
 }

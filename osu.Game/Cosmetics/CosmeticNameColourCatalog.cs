@@ -43,6 +43,20 @@ namespace osu.Game.Cosmetics
 
         private const string group_prefix = "name-group-";
 
+        /// <summary>
+        /// Priority order for deriving a user's ROLE (title-group) colour when they
+        /// have no bought colour equipped: the first of these groups they belong to
+        /// with a colour wins. Single source of truth — <see cref="Online.ToriiColourHelper"/>
+        /// resolves the flat leaderboard colour from this same order, so the flat
+        /// colour and the rich halo never diverge.
+        /// </summary>
+        public static readonly IReadOnlyList<string> TitlePriority = new[]
+        {
+            "torii-admin", "torii-dev", "torii-mod", "torii-qat", "torii-pooler",
+            "torii-tournament", "torii-advisor", "torii-alumni", "torii-supporter",
+            "torii-goof",
+        };
+
         /// <summary>The halo role colour matching one of the user's groups (e.g.
         /// the admin red). Earned, never sold, swappable like any cosmetic.</summary>
         public static CosmeticNameColour GroupColourFor(APIUserGroup group)
@@ -77,6 +91,30 @@ namespace osu.Game.Cosmetics
                 if (c != null)
                     yield return c;
             }
+        }
+
+        /// <summary>The user's highest-priority ROLE colour (as a <see cref="NameColourStyle.Halo"/>
+        /// cosmetic), derived from their groups by <see cref="TitlePriority"/> order — admin
+        /// beats dev beats mod, etc. Null if they belong to no prioritised group with a colour.
+        /// Used as the fallback when no bought colour is equipped, so an admin's name glows red
+        /// wherever it appears without them having to equip anything.</summary>
+        public static CosmeticNameColour GetTopEarned(APIUser? user)
+        {
+            if (user?.Groups == null || user.Groups.Length == 0)
+                return null;
+
+            foreach (string id in TitlePriority)
+            {
+                var group = user.Groups.FirstOrDefault(g => g.Identifier == id);
+                if (group == null)
+                    continue;
+
+                var c = GroupColourFor(group);
+                if (c != null)
+                    return c;
+            }
+
+            return null;
         }
 
         /// <summary>Resolve any colour id (a buyable one, or a role colour

@@ -22,8 +22,10 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
+using osu.Game.Online;
 using osu.Game.Online.API;
 using osu.Game.Online.Leaderboards;
 using osu.Game.Overlays;
@@ -298,13 +300,19 @@ namespace osu.Game.Screens.Select
                                                             }
                                                         }
                                                     },
-                                                    new TruncatingSpriteText
+                                                    // Torii: wrap the username so the player's aura + name/role
+                                                    // colour ride with their name on the song-select leaderboard
+                                                    // too. Wrap preserves the RelativeSizeAxes + counter-shear so
+                                                    // the sheared row stays aligned; potato mode / the aura setting
+                                                    // suppress it from inside the container.
+                                                    UserAuraContainer.Wrap(Score.User, new TruncatingSpriteText
                                                     {
                                                         RelativeSizeAxes = Axes.X,
                                                         Shear = sheared ? -OsuGame.SHEAR : Vector2.Zero,
                                                         Text = Score.User.Username,
                                                         Font = OsuFont.Style.Heading2,
-                                                    }
+                                                        Colour = ToriiColourHelper.GetTopColour(Score.User) ?? Colour4.White,
+                                                    })
                                                 }
                                             },
                                             new Container

@@ -18,6 +18,7 @@ using osu.Game.Extensions;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Backgrounds;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Online;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
@@ -188,7 +189,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
                             Spacing = new Vector2(5, 0),
                             Children =
                             [
-                                new OsuSpriteText
+                                UserAuraContainer.Wrap(user, new OsuSpriteText
                                 {
                                     Name = "Username",
                                     Text = user.Username,
@@ -196,7 +197,8 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.Components
                                     Origin = contentAnchor,
                                     Font = OsuFont.GetFont(size: 24, weight: FontWeight.SemiBold),
                                     UseFullGlyphHeight = false,
-                                },
+                                    Colour = ToriiColourHelper.GetTopColour(user) ?? Color4.White,
+                                }),
                                 beatmapState = new OsuSpriteText
                                 {
                                     Anchor = beatmapStateAnchor,

@@ -4,16 +4,21 @@
 using System;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Extensions;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Pooling;
+using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserEffects;
 using osu.Game.Localisation.HUD;
 using osu.Game.Online.Chat;
 using osu.Game.Online.Multiplayer;
@@ -245,8 +250,18 @@ namespace osu.Game.Screens.Play.HUD
             private OsuSpriteText username = null!;
             private DrawableLinkCompiler? linkCompiler;
 
+            // Torii: wraps the username so a spectator's aura + name/role colour render
+            // behind it. The SpectatorUser payload carries only id + name, so the full
+            // APIUser (groups/aura/colour, fed by g0v0) is resolved by id in updateState()
+            // and pushed via SetUser. Potato mode / the aura setting suppress it inside.
+            private UserAuraContainer usernameAura = null!;
+            private CancellationTokenSource? lookupCancellation;
+
             [Resolved]
             private OsuGame? game { get; set; }
+
+            [Resolved]
+            private UserLookupCache? userLookupCache { get; set; }
 
             [BackgroundDependencyLoader]
             private void load()
@@ -255,7 +270,7 @@ namespace osu.Game.Screens.Play.HUD
 
                 InternalChildren = new Drawable[]
                 {
-                    username = new OsuSpriteText(),
+                    usernameAura = new UserAuraContainer(null, username = new OsuSpriteText()),
                 };
             }
 
@@ -280,6 +295,45 @@ namespace osu.Game.Screens.Play.HUD
             private void updateState()
             {
                 username.Text = Current.Value.Username;
+
+                // Clear any decoration carried over from a previously-pooled spectator,
+                // then resolve the full APIUser (groups/aura/colour, fed by g0v0) for the
+                // current one by id and point the aura wrapper at it. Guarded against
+                // disposal, cancellation and pool reuse so a slow lookup never decorates
+                // the wrong row.
+                usernameAura.SetUser(null);
+
+                lookupCancellation?.Cancel();
+                lookupCancellation?.Dispose();
+                lookupCancellation = null;
+
+                int lookingUpId = Current.Value.OnlineID;
+
+                if (userLookupCache != null && lookingUpId > 1)
+                {
+                    lookupCancellation = new CancellationTokenSource();
+                    var token = lookupCancellation.Token;
+
+                    userLookupCache.GetUserAsync(lookingUpId, token).ContinueWith(task =>
+                    {
+                        var resolved = task.GetResultSafely();
+                        if (resolved == null)
+                            return;
+
+                        Schedule(() =>
+                        {
+                            if (IsDisposed || token.IsCancellationRequested)
+                                return;
+                            // Pool reuse guard: the entry may already have been handed a
+                            // different spectator while this lookup was in flight.
+                            if (Current.Value.OnlineID != lookingUpId)
+                                return;
+
+                            usernameAura.SetUser(resolved);
+                        });
+                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                }
+
                 linkCompiler?.Expire();
                 AddInternal(linkCompiler = new DrawableLinkCompiler([username])
                 {
@@ -287,6 +341,13 @@ namespace osu.Game.Screens.Play.HUD
                     Action = () => game?.HandleLink(new LinkDetails(LinkAction.OpenUserProfile, Current.Value)),
                 });
                 updateEnabledState();
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                lookupCancellation?.Cancel();
+                lookupCancellation?.Dispose();
+                base.Dispose(isDisposing);
             }
 
             private void updateEnabledState()
