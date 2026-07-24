@@ -10,8 +10,8 @@
   </ItemGroup>
   <PropertyGroup Label="Project">
     <OutputType>WinExe</OutputType>
-    <!-- torii nova: net10.0 para matchear osu.Game (nova es .NET 10). upstream/master usa net8.0. -->
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- torii nova: net8.0 para matchear osu.Game (nova es .NET 10). upstream/master usa net8.0. -->
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup Label="Code Analysis">
     <GlobalAnalyzerConfigFiles Include="CodeAnalysis.tests.globalconfig" />

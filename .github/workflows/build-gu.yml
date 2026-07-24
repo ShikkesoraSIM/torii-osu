@@ -585,45 +585,48 @@ jobs:
             -p:InformationalVersion=${{ needs.version.outputs.version }}
         fi
 
-    - name: Attach Satori GC (net10 desktop)
-      # Overlay the Satori low-pause GC runtime onto the published self-contained
-      # build, replacing the stock coreclr / clrjit / System.Private.CoreLib with
-      # Satori's. Satori is what collapses the song-select GC pauses (gen2 281 -> 16
-      # on net10 in an A/B allocation test), the same win osu ships on net8.
-      #
-      # net10 Satori has NO public release (only expiring CI artifacts from
-      # ppy/Satori's 10.0-based branch), so the runtime files are vendored in-repo
-      # under satori-runtime/net10/<rid>.zip and just unzipped in place here - no
-      # download, no auth, no expiry. Built from ppy/Satori 10.0-based run
-      # 27126600038 (.NET 10.0.4 coreclr; patch-compatible with the net10.0.x BCL
-      # the SDK publishes). Same overlay shape osu-deploy uses for net8.
+    - name: Attach Satori GC (net8 desktop)
+      # Overlay the Satori low-pause GC runtime (ppy/Satori) onto the published
+      # self-contained build, replacing the stock coreclr / clrjit /
+      # System.Private.CoreLib with Satori's. Satori is what collapses the
+      # song-select GC pauses (~190ms/s spikes -> single digits), matching
+      # osu!lazer's own shipping approach (see ppy/osu-deploy#187). Pinned for
+      # reproducibility. Satori is built from the .NET 8 runtime, so this only
+      # applies to the net8 desktop streams (torii-master / vanilla); on any net10
+      # build the TFM guard below skips it automatically. Unlike net10, net8 Satori
+      # HAS a public ppy/Satori release, so we download it (no vendored zips).
       if: matrix.runtime != 'android'
       shell: bash
+      env:
+        SATORI_VERSION: "2025.807.0"
       run: |
         RID="${{ matrix.runtime }}"
         PUBLISH_DIR="publish/$RID"
-        ZIP="satori-runtime/net10/$RID.zip"
 
-        if [[ ! -f "$ZIP" ]]; then
-          echo "No vendored Satori for runtime '$RID' - leaving stock GC in place."
-          exit 0
-        fi
+        case "$RID" in
+          win-x64|win-arm64|linux-x64|linux-arm64|osx-x64|osx-arm64) ;;
+          *) echo "No Satori build for runtime '$RID' - leaving stock GC in place."; exit 0 ;;
+        esac
 
-        # Satori here is net10-only; never overlay it onto a non-net10 build.
+        # Satori 2025.807.0 is a .NET 8 runtime; never overlay it onto a net10 build.
         RCFG=$(ls "$PUBLISH_DIR"/*.runtimeconfig.json 2>/dev/null | head -1)
-        if [[ -n "$RCFG" ]] && ! grep -q 'net10' "$RCFG"; then
-          echo "Publish output is not net10 - skipping net10 Satori overlay."
+        if [[ -n "$RCFG" ]] && ! grep -q 'net8' "$RCFG"; then
+          echo "Publish output is not net8 (Satori ${SATORI_VERSION} is net8-only) - skipping Satori overlay."
           exit 0
         fi
 
-        # Overwrite the stock runtime files in place (coreclr/clrjit are named
-        # .dll on Windows, .so on Linux, .dylib on macOS; System.Private.CoreLib
-        # is .dll everywhere). -j flattens, -o overwrites.
-        unzip -o -j "$ZIP" -d "$PUBLISH_DIR" || { echo "::error::Failed to extract vendored Satori for ${RID}"; exit 1; }
+        URL="https://github.com/ppy/Satori/releases/download/${SATORI_VERSION}/${RID}.zip"
+        echo "Downloading Satori GC ${SATORI_VERSION} for ${RID}: $URL"
+        curl -fSL --retry 3 --retry-delay 5 "$URL" -o satori.zip || { echo "::error::Failed to download Satori GC for ${RID}"; exit 1; }
+
+        # Flatten the "<rid>/" prefix and overwrite the stock runtime files in
+        # place (equivalent to osu-deploy's entry.Name extraction).
+        unzip -o -j satori.zip -d "$PUBLISH_DIR" || { echo "::error::Failed to extract Satori GC for ${RID}"; exit 1; }
+        rm -f satori.zip
 
         test -f "$PUBLISH_DIR/System.Private.CoreLib.dll" || { echo "::error::Satori overlay missing System.Private.CoreLib.dll for ${RID}"; exit 1; }
         ls "$PUBLISH_DIR"/*coreclr* >/dev/null 2>&1 || { echo "::error::Satori overlay missing coreclr for ${RID}"; exit 1; }
-        echo "Vendored net10 Satori overlaid into ${PUBLISH_DIR}."
+        echo "Satori GC ${SATORI_VERSION} overlaid into ${PUBLISH_DIR}."
         ls -la "$PUBLISH_DIR"/System.Private.CoreLib.dll "$PUBLISH_DIR"/*coreclr* "$PUBLISH_DIR"/*clrjit* 2>/dev/null || true
 
     - name: Resolve desktop executable name
