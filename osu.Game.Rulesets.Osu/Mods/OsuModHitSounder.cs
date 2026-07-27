@@ -62,6 +62,14 @@ namespace osu.Game.Rulesets.Osu.Mods
         public override ModType Type => ModType.Fun;
         public override IconUsage? Icon => OsuIcon.Metronome;
 
+        /// <summary>
+        /// Ranked: this mod only moves sound around. It does not touch hit
+        /// windows, object timing, or anything the difficulty calculator reads,
+        /// so a play with it on is exactly as hard as a play without it.
+        /// <see cref="Mod.Ranked"/> defaults to false, hence the override.
+        /// </summary>
+        public override bool Ranked => true;
+
         public override Type[] IncompatibleMods => new[] { typeof(ModAutoplay), typeof(OsuModCinema) };
 
         [SettingSource("Sample set", "Which bank to mash with when there is no note nearby.")]

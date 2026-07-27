@@ -29,11 +29,12 @@ namespace osu.Game.Rulesets.Mods
     /// composes to "pitch shifted by N, speed unchanged".
     /// </para>
     /// <para>
-    /// This mod is intentionally listed as ranked (<see cref="Mod.Ranked"/> defaults
-    /// to true and we don't override) and carries a 1.0× score multiplier — pitch
+    /// This mod is intentionally ranked and carries a 1.0× score multiplier — pitch
     /// shift in isolation is not a difficulty modifier. The server-side
     /// <c>mods_can_get_pp</c> check in g0v0-server permits any pitch_shift value,
-    /// matching this client-side stance.
+    /// matching this client-side stance. <see cref="Mod.Ranked"/> defaults to
+    /// FALSE, so the override below is what actually makes that true — without it
+    /// the mod select showed "Unranked" while the server happily awarded pp.
     /// </para>
     /// <para>
     /// Can stack with fixed rate mods. Adaptive speed stays blocked because it
@@ -50,6 +51,8 @@ namespace osu.Game.Rulesets.Mods
             "Shift the song's pitch up or down without changing playback speed.";
 
         public override double ScoreMultiplier => 1;
+
+        public override bool Ranked => true;
 
         public override Type[] IncompatibleMods => new[]
         {
