@@ -125,6 +125,11 @@ namespace osu.Game.Localisation
         public static LocalisableString TestBeatmap => new TranslatableString(getKey(@"test_beatmap"), @"Test!");
 
         /// <summary>
+        /// "Mod Select"
+        /// </summary>
+        public static LocalisableString TestGameplayModSelect => new TranslatableString(getKey(@"test_gameplay_mod_select"), @"Mod Select");
+
+        /// <summary>
         /// "{0:0}&#176;"
         /// </summary>
         public static LocalisableString RotationUnsnapped(float newRotation) => new TranslatableString(getKey(@"rotation_unsnapped"), @"{0:0}°", newRotation);
