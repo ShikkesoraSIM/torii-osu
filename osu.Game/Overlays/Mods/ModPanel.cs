@@ -70,7 +70,8 @@ namespace osu.Game.Overlays.Mods
             modState.ValidForSelection.BindValueChanged(_ => updateFilterState());
             modState.MatchingTextFilter.BindValueChanged(_ => updateFilterState(), true);
 
-            if (Mod is ModPitchAdjust)
+            // el marco mas grueso va con el badge, no con un mod en particular.
+            if (Mod is IToriiExclusiveMod)
                 Content.BorderThickness = 3;
 
             modState.Preselected.BindValueChanged(b => updateEdgeEffect(b.NewValue), true);
@@ -143,7 +144,7 @@ namespace osu.Game.Overlays.Mods
                 return;
             }
 
-            if (Mod is ModPitchAdjust)
+            if (Mod is IToriiExclusiveMod)
             {
                 Content.EdgeEffect = new EdgeEffectParameters
                 {
