@@ -1,8 +1,12 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using osu.Framework.Logging;
+using osu.Game.Cosmetics.Definitions;
 using osu.Game.Graphics.UserEffects.Presets;
 using osu.Game.Online.API.Requests.Responses;
 
@@ -31,10 +35,13 @@ namespace osu.Game.Graphics.UserEffects
     /// </summary>
     public static class AuraRegistry
     {
-        // Canonical preset list. Adding a new aura: implement a new
-        // AuraPreset subclass under Presets/ and add one new instance here.
-        // Order matters only for ties in default-priority resolution.
-        private static readonly IReadOnlyList<AuraPreset> all_presets = new AuraPreset[]
+        // Las auras escritas a mano. Agregar una: una subclase de AuraPreset en
+        // Presets/ y una instancia mas aca. El orden solo importa para desempatar
+        // en la resolucion por prioridad.
+        //
+        // Ya NO es la unica forma: ver shipped_presets abajo, que carga las que
+        // salen de la Cosmetic Creator sin escribir una linea de C#.
+        private static readonly IReadOnlyList<AuraPreset> hand_written_presets = new AuraPreset[]
         {
             new AdminAuraPreset(),
             new DevAuraPreset(),
@@ -101,6 +108,70 @@ namespace osu.Game.Graphics.UserEffects
             new FounderSunrisePillarPreset(),
             new FounderCrestOfHonorPreset(),
         };
+
+        // Las auras data-driven que viajan con el cliente.
+        //
+        // Una aura hecha en la Cosmetic Creator no es una clase: es un
+        // .toriicosmetic, el mismo archivo que exporta la herramienta, que
+        // interpreta AuraParticleBuilder. Shippear una es dejar el archivo en
+        // Cosmetics/Definitions/Shipped/ y que el csproj lo embeba. Nada de
+        // tocar esta lista ni escribir C#, y lo que se ve en la herramienta es
+        // literalmente lo mismo que se ve en el juego, porque lo dibuja el
+        // mismo interprete.
+        private static readonly IReadOnlyList<AuraPreset> shipped_presets = loadShipped();
+
+        private static IReadOnlyList<AuraPreset> loadShipped()
+        {
+            var assembly = typeof(AuraRegistry).Assembly;
+            var cargadas = new List<AuraPreset>();
+
+            // Ordenado por nombre para que el orden no dependa de como el
+            // compilador ordeno los recursos.
+            var nombres = assembly.GetManifestResourceNames()
+                                  .Where(n => n.EndsWith(@".toriicosmetic", StringComparison.Ordinal))
+                                  .OrderBy(n => n, StringComparer.Ordinal);
+
+            foreach (string nombre in nombres)
+            {
+                // Cada archivo en su propio try: uno roto tiene que costar ESA
+                // aura, no que el juego no abra. Esto corre en el inicializador
+                // estatico, o sea que una excepcion aca sale como
+                // TypeInitializationException en el primer uso del registro y es
+                // dificil de rastrear hasta el json.
+                try
+                {
+                    using var stream = assembly.GetManifestResourceStream(nombre);
+
+                    if (stream == null)
+                        continue;
+
+                    using var reader = new StreamReader(stream);
+                    var def = CosmeticDefinition.Parse(reader.ReadToEnd());
+
+                    if (def != null && CosmeticAuraFactory.CanBuild(def))
+                        cargadas.Add(CosmeticAuraFactory.Create(def));
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e, $"torii: no se pudo cargar el aura embebida {nombre}");
+                }
+            }
+
+            return cargadas;
+        }
+
+        // Canonical preset list.
+        //
+        // El dedupe no es decorativo: dos presets con el mismo AuraId hacen
+        // explotar el ToDictionary de abajo, y como esto es un inicializador
+        // estatico eso significa que el juego no abre. Un archivo embebido mal
+        // nombrado no puede tener ese poder, asi que ante un id repetido gana la
+        // clase escrita a mano y la otra se descarta.
+        private static readonly IReadOnlyList<AuraPreset> all_presets = hand_written_presets
+            .Concat(shipped_presets)
+            .GroupBy(p => p.AuraId, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .ToList();
 
         // Indexed by AuraId for O(1) lookup. Built once at static init.
         private static readonly Dictionary<string, AuraPreset> presets_by_id =

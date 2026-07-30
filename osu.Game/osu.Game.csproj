@@ -59,4 +59,11 @@
     <PackageReference Include="System.Runtime.InteropServices" Version="4.3.0" />
     <PackageReference Include="System.Runtime.Handles" Version="4.3.0" />
   </ItemGroup>
+
+  <!-- torii: las auras hechas en la Cosmetic Creator viajan embebidas y las
+       levanta AuraRegistry al arrancar. Con el comodin, agregar una es dejar el
+       .toriicosmetic en esa carpeta: ni csproj ni C# ni registro. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Cosmetics\Definitions\Shipped\*.toriicosmetic" />
+  </ItemGroup>
 </Project>
