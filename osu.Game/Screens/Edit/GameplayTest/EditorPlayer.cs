@@ -56,6 +56,23 @@ namespace osu.Game.Screens.Edit.GameplayTest
             return masterGameplayClockContainer;
         }
 
+        private ICreateReplayData? replayGeneratingMod = null;
+
+        [BackgroundDependencyLoader(true)]
+        private void load()
+        {
+            Mods.Value = editor.Mods.Value;
+
+            replayGeneratingMod = Mods.Value.OfType<ICreateReplayData>().FirstOrDefault();
+            if (replayGeneratingMod != null)
+            {
+                var score = replayGeneratingMod.CreateScoreFromReplayData(GameplayState.Beatmap, GameplayState.Mods);
+                score.Replay.Frames.RemoveAll(f => f.Time <= GameplayClockContainer.CurrentTime);
+                DrawableRuleset.SetReplayScore(score);
+                Schedule(() => DrawableRuleset.Cursor?.Show());
+            }
+        }
+
         protected override void LoadAsyncComplete()
         {
             base.LoadAsyncComplete();
@@ -213,6 +230,9 @@ namespace osu.Game.Screens.Edit.GameplayTest
 
         private void toggleAutoplay()
         {
+            if (replayGeneratingMod != null)
+                return;
+
             if (DrawableRuleset.ReplayScore == null)
             {
                 var autoplay = Ruleset.Value.CreateInstance().GetAutoplayMod();

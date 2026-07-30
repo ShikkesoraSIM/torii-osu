@@ -40,8 +40,10 @@ using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Overlays;
+using osu.Game.Overlays.Mods;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Overlays.OSD;
+using osu.Game.Overlays.Settings.Sections.Gameplay;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
@@ -234,6 +236,12 @@ namespace osu.Game.Screens.Edit
         /// </remarks>
         public Bindable<bool> ComposerFocusMode { get; } = new Bindable<bool>();
 
+        // public Bindable<IReadOnlyList<Mod>> TestGameplayMods;
+        private ModSelectOverlay modSelectOverlay = null!;
+        private IDisposable? modSelectOverlayRegistration;
+        [Resolved]
+        private IOverlayManager? overlayManager { get; set; }
+
         [CanBeNull]
         public event Action<double> ShowSampleEditPopoverRequested;
 
@@ -351,6 +359,12 @@ namespace osu.Game.Screens.Edit
                     editorAutoSeekOnPlacement.Value = false;
             });
 
+            LoadComponent(modSelectOverlay = new UserModSelectOverlay
+            {
+                ShowPresets = true,
+            });
+            Mods.Disabled = false;
+
             AddInternal(new OsuContextMenuContainer
             {
                 RelativeSizeAxes = Axes.Both,
@@ -453,7 +467,8 @@ namespace osu.Game.Screens.Edit
                                             new EditorMenuItem(EditorStrings.SetPreviewPointToCurrent, MenuItemType.Standard, SetPreviewPointToCurrentTime),
                                             bookmarkController.Menu,
                                         }
-                                    }
+                                    },
+                                    new EditorMenuItem(EditorStrings.TestGameplayModSelect, MenuItemType.Standard, modSelectOverlay.ToggleVisibility),
                                 }
                             },
                             screenSwitcher = new EditorScreenSwitcherControl
@@ -484,6 +499,8 @@ namespace osu.Game.Screens.Edit
             base.LoadComplete();
             setUpClipboardActionAvailability();
 
+            modSelectOverlayRegistration = overlayManager?.RegisterBlockingOverlay(modSelectOverlay);
+
             Mode.Value = isNewBeatmap ? EditorScreenMode.SongSetup : EditorScreenMode.Compose;
             Mode.BindValueChanged(onModeChanged, true);
 
@@ -497,6 +514,8 @@ namespace osu.Game.Screens.Edit
         protected override void Dispose(bool isDisposing)
         {
             base.Dispose(isDisposing);
+
+            modSelectOverlayRegistration?.Dispose();
 
             // redundant (should have happened via a `resetTrack()` call in `OnExiting()`), but done for safety
             musicController.TrackChanged -= onTrackChanged;
@@ -854,12 +873,24 @@ namespace osu.Game.Screens.Edit
         {
             base.OnEntering(e);
             setUpTrack(seekToStart: true);
+            onArrivingAtScreen();
         }
 
         public override void OnResuming(ScreenTransitionEvent e)
         {
             base.OnResuming(e);
             setUpTrack();
+            onArrivingAtScreen();
+        }
+
+        private void onArrivingAtScreen()
+        {
+            modSelectOverlay.Beatmap.Disabled = false;
+            modSelectOverlay.Beatmap.BindTo(Beatmap);
+            modSelectOverlay.Ruleset.Disabled = false;
+            modSelectOverlay.Ruleset.BindTo(Ruleset);
+            modSelectOverlay.SelectedMods.Disabled = false;
+            modSelectOverlay.SelectedMods.BindTo(Mods);
         }
 
         public override bool OnExiting(ScreenExitEvent e)
@@ -897,6 +928,8 @@ namespace osu.Game.Screens.Edit
                     beatmap.EditorTimestamp = clock.CurrentTime;
             });
 
+            onLeavingScreen();
+
             // `resetTrack()` MUST happen before `refetchBeatmap()`, because along other things, `refetchBeatmap()` causes a global working beatmap change,
             // which would cause `EditorClock` to reload the track and automatically reapply adjustments to it if not preceded by `resetTrack()`.
             resetTrack();
@@ -907,12 +940,20 @@ namespace osu.Game.Screens.Edit
 
         public override void OnSuspending(ScreenTransitionEvent e)
         {
+            onLeavingScreen();
             base.OnSuspending(e);
 
             // `resetTrack()` MUST happen before `refetchBeatmap()`, because along other things, `refetchBeatmap()` causes a global working beatmap change,
             // which would cause `EditorClock` to reload the track and automatically reapply adjustments to it if not preceded by `resetTrack()`.
             resetTrack();
             refetchBeatmap();
+        }
+
+        private void onLeavingScreen()
+        {
+            modSelectOverlay.SelectedMods.UnbindFrom(Mods);
+            modSelectOverlay.Ruleset.UnbindFrom(Ruleset);
+            modSelectOverlay.Beatmap.UnbindFrom(Beatmap);
         }
 
         private void refetchBeatmap()
