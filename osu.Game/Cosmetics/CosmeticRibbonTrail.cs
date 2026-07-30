@@ -111,6 +111,7 @@ namespace osu.Game.Cosmetics
         private double? baseLifetime;
         private float? baseWidthScale;
         private float widthScale = 1f;
+        private float clickExpansion = 1f;
 
         public CosmeticRibbonTrail()
         {
@@ -222,6 +223,9 @@ namespace osu.Game.Cosmetics
         public void SetInputActive(bool active) => inputActive = active;
 
         public void SetPaused(bool paused) => this.paused = paused;
+
+        // el burst de click ensancha la cinta momentaneamente (se pliega en el wscale del rebuild).
+        public void SetClickExpansion(float scale) => clickExpansion = Math.Max(0.1f, scale);
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
@@ -370,7 +374,7 @@ namespace osu.Game.Cosmetics
             }
 
             float pulse = PulseAmount > 0 ? 1f + PulseAmount * MathF.Sin(pulsePhase * MathF.PI * 2f) : 1f;
-            float wscale = widthScale * pulse;
+            float wscale = widthScale * pulse * clickExpansion;
 
             // Glow halo (single wide path).
             if (glowPath != null)

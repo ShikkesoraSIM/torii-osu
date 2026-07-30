@@ -2,11 +2,15 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Rendering;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
+using osu.Game.Cosmetics.Definitions;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Cosmetics
 {
@@ -45,8 +49,27 @@ namespace osu.Game.Cosmetics
         public float StartScale { get; set; } = 1f;
         public float EndScale { get; set; } = 0.5f;
 
+        /// <summary>Recolour every spawned particle with <see cref="ParticleTint"/>
+        /// instead of its shape's built-in colour, so the same shape (a star, a
+        /// heart) can be any colour the author picks. Off = keep the shape's own
+        /// colour.</summary>
+        public bool UseParticleTint { get; set; }
+
+        public Color4 ParticleTint { get; set; } = Color4.White;
+
+        /// <summary>A user-supplied PNG (base64) used as the particle sprite instead
+        /// of a built-in shape — this is what lets creators "upload" their own
+        /// particle. The image travels INSIDE the cosmetic definition so it stays
+        /// portable (shareable / contest-ready). Decoded once at load with strict
+        /// size caps; if it's missing/too big/invalid the built-in shape is kept.
+        /// It's plain data (no code), so it's safe to load from community files.</summary>
+        public string CustomImage { get; set; }
+
         /// <summary>Hard cap on alive particles, to bound GPU/CPU work.</summary>
         public int MaxAlive { get; set; } = 160;
+
+        // burst de click: agranda las particulas que se emiten durante el pop (1 = neutro).
+        private float clickExpansion = 1f;
 
         // Particles need enough life to fade in (90ms) and out (160ms), so their
         // length floor is higher than the dot/ribbon one. They are inherently
@@ -70,12 +93,25 @@ namespace osu.Game.Cosmetics
             Blending = BlendingParameters.Additive;
         }
 
+        [BackgroundDependencyLoader]
+        private void load(IRenderer renderer)
+        {
+            // si vino una imagen custom valida, se convierte en la forma de la particula (sprite) y
+            // pisa el ParticleFactory de la forma built-in. es 100% data (un PNG), sin code-exec.
+            // El decode + caps + normalizacion viven en el helper compartido con las auras.
+            var customFactory = CosmeticCustomImage.Resolve(renderer, CustomImage);
+            if (customFactory != null)
+                ParticleFactory = customFactory;
+        }
+
         private bool inputActive = true;
         private bool paused;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => inputActive;
 
         public void SetInputActive(bool active) => inputActive = active;
+
+        public void SetClickExpansion(float scale) => clickExpansion = Math.Max(0.1f, scale);
 
         public void SetPaused(bool paused)
         {
@@ -182,13 +218,30 @@ namespace osu.Game.Cosmetics
             if (paused || ParticleFactory == null || InternalChildren.Count >= MaxAlive)
                 return;
 
-            Drawable particle = ParticleFactory(spawnIndex++);
+            // el factory de la forma es una primitiva safe, pero si una forma custom/rota tira, que
+            // se descarte la particula en vez de matar el frame entero.
+            Drawable particle;
+            try
+            {
+                particle = ParticleFactory(spawnIndex++);
+            }
+            catch
+            {
+                return;
+            }
+
+            if (particle == null)
+                return;
 
             particle.Anchor = Anchor.TopLeft;
             particle.Origin = Anchor.Centre;
             particle.Position = localPosition;
             particle.Alpha = 0;
-            particle.Scale = new Vector2(StartScale);
+            particle.Scale = new Vector2(StartScale * clickExpansion);
+
+            // recolor opcional: la misma forma (estrella/corazon) en el color que el autor elija.
+            if (UseParticleTint)
+                particle.Colour = ParticleTint;
 
             float jitterX = (float)(random.NextDouble() - 0.5) * DriftJitter * 2;
             float jitterY = (float)(random.NextDouble() - 0.5) * DriftJitter;

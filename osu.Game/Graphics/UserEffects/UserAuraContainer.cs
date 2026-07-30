@@ -386,7 +386,9 @@ namespace osu.Game.Graphics.UserEffects
             // to align with the target's actual position (which is non-
             // zero when an inline flow pushes the target right of any
             // leading ornament).
-            addTextGlow(glowTint, roleGlow);
+            // torii: pass the preset's full glow settings (blur/pulse/intensity) when the glow comes
+            // from the aura itself (data-driven control total); a role colour keeps the classic glow.
+            addTextGlow(glowTint, roleGlow, roleGlow ? null : preset.GlowSettings);
 
             // Decide layout up front so the emitter knows whether to
             // skip its CreateBackground call (which a variant would
@@ -768,12 +770,31 @@ namespace osu.Game.Graphics.UserEffects
         // name="tint"/>. For the local user's name colour it blooms additively so
         // it reads like the profile name; the aura's own glow keeps its softer
         // normal blend.
-        private void addTextGlow(Color4? tint, bool dramatic)
+        private void addTextGlow(Color4? tint, bool dramatic, AuraGlowSettings settings = null)
         {
             if (tint is not Color4 glowColour || target is not SpriteText spriteText)
                 return;
 
             bool reduced = ReducedMotion?.Invoke() ?? false;
+
+            // torii: control total del glow (auras data-driven). El creador eligió color + pulso +
+            // intensidad + blur, así que los usamos tal cual (respetando reduced-motion para el pulso).
+            if (settings != null)
+            {
+                Add(textGlow = new TextShapeGlow(spriteText.Text, spriteText.Font, settings.Colour)
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.TopLeft,
+                    Position = new Vector2(-TextShapeGlow.GlowPadding),
+                    BypassAutoSizeAxes = Axes.Both,
+                    BlurSigma = new Vector2(settings.BlurSigma),
+                    MaxAlpha = settings.MaxAlpha,
+                    MinAlpha = settings.MinAlpha,
+                    DurationMs = settings.PulseMs,
+                    Pulsate = settings.Pulsate && !reduced,
+                });
+                return;
+            }
 
             // Role glow: push the colour toward white so the additive bloom reads
             // as a bright "colour blurred with white" halo, clearly distinct from a

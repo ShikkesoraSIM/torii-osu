@@ -238,6 +238,9 @@ namespace osu.Game.Cosmetics
 
         public void SetPaused(bool paused) => this.paused = paused;
 
+        // el burst de click agranda las partes nuevas (mismo lever que usa el cursor real via Expand()).
+        public void SetClickExpansion(float scale) => NewPartScale = new Vector2(Math.Max(0.1f, scale));
+
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
             if (inputActive)
