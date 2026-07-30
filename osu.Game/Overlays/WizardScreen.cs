@@ -105,5 +105,14 @@ namespace osu.Game.Overlays
         }
 
         public virtual LocalisableString? NextStepText => null;
+
+        /// <summary>
+        /// torii: esconde el boton de avanzar del pie.
+        ///
+        /// El pie del wizard es el llamado a la accion mas grande de la pantalla y ademas responde a Enter,
+        /// asi que en una pantalla que ES una eleccion entre caminos termina siendo una salida mas, y la mas
+        /// prominente. La de deteccion de carpeta es ese caso: sus opciones son sus propios botones.
+        /// </summary>
+        public virtual bool HideNextButton => false;
     }
 }

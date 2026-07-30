@@ -1,26 +1,21 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System.IO;
+using System;
+using System.Collections.Generic;
 using osu.Framework.Allocation;
-using osu.Framework.Bindables;
-using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Cursor;
+using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
-using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Localisation;
 using osu.Framework.Platform;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
-using osu.Game.Graphics.Sprites;
-using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.IO;
 using osu.Game.Localisation;
-using osu.Game.Overlays.Dialog;
-using osu.Game.Screens.Edit.Setup;
 using osuTK;
 using FontAwesome = osu.Framework.Graphics.Sprites.FontAwesome;
 
@@ -29,13 +24,10 @@ namespace osu.Game.Overlays.FirstRunSetup
     [LocalisableDescription(typeof(ToriiSettingsStrings), nameof(ToriiSettingsStrings.FirstRunHeader))]
     public partial class ScreenToriiStorage : WizardScreen
     {
-        // toriirefresh's MaintenanceSettingsStrings has no RestartAndReOpenRequiredForCompletion
-        // (drift from the release base), so the wording is kept inline here to stay self-contained.
-        private static readonly LocalisableString restart_required_message =
-            @"To complete this operation, osu! will close. Please open it again to use the new data location.";
-
-        private OsuSpriteText helperText = null!;
-        private LazerStorageLocatorTextBox storageTextBox = null!;
+        // torii: las opciones de esta pantalla son sus propios botones. El del pie seria una salida
+        // mas, la mas grande de todas y ademas atada a Enter, y encima terminaba el first-run entero
+        // salteandose los pasos clasicos, porque en ese momento es el unico paso de la lista.
+        public override bool HideNextButton => true;
 
         [Resolved]
         private Storage storage { get; set; } = null!;
@@ -43,20 +35,94 @@ namespace osu.Game.Overlays.FirstRunSetup
         [Resolved]
         private OsuGameBase game { get; set; } = null!;
 
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
+
+        [Resolved]
+        private OsuColour colours { get; set; } = null!;
+
         [Resolved(canBeNull: true)]
         private IDialogOverlay? dialogOverlay { get; set; }
 
         [Resolved(canBeNull: true)]
-        private FirstRunSetupOverlay? firstRunSetupOverlay { get; set; }
+        private FirstRunSetupOverlay? firstRunOverlay { get; set; }
 
         private string? detectedLazerPath;
+
+        private OsuTextFlowContainer helperText = null!;
+
+        // torii: el footer del wizard siempre tiene su botón, y desde acá avanzar sin elegir nada
+        // equivale a quedarse en la carpeta nueva, así que lo etiquetamos como lo que hace.
 
         [BackgroundDependencyLoader]
         private void load()
         {
             detectedLazerPath = ToriiStoragePathHelper.GetLikelyLazerStoragePath();
 
-            Content.Children = new Drawable[]
+            bool detected = !string.IsNullOrEmpty(detectedLazerPath);
+
+            var intro = new List<Drawable>
+            {
+                new CircularContainer
+                {
+                    Size = new Vector2(72),
+                    Masking = true,
+                    CornerRadius = 18,
+                    BorderThickness = 3,
+                    BorderColour = OverlayColourProvider.Colour2,
+                    Child = new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Icon = FontAwesome.Solid.FolderOpen,
+                        Size = new Vector2(30),
+                        Colour = OverlayColourProvider.Light1,
+                    }
+                },
+                new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: CONTENT_FONT_SIZE))
+                {
+                    Text = detected ? ToriiSettingsStrings.FirstRunDescription : ToriiSettingsStrings.NoDetectedLazerFolder,
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                },
+            };
+
+            if (detected)
+            {
+                intro.Add(new Container
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Masking = true,
+                    CornerRadius = 8,
+                    Children = new Drawable[]
+                    {
+                        new Box
+                        {
+                            RelativeSizeAxes = Axes.Both,
+                            Colour = OverlayColourProvider.Background4,
+                        },
+                        new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: CONTENT_FONT_SIZE, weight: FontWeight.SemiBold))
+                        {
+                            Text = ToriiSettingsStrings.DetectedLazerFolder(detectedLazerPath!),
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Padding = new MarginPadding { Horizontal = 15, Vertical = 10 },
+                            Colour = OverlayColourProvider.Content1,
+                        },
+                    }
+                });
+
+                intro.Add(new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: CONTENT_FONT_SIZE - 2))
+                {
+                    Text = ToriiSettingsStrings.FirstRunSharedFolderNote,
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Colour = OverlayColourProvider.Content2,
+                });
+            }
+
+            var content = new List<Drawable>
             {
                 new FillFlowContainer
                 {
@@ -64,195 +130,104 @@ namespace osu.Game.Overlays.FirstRunSetup
                     AutoSizeAxes = Axes.Y,
                     Direction = FillDirection.Vertical,
                     Spacing = new Vector2(12),
-                    Children = new Drawable[]
-                    {
-                        new CircularContainer
-                        {
-                            Size = new Vector2(72),
-                            Masking = true,
-                            CornerRadius = 18,
-                            BorderThickness = 3,
-                            BorderColour = OverlayColourProvider.Colour2,
-                            Child = new SpriteIcon
-                            {
-                                Anchor = Anchor.Centre,
-                                Origin = Anchor.Centre,
-                                Icon = FontAwesome.Solid.Server,
-                                Size = new Vector2(30),
-                                Colour = OverlayColourProvider.Light1,
-                            }
-                        },
-                        new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: CONTENT_FONT_SIZE))
-                        {
-                            Text = ToriiSettingsStrings.FirstRunDescription,
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                        },
-                        new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: CONTENT_FONT_SIZE))
-                        {
-                            Text = !string.IsNullOrEmpty(detectedLazerPath)
-                                ? ToriiSettingsStrings.DetectedLazerFolder(detectedLazerPath)
-                                : ToriiSettingsStrings.NoDetectedLazerFolder,
-                            RelativeSizeAxes = Axes.X,
-                            AutoSizeAxes = Axes.Y,
-                            Colour = OverlayColourProvider.Content1,
-                        },
-                    }
+                    ChildrenEnumerable = intro,
                 },
-                storageTextBox = new LazerStorageLocatorTextBox
-                {
-                    Label = ToriiSettingsStrings.FolderSelectorLabel,
-                    PlaceholderText = ToriiSettingsStrings.FolderSelectorPlaceholder,
-                },
-                new ProgressRoundedButton
-                {
-                    Width = 420,
-                    Height = 50,
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.TopCentre,
-                    Text = ToriiSettingsStrings.UseDetectedLazerFolder,
-                    Enabled = { Value = !string.IsNullOrEmpty(detectedLazerPath) },
-                    Action = () =>
-                    {
-                        if (!string.IsNullOrEmpty(detectedLazerPath))
-                            applyDataPath(detectedLazerPath);
-                    }
-                },
-                new ProgressRoundedButton
-                {
-                    Width = 420,
-                    Height = 50,
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.TopCentre,
-                    Text = ToriiSettingsStrings.UseSelectedLazerFolder,
-                    Action = () => applyDataPath(storageTextBox.Current.Value),
-                },
-                new ProgressRoundedButton
-                {
-                    Width = 420,
-                    Height = 50,
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.TopCentre,
-                    Text = ToriiSettingsStrings.KeepPortable,
-                    Action = continuePortable,
-                },
-                helperText = new OsuSpriteText
+                new FillFlowContainer
                 {
                     RelativeSizeAxes = Axes.X,
-                    Text = ToriiSettingsStrings.ChangeLaterInSettings,
-                    Font = OsuFont.Default.With(size: 13),
-                    Colour = OverlayColourProvider.Content2,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Spacing = new Vector2(10),
+                    Children = new Drawable[]
+                    {
+                        // torii: sin carpeta detectada no hay nada que importar de una, así que el lugar
+                        // del botón principal se lo queda elegirla a mano.
+                        new RoundedButton
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Height = 55,
+                            Text = detected ? ToriiSettingsStrings.UseDetectedLazerFolder : ToriiSettingsStrings.ChooseLazerFolderManually,
+                            Action = detected ? importDetectedFolder : (Action)showFolderPicker,
+                        },
+                        new RoundedButton
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            Height = 55,
+                            Text = ToriiSettingsStrings.KeepPortable,
+                            Action = stayFresh,
+                        },
+                    }
                 },
             };
 
-            if (!string.IsNullOrEmpty(detectedLazerPath))
-                storageTextBox.Current.Value = detectedLazerPath;
+            if (detected)
+            {
+                // la opción terciaria: sin fondo de botón y en chiquito, para que compita lo menos posible
+                // con las dos de arriba.
+                content.Add(new OsuHoverContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    IdleColour = OverlayColourProvider.Content2,
+                    HoverColour = OverlayColourProvider.Light1,
+                    Action = showFolderPicker,
+                    Child = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: 13))
+                    {
+                        Text = ToriiSettingsStrings.ImportAnotherLazerFolder,
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        TextAnchor = Anchor.TopCentre,
+                    },
+                });
+            }
+
+            content.Add(helperText = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Default.With(size: 13))
+            {
+                Text = ToriiSettingsStrings.ChangeLaterInSettings,
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Colour = OverlayColourProvider.Content2,
+            });
+
+            Content.AddRange(content);
         }
 
-        public override LocalisableString? NextStepText => ToriiSettingsStrings.ContinueSetup;
-
-        private void continuePortable()
+        private void importDetectedFolder()
         {
-            helperText.Text = ToriiSettingsStrings.ChangeLaterInSettings;
-            helperText.Colour = OverlayColourProvider.Content1;
-            Schedule(() => firstRunSetupOverlay?.NextButton?.TriggerClick());
-        }
-
-        private void applyDataPath(string? path)
-        {
-            if (!ToriiStoragePathHelper.LooksLikeLazerStoragePath(path))
+            // la carpeta se validó al detectarla, pero puede haber desaparecido entre medio.
+            if (!ToriiFirstRunFlow.ApplyDataPath(detectedLazerPath, storage, game, config, dialogOverlay))
             {
                 helperText.Text = ToriiSettingsStrings.InvalidLazerFolder;
-                helperText.Colour = new osuTK.Graphics.Color4(255, 179, 92, 255);
-                return;
+                helperText.Colour = colours.Orange1;
             }
-
-            dialogOverlay?.Push(new ConfirmDialog(restart_required_message, () =>
-            {
-                (storage as OsuStorage)?.ChangeDataPath(path!);
-                game.Exit();
-            }));
         }
 
-        private partial class LazerStorageLocatorTextBox : LabelledTextBoxWithPopover
+        private void showFolderPicker()
         {
-            private readonly Bindable<DirectoryInfo?> currentDirectory = new Bindable<DirectoryInfo?>();
+            firstRunOverlay?.AppendFolderPickerStep();
+            advanceToNextStep();
+        }
 
-            private bool changingDirectory;
+        private void stayFresh()
+        {
+            firstRunOverlay?.AppendClassicSteps();
+            advanceToNextStep();
+        }
 
-            protected override void LoadComplete()
-            {
-                base.LoadComplete();
+        // torii: el wizard sólo avanza por el botón del footer, y los pasos se leen recién al avanzar,
+        // así que lo dejamos scheduleado para que el push del próximo screen no pase adentro del click.
+        // torii: el guard no es paranoia. El boton de antes se auto-deshabilitaba al primer click, y al
+        // cambiarlo por uno comun eso se perdio: la pantalla saliente sigue recibiendo input mientras se
+        // desvanece, asi que dos clicks seguidos avanzaban DOS pasos y se salteaban una pantalla.
+        private bool avanzando;
 
-                currentDirectory.BindValueChanged(onDirectorySelected);
-            }
+        private void advanceToNextStep()
+        {
+            if (avanzando)
+                return;
 
-            private void onDirectorySelected(ValueChangedEvent<DirectoryInfo?> directory)
-            {
-                if (changingDirectory)
-                    return;
-
-                try
-                {
-                    changingDirectory = true;
-
-                    if (directory.NewValue == null)
-                    {
-                        Current.Value = string.Empty;
-                        return;
-                    }
-
-                    // DirectorySelectors can trigger a noop value changed, but `DirectoryInfo` equality doesn't catch this.
-                    if (directory.OldValue?.FullName == directory.NewValue.FullName)
-                        return;
-
-                    // NAVIGATION-BUG FIX:
-                    // The release committed Current + closed the popover on EVERY directory change, so a single
-                    // click into any subfolder slammed the picker shut ("kicked you out / reset to the initial
-                    // path"). Mirror the vanilla osu! ScreenImportFromStable gate instead: only commit the path
-                    // and hide the popover once the navigated folder is actually a valid lazer data folder.
-                    // Plain navigation just updates `currentDirectory`, so the persistent selector keeps
-                    // browsing deeper without resetting.
-                    if (ToriiStoragePathHelper.LooksLikeLazerStoragePath(directory.NewValue.FullName))
-                    {
-                        Current.Value = directory.NewValue.FullName;
-                        this.HidePopover();
-                    }
-                }
-                finally
-                {
-                    changingDirectory = false;
-                }
-            }
-
-            public override Popover GetPopover() => new DirectoryChooserPopover(currentDirectory);
-
-            private partial class DirectoryChooserPopover : OsuPopover
-            {
-                public DirectoryChooserPopover(Bindable<DirectoryInfo?> currentDirectory)
-                    : base(false)
-                {
-                    Child = new Container
-                    {
-                        Size = new Vector2(600, 400),
-                        // Initialise from the LIVE navigated path (currentDirectory.Value), and keep the
-                        // selector's CurrentPath two-way bound to it, so re-opening the popover resumes from
-                        // wherever the user last browsed instead of snapping back to a stale snapshot.
-                        Child = new OsuDirectorySelector(currentDirectory.Value?.FullName)
-                        {
-                            RelativeSizeAxes = Axes.Both,
-                            CurrentPath = { BindTarget = currentDirectory }
-                        },
-                    };
-                }
-
-                [BackgroundDependencyLoader]
-                private void load(OverlayColourProvider colourProvider)
-                {
-                    Body.BorderColour = colourProvider.Highlight1;
-                    Body.BorderThickness = 2;
-                }
-            }
+            avanzando = true;
+            Schedule(() => firstRunOverlay?.AdvanceStep());
         }
     }
 }

@@ -469,6 +469,20 @@ namespace osu.Game
             // visitas). arrancaba prendido por un default erroneo, asi que a quien lo tiene heredado en true
             // lo apagamos UNA sola vez; el que lo quiera lo re-activa desde el promo o Settings > Torii. el
             // que ya lo tenia apagado no se toca. mismo patron one-shot que la migracion del theme de arriba.
+            // Torii: el wizard de bienvenida es para el que ARRANCA en Torii. Al que ya lo venia usando no le
+            // podemos tirar un wizard nuevo de la nada al actualizar, y le pasaria a todos: su torii.ini ya
+            // tiene ShowFirstRunSetup en false, que es justo la condicion con la que el wizard se auto-abre.
+            // Asi que a quien ya paso por el first-run se lo damos por visto UNA sola vez. El que instala de
+            // cero tiene ShowFirstRunSetup en true y no entra aca, o sea que lo ve cuando corresponde.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiWelcomeMigrated))
+            {
+                if (!LocalConfig.Get<bool>(OsuSetting.ShowFirstRunSetup))
+                    LocalConfig.SetValue(OsuSetting.ShowToriiWelcome, false);
+
+                LocalConfig.SetValue(OsuSetting.ToriiWelcomeMigrated, true);
+                LocalConfig.Save();
+            }
+
             if (!LocalConfig.Get<bool>(OsuSetting.ToriiStableOptInMigrated))
             {
                 if (LocalConfig.Get<bool>(OsuSetting.ToriiLegacyFooterUseSkin))

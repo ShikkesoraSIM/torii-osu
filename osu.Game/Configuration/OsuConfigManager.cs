@@ -362,6 +362,10 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToriiLegacyFont, false);
 
             SetDefault(OsuSetting.ShowFirstRunSetup, true);
+            // torii: el wizard propio de torii corre DESPUES del first-run (o despues del reinicio por
+            // cambio de carpeta), asi que es una key aparte y no un paso mas del first-run de ppy.
+            SetDefault(OsuSetting.ShowToriiWelcome, true);
+            SetDefault(OsuSetting.ToriiWelcomeMigrated, false);
             SetDefault(OsuSetting.ShowMobileDisclaimer, RuntimeInfo.IsMobile);
 
             SetDefault(OsuSetting.ScreenshotFormat, ScreenshotFormat.Jpg);
@@ -584,6 +588,8 @@ namespace osu.Game.Configuration
         UnslantedSongSelectUI,
         Version,
         ShowFirstRunSetup,
+        ShowToriiWelcome,
+        ToriiWelcomeMigrated,
         ShowConvertedBeatmaps,
         Skin,
         CycleSkinsThroughFavoritesOnly,

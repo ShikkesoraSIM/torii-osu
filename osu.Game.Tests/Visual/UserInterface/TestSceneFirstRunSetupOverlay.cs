@@ -123,7 +123,7 @@ namespace osu.Game.Tests.Visual.UserInterface
 
             AddStep("display again on demand", () => overlay.Show());
 
-            AddUntilStep("back at start", () => overlay.CurrentScreen is ScreenWelcome);
+            AddUntilStep("back at start", () => overlay.CurrentScreen is ScreenToriiStorage);
         }
 
         [TestCase(false)]
@@ -142,7 +142,7 @@ namespace osu.Game.Tests.Visual.UserInterface
 
             AddUntilStep("step back to start", () =>
             {
-                if (overlay.CurrentScreen?.IsLoaded != false && !(overlay.CurrentScreen is ScreenWelcome))
+                if (overlay.CurrentScreen?.IsLoaded != false && !(overlay.CurrentScreen is ScreenToriiStorage))
                 {
                     if (keyboard)
                         InputManager.Key(Key.Escape);
@@ -150,7 +150,7 @@ namespace osu.Game.Tests.Visual.UserInterface
                         ScreenFooter.BackButton.TriggerClick();
                 }
 
-                return overlay.CurrentScreen is ScreenWelcome;
+                return overlay.CurrentScreen is ScreenToriiStorage;
             });
 
             AddAssert("overlay not dismissed", () => overlay.State.Value == Visibility.Visible);

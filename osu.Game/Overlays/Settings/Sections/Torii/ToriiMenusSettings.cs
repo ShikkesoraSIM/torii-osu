@@ -158,17 +158,9 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
             // configs can end up inconsistent. Schedule() defers off the BDL
             // thread because the cascade animates hue-tinted drawables, which
             // the framework only allows to mutate from the load/update threads.
-            var customUiHueEnabled = config.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
-            var applyToMenu = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
-            var applyToOverlays = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays);
-            var applyToSettings = config.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel);
-
-            customUiHueEnabled.BindValueChanged(e => Schedule(() =>
-            {
-                applyToMenu.Value = e.NewValue;
-                applyToOverlays.Value = e.NewValue;
-                applyToSettings.Value = e.NewValue;
-            }), true);
+            // torii: el cascade de este flag a los tres alcances se mudo a OsuGame, porque aca solo corria
+            // cuando alguien abria el panel de settings por primera vez: prender el tono desde otro lado (el
+            // wizard de bienvenida) dejaba el menu y la toolbar sin tenir hasta ese momento.
         }
 
         protected override void LoadComplete()

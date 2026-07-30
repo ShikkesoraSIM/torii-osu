@@ -1191,9 +1191,38 @@ namespace osu.Game
             };
         }
 
+
+        /// <summary>
+        /// torii: el toggle maestro del tono de UI prende los tres alcances (menu, overlays, panel de
+        /// settings) de una.
+        ///
+        /// Vivia adentro de ToriiMenusSettings, o sea que solo se enganchaba cuando el jugador abria el panel
+        /// de settings por primera vez. Prender el tono desde cualquier otro lado (el wizard de bienvenida)
+        /// dejaba los tres alcances como estaban y la UI a medio tenir: overlays si, menu y toolbar no, hasta
+        /// que un dia abriera settings. Aca corre siempre.
+        /// </summary>
+        private void cascadeCustomUiHue()
+        {
+            var enabled = LocalConfig.GetBindable<bool>(OsuSetting.CustomUIHueEnabled);
+            var applyToMenu = LocalConfig.GetBindable<bool>(OsuSetting.CustomUIHueApplyToMenu);
+            var applyToOverlays = LocalConfig.GetBindable<bool>(OsuSetting.CustomUIHueApplyToOverlays);
+            var applyToSettings = LocalConfig.GetBindable<bool>(OsuSetting.CustomUIHueApplyToSettingsPanel);
+
+            // Schedule porque el cascade anima drawables tenidos, y el framework solo deja mutarlos desde
+            // los hilos de load/update.
+            enabled.BindValueChanged(e => Schedule(() =>
+            {
+                applyToMenu.Value = e.NewValue;
+                applyToOverlays.Value = e.NewValue;
+                applyToSettings.Value = e.NewValue;
+            }), true);
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            cascadeCustomUiHue();
 
             // The next time this is updated is in UpdateAfterChildren, which occurs too late and results
             // in the cursor being shown for a few frames during the intro.
@@ -1415,6 +1444,9 @@ namespace osu.Game
 
             // overlay elements
             loadComponentSingleFile(FirstRunOverlay = new FirstRunSetupOverlay(), footerBasedOverlayContent.Add, true);
+            // torii: el wizard de bienvenida propio. va en la misma capa que el first-run porque comparte el
+            // footer del wizard, y lo abre el first-run al terminar (o se abre solo si quedo pendiente).
+            var toriiWelcomeOverlay = loadComponentSingleFile(new ToriiWelcomeOverlay(), footerBasedOverlayContent.Add, true);
             loadComponentSingleFile(new ManageCollectionsDialog(), overlayContent.Add, true);
 
             // Torii cosmetics store overlay (points shop: cursor trails, auras, name colours).
@@ -1492,7 +1524,7 @@ namespace osu.Game
             Add(new FriendPresenceNotifier());
 
             // side overlays which cancel each other.
-            var singleDisplaySideOverlays = new OverlayContainer[] { Settings, Notifications, FirstRunOverlay };
+            var singleDisplaySideOverlays = new OverlayContainer[] { Settings, Notifications, FirstRunOverlay, toriiWelcomeOverlay };
 
             foreach (var overlay in singleDisplaySideOverlays)
             {
