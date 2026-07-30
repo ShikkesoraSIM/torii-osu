@@ -13,21 +13,31 @@ namespace osu.Game.Localisation
 
         public static LocalisableString FirstRunHeader => new TranslatableString(getKey(@"first_run_header"), @"Welcome to Torii");
 
-        public static LocalisableString FirstRunDescription => new TranslatableString(getKey(@"first_run_description"), @"Torii is currently using its own portable data folder.\n\nIf you already use normal osu! lazer, you can link Torii to that existing data folder and immediately reuse your maps, skins, scores, and collections without importing everything again.");
+        public static LocalisableString FirstRunDescription => new TranslatableString(getKey(@"first_run_description"), @"We found your osu!lazer folder on this computer. Import it and Torii opens with all your beatmaps, skins, scores and collections already in place. Nothing is copied or moved, so it is instant and your osu!lazer install is left exactly as it is.");
 
-        public static LocalisableString DetectedLazerFolder(string path) => new TranslatableString(getKey(@"detected_lazer_folder"), @"Detected osu! lazer data folder:\n{0}", path);
+        public static LocalisableString FirstRunSharedFolderNote => new TranslatableString(getKey(@"first_run_shared_folder_note"), @"From then on Torii and osu!lazer share that folder, so a beatmap you download in one is already waiting for you in the other.");
 
-        public static LocalisableString NoDetectedLazerFolder => new TranslatableString(getKey(@"no_detected_lazer_folder"), @"No standard osu! lazer data folder was detected automatically. You can still choose it manually below.");
+        public static LocalisableString DetectedLazerFolder(string path) => new TranslatableString(getKey(@"detected_lazer_folder"), "Detected osu!lazer folder:\n{0}", path);
+
+        public static LocalisableString NoDetectedLazerFolder => new TranslatableString(getKey(@"no_detected_lazer_folder"), @"We could not find an osu!lazer folder automatically. You can point Torii at one yourself, or just start fresh and sort this out later.");
 
         public static LocalisableString FolderSelectorLabel => new TranslatableString(getKey(@"folder_selector_label"), @"Existing osu! lazer data folder");
 
         public static LocalisableString FolderSelectorPlaceholder => new TranslatableString(getKey(@"folder_selector_placeholder"), @"Choose the folder that contains client.realm");
 
-        public static LocalisableString UseDetectedLazerFolder => new TranslatableString(getKey(@"use_detected_lazer_folder"), @"Use detected osu! lazer data");
+        public static LocalisableString UseDetectedLazerFolder => new TranslatableString(getKey(@"use_detected_lazer_folder"), @"Import from detected osu! folder");
 
-        public static LocalisableString UseSelectedLazerFolder => new TranslatableString(getKey(@"use_selected_lazer_folder"), @"Use selected lazer data");
+        public static LocalisableString UseSelectedLazerFolder => new TranslatableString(getKey(@"use_selected_lazer_folder"), @"Import from this folder");
 
-        public static LocalisableString KeepPortable => new TranslatableString(getKey(@"keep_portable"), @"Keep Torii portable for now");
+        public static LocalisableString KeepPortable => new TranslatableString(getKey(@"keep_portable"), @"Stay fresh for now");
+
+        public static LocalisableString ImportAnotherLazerFolder => new TranslatableString(getKey(@"import_another_lazer_folder"), @"I want to import another osu! Lazer folder, not the detected one");
+
+        public static LocalisableString ChooseLazerFolderManually => new TranslatableString(getKey(@"choose_lazer_folder_manually"), @"Choose my osu! lazer folder");
+
+        public static LocalisableString StayFreshInstead => new TranslatableString(getKey(@"stay_fresh_instead"), @"Never mind, stay fresh for now");
+
+        public static LocalisableString SkipFirstRunSetup => new TranslatableString(getKey(@"skip_first_run_setup"), @"Skip for now");
 
         public static LocalisableString ChangeLaterInSettings => new TranslatableString(getKey(@"change_later_in_settings"), @"You can change this later from Settings > Torii.");
 
@@ -52,6 +62,8 @@ namespace osu.Game.Localisation
         public static LocalisableString ContinueSetup => new TranslatableString(getKey(@"continue_setup"), @"Continue setup");
 
         public static LocalisableString PickLazerFolderHeader => new TranslatableString(getKey(@"pick_lazer_folder_header"), @"Select your osu! lazer data folder");
+
+        public static LocalisableString PickLazerFolderDescription => new TranslatableString(getKey(@"pick_lazer_folder_description"), @"Browse to the osu!lazer folder you want Torii to use. It is the folder that contains client.realm. Nothing is copied or moved: Torii reads your data where it already lives, and both clients share the folder from then on.");
 
         public static LocalisableString SkipBreaks => new TranslatableString(getKey(@"skip_breaks"), @"Skip breaks mid-map");
 

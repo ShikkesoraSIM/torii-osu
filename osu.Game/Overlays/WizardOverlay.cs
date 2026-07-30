@@ -187,6 +187,24 @@ namespace osu.Game.Overlays
             steps.Add(typeof(T));
         }
 
+        /// <summary>
+        /// torii: reemplaza la cola de pasos, dejando el actual y todo lo anterior.
+        ///
+        /// El first-run se ramifica segun lo que el jugador elige en la primera pantalla, y el wizard tiene
+        /// boton de volver (y Escape). Agregando al final, elegir un camino, volver, y elegir el otro dejaba
+        /// la rama vieja colgada mas abajo: el paso siguiente terminaba siendo el de la eleccion anterior.
+        /// Reemplazando la cola, la ultima eleccion es siempre la que manda.
+        /// </summary>
+        protected void SetStepsAfterCurrent(params Type[] nextSteps)
+        {
+            int keep = (CurrentStepIndex ?? -1) + 1;
+
+            if (steps.Count > keep)
+                steps.RemoveRange(keep, steps.Count - keep);
+
+            steps.AddRange(nextSteps);
+        }
+
         private void showFirstStep()
         {
             Debug.Assert(CurrentStepIndex == null);
@@ -257,7 +275,14 @@ namespace osu.Game.Overlays
 
             public void UpdateButtons(int? currentStep, WizardScreen? currentScreen, IReadOnlyList<Type> steps)
             {
-                NextButton.Enabled.Value = currentStep != null;
+                // torii: ver WizardScreen.HideNextButton. una pantalla que es una eleccion entre caminos no
+                // puede tener ademas el boton mas grande del pie ofreciendo un camino cuarto. Se apaga
+                // ADEMAS de esconderse porque Enter lo dispara por atajo (OnPressed mas arriba), asi que
+                // esconderlo solo dejaba el camino igual de vivo, nomas invisible.
+                bool hideNext = currentScreen?.HideNextButton == true;
+
+                NextButton.Enabled.Value = currentStep != null && !hideNext;
+                NextButton.Alpha = hideNext ? 0 : 1;
 
                 if (currentStep == null)
                     return;
