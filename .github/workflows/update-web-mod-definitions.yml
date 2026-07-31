@@ -10,6 +10,11 @@ permissions:
 jobs:
   update-mod-definitions:
     name: Update osu-web mod definitions
+    # torii: regenera mods.json contra ppy/osu-tools y abre un PR contra ppy/osu-web, o sea el repo
+    # de ellos y no el nuestro. Y el build de las tools ni arranca: no compilan contra nuestro
+    # osu.Game, que divergio bastante. El mods.json que a nosotros nos importa vive en g0v0
+    # (static/mods.json) y se mantiene aparte. Se deja el archivo para no conflictuar con upstream.
+    if: github.repository == 'ppy/osu'
     runs-on: ubuntu-latest
     steps:
     - name: Install .NET 8.0.x
