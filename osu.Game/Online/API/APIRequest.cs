@@ -69,6 +69,22 @@ namespace osu.Game.Online.API
     {
         protected abstract string Target { get; }
 
+        /// <summary>
+        /// torii: si este request puede correr al mismo tiempo que otros de la cola.
+        ///
+        /// La cola de <see cref="APIAccess"/> corria todo de a uno. Contra osu.ppy.sh, con 30 ms
+        /// de ida y vuelta, no se nota; contra un server europeo desde Sudamerica son 190 ms por
+        /// request, y abrir un perfil son quince. Medido: 2,9 segundos de fila.
+        ///
+        /// Va en true por defecto porque la cola nunca garantizo orden: los requests los encolan
+        /// componentes distintos que no se conocen entre si, y las secuencias que SI importan
+        /// (login -> token -> usuario) no pasan por la cola, se encadenan con callbacks.
+        ///
+        /// Poner false en un request que dependa de que otro anterior de la MISMA cola ya haya
+        /// terminado. La cola lo va a correr solo, esperando a que se vacie lo que haya en vuelo.
+        /// </summary>
+        public virtual bool AllowConcurrentExecution => true;
+
         protected virtual WebRequest CreateWebRequest() => new OsuWebRequest(Uri);
 
         protected virtual string Uri => $@"{API!.Endpoints.APIUrl}/api/v2/{Target}";

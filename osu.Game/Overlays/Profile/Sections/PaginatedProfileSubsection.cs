@@ -32,8 +32,26 @@ namespace osu.Game.Overlays.Profile.Sections
         /// </summary>
         protected virtual int InitialItemsCount => 5;
 
+        /// <summary>
+        /// torii: si esta subseccion pide sus datos apenas se abre el perfil, o recien cuando el
+        /// jugador scrollea.
+        ///
+        /// Abrir un perfil disparaba QUINCE requests de una: las tres de Ranks, las cuatro de
+        /// Historical, las SIETE de Beatmaps (favourite, graveyard, guest, loved, nominated,
+        /// pending, ranked) y kudosu. Y la cola de la API los corria de a uno, asi que a 190 ms
+        /// por viaje eran casi 3 segundos hasta ver las top plays, que son lo unico que la
+        /// mayoria mira. Medido en el log de red del cliente.
+        ///
+        /// Las que el jugador ve primero cargan al toque; el resto espera a que scrollee. Si
+        /// nunca baja, nunca se piden.
+        /// </summary>
+        protected virtual bool LoadWithoutScrolling => false;
+
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
+
+        private bool waitingForScroll;
+        private ScrollContainer<Drawable>? parentScroll;
 
         protected PaginationParameters? CurrentPage { get; private set; }
 
@@ -100,11 +118,42 @@ namespace osu.Game.Overlays.Profile.Sections
             CurrentPage = null;
             ItemsContainer.Clear();
 
+            waitingForScroll = false;
+
             if (e.NewValue?.User != null)
             {
-                showMore();
                 SetCount(GetCount(e.NewValue.User));
+
+                if (LoadWithoutScrolling)
+                    showMore();
+                else
+                    // Las que se difieren muestran su titulo con el contador, que sale del
+                    // payload del usuario y no de este request, asi que no quedan en blanco.
+                    // OJO: eso vale solo para las que tienen headerText. Las que se construyen
+                    // sin el (Recent Activity, Kudosu) no tienen nada que mostrar mientras
+                    // esperan, por eso esas cargan de una.
+                    waitingForScroll = true;
             }
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (!waitingForScroll)
+                return;
+
+            parentScroll ??= this.FindClosestParent<ScrollContainer<Drawable>>();
+
+            // Se usa el scroll y no "esta en pantalla" a proposito: al abrir el perfil las
+            // secciones todavia estan vacias, asi que miden un titulo cada una y entran TODAS
+            // en pantalla. Con visibilidad se cargarian igual todas. Que el jugador haya
+            // scrolleado es la unica señal honesta de que le interesa lo de mas abajo.
+            if (parentScroll == null || parentScroll.Current <= 0)
+                return;
+
+            waitingForScroll = false;
+            showMore();
         }
 
         private void showMore()

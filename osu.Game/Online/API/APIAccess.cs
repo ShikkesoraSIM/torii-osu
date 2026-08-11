@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -38,6 +39,20 @@ namespace osu.Game.Online.API
         private readonly OAuth authentication;
 
         private readonly Queue<APIRequest> queue = new Queue<APIRequest>();
+
+        /// <summary>
+        /// torii: los que ya salieron de la cola y estan esperando respuesta.
+        ///
+        /// flushQueue() solo fallaba lo que seguia DENTRO de queue, y antes eso alcanzaba porque
+        /// habia como mucho uno afuera (el que corria inline). Ahora hay hasta seis, y si no se
+        /// los trackea sobreviven al flush: siguen su viaje, y si en el medio corrio un Logout
+        /// (que hace authentication.Clear()) salen SIN header Authorization, vuelven 401 y llaman
+        /// a Logout de nuevo. Los que si alcanzan a volver 200 corren su Success despues del
+        /// logout, dejando por ejemplo la lista de amigos repoblada con la sesion cerrada.
+        ///
+        /// Se protege con el mismo lock que queue para que flushQueue vea un estado consistente.
+        /// </summary>
+        private readonly HashSet<APIRequest> inFlight = new HashSet<APIRequest>();
 
         public EndpointConfiguration Endpoints { get; }
 
@@ -219,8 +234,39 @@ namespace osu.Game.Online.API
         }
 
         /// <summary>
-        /// Dequeue from the queue and run each request synchronously until the queue is empty.
+        /// torii: cuantos requests de la cola pueden estar en vuelo a la vez.
+        ///
+        /// Seis es lo mismo que abre un navegador por host, y el servidor habla HTTP/2, asi que
+        /// no hay riesgo de saturarlo. Mas que esto no compra nada: lo que se gana es solapar la
+        /// latencia, y con seis ya se solapa casi toda.
         /// </summary>
+        private const int max_concurrent_requests = 6;
+
+        private readonly SemaphoreSlim concurrencySemaphore = new SemaphoreSlim(max_concurrent_requests, max_concurrent_requests);
+
+        /// <summary>
+        /// Dequeue from the queue and run requests until the queue is empty.
+        /// </summary>
+        /// <remarks>
+        /// torii: esto corria de a UNO, sincronicamente (era el comentario original: "run each
+        /// request synchronously"). Contra osu.ppy.sh no se nota, pero contra un server europeo
+        /// desde Sudamerica son 190 ms por viaje: abrir un perfil dispara quince requests y eran
+        /// 2,9 segundos de fila india antes de ver las top plays. Medido en el log de red del
+        /// cliente, no estimado.
+        ///
+        /// Ahora se despachan hasta <see cref="max_concurrent_requests"/> en paralelo. El hilo de
+        /// la API sigue siendo el unico que saca de la cola, asi que el orden de SALIDA se
+        /// respeta; lo que se solapa es la espera de red.
+        ///
+        /// Lo que NO se toco a proposito: el flujo de conexion (attemptConnect, el refresh de
+        /// token, el fetch del usuario local) llama a handleRequest por afuera de esta cola, asi
+        /// que sigue siendo estrictamente secuencial. Eso es lo unico que de verdad tenia un
+        /// contrato de orden.
+        ///
+        /// Y si algun request necesita correr solo, tiene la valvula de escape:
+        /// <see cref="APIRequest.AllowConcurrentExecution"/> en false lo hace esperar a que se
+        /// vacie lo que hay en vuelo y correr aislado.
+        /// </remarks>
         private void processQueuedRequests()
         {
             while (true)
@@ -231,10 +277,65 @@ namespace osu.Game.Online.API
                 {
                     if (queue.Count == 0) return;
 
-                    req = queue.Dequeue();
+                    req = queue.Peek();
+
+                    // Un request que pide correr solo espera a que se vacie lo que hay en vuelo.
+                    // Se mira con Peek y recien se saca cuando se lo puede correr, asi no se
+                    // pierde si hay que salir del metodo.
+                    if (!req.AllowConcurrentExecution && concurrencySemaphore.CurrentCount < max_concurrent_requests)
+                        return;
+
+                    queue.Dequeue();
                 }
 
-                handleRequest(req);
+                if (!req.AllowConcurrentExecution)
+                {
+                    handleRequest(req);
+                    continue;
+                }
+
+                try
+                {
+                    concurrencySemaphore.Wait(cancellationToken.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                lock (queue)
+                {
+                    // Si mientras esperabamos el slot dejamos de estar online (falla o logout),
+                    // este ya no sale. Sin esto se escapaba justo despues de un flushQueue.
+                    if (state.Value != APIState.Online)
+                    {
+                        concurrencySemaphore.Release();
+                        req.Fail(new WebRequestFlushedException(state.Value));
+                        return;
+                    }
+
+                    inFlight.Add(req);
+                }
+
+                // LongRunning y no Task.Run: WebRequest.Perform() bloquea al llamador todo el
+                // viaje (adentro hace StartNew(LongRunning).WaitSafely()), asi que con Task.Run
+                // clavabamos hasta seis threads del pool esperando red. PerformAsync, dos metodos
+                // mas abajo en el mismo archivo, ya usa LongRunning por esta misma razon. Y hay
+                // requests de subida de mapas con Timeout de 10 minutos que van por esta cola.
+                Task.Factory.StartNew(() =>
+                {
+                    try
+                    {
+                        handleRequest(req);
+                    }
+                    finally
+                    {
+                        lock (queue)
+                            inFlight.Remove(req);
+
+                        concurrencySemaphore.Release();
+                    }
+                }, TaskCreationOptions.LongRunning);
             }
         }
 
@@ -509,7 +610,8 @@ namespace osu.Game.Online.API
                     return false;
 
                 // Reset failure count if this request succeeded.
-                failureCount = 0;
+                // torii: Interlocked porque esto corre desde los workers de la cola.
+                Interlocked.Exchange(ref failureCount, 0);
                 return true;
             }
             catch (HttpRequestException re)
@@ -575,14 +677,39 @@ namespace osu.Game.Online.API
             }
         }
 
+        /// <summary>
+        /// torii: ahora esto lo pueden llamar varios workers al mismo tiempo (ver
+        /// processQueuedRequests), asi que el contador va con Interlocked y el corte a Failing
+        /// va bajo lock. Sin el lock, tres fallas simultaneas podian entrar las tres al if y
+        /// disparar tres flushQueue encimados.
+        /// </summary>
+        private readonly object failureLock = new object();
+
         private void handleFailure()
         {
-            failureCount++;
-            log.Add($@"API failure count is now {failureCount}");
+            int count = Interlocked.Increment(ref failureCount);
+            log.Add($@"API failure count is now {count}");
 
-            if (failureCount >= 3)
+            if (count < 3)
+                return;
+
+            lock (failureLock)
             {
-                state.Value = APIState.Failing;
+                // Otro worker pudo haber cortado ya y reseteado el contador.
+                if (Volatile.Read(ref failureCount) < 3)
+                    return;
+
+                // OJO: el guard protege SOLO la transicion de estado. El flush va SIEMPRE.
+                // El original entraba a este if en la falla 3, 4, 5... y flusheaba cada vez.
+                // Al agregarle `|| state.Value == APIState.Failing` al return, con el server
+                // caido y el token todavia valido pasaba esto: run() no llama a
+                // processQueuedRequests salvo que el estado sea Online, y Queue() solo rechaza
+                // si es Offline, no si es Failing. O sea que todo lo que el jugador pidiera
+                // durante el outage se quedaba en la cola PARA SIEMPRE, sin Success ni Failure:
+                // spinner eterno, sin error y sin reintentar, hasta que expirara el token.
+                if (state.Value != APIState.Failing)
+                    state.Value = APIState.Failing;
+
                 flushQueue();
             }
         }
@@ -613,9 +740,17 @@ namespace osu.Game.Online.API
 
                 queue.Clear();
 
+                // Los que ya salieron tambien: Fail() hace WebRequest.Abort(), que corta el
+                // viaje en curso. Sin esto sobreviven al flush (ver el comentario de inFlight).
+                var oldInFlightRequests = inFlight.ToArray();
+                inFlight.Clear();
+
                 if (failOldRequests)
                 {
                     foreach (var req in oldQueueRequests)
+                        req.Fail(new WebRequestFlushedException(state.Value));
+
+                    foreach (var req in oldInFlightRequests)
                         req.Fail(new WebRequestFlushedException(state.Value));
                 }
             }
@@ -623,14 +758,32 @@ namespace osu.Game.Online.API
 
         public void Logout()
         {
-            password = null;
-            SecondFactorCode = null;
-            authentication.Clear();
+            // Bajo el mismo lock que handleFailure, y con salida temprana si ya estamos afuera.
+            //
+            // handleWebException llama aca directo desde un worker ante un 401/403. Antes de
+            // paralelizar la cola eso era imposible (el unico camino desde la cola era el request
+            // que corria inline en el hilo de la API), pero ahora, si al jugador le invalidan la
+            // sesion con el perfil abierto, los seis requests en vuelo vuelven 401 casi juntos y
+            // entran los seis aca. El setter de Bindable es read-compare-write sin sincronizar,
+            // asi que los seis pasaban el comparador y disparaban el evento Online->Offline seis
+            // veces; OnlineStatusNotifier lo maneja inline y su guard es un bool comun, o sea
+            // seis notificaciones apiladas de "API connection interrupted". Y un worker en Logout
+            // se podia solapar con otro en handleFailure, que si tomaba el lock, dejando el estado
+            // final indeterminado.
+            lock (failureLock)
+            {
+                if (state.Value == APIState.Offline)
+                    return;
 
-            localUserState.ClearLocalUser();
+                password = null;
+                SecondFactorCode = null;
+                authentication.Clear();
 
-            state.Value = APIState.Offline;
-            flushQueue();
+                localUserState.ClearLocalUser();
+
+                state.Value = APIState.Offline;
+                flushQueue();
+            }
         }
 
         public void RefreshLocalUser()

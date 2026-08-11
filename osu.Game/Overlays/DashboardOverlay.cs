@@ -32,7 +32,18 @@ namespace osu.Game.Overlays
             }, true);
         }
 
-        protected override DashboardOverlayHeader CreateHeader() => new DashboardOverlayHeader();
+        // torii: el dashboard abre en "currently online" y no en "friends".
+        //
+        // El default salia del primer valor del enum (Friends). Lo que la gente viene a buscar
+        // aca es quien esta jugando ahora y a quien puede espectar.
+        //
+        // Va al CREAR el header y no en LoadComplete a proposito: ahi la clase base ya bindeo
+        // OnTabChanged, que cancela y arranca la carga, asi que setearlo despues dispararia el
+        // fetch de usuarios con el overlay todavia cerrado, al arrancar el juego.
+        protected override DashboardOverlayHeader CreateHeader() => new DashboardOverlayHeader
+        {
+            Current = { Value = DashboardOverlayTabs.CurrentlyPlaying }
+        };
 
         public override bool AcceptsFocus => false;
 

@@ -18,6 +18,16 @@ namespace osu.Game.Online.API.Requests
         private readonly string cosmeticId;
         private readonly int price;
 
+        /// <summary>
+        /// torii: las mutaciones siguen siendo seriales. Ver APIRequest.AllowConcurrentExecution.
+        ///
+        /// La cola paraleliza para que las LECTURAS no hagan fila (abrir un perfil eran 15 GET en
+        /// serie a 190 ms cada uno). Pero dos escrituras al mismo recurso encoladas juntas si
+        /// dependen del orden: equipar tres auras seguidas mandaba tres PATCH a la vez y el server
+        /// se quedaba con el que commiteara ultimo, que podia no ser el que el jugador eligio.
+        /// </summary>
+        public override bool AllowConcurrentExecution => false;
+
         public PurchaseCosmeticRequest(string cosmeticId, int price)
         {
             this.cosmeticId = cosmeticId;

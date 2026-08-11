@@ -19,6 +19,14 @@ namespace osu.Game.Overlays.Profile.Sections.Ranks
     {
         private readonly ScoreType type;
 
+        /// <summary>
+        /// torii: los scores son lo que la gente abre el perfil para mirar, asi que se piden
+        /// apenas se abre. Todo lo demas (los siete listados de beatmaps, kudosu, medallas, most
+        /// played, replays) espera a que el jugador scrollee. Ver
+        /// PaginatedProfileSubsection.LoadWithoutScrolling.
+        /// </summary>
+        protected override bool LoadWithoutScrolling => true;
+
         public PaginatedScoreContainer(ScoreType type, Bindable<UserProfileData?> user, LocalisableString headerText)
             : base(user, headerText)
         {

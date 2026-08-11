@@ -69,6 +69,19 @@ namespace osu.Game.Overlays.Dashboard.CurrentlyOnline
 
             SearchText.BindValueChanged(onSearchTextChanged, true);
 
+            // torii: la primera pasada va YA.
+            //
+            // AddDelayed con repeticion NO corre de entrada: la primera vez es recien a los 2000
+            // ms. En osu! eso no se nota porque updateUsers() tambien se dispara solo cuando hay
+            // mas de 100 usuarios pendientes (ver onUserPresenceUpdated), y con miles online eso
+            // pasa siempre en el primer evento. Con diez online nunca se cumple, asi que abrir el
+            // dashboard eran dos segundos de tarjeta vacia, cada vez. El umbral esta pensado para
+            // un server grande.
+            //
+            // BindCollectionChanged de arriba ya corrio con true, asi que pendingUsers ya tiene a
+            // los que estaban conectados: esta llamada los dibuja de una. El delayed queda para
+            // los que van llegando despues, que es para lo que sirve.
+            updateUsers();
             Scheduler.AddDelayed(updateUsers, 2000, true);
         }
 

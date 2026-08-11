@@ -18,6 +18,12 @@ namespace osu.Game.Overlays.Profile.Sections.Kudosu
         {
         }
 
+        /// <summary>
+        /// torii: igual que Recent Activity, se construye sin headerText, asi que no tiene
+        /// contador que mostrar mientras espera. Ver PaginatedProfileSubsection.LoadWithoutScrolling.
+        /// </summary>
+        protected override bool LoadWithoutScrolling => true;
+
         protected override APIRequest<List<APIKudosuHistory>> CreateRequest(UserProfileData user, PaginationParameters pagination)
             => new GetUserKudosuHistoryRequest(user.User.Id, pagination);
 

@@ -26,6 +26,15 @@ namespace osu.Game.Overlays.Profile.Sections.Recent
             ItemsContainer.Spacing = new Vector2(0, 8);
         }
 
+        /// <summary>
+        /// torii: esta carga de una aunque sea un request mas, porque es la PRIMERA seccion del
+        /// perfil (About y Medals estan comentadas en UserProfileOverlay) y ademas no tiene ni
+        /// contador ni encabezado: se construye sin headerText, y ProfileSubsection le pone
+        /// Alpha 0 al header cuando no hay texto. Diferida se veia la tarjeta "Recent" vacia,
+        /// sin items, sin mensaje y sin spinner, hasta que el jugador scrolleara.
+        /// </summary>
+        protected override bool LoadWithoutScrolling => true;
+
         protected override APIRequest<List<APIRecentActivity>> CreateRequest(UserProfileData user, PaginationParameters pagination) =>
             new GetUserRecentActivitiesRequest(user.User.Id, pagination);
 
