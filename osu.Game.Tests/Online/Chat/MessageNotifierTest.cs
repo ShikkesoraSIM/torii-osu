@@ -87,5 +87,17 @@ namespace osu.Game.Tests.Online.Chat
         {
             ClassicAssert.True(MessageNotifier.MatchUsername("username: hi", "username").Success);
         }
+
+        [Test]
+        public void TestUsernameInsideLinkNegative()
+        {
+            ClassicAssert.False(MessageNotifier.MatchUsername("look https://osu.shikkesora.com/beatmapsets/123 cool", "shikkesora").Success);
+        }
+
+        [Test]
+        public void TestUsernameOutsideLinkStillMatches()
+        {
+            ClassicAssert.True(MessageNotifier.MatchUsername("shikkesora look https://osu.shikkesora.com/b/1", "shikkesora").Success);
+        }
     }
 }
