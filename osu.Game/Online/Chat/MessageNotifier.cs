@@ -3,6 +3,7 @@
 
 #nullable disable
 
+using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -156,7 +157,32 @@ namespace osu.Game.Online.Chat
         {
             string fullName = Regex.Escape(username);
             string underscoreName = Regex.Escape(username.Replace(' ', '_'));
-            return Regex.Match(message, $@"(^|\W)({fullName}|{underscoreName})($|\W)", RegexOptions.IgnoreCase);
+
+            foreach (Match match in Regex.Matches(message, $@"(^|\W)({fullName}|{underscoreName})($|\W)", RegexOptions.IgnoreCase))
+            {
+                // los puntos y barras de una url cuentan como \W, asi que sin esto cualquier link
+                // al server menciona a todo el mundo que tenga el dominio en el nombre
+                if (!isInsideLink(message, match.Groups[2].Index))
+                    return match;
+            }
+
+            return Match.Empty;
+        }
+
+        private static bool isInsideLink(string message, int index)
+        {
+            int start = index;
+            while (start > 0 && !char.IsWhiteSpace(message[start - 1]))
+                start--;
+
+            int end = index;
+            while (end < message.Length && !char.IsWhiteSpace(message[end]))
+                end++;
+
+            string token = message.Substring(start, end - start);
+            return token.Contains("://", StringComparison.Ordinal)
+                   || token.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                   || (token.Contains('.', StringComparison.Ordinal) && token.Contains('/', StringComparison.Ordinal));
         }
 
         private const int truncate_length = 60;
