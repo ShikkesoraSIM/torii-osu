@@ -14,8 +14,8 @@ namespace osu.Game.Skinning
         public new static SkinInfo CreateInfo() => new SkinInfo
         {
             ID = Skinning.SkinInfo.ARGON_PRO_SKIN,
-            Name = "osu! \"argon\" pro (2022)",
-            Creator = "team osu!",
+            Name = "\"argon\" pro (2022)",
+            Creator = "ppy",
             Protected = true,
             InstantiationInfo = typeof(ArgonProSkin).GetInvariantInstantiationInfo()
         };

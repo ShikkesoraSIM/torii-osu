@@ -1782,10 +1782,10 @@ namespace osu.Game.Overlays.Toolbar
 
         private static readonly (int Id, string Name, Color4 Colour)[] rulesets =
         {
-            (0, "osu!",        new Color4(255, 130, 195, 255)),  // pink
-            (1, "osu!taiko",   new Color4(225, 80, 105, 255)),   // red
-            (2, "osu!catch",   new Color4(255, 158, 60, 255)),   // orange
-            (3, "osu!mania",   new Color4(110, 220, 130, 255)),  // green
+            (0, "standard",        new Color4(255, 130, 195, 255)),  // pink
+            (1, "taiko",   new Color4(225, 80, 105, 255)),   // red
+            (2, "catch",   new Color4(255, 158, 60, 255)),   // orange
+            (3, "mania",   new Color4(110, 220, 130, 255)),  // green
         };
 
         private OsuSpriteText totalText = null!;

@@ -191,17 +191,17 @@ namespace osu.Game.Overlays.Profile.Sections.Recent
 
                 case RecentActivityType.UserSupportAgain:
                     addUserLink();
-                    addText(" has once again chosen to support osu! - thanks for your generosity!");
+                    addText(" has once again chosen to support Torii - thanks for your generosity!");
                     break;
 
                 case RecentActivityType.UserSupportFirst:
                     addUserLink();
-                    addText(" has become an osu!supporter - thanks for your generosity!");
+                    addText(" has become a Torii supporter - thanks for your generosity!");
                     break;
 
                 case RecentActivityType.UserSupportGift:
                     addUserLink();
-                    addText(" has received the gift of osu!supporter!");
+                    addText(" has received the gift of Torii supporter!");
                     break;
 
                 case RecentActivityType.UsernameChange:

@@ -17,7 +17,7 @@ namespace osu.Game.Rulesets.Mods
         public override string Acronym => @"SV2";
         public override IconUsage? Icon => OsuIcon.ModScoreV2;
         public override ModType Type => ModType.System;
-        public override LocalisableString Description => "Score set on earlier osu! versions with the V2 scoring algorithm active.";
+        public override LocalisableString Description => "Score set on earlier client versions with the V2 scoring algorithm active.";
         public override bool UserPlayable => false;
         public override bool ValidForMultiplayer => false;
         public override bool ValidForMultiplayerAsFreeMod => false;

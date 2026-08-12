@@ -254,7 +254,7 @@ namespace osu.Game.Rulesets.Osu
 
         public override IBeatmapVerifier CreateBeatmapVerifier() => new OsuBeatmapVerifier();
 
-        public override string Description => "osu!";
+        public override string Description => "standard";
 
         public override string ShortName => SHORT_NAME;
 

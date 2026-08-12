@@ -47,9 +47,9 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Label="Resources">
-    <!-- torii.ico es el icono activo; dejamos lazer.ico embebido por si algo lo referencia por nombre. -->
     <EmbeddedResource Include="torii.ico" />
-    <EmbeddedResource Include="lazer.ico" />
+    <!-- CC BY-NC 4.0 seccion 3(a): la atribucion tiene que viajar con el material -->
+    <Content Include="../THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Label="Windows Icons">
     <Content Include="*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -71,6 +71,5 @@
 
   <ItemGroup Label="macOS Icons" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
     <Content Include="torii.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('torii.icns')" />
-    <Content Include="lazer.icns" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Condition="Exists('lazer.icns')" />
   </ItemGroup>
 </Project>

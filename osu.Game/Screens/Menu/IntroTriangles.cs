@@ -205,7 +205,7 @@ namespace osu.Game.Screens.Menu
 
                     using (BeginDelayedSequence(text_4))
                     {
-                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to osu!");
+                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to torii");
                         welcomeText.TransformTo(nameof(welcomeText.Spacing), new Vector2(50, 0), 5000);
                     }
 
@@ -306,13 +306,13 @@ namespace osu.Game.Screens.Menu
                         highlight = new LogoAnimation
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Texture = textures.Get(@"Intro/Triangles/logo-highlight"),
+                            Texture = textures.Get(@"Intro/Triangles/torii-logo-highlight"),
                             Colour = Color4.White,
                         },
                         background = new LogoAnimation
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Texture = textures.Get(@"Intro/Triangles/logo-background"),
+                            Texture = textures.Get(@"Intro/Triangles/torii-logo-background"),
                             Colour = OsuColour.Gray(0.6f),
                         },
                     };

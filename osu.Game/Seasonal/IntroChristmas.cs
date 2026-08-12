@@ -159,13 +159,13 @@ namespace osu.Game.Seasonal
                 using (BeginAbsoluteSequence(0))
                 {
                     using (BeginDelayedSequence(getTimeForBeat(-16)))
-                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to osu!");
+                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to torii");
 
                     using (BeginDelayedSequence(getTimeForBeat(-15)))
                         welcomeText.FadeIn().OnComplete(t => t.Text = "");
 
                     using (BeginDelayedSequence(getTimeForBeat(-14)))
-                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to osu!");
+                        welcomeText.FadeIn().OnComplete(t => t.Text = "welcome to torii");
 
                     using (BeginDelayedSequence(getTimeForBeat(-13)))
                         welcomeText.FadeIn().OnComplete(t => t.Text = "");
@@ -272,13 +272,13 @@ namespace osu.Game.Seasonal
                         highlight = new LogoAnimation
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Texture = textures.Get(@"Intro/Triangles/logo-highlight"),
+                            Texture = textures.Get(@"Intro/Triangles/torii-logo-highlight"),
                             Colour = Color4.White,
                         },
                         background = new LogoAnimation
                         {
                             RelativeSizeAxes = Axes.Both,
-                            Texture = textures.Get(@"Intro/Triangles/logo-background"),
+                            Texture = textures.Get(@"Intro/Triangles/torii-logo-background"),
                             Colour = OsuColour.Gray(0.6f),
                         },
                     };

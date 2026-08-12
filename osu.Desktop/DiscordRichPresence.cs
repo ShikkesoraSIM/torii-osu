@@ -29,9 +29,11 @@ namespace osu.Desktop
 {
     internal partial class DiscordRichPresence : Component
     {
-        private const string client_id = "1216669957799018608";
+        // era la aplicacion de Discord de ppy: mostraba "Playing osu!" con el logo de osu!
+        // a toda la lista de amigos. Apagado hasta que exista una app propia de Torii.
+        private const string client_id = "";
 
-        private DiscordRpcClient client = null!;
+        private DiscordRpcClient? client;
 
         [Resolved]
         private IBindable<RulesetInfo> ruleset { get; set; } = null!;
@@ -57,7 +59,7 @@ namespace osu.Desktop
 
         private readonly RichPresence presence = new RichPresence
         {
-            Assets = new Assets { LargeImageKey = "osu_logo_lazer" },
+            Assets = new Assets { LargeImageKey = "torii_logo" },
             Timestamps = Timestamps.Now,
             Secrets = new Secrets
             {
@@ -74,6 +76,9 @@ namespace osu.Desktop
             privacyMode = config.GetBindable<DiscordRichPresenceMode>(OsuSetting.DiscordRichPresence);
             userStatus = config.GetBindable<UserStatus>(OsuSetting.UserOnlineStatus);
             userActivity = session.GetBindable<UserActivity?>(Static.UserOnlineActivity);
+
+            if (string.IsNullOrEmpty(client_id))
+                return;
 
             client = new DiscordRpcClient(client_id)
             {
@@ -123,7 +128,7 @@ namespace osu.Desktop
             Logger.Log("Discord RPC Client ready.", LoggingTarget.Network, LogLevel.Debug);
 
             // when RPC is lost and reconnected, we have to clear presence state for updatePresence to work (see DiscordRpcClient.SkipIdenticalPresence).
-            if (client.CurrentPresence != null)
+            if (client?.CurrentPresence != null)
                 client.SetPresence(null);
 
             schedulePresenceUpdate();
@@ -140,7 +145,7 @@ namespace osu.Desktop
             presenceUpdateDelegate?.Cancel();
             presenceUpdateDelegate = Scheduler.AddDelayed(() =>
             {
-                if (!client.IsInitialized)
+                if (client?.IsInitialized != true)
                     return;
 
                 if (!api.IsLoggedIn || userStatus.Value == UserStatus.Offline || privacyMode.Value == DiscordRichPresenceMode.Off)
@@ -210,7 +215,7 @@ namespace osu.Desktop
                     Password = room.Settings.Password,
                 };
 
-                if (client.HasRegisteredUriScheme)
+                if (client?.HasRegisteredUriScheme == true)
                     presence.Secrets.JoinSecret = JsonConvert.SerializeObject(roomSecret);
 
                 // discord cannot handle both secrets and buttons at the same time, so we need to choose something.
@@ -333,7 +338,7 @@ namespace osu.Desktop
             if (statisticsProvider.IsNotNull())
                 statisticsProvider.StatisticsUpdated -= onStatisticsUpdated;
 
-            client.Dispose();
+            client?.Dispose();
             base.Dispose(isDisposing);
         }
 

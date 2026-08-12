@@ -109,14 +109,11 @@ namespace osu.Game.Graphics
         {
             switch (typeface)
             {
+                // Torus y Venera necesitan licencia comercial para distribuir, van a Nunito (OFL)
                 case Typeface.Venera:
-                    return @"Venera";
-
                 case Typeface.Torus:
-                    return @"Torus";
-
                 case Typeface.TorusAlternate:
-                    return @"Torus-Alternate";
+                    return @"Nunito";
 
                 case Typeface.Inter:
                     return @"Inter";
