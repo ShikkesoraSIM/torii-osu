@@ -188,7 +188,7 @@ namespace osu.Game.Screens.Menu
                                                                         new Box
                                                                         {
                                                                             RelativeSizeAxes = Axes.Both,
-                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"ff66ab"), Color4Extensions.FromHex(@"cc5289")),
+                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"e0457f"), Color4Extensions.FromHex(@"7a1b8c")),
                                                                         },
                                                                         triangles = new TrianglesV2
                                                                         {
@@ -197,7 +197,7 @@ namespace osu.Game.Screens.Menu
                                                                             Thickness = 0.009f,
                                                                             ScaleAdjust = 3,
                                                                             SpawnRatio = 1.4f,
-                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"ff66ab"), Color4Extensions.FromHex(@"b6346f")),
+                                                                            Colour = ColourInfo.GradientVertical(Color4Extensions.FromHex(@"e0457f"), Color4Extensions.FromHex(@"96238a")),
                                                                             RelativeSizeAxes = Axes.Both,
                                                                         },
                                                                     }
@@ -282,8 +282,8 @@ namespace osu.Game.Screens.Menu
             SampleBeat = audio.Samples.Get(@"Menu/osu-logo-heartbeat");
             SampleDownbeat = audio.Samples.Get(@"Menu/osu-logo-downbeat");
 
-            logo.Texture = textures.Get(@"Menu/logo");
-            ripple.Texture = textures.Get(@"Menu/logo");
+            logo.Texture = textures.Get(@"Torii/cookie");
+            ripple.Texture = textures.Get(@"Torii/cookie");
         }
 
         private int lastBeatIndex;

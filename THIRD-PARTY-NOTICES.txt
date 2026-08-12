@@ -1,0 +1,107 @@
+THIRD PARTY NOTICES
+Torii
+
+Torii is an unofficial fork of osu!lazer. It is not affiliated with, endorsed by,
+or sponsored by ppy Pty Ltd.
+
+================================================================================
+1. osu! (game client source)
+================================================================================
+
+Copyright (c) 2025 ppy Pty Ltd <contact@ppy.sh>
+Source: https://github.com/ppy/osu
+Licence: MIT
+
+Torii is a modified derivative of this source. Modifications were made by the
+Torii project and are not the work of ppy Pty Ltd.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+================================================================================
+2. osu!framework
+================================================================================
+
+Copyright (c) 2024 ppy Pty Ltd <contact@ppy.sh>
+Source: https://github.com/ppy/osu-framework
+Licence: MIT (full text as reproduced in section 1)
+
+================================================================================
+3. osu!resources (game art, sound effects, default skins, music)
+================================================================================
+
+Copyright (c) ppy Pty Ltd <contact@ppy.sh>
+Source: https://github.com/ppy/osu-resources
+Licence: Creative Commons Attribution-NonCommercial 4.0 International
+         (CC BY-NC 4.0)
+Licence text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+Torii bundles material from osu!resources. That material remains the copyright
+of ppy Pty Ltd and is used under the terms of CC BY-NC 4.0.
+
+MODIFICATIONS: the Torii distribution does not ship this material unmodified.
+The following changes were made by the Torii project:
+  - The main menu logo, the intro logo artwork and the intro text were replaced
+    with Torii artwork.
+  - The Torus, Torus-Alternate and Venera typefaces were removed entirely.
+  - Assets carrying the osu! name or marks were removed or replaced.
+Any material previously modified upstream retains its own indication of change
+as supplied by the licensor.
+
+NONCOMMERCIAL USE: Torii is distributed free of charge. It has no paid tiers, no
+advertising, no paywalled content and accepts no donations. Nothing in Torii is
+sold, and no payment of any kind is required or accepted to obtain, use or
+access this software or any part of it.
+
+DISCLAIMER OF WARRANTIES: the licensor offers the licensed material as-is and
+as-available, and makes no representations or warranties of any kind concerning
+the licensed material, whether express, implied, statutory or other. See section
+5 of the licence linked above for the full disclaimer and limitation of
+liability.
+
+NO ENDORSEMENT: nothing here constitutes or may be construed as permission to
+assert or imply that Torii is connected with, or sponsored or endorsed by, ppy
+Pty Ltd.
+
+TRADEMARKS: the CC BY-NC 4.0 licence does not grant any rights in the trademarks
+of ppy Pty Ltd (see section 2(b)(2) of the licence). "osu!" is a trademark of
+ppy Pty Ltd and is not used by Torii as a mark. Where the osu! name appears in
+this software it is a factual reference to the upstream project, not a claim of
+affiliation.
+
+================================================================================
+4. Inter
+================================================================================
+
+Copyright (c) 2016 The Inter Project Authors
+Source: https://github.com/rsms/inter
+Licence: SIL Open Font License 1.1
+Licence text: https://openfontlicense.org/
+
+================================================================================
+5. Noto Fonts
+================================================================================
+
+Copyright (c) Google LLC
+Source: https://github.com/notofonts
+Licence: Apache License 2.0
+Licence text: https://www.apache.org/licenses/LICENSE-2.0
+
+================================================================================
+
+Questions about this notice, or a request to correct it, can be sent to the
+Torii maintainer. Corrections will be made promptly.

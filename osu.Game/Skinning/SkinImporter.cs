@@ -167,7 +167,7 @@ namespace osu.Game.Skinning
 
             List<string> newLines = new List<string>
             {
-                @"// The following content was automatically added by osu! in order to use metadata that more closely matches user expectations.",
+                @"// The following content was automatically added by Torii in order to use metadata that more closely matches user expectations.",
                 @"[General]",
                 nameLine,
                 authorLine,

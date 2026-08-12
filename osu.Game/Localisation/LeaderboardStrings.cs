@@ -40,9 +40,9 @@ namespace osu.Game.Localisation
         public static LocalisableString PleaseSignInToViewOnlineLeaderboards => new TranslatableString(getKey(@"please_sign_in_to_view_online_leaderboards"), @"Please sign in to view online leaderboards!");
 
         /// <summary>
-        /// "Please invest in an osu!supporter tag to view this leaderboard!"
+        /// "Please invest in a Torii supporter tag to view this leaderboard!"
         /// </summary>
-        public static LocalisableString PleaseInvestInAnOsuSupporterTagToViewThisLeaderboard => new TranslatableString(getKey(@"please_invest_in_an_osu_supporter_tag_to_view_this_leaderboard"), @"Please invest in an osu!supporter tag to view this leaderboard!");
+        public static LocalisableString PleaseInvestInAnOsuSupporterTagToViewThisLeaderboard => new TranslatableString(getKey(@"please_invest_in_an_osu_supporter_tag_to_view_this_leaderboard"), @"Please invest in a Torii supporter tag to view this leaderboard!");
 
         /// <summary>
         /// "You are not on a team. Maybe you should join one!"

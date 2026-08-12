@@ -768,9 +768,9 @@ jobs:
         if [[ "${{ matrix.runtime }}" == osx-* ]] && [[ "${{ matrix.os }}" != macos* ]]; then
           # Cross-building macOS on Linux: create plain zip fallback instead of vpk.
           mkdir -p Releases
-          ZIP_NAME="osu.app.Intel.zip"
+          ZIP_NAME="torii.app.Intel.zip"
           if [[ "${{ matrix.runtime }}" == "osx-arm64" ]]; then
-            ZIP_NAME="osu.app.Apple.Silicon.zip"
+            ZIP_NAME="torii.app.Apple.Silicon.zip"
           fi
           (
             cd "publish/${{ matrix.runtime }}"
@@ -851,7 +851,7 @@ jobs:
         # macOS zip rename if present
         if [[ "${{ matrix.runtime }}" == osx-* ]]; then
           if [[ "${{ matrix.runtime }}" == "osx-x64" ]]; then
-            for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/osu.app.Intel.zip; done
+            for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/torii.app.Intel.zip; done
             # Ensure nupkg channel naming uses osx-x64-full.nupkg
             for f in Releases/*.nupkg; do
               if [[ "$f" == *osx*full.nupkg ]] && [[ "$f" != *arm64* ]]; then
@@ -860,7 +860,7 @@ jobs:
               fi
             done
           else
-            for f in Releases/*osx-arm64*.zip; do mv -f "$f" Releases/osu.app.Apple.Silicon.zip; done
+            for f in Releases/*osx-arm64*.zip; do mv -f "$f" Releases/torii.app.Apple.Silicon.zip; done
             # Ensure nupkg channel naming uses osx-arm64-full.nupkg
             for f in Releases/*.nupkg; do
               if [[ "$f" == *osx*full.nupkg ]]; then
@@ -946,11 +946,11 @@ jobs:
             required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
             ;;
           osx-x64)
-            required_files+=("Releases/osu.app.Intel.zip")
+            required_files+=("Releases/torii.app.Intel.zip")
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
           osx-arm64)
-            required_files+=("Releases/osu.app.Apple.Silicon.zip")
+            required_files+=("Releases/torii.app.Apple.Silicon.zip")
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
           android)
@@ -1092,8 +1092,8 @@ jobs:
           "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
-          "osu.app.Intel.zip"
-          "osu.app.Apple.Silicon.zip"
+          "torii.app.Intel.zip"
+          "torii.app.Apple.Silicon.zip"
           "portable-osx-x64.zip"
           "portable-osx-arm64.zip"
           "torii.apk"
@@ -1160,8 +1160,8 @@ jobs:
         - **Linux (ARM64) AppImage:** \`torii-linux-arm64.AppImage\`
         - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
         - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
-        - **macOS (Intel):** \`osu.app.Intel.zip\`
-        - **macOS (Apple Silicon):** \`osu.app.Apple.Silicon.zip\`
+        - **macOS (Intel):** \`torii.app.Intel.zip\`
+        - **macOS (Apple Silicon):** \`torii.app.Apple.Silicon.zip\`
         - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
         - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
         - **Android APK:** \`torii.apk\`
