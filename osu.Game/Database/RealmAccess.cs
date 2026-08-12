@@ -102,7 +102,7 @@ namespace osu.Game.Database
         /// 50   2025-07-11    Add UserTags to BeatmapMetadata.
         /// 51   2025-07-22    Add ScoreInfo.Pauses.
         /// </summary>
-        private const int schema_version = 51;
+        private const int schema_version = 52;
 
         /// <summary>
         /// Lock object which is held during <see cref="BlockAllOperations"/> sections, blocking realm retrieval during blocking periods.
@@ -1304,6 +1304,31 @@ namespace osu.Game.Database
                 case 49:
                     foreach (var score in migration.NewRealm.All<ScoreInfo>().Where(s => s.LegacyOnlineID == 0))
                         score.LegacyOnlineID = -1;
+
+                    break;
+
+                case 52:
+                    // Los skins protegidos se insertan una sola vez y despues nunca se
+                    // vuelven a tocar, asi que el rename de las clases no llega a nadie
+                    // que ya tenga el cliente instalado: la fila de realm conserva el
+                    // nombre viejo con la marca. Se los renombra por GUID.
+                    var nombresSkin = new Dictionary<Guid, string>
+                    {
+                        { SkinInfo.ARGON_SKIN, "\"argon\" (2022)" },
+                        { SkinInfo.ARGON_PRO_SKIN, "\"argon\" pro (2022)" },
+                        { SkinInfo.TRIANGLES_SKIN, "\"triangles\" (2017)" },
+                        { SkinInfo.CLASSIC_SKIN, "\"classic\" (2013)" },
+                        { SkinInfo.RETRO_SKIN, "\"retro\" (2008)" },
+                    };
+
+                    foreach (var skin in migration.NewRealm.All<SkinInfo>())
+                    {
+                        if (nombresSkin.TryGetValue(skin.ID, out string? nombre))
+                        {
+                            skin.Name = nombre;
+                            skin.Creator = "ppy";
+                        }
+                    }
 
                     break;
             }
