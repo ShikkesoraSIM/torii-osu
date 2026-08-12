@@ -26,7 +26,7 @@ env:
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
   FRAMEWORK_REF: '9ec5a6cc6beb2ca35a3c50fe2482dcdd5256caae'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
-  RESOURCES_REF: 'f93fbe27558daa97a8f71b6358910100f847136a'
+  RESOURCES_REF: '36373715cad5a2ecde1e8084ae4d83ca15886cf1'
   VELDRID_REPOSITORY: 'ShikkesoraSIM/torii-veldrid'
   VELDRID_REF: '99a6ad4a0c52ad08e3f01d5b7731c18d333f0086'
 
