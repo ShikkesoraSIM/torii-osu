@@ -23,8 +23,8 @@ namespace osu.Game.Skinning
         public static SkinInfo CreateInfo() => new SkinInfo
         {
             ID = Skinning.SkinInfo.CLASSIC_SKIN, // this is temporary until database storage is decided upon.
-            Name = "osu! \"classic\" (2013)",
-            Creator = "team osu!",
+            Name = "\"classic\" (2013)",
+            Creator = "ppy",
             Protected = true,
             InstantiationInfo = typeof(DefaultLegacySkin).GetInvariantInstantiationInfo()
         };

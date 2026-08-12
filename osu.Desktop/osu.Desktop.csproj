@@ -37,8 +37,9 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
   </ItemGroup>
   <ItemGroup Label="Resources">
-    <EmbeddedResource Include="lazer.ico" />
     <EmbeddedResource Include="torii.ico" />
+    <!-- CC BY-NC 4.0 seccion 3(a): la atribucion tiene que viajar con el material -->
+    <Content Include="../THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup Label="Windows Icons">
     <Content Include="*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

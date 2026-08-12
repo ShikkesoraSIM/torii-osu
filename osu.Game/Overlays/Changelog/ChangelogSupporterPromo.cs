@@ -116,15 +116,6 @@ namespace osu.Game.Overlays.Changelog
                                     Origin = Anchor.CentreRight,
                                     Children = new Drawable[]
                                     {
-                                        new Sprite
-                                        {
-                                            Anchor = Anchor.Centre,
-                                            Origin = Anchor.Centre,
-                                            Margin = new MarginPadding { Bottom = 28 },
-                                            RelativeSizeAxes = Axes.Both,
-                                            FillMode = FillMode.Fill,
-                                            Texture = textures.Get(@"Online/supporter-pippi"),
-                                        },
                                         new Container
                                         {
                                             Anchor = Anchor.TopCentre,
@@ -153,8 +144,8 @@ namespace osu.Game.Overlays.Changelog
                 },
             };
 
-            supportLinkText.AddText("Support further development of osu! and ");
-            supportLinkText.AddLink("become an osu!supporter", @"https://osu.ppy.sh/home/support", t => t.Font = t.Font.With(weight: FontWeight.Bold));
+            supportLinkText.AddText("Support further development of Torii and ");
+            supportLinkText.AddLink("become a Torii supporter", @"https://torii-web.shikkesora.com/wiki", t => t.Font = t.Font.With(weight: FontWeight.Bold));
             supportLinkText.AddText(" today!");
         }
 

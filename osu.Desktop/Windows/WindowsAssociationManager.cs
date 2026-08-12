@@ -41,7 +41,7 @@ namespace osu.Desktop.Windows
 
         private const string program_id_protocol_prefix = "osu.Uri";
 
-        private static readonly ApplicationCapability application_capability = new ApplicationCapability(@"osu", @"Software\ppy\osu\Capabilities", "osu!(lazer)");
+        private static readonly ApplicationCapability application_capability = new ApplicationCapability(@"osu", @"Software\ppy\osu\Capabilities", "Torii");
 
         private static readonly FileAssociation[] file_associations =
         {
