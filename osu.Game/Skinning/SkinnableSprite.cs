@@ -122,7 +122,6 @@ namespace osu.Game.Skinning
                        || skin.GetType() == typeof(ArgonProSkin)
                        || skin.GetType() == typeof(ArgonSkin)
                        || skin.GetType() == typeof(DefaultLegacySkin)
-                       || skin.GetType() == typeof(RetroSkin)
                        || skin.GetType() == typeof(LegacySkin);
             }
         }

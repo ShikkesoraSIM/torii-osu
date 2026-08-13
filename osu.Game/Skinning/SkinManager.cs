@@ -68,7 +68,6 @@ namespace osu.Game.Skinning
 
         private Skin trianglesSkin { get; }
 
-        private Skin retroSkin { get; }
 
         private static readonly Live<SkinInfo> random_skin_info = new SkinInfo
         {
@@ -105,7 +104,6 @@ namespace osu.Game.Skinning
 
             var defaultSkins = new[]
             {
-                retroSkin = new RetroSkin(this),
                 DefaultClassicSkin = new DefaultLegacySkin(this),
                 trianglesSkin = new TrianglesSkin(this),
                 argonSkin = new ArgonSkin(this),
@@ -157,7 +155,6 @@ namespace osu.Game.Skinning
                 skins.Add(realm.Find<SkinInfo>(SkinInfo.ARGON_PRO_SKIN).ToLive(Realm));
                 skins.Add(realm.Find<SkinInfo>(SkinInfo.TRIANGLES_SKIN).ToLive(Realm));
                 skins.Add(realm.Find<SkinInfo>(SkinInfo.CLASSIC_SKIN).ToLive(Realm));
-                skins.Add(realm.Find<SkinInfo>(SkinInfo.RETRO_SKIN).ToLive(Realm));
 
                 skins.Add(random_skin_info);
 
@@ -472,9 +469,6 @@ namespace osu.Game.Skinning
             {
                 if (guid == SkinInfo.CLASSIC_SKIN)
                     skinInfo = DefaultClassicSkin.SkinInfo;
-
-                if (guid == SkinInfo.RETRO_SKIN)
-                    skinInfo = retroSkin.SkinInfo;
             }
 
             CurrentSkinInfo.Value = skinInfo ?? trianglesSkin.SkinInfo;
