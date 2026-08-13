@@ -49,10 +49,10 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
 
             protected override LocalisableString FormatCount(double count) => count.FormatAccuracy();
 
-            protected override OsuSpriteText CreateSpriteText() => base.CreateSpriteText().With(s =>
+            protected override OsuSpriteText CreateSpriteText() => new NumericSpriteText().With(s =>
             {
                 s.Font = OsuFont.Torus.With(size: 20, fixedWidth: true);
-                s.Spacing = new Vector2(-2, 0);
+                s.Spacing = new Vector2(0f, 0);
             });
         }
     }

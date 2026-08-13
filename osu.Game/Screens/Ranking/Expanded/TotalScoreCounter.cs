@@ -59,13 +59,18 @@ namespace osu.Game.Screens.Ranking.Expanded
 
         protected override LocalisableString FormatCount(long count) => count.ToString("N0");
 
-        protected override OsuSpriteText CreateSpriteText() => base.CreateSpriteText().With(s =>
+        // NumericSpriteText en vez del OsuSpriteText de base: el score es el numero mas
+        // grande de la pantalla y con el slot de la 'm' quedaba muy separado. El resto
+        // de los contadores de results se quedan como estan.
+        protected override OsuSpriteText CreateSpriteText() => new NumericSpriteText().With(s =>
         {
             s.Anchor = Anchor.TopCentre;
             s.Origin = Anchor.TopCentre;
 
             s.Font = OsuFont.Torus.With(size: 60, weight: FontWeight.Light, fixedWidth: true);
-            s.Spacing = new Vector2(-5, 0);
+            // el -5 de antes compensaba el slot ancho de la 'm'; con slot de digito
+            // los numeros se pisaban.
+            s.Spacing = new Vector2(-0.8f, 0);
         });
 
         public override long DisplayedCount

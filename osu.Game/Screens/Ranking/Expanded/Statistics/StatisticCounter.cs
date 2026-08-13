@@ -16,10 +16,12 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
 
         protected override Easing RollingEasing => AccuracyCircle.ACCURACY_TRANSFORM_EASING;
 
-        protected override OsuSpriteText CreateSpriteText() => base.CreateSpriteText().With(s =>
+        // slot de digito y no de 'm' (ver NumericSpriteText). El -0.6 deja el ancho
+        // efectivo por caracter en 9.4px, que es exactamente lo que daba Torus.
+        protected override OsuSpriteText CreateSpriteText() => new NumericSpriteText().With(s =>
         {
             s.Font = OsuFont.Torus.With(size: 20, fixedWidth: true);
-            s.Spacing = new Vector2(-2, 0);
+            s.Spacing = new Vector2(0f, 0);
         });
     }
 }
