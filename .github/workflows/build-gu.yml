@@ -119,8 +119,8 @@ jobs:
       matrix:
         include:
           # `executable:` is the binary name produced by osu.Desktop.csproj
-          # (`AssemblyName = torii`). macOS y Android salieron de esta release,
-          # vuelven cuando esten sin marca.
+          # (`AssemblyName = torii`). Android salio de la matriz: el icono y el
+          # label del launcher siguen siendo los de ellos. Vuelve cuando se arregle.
           - os: windows-latest
             runtime: win-x64
             artifact-name: torii-windows
@@ -136,6 +136,14 @@ jobs:
           - os: ubuntu-latest
             runtime: linux-arm64
             artifact-name: torii-linux-arm64
+            executable: torii
+          - os: ubuntu-latest
+            runtime: osx-x64
+            artifact-name: torii-macos-intel
+            executable: torii
+          - os: ubuntu-latest
+            runtime: osx-arm64
+            artifact-name: torii-macos-apple-silicon
             executable: torii
 
     steps:
@@ -939,6 +947,14 @@ jobs:
             required_files+=("Releases/torii-${{ matrix.runtime }}.AppImage")
             required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
             ;;
+          osx-x64)
+            required_files+=("Releases/torii.app.Intel.zip")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
+            ;;
+          osx-arm64)
+            required_files+=("Releases/torii.app.Apple.Silicon.zip")
+            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
+            ;;
         esac
 
         echo "Verifying packaged assets for ${{ matrix.runtime }}"
@@ -1075,6 +1091,10 @@ jobs:
           "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
+          "torii.app.Intel.zip"
+          "torii.app.Apple.Silicon.zip"
+          "portable-osx-x64.zip"
+          "portable-osx-arm64.zip"
         )
 
         missing=0
@@ -1138,6 +1158,10 @@ jobs:
         - **Linux (ARM64) AppImage:** \`torii-linux-arm64.AppImage\`
         - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
         - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
+        - **macOS (Intel):** \`torii.app.Intel.zip\`
+        - **macOS (Apple Silicon):** \`torii.app.Apple.Silicon.zip\`
+        - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
+        - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
 
         ### Installation Notes
         1. Download the installer or portable archive for your platform.
@@ -1148,7 +1172,8 @@ jobs:
         This release changes the application identity, so it installs alongside your old copy instead of updating it. Install it, check everything works, then uninstall the old one. Your beatmaps, skins, scores and settings are untouched: they live in a separate folder that both builds share.
 
         ### Platform Notes
-        - macOS and Android are not part of this release. They will return in a later build.
+        - **macOS:** if needed, allow the app in System Settings because it is not notarized.
+        - Android is not part of this release. It will return in a later build.
         EOF
 
         echo "::group::Composed release body"
