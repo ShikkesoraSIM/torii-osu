@@ -33,6 +33,21 @@ This includes content that may not be correctly licensed for use in Torii. Brows
         /// </summary>
         public static LocalisableString FeaturedArtistsTooltip => new TranslatableString(getKey(@"featured_artists_disabled_tooltip"), @"Featured Artists are music artists who have collaborated with osu! to make a selection of their tracks available for use in beatmaps. For some Torii releases, we showcase only featured artist beatmaps to better support the surrounding ecosystem.");
 
+        /// <summary>
+        /// "Filtering by {0} requires an active {1}"
+        /// </summary>
+        public static LocalisableString SupporterFilterQuote(LocalisableString filters, LocalisableString link) => new TranslatableString(getKey(@"supporter_filter_quote"), @"Filtering by {0} requires an active {1}", filters, link);
+
+        /// <summary>
+        /// "Torii supporter tag"
+        /// </summary>
+        public static LocalisableString SupporterFilterQuoteLinkText => new TranslatableString(getKey(@"supporter_filter_quote_link_text"), @"Torii supporter tag");
+
+        /// <summary>
+        /// "You need to be a Torii supporter to access the friend, country, or mod-specific rankings!"
+        /// </summary>
+        public static LocalisableString ScoreboardSupporterOnly => new TranslatableString(getKey(@"scoreboard_supporter_only"), @"You need to be a Torii supporter to access the friend, country, or mod-specific rankings!");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

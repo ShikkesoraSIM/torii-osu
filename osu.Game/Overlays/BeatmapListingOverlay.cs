@@ -25,6 +25,7 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.BeatmapListing;
+using osu.Game.Localisation;
 using osu.Game.Resources.Localisation.Web;
 using osuTK;
 using osuTK.Graphics;
@@ -356,7 +357,7 @@ namespace osu.Game.Overlays
                 });
 
                 supporterRequiredText.AddText(
-                    BeatmapsStrings.ListingSearchSupporterFilterQuoteDefault(string.Join(" and ", filtersUsed), "").ToString(),
+                    BeatmapOverlayStrings.SupporterFilterQuote(string.Join(" and ", filtersUsed), "").ToString(),
                     t =>
                     {
                         t.Font = OsuFont.GetFont(size: 16);
@@ -364,7 +365,7 @@ namespace osu.Game.Overlays
                     }
                 );
 
-                supporterRequiredText.AddLink(BeatmapsStrings.ListingSearchSupporterFilterQuoteLinkText.ToString(), @"/store/products/supporter-tag");
+                supporterRequiredText.AddLink(BeatmapOverlayStrings.SupporterFilterQuoteLinkText.ToString(), @"/wiki");
             }
         }
 
