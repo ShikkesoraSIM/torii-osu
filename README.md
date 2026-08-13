@@ -66,7 +66,7 @@ The two streams share the same install — switching is a one-click in settings 
 
 ### Client identity & UI
 
-- **Torii brand**: gradient torii-gate logo across the window, taskbar, file associations, badges, and shortcuts. The May 2026 binary rebrand renamed the executable `osu-torii.exe` → `torii.exe` and switched the displayed product name to "Torii Nova" across window chrome, file associations, the Android launcher, and the macOS bundle. A small `osu-torii.exe` shim ships alongside on Windows so pre-rebrand taskbar pins keep working without re-pinning.
+- **Torii brand**: gradient torii-gate logo across the window, taskbar, file associations, badges, and shortcuts. The executable is `torii.exe` and the displayed product name is "Torii Nova" across window chrome and file associations.
 - **Torii toolbar** — a Torii-themed alpha indicator and quick-access strip alongside the upstream toolbar.
 - **Settings → Torii section** where every Torii-specific knob lives instead of being scattered across upstream panels:
   - Server selection (Torii vs. official) + auth flow
@@ -166,7 +166,7 @@ Nova is where we test things that aren't safe to push to every Torii user yet. I
 
 Switch via **Settings → General → Updates → Release stream → Torii Nova (Experimental)**. The client confirms before switching and downloads a fresh Nova build over your current install (data is preserved).
 
-What Nova currently adds on top of stable (everything else — the brand, icon, binary rename, audio fixes, badge, shim, hidden D3D12 dropdown, config-migration — ships on stable too):
+What Nova currently adds on top of stable (everything else — the brand, icon, binary rename, audio fixes, badge, hidden D3D12 dropdown, config-migration — ships on stable too):
 
 - **`.NET 10` runtime chain** across the whole client. JIT improvements, lower-allocation GC, and SIMD path improvements that matter most for gameplay frame pacing. Stable is still on `.NET 8`.
 - **CoreCLR runtime** on Android, replacing Mono. Same JIT/GC improvements story as desktop.
@@ -207,11 +207,10 @@ Grab the latest release from the [Releases page](https://github.com/ShikkesoraSI
 | Windows portable | `portable-win-x64.zip` / `portable-win-arm64.zip` |
 | Linux AppImage | `torii-linux-x64.AppImage` / `torii-linux-arm64.AppImage` |
 | Linux portable tarball | `portable-linux-x64.tar.gz` / `portable-linux-arm64.tar.gz` |
-| macOS (Intel) | `osu.app.Intel.zip` |
-| macOS (Apple Silicon) | `osu.app.Apple.Silicon.zip` |
-| Android | `torii.apk` |
 
-Existing installs auto-update via Velopack. Data directory is preserved (`%APPDATA%\osu-torii\` on Windows, equivalent on other platforms), so beatmaps, scores, replays, and settings carry over.
+macOS and Android are not part of the current release and will return in a later build.
+
+This release changes the application identity, so it installs alongside an older Torii rather than updating it in place. Your data directory is untouched and shared between both, so beatmaps, scores, replays, and settings carry over.
 
 ---
 
