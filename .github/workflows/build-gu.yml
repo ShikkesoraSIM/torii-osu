@@ -25,7 +25,7 @@ env:
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
   FRAMEWORK_REF: '0ebb6908cbe70b763c6b4aab45dd6520b40c6bea'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
-  RESOURCES_REF: 'b1ef16f446b4cc903aa5d4c931f1b8847b969ef1'
+  RESOURCES_REF: 'cddd70c3acba2e3cac84f6494f8cecd07a321710'
 
 jobs:
   version:
