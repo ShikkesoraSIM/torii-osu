@@ -163,7 +163,7 @@ namespace osu.Game.Overlays
                         },
                         new SettingsButtonV2
                         {
-                            Text = "But please peppy",
+                            Text = "Aw, come on",
                             Action = () =>
                             {
                                 if (Children.Count < 5 || RNG.NextSingle() > 0.08f)

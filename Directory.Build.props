@@ -44,13 +44,13 @@
   </PropertyGroup>
   <PropertyGroup Label="Nuget">
     <IsPackable>false</IsPackable>
-    <Authors>ppy Pty Ltd</Authors>
+    <Authors>Torii Team</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/ppy/osu</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/ppy/osu</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ShikkesoraSIM/torii-osu</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ShikkesoraSIM/torii-osu</RepositoryUrl>
     <PackageReleaseNotes>Automated release.</PackageReleaseNotes>
-    <Company>ppy Pty Ltd</Company>
-    <Copyright>Copyright (c) 2025 ppy Pty Ltd</Copyright>
-    <PackageTags>osu game</PackageTags>
+    <Company>Torii Team</Company>
+    <Copyright>Copyright (c) 2025 ppy Pty Ltd. Torii modifications copyright (c) 2026 Torii Team.</Copyright>
+    <PackageTags>rhythm game</PackageTags>
   </PropertyGroup>
 </Project>

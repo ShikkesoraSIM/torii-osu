@@ -80,9 +80,9 @@ namespace osu.Game.Localisation
         public static LocalisableString RunSetupWizard => new TranslatableString(getKey(@"run_setup_wizard"), @"Run setup wizard");
 
         /// <summary>
-        /// "Learn more about lazer"
+        /// "Learn more about Torii"
         /// </summary>
-        public static LocalisableString LearnMoreAboutLazer => new TranslatableString(getKey(@"learn_more_about_lazer"), @"Learn more about lazer");
+        public static LocalisableString LearnMoreAboutLazer => new TranslatableString(getKey(@"learn_more_about_torii"), @"Learn more about Torii");
 
         /// <summary>
         /// "Check out the feature comparison and FAQ"

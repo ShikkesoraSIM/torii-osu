@@ -122,7 +122,7 @@ namespace osu.Game.Localisation
         /// <summary>
         /// "&quot;Lazer&quot; is not an English word. The correct spelling for the bright light is &quot;laser&quot;."
         /// </summary>
-        public static LocalisableString LazerIsNotAWord => new TranslatableString(getKey(@"lazer_is_not_a_word"), @"""Lazer"" is not an English word. The correct spelling for the bright light is ""laser"".");
+        public static LocalisableString HoldToConfirmIsSkippable => new TranslatableString(getKey(@"hold_to_confirm_is_skippable"), @"Most hold-to-confirm buttons can be triggered instantly by double-clicking them.");
 
         /// <summary>
         /// "Multithreading support means that even with low &quot;FPS&quot; your input and judgements will be accurate!"

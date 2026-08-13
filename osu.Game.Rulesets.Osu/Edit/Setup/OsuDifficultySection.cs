@@ -120,7 +120,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Setup
                 stackLeniency = new FormSliderBar<float>
                 {
                     Caption = "Stack Leniency",
-                    HintText = "In play mode, osu! automatically stacks notes which occur at the same location. Increasing this value means it is more likely to snap notes of further time-distance.",
+                    HintText = "In play mode, the game automatically stacks notes which occur at the same location. Increasing this value means it is more likely to snap notes of further time-distance.",
                     KeyboardStep = 0.1f,
                     Current = new BindableFloat(Beatmap.StackLeniency)
                     {

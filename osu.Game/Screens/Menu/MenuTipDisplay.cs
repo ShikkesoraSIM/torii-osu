@@ -216,7 +216,7 @@ namespace osu.Game.Screens.Menu
                     return MenuTipStrings.AutoplayBeatmapShortcut;
 
                 case 27:
-                    return MenuTipStrings.LazerIsNotAWord;
+                    return MenuTipStrings.HoldToConfirmIsSkippable;
 
                 case 28:
                     return MenuTipStrings.RightMouseAbsoluteScroll;

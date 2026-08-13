@@ -20,7 +20,7 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
         // toriirefresh's MaintenanceSettingsStrings has no RestartAndReOpenRequiredForCompletion
         // (drift from the release base), so the wording is kept inline here to stay self-contained.
         private static readonly LocalisableString restart_required_message =
-            @"To complete this operation, osu! will close. Please open it again to use the new data location.";
+            @"To complete this operation, Torii will close. Please open it again to use the new data location.";
 
         [Resolved]
         private Storage storage { get; set; }

@@ -16,6 +16,6 @@ namespace osu.Desktop.Windows
         // Torii; el nombre de la property queda para no romper los call sites.
         public static string Lazer => Path.Join(icon_directory, "torii.ico");
 
-        public static string Beatmap => Path.Join(icon_directory, "beatmap.ico");
+        public static string Beatmap => Path.Join(icon_directory, "torii.ico");
     }
 }

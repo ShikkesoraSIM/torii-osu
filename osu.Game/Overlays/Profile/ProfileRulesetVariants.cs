@@ -21,8 +21,8 @@ namespace osu.Game.Overlays.Profile
         // shortname api -> (base, nombre visible, online id del server, label corto del tab)
         private static readonly (string shortName, string baseShortName, string name, int onlineId, string label)[] variants =
         {
-            (@"osurx", @"osu", @"osu! (relax)", 4, @"relax"),
-            (@"osuap", @"osu", @"osu! (autopilot)", 5, @"autopilot"),
+            (@"osurx", @"osu", @"standard (relax)", 4, @"relax"),
+            (@"osuap", @"osu", @"standard (autopilot)", 5, @"autopilot"),
             (@"taikorx", @"taiko", @"taiko (relax)", 6, @"relax"),
         };
 

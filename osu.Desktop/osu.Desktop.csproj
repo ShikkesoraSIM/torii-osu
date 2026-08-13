@@ -3,7 +3,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>A free-to-win rhythm game. Rhythm is just a *click* away! (Torii Nova)</Description>
+    <Description>Torii Nova, a community rhythm game client.</Description>
     <!-- el binario se llama torii.exe igual que la Nova de ahora, asi el update de velopack pisa
          el install existente en vez de dejar dos exes distintos. -->
     <AssemblyName>torii</AssemblyName>

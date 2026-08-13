@@ -16,6 +16,6 @@ namespace osu.Game.Online.API
         {
         }
 
-        protected override string UserAgent => "osu!";
+        protected override string UserAgent => "Torii";
     }
 }

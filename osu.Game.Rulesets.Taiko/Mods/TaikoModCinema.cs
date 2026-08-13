@@ -14,7 +14,7 @@ namespace osu.Game.Rulesets.Taiko.Mods
     public class TaikoModCinema : ModCinema<TaikoHitObject>
     {
         public override ModReplayData CreateReplayData(IBeatmap beatmap, IReadOnlyList<Mod> mods)
-            => new ModReplayData(new TaikoAutoGenerator(beatmap).Generate(), new ModCreatedUser { Username = "mekkadosu!" });
+            => new ModReplayData(new TaikoAutoGenerator(beatmap).Generate(), new ModCreatedUser { Username = "Autoplay" });
 
         public override Type[] IncompatibleMods => base.IncompatibleMods.Concat(new[] { typeof(TaikoModSingleTap) }).ToArray();
     }
