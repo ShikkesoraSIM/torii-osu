@@ -49,14 +49,11 @@ namespace osu.Game.Screens
 
             switch (introSequence)
             {
-                case IntroSequence.Circles:
-                    return new IntroCircles(createMainMenu);
-
                 case IntroSequence.Welcome:
                     return new IntroWelcome(createMainMenu);
 
                 default:
-                    return new IntroTriangles(createMainMenu);
+                    return new IntroCircles(createMainMenu);
             }
 
             MainMenu createMainMenu() => new MainMenu();
