@@ -5,6 +5,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Localisation;
 using osu.Game.Resources.Localisation.Web;
 using osuTK;
 
@@ -28,7 +29,7 @@ namespace osu.Game.Overlays.BeatmapSet.Scores
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        Text = BeatmapsetsStrings.ShowScoreboardSupporterOnly,
+                        Text = BeatmapOverlayStrings.ScoreboardSupporterOnly,
                     },
                     text = new LinkFlowContainer(t => t.Font = t.Font.With(size: 11))
                     {
