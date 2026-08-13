@@ -55,12 +55,12 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
 
             if (maxCount != null)
             {
-                container.Add(new OsuSpriteText
+                container.Add(new NumericSpriteText
                 {
                     Anchor = Anchor.BottomCentre,
                     Origin = Anchor.BottomCentre,
                     Font = OsuFont.Torus.With(size: 12, fixedWidth: true),
-                    Spacing = new Vector2(-2, 0),
+                    Spacing = new Vector2(-0.9f, 0),
                     Text = $"/{maxCount}"
                 });
             }

@@ -177,13 +177,13 @@ namespace osu.Game.Screens.Ranking.Contracted
                             {
                                 new Drawable[]
                                 {
-                                    new OsuSpriteText
+                                    new NumericSpriteText
                                     {
                                         Anchor = Anchor.Centre,
                                         Origin = Anchor.Centre,
                                         Current = scoreManager.GetBindableTotalScoreString(score),
                                         Font = OsuFont.GetFont(size: 20, weight: FontWeight.Medium, fixedWidth: true),
-                                        Spacing = new Vector2(-1, 0)
+                                        Spacing = new Vector2(0.4f, 0)
                                     },
                                 },
                                 new Drawable[]

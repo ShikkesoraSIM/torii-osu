@@ -83,6 +83,10 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        // Anchos pensados para un score fixed-width medido contra un digito, no
+        // contra la 'm' (ver NumericSpriteText). Con NumericSpriteText el peor caso
+        // de classic, "12,345,678", da 140px y le sobran 40 de los 200.
+        private const float standardised_right_content_width = 170;
         private const float expanded_right_content_width = 200;
         private const float grade_width = 35;
         private const float username_min_width = 120;
@@ -441,13 +445,12 @@ namespace osu.Game.Screens.Select
                                                 Spacing = new Vector2(0f, -2f),
                                                 Children = new Drawable[]
                                                 {
-                                                    new OsuSpriteText
+                                                    new NumericSpriteText
                                                     {
                                                         Anchor = Anchor.TopRight,
                                                         Origin = Anchor.TopRight,
                                                         UseFullGlyphHeight = false,
                                                         Current = scoreManager.GetBindableTotalScoreString(Score),
-                                                        Spacing = new Vector2(-1.5f),
                                                         Font = OsuFont.Style.Subtitle.With(weight: FontWeight.Light, fixedWidth: true),
                                                         Shear = sheared ? -OsuGame.SHEAR : Vector2.Zero,
                                                     },
@@ -512,7 +515,7 @@ namespace osu.Game.Screens.Select
                 switch (s.NewValue)
                 {
                     case ScoringMode.Standardised:
-                        rightContent.Width = 170;
+                        rightContent.Width = standardised_right_content_width;
                         break;
 
                     case ScoringMode.Classic:
