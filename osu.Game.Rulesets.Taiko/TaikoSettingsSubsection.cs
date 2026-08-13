@@ -14,7 +14,7 @@ namespace osu.Game.Rulesets.Taiko
 {
     public partial class TaikoSettingsSubsection : RulesetSettingsSubsection
     {
-        protected override LocalisableString Header => "osu!taiko";
+        protected override LocalisableString Header => "taiko";
 
         public TaikoSettingsSubsection(TaikoRuleset ruleset)
             : base(ruleset)

@@ -65,7 +65,7 @@ namespace osu.Game.Overlays.Settings.Sections.Maintenance
 
                     // Not using CreateSubDirectory as it throws unexpectedly when attempting to create a directory when already at the root of a disk.
                     // See https://cs.github.com/dotnet/runtime/blob/f1bdd5a6182f43f3928b389b03f7bc26f826c8bc/src/libraries/System.Private.CoreLib/src/System/IO/DirectoryInfo.cs#L88-L94
-                    target = Directory.CreateDirectory(Path.Combine(target.FullName, @"osu-lazer"));
+                    target = Directory.CreateDirectory(Path.Combine(target.FullName, @"torii"));
                 }
             }
             catch (Exception e)

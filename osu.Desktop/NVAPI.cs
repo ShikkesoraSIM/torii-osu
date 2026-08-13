@@ -17,7 +17,7 @@ namespace osu.Desktop
     [SupportedOSPlatform("windows")]
     internal static class NVAPI
     {
-        private const string osu_filename = "osu!.exe";
+        private const string osu_filename = "torii.exe";
 
         // This is a good reference:
         // https://github.com/errollw/Warp-and-Blend-Quadros/blob/master/WarpBlend-Quadros/UnwarpAll-Quadros/include/nvapi.h
@@ -26,8 +26,8 @@ namespace osu.Desktop
         public const int MAX_PHYSICAL_GPUS = 64;
         public const int UNICODE_STRING_MAX = 2048;
 
-        public const string APPLICATION_NAME = @"osu!";
-        public const string PROFILE_NAME = @"osu!";
+        public const string APPLICATION_NAME = @"Torii";
+        public const string PROFILE_NAME = @"Torii";
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate NvStatus EnumPhysicalGPUsDelegate([Out] IntPtr[] gpuHandles, out int gpuCount);

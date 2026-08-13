@@ -14,6 +14,6 @@ namespace osu.Desktop.Windows
 
         public static string Lazer => Path.Join(icon_directory, "torii.ico");
 
-        public static string Beatmap => Path.Join(icon_directory, "beatmap.ico");
+        public static string Beatmap => Path.Join(icon_directory, "torii.ico");
     }
 }

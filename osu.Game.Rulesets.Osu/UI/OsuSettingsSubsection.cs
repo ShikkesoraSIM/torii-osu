@@ -15,7 +15,7 @@ namespace osu.Game.Rulesets.Osu.UI
 {
     public partial class OsuSettingsSubsection : RulesetSettingsSubsection
     {
-        protected override LocalisableString Header => "osu!";
+        protected override LocalisableString Header => "standard";
 
         public OsuSettingsSubsection(Ruleset ruleset)
             : base(ruleset)

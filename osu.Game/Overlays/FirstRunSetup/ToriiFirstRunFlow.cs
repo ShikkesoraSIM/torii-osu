@@ -22,7 +22,7 @@ namespace osu.Game.Overlays.FirstRunSetup
         // MaintenanceSettingsStrings de este base no tiene RestartAndReOpenRequiredForCompletion, asi que
         // el texto va inline para no depender de un string que puede no existir tras un sync de upstream.
         private static readonly LocalisableString restart_required_message =
-            @"To complete this operation, osu! will close. Please open it again to use the new data location.";
+            @"To complete this operation, Torii will close. Please open it again to use the new data location.";
 
         /// <summary>
         /// Pide confirmacion y, al confirmar, migra el torii.ini al destino, apunta el storage ahi y cierra el juego.
