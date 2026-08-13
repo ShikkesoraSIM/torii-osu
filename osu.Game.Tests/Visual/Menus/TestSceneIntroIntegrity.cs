@@ -32,6 +32,6 @@ namespace osu.Game.Tests.Visual.Menus
         }
 
         protected override bool IntroReliesOnTrack => true;
-        protected override IntroScreen CreateScreen() => new IntroTriangles();
+        protected override IntroScreen CreateScreen() => new IntroCircles();
     }
 }

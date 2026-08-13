@@ -10,7 +10,6 @@ namespace osu.Game.Configuration
     {
         Circles,
         Welcome,
-        Triangles,
 
         [LocalisableDescription(typeof(UserInterfaceStrings), nameof(UserInterfaceStrings.IntroRandom))]
         Random
