@@ -102,6 +102,31 @@ Licence: Apache License 2.0
 Licence text: https://www.apache.org/licenses/LICENSE-2.0
 
 ================================================================================
+6. Nunito
+================================================================================
+
+Copyright (c) The Nunito Project Authors
+Source: https://github.com/googlefonts/nunito
+Licence: SIL Open Font License 1.1
+Licence text: https://openfontlicense.org/
+
+Modified by Torii: rendered to bitmap font atlases (BMFont binary format) for
+use with osu!framework. The outlines themselves are unmodified.
+
+================================================================================
+7. Aller
+================================================================================
+
+Copyright (c) Dalton Maag Ltd
+
+Modified by Torii: rendered to bitmap font atlases (BMFont binary format) for
+use with osu!framework. Used only for the optional legacy interface font.
+
+If you hold rights in this typeface and believe its inclusion here is not
+correctly licensed, contact the Torii maintainer and it will be removed
+promptly.
+
+================================================================================
 
 Questions about this notice, or a request to correct it, can be sent to the
 Torii maintainer. Corrections will be made promptly.

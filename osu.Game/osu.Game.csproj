@@ -5,14 +5,14 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Label="Nuget">
-    <Title>osu!</Title>
+    <Title>Torii</Title>
     <PackageId>ppy.osu.Game</PackageId>
     <Version>0.0.0</Version>
     <PackageIcon>icon.png</PackageIcon>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup Label="Icon">
-    <None Include="..\assets\lazer-nuget.png">
+    <None Include="..\assets\torii-512.png">
       <Pack>True</Pack>
       <PackagePath>icon.png</PackagePath>
     </None>
