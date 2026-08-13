@@ -119,10 +119,8 @@ jobs:
       matrix:
         include:
           # `executable:` is the binary name produced by osu.Desktop.csproj
-          # (`AssemblyName = torii`). All platforms publish a `torii` /
-          # `torii.exe` after the May 2026 rebrand. Artifact names keep the
-          # `osu-torii-*` prefix for CI continuity — they're internal
-          # GitHub Actions identifiers, not user-facing.
+          # (`AssemblyName = torii`). Android salio de la matriz: el icono y el
+          # label del launcher siguen siendo los de ellos. Vuelve cuando se arregle.
           - os: windows-latest
             runtime: win-x64
             artifact-name: torii-windows
