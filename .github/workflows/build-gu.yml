@@ -747,6 +747,14 @@ jobs:
         path: hash-output/hash-${{ matrix.runtime }}.json
         retention-days: 30
 
+    - name: Drop XML docs from the publish
+      if: matrix.runtime != 'android'
+      shell: bash
+      run: |
+        # 4,6 MB de comentarios en texto plano al lado del exe que no sirven en
+        # runtime, y varios replican texto de UI de upstream.
+        find "publish/${{ matrix.runtime }}" -maxdepth 1 -name '*.xml' -delete || true
+
     - name: Create Velopack package
       if: matrix.runtime != 'android'
       shell: bash
