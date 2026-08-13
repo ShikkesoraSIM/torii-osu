@@ -23,9 +23,9 @@ env:
   # ships with the framework via nuget.org — no extra fork to clone/pack,
   # so restore resolves everything straight from nuget.org.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '11b371a0fb055d8041f748284009d64655a53597'
+  FRAMEWORK_REF: '01fd0c0527c65ad3124451e91bc451f66d803548'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
-  RESOURCES_REF: '36373715cad5a2ecde1e8084ae4d83ca15886cf1'
+  RESOURCES_REF: '1d1ab06ac824c1ccdbb8717af1e7f44e4fd36ea2'
 
 jobs:
   version:
@@ -119,38 +119,24 @@ jobs:
       matrix:
         include:
           # `executable:` is the binary name produced by osu.Desktop.csproj
-          # (`AssemblyName = torii`). All platforms publish a `torii` /
-          # `torii.exe` after the May 2026 rebrand. Artifact names keep the
-          # `osu-torii-*` prefix for CI continuity — they're internal
-          # GitHub Actions identifiers, not user-facing.
+          # (`AssemblyName = torii`). macOS y Android salieron de esta release,
+          # vuelven cuando esten sin marca.
           - os: windows-latest
             runtime: win-x64
-            artifact-name: osu-torii-windows
+            artifact-name: torii-windows
             executable: torii.exe
           - os: windows-latest
             runtime: win-arm64
-            artifact-name: osu-torii-windows-arm64
+            artifact-name: torii-windows-arm64
             executable: torii.exe
           - os: ubuntu-latest
             runtime: linux-x64
-            artifact-name: osu-torii-linux
+            artifact-name: torii-linux
             executable: torii
           - os: ubuntu-latest
             runtime: linux-arm64
-            artifact-name: osu-torii-linux-arm64
+            artifact-name: torii-linux-arm64
             executable: torii
-          - os: ubuntu-latest
-            runtime: osx-x64
-            artifact-name: osu-torii-macos-intel
-            executable: torii
-          - os: ubuntu-latest
-            runtime: osx-arm64
-            artifact-name: osu-torii-macos-apple-silicon
-            executable: torii
-          - os: ubuntu-latest
-            runtime: android
-            artifact-name: osu-torii-android
-            executable: osu.Android-Signed.apk
 
     steps:
     - name: Checkout code
@@ -791,7 +777,7 @@ jobs:
           if [[ "${{ matrix.runtime }}" == "osx-arm64" ]]; then CHANNEL="osx-arm64"; fi
 
           vpk pack \
-            -u "osu-torii" \
+            -u "torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
@@ -803,7 +789,7 @@ jobs:
           CHANNEL="win"
           if [[ "${{ matrix.runtime }}" == "win-arm64" ]]; then CHANNEL="win-arm64"; fi
           vpk pack \
-            -u "osu-torii" \
+            -u "torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
@@ -816,7 +802,7 @@ jobs:
           CHANNEL="linux"
           if [[ "${{ matrix.runtime }}" == "linux-arm64" ]]; then CHANNEL="linux-arm64"; fi
           vpk pack \
-            -u "osu-torii" \
+            -u "torii" \
             -v "${{ needs.version.outputs.semver }}" \
             -p "publish/${{ matrix.runtime }}" \
             -e "${RESOLVED_EXECUTABLE}" \
@@ -944,17 +930,6 @@ jobs:
           linux-x64|linux-arm64)
             required_files+=("Releases/torii-${{ matrix.runtime }}.AppImage")
             required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
-            ;;
-          osx-x64)
-            required_files+=("Releases/torii.app.Intel.zip")
-            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
-            ;;
-          osx-arm64)
-            required_files+=("Releases/torii.app.Apple.Silicon.zip")
-            required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
-            ;;
-          android)
-            required_files+=("Releases/torii.apk")
             ;;
         esac
 
@@ -1092,11 +1067,6 @@ jobs:
           "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
-          "torii.app.Intel.zip"
-          "torii.app.Apple.Silicon.zip"
-          "portable-osx-x64.zip"
-          "portable-osx-arm64.zip"
-          "torii.apk"
         )
 
         missing=0
@@ -1160,24 +1130,17 @@ jobs:
         - **Linux (ARM64) AppImage:** \`torii-linux-arm64.AppImage\`
         - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
         - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
-        - **macOS (Intel):** \`torii.app.Intel.zip\`
-        - **macOS (Apple Silicon):** \`torii.app.Apple.Silicon.zip\`
-        - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
-        - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
-        - **Android APK:** \`torii.apk\`
 
         ### Installation Notes
         1. Download the installer or portable archive for your platform.
-        2. Desktop builds use an isolated data directory (\`%APPDATA%\\osu-torii\` on Windows — internal path kept stable for update continuity even after the binary rebrand).
-        3. The \`osu://\` protocol remains unchanged.
-        4. First launch may take longer due to initial setup.
+        2. Desktop builds use their own isolated data directory, separate from any other client.
+        3. First launch may take longer due to initial setup.
 
         ### Upgrading from a previous Torii build
-        If you had \`osu-torii.exe\` pinned to your taskbar or as a desktop shortcut, that pin will break after this update because the executable is now \`torii.exe\`. Unpin the old shortcut and re-pin from the Start menu / new desktop shortcut after install.
+        This release changes the application identity, so it installs alongside your old copy instead of updating it. Install it, check everything works, then uninstall the old one. Your beatmaps, skins, scores and settings are untouched: they live in a separate folder that both builds share.
 
         ### Platform Notes
-        - **macOS:** If needed, allow the app in System Settings because it is not notarized.
-        - **Android:** If your device rejects the APK due to signature policy, use your server distribution page as fallback.
+        - macOS and Android are not part of this release. They will return in a later build.
         EOF
 
         echo "::group::Composed release body"
