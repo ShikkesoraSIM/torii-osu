@@ -119,8 +119,14 @@ jobs:
       matrix:
         include:
           # `executable:` is the binary name produced by osu.Desktop.csproj
-          # (`AssemblyName = torii`). Android salio de la matriz: el icono y el
-          # label del launcher siguen siendo los de ellos. Vuelve cuando se arregle.
+          # (`AssemblyName = torii`).
+          #
+          # Android volvio a la matriz. Salio durante el apuro del debranding porque no
+          # estaba verificado el launcher, y ya lo esta: el paquete es
+          # sh.shikkesora.torii, el label "Torii Nova" y los mipmap ic_launcher son el
+          # torii, no el circulo de ellos. `executable` sigue diciendo osu.Android por el
+          # nombre del csproj, es un archivo intermedio del SDK; lo que se sube a la
+          # release es torii.apk.
           - os: windows-latest
             runtime: win-x64
             artifact-name: torii-windows
@@ -145,6 +151,10 @@ jobs:
             runtime: osx-arm64
             artifact-name: torii-macos-apple-silicon
             executable: torii
+          - os: ubuntu-latest
+            runtime: android
+            artifact-name: torii-android
+            executable: osu.Android-Signed.apk
 
     steps:
     - name: Checkout code
@@ -955,6 +965,9 @@ jobs:
             required_files+=("Releases/torii.app.Apple.Silicon.zip")
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
+          android)
+            required_files+=("Releases/torii.apk")
+            ;;
         esac
 
         echo "Verifying packaged assets for ${{ matrix.runtime }}"
@@ -1091,6 +1104,7 @@ jobs:
           "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
+          "torii.apk"
           "torii.app.Intel.zip"
           "torii.app.Apple.Silicon.zip"
           "portable-osx-x64.zip"
@@ -1173,7 +1187,8 @@ jobs:
 
         ### Platform Notes
         - **macOS:** if needed, allow the app in System Settings because it is not notarized.
-        - Android is not part of this release. It will return in a later build.
+        - **Android APK:** \`torii.apk\`
+        - **Android:** si el celular rechaza el APK por politica de firma, bajalo desde la pagina de descargas del server.
         EOF
 
         echo "::group::Composed release body"
