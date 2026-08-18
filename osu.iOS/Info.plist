@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>sh.ppy.osulazer</string>
+	<string>sh.shikkesora.torii</string>
 	<key>CFBundleName</key>
 	<string>Torii</string>
 	<key>CFBundleDisplayName</key>
@@ -82,19 +82,19 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeIdentifier</key>
-			<string>sh.ppy.osu.items</string>
+			<string>sh.shikkesora.torii.items</string>
 			<key>UTTypeTagSpecification</key>
 			<dict/>
 		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>sh.ppy.osu.items</string>
+				<string>sh.shikkesora.torii.items</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Torii replay</string>
 			<key>UTTypeIdentifier</key>
-			<string>sh.ppy.osu.osr</string>
+			<string>sh.shikkesora.torii.osr</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -104,12 +104,12 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>sh.ppy.osu.items</string>
+				<string>sh.shikkesora.torii.items</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Torii skin</string>
 			<key>UTTypeIdentifier</key>
-			<string>sh.ppy.osu.osk</string>
+			<string>sh.shikkesora.torii.osk</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -119,12 +119,12 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>sh.ppy.osu.items</string>
+				<string>sh.shikkesora.torii.items</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Torii beatmap</string>
 			<key>UTTypeIdentifier</key>
-			<string>sh.ppy.osu.osz</string>
+			<string>sh.shikkesora.torii.osz</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -134,12 +134,12 @@
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>sh.ppy.osu.items</string>
+				<string>sh.shikkesora.torii.items</string>
 			</array>
 			<key>UTTypeDescription</key>
 			<string>Torii beatmap</string>
 			<key>UTTypeIdentifier</key>
-			<string>sh.ppy.osu.olz</string>
+			<string>sh.shikkesora.torii.olz</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -158,7 +158,7 @@
 			<string>Viewer</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>sh.ppy.osu.items</string>
+				<string>sh.shikkesora.torii.items</string>
 			</array>
 		</dict>
 	</array>

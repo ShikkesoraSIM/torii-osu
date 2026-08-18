@@ -7,7 +7,7 @@ name: Build iOS Nova (unsigned .ipa)
 # corre al pushear ESTA branch; no toca releases.
 on:
   push:
-    branches: [ ci/ios-nova ]
+    branches: [ ios-nova-port ]
   workflow_dispatch:
 
 env:

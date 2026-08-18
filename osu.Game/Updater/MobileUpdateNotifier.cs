@@ -89,9 +89,12 @@ namespace osu.Game.Updater
             {
                 case RuntimeInfo.Platform.iOS:
                     if (release.Assets?.Exists(f => f.Name.EndsWith(".ipa", StringComparison.Ordinal)) == true)
-                        // iOS releases are available via testflight. this link seems to work well enough for now.
-                        // see https://stackoverflow.com/a/32960501
-                        url = "itms-beta://beta.itunes.apple.com/v1/app/1447765923";
+                        // Esto apuntaba al TestFlight de ellos (app id 1447765923), que no es
+                        // nuestro y encima le habria ofrecido a un usuario de Torii instalar
+                        // otra cosa. Torii en iOS se sideloadea, no hay TestFlight, asi que
+                        // se abre la pagina de la release y de ahi bajan el .ipa nuevo, igual
+                        // que en android.
+                        url = release.HtmlUrl;
 
                     break;
 
