@@ -34,7 +34,7 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, UserLookupCache userLookupCache, OnlineAssetCachingStore onlineTextures)
+        private void load(LargeTextureStore textures, UserLookupCache userLookupCache)
         {
             string avatarUrl = (user as APIUser)?.AvatarUrl;
 
@@ -46,15 +46,16 @@ namespace osu.Game.Users.Drawables
             // never risks the osu!-id collision the old a.ppy.sh fallback had. Ids that
             // aren't Torii users just resolve to null -> the guest placeholder.
             //
-            // Upstream fetches through OnlineAssetCachingStore (disk cache, #38454) but
-            // falls back to a.ppy.sh/{id}, which is exactly the collision we removed: an
-            // id that means one player here means someone else there. Se toma el store
-            // nuevo (asi el avatar queda cacheado en disco) y se deja NUESTRA resolucion.
+            // NO pasa por OnlineAssetCachingStore. Ese store llego con #38454 (el mismo
+            // PR que trae el schema 52) y tiene un bug de performance abierto upstream:
+            // ppy/osu#38651, "Game lags when loading user images". Se queda el modelo de
+            // realm (que es lo unico que el schema necesita) y los avatares siguen por
+            // LargeTextureStore hasta que lo arreglen.
             if (string.IsNullOrEmpty(avatarUrl) && user != null && user.OnlineID > 1)
                 avatarUrl = userLookupCache.GetUserAsync(user.OnlineID).GetResultSafely()?.AvatarUrl;
 
             if (!string.IsNullOrEmpty(avatarUrl))
-                Texture = onlineTextures.Get(avatarUrl);
+                Texture = textures.Get(avatarUrl);
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }
