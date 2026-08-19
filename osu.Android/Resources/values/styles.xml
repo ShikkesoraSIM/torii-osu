@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Base application theme -->
+  <style name="AppTheme" parent="@android:style/Theme.NoTitleBar.Fullscreen">
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowFullscreen">true</item>
+    <item name="android:windowContentOverlay">@null</item>
+  </style>
+  
+  <!-- Translucent theme as fallback for Theme.AppCompat.Translucent -->
+  <style name="Theme.AppCompat.Translucent" parent="@android:style/Theme.Translucent.NoTitleBar">
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowBackground">@android:color/transparent</item>
+    <item name="android:colorBackgroundCacheHint">@null</item>
+    <item name="android:windowIsTranslucent">true</item>
+    <item name="android:windowAnimationStyle">@android:style/Animation</item>
+  </style>
+</resources>
