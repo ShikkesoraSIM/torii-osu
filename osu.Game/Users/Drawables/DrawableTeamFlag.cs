@@ -3,6 +3,7 @@
 
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Textures;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
@@ -44,7 +45,7 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(OnlineAssetCachingStore textures)
+        private void load(LargeTextureStore textures)
         {
             if (team?.FlagUrl != null)
                 sprite.Texture = textures.Get(team.FlagUrl);
