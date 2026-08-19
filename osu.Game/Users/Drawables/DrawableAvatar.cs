@@ -9,6 +9,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Game.Database;
+using osu.Game.Graphics;
 using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Game.Users.Drawables
@@ -33,7 +34,7 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, UserLookupCache userLookupCache)
+        private void load(LargeTextureStore textures, UserLookupCache userLookupCache, OnlineAssetCachingStore onlineTextures)
         {
             string avatarUrl = (user as APIUser)?.AvatarUrl;
 
@@ -44,11 +45,16 @@ namespace osu.Game.Users.Drawables
             // which missed the /api/v2 prefix and 301'd to the website (blank avatar), and
             // never risks the osu!-id collision the old a.ppy.sh fallback had. Ids that
             // aren't Torii users just resolve to null -> the guest placeholder.
+            //
+            // Upstream fetches through OnlineAssetCachingStore (disk cache, #38454) but
+            // falls back to a.ppy.sh/{id}, which is exactly the collision we removed: an
+            // id that means one player here means someone else there. Se toma el store
+            // nuevo (asi el avatar queda cacheado en disco) y se deja NUESTRA resolucion.
             if (string.IsNullOrEmpty(avatarUrl) && user != null && user.OnlineID > 1)
                 avatarUrl = userLookupCache.GetUserAsync(user.OnlineID).GetResultSafely()?.AvatarUrl;
 
             if (!string.IsNullOrEmpty(avatarUrl))
-                Texture = textures.Get(avatarUrl);
+                Texture = onlineTextures.Get(avatarUrl);
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }
