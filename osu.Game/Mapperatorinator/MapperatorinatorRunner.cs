@@ -154,6 +154,193 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>
+        /// Installs Mapperatorinator from scratch without the user touching a terminal:
+        /// downloads the repo, creates a python 3.10 venv, installs pytorch (cuda if an
+        /// nvidia gpu is present) and the requirements. Mirrors the manual install that
+        /// was verified working; every quirk here was hit for real:
+        ///  - `slider` comes from git+ in requirements and git can be broken, so it gets
+        ///    installed from the tarball and its line dropped from the requirements.
+        ///  - torch is NOT in requirements.txt; it goes separately with the right index.
+        ///  - everything (checkout, caches) lands on the drive with the most free space,
+        ///    because pytorch + model easily exceed 10 GB and C: is often nearly full.
+        /// </summary>
+        public async Task InstallAsync(Action<string> onLogLine, CancellationToken cancellation)
+        {
+            string python = findPython310() ?? throw new InvalidOperationException(
+                @"Python 3.10 is required and wasn't found. Install it from python.org (3.10.x) and try again.");
+
+            onLogLine($"python 3.10: {python}");
+
+            string root = pickInstallRoot();
+            string target = Path.Combine(root, @"Torii-Mapperatorinator");
+            Directory.CreateDirectory(target);
+            onLogLine($"installing to {target} (drive with the most free space)");
+
+            // 1. bajar el repo (tarball, sin depender de git)
+            string tarball = Path.Combine(target, @"src.tar.gz");
+            onLogLine(@"downloading Mapperatorinator...");
+
+            using (var http = new System.Net.Http.HttpClient())
+            using (var resp = await http.GetAsync(@"https://github.com/OliBomby/Mapperatorinator/archive/refs/heads/main.tar.gz", cancellation).ConfigureAwait(false))
+            {
+                resp.EnsureSuccessStatusCode();
+                await using var f = File.Create(tarball);
+                await resp.Content.CopyToAsync(f, cancellation).ConfigureAwait(false);
+            }
+
+            await runStep(@"tar", new[] { "-xzf", tarball, "-C", target }, target, onLogLine, cancellation).ConfigureAwait(false);
+            File.Delete(tarball);
+
+            string checkout = Path.Combine(target, @"Mapperatorinator-main");
+            if (!Directory.Exists(checkout))
+                throw new InvalidOperationException(@"Download extracted but the expected folder is missing.");
+
+            // 2. venv + pip al dia
+            onLogLine(@"creating python environment...");
+            await runStep(python, new[] { "-m", "venv", ".venv" }, checkout, onLogLine, cancellation).ConfigureAwait(false);
+            string venvPython = Path.Combine(checkout, @".venv", @"Scripts", @"python.exe");
+            if (!File.Exists(venvPython))
+                venvPython = Path.Combine(checkout, @".venv", @"bin", @"python");
+
+            var pipEnv = new Dictionary<string, string>
+            {
+                [@"PIP_CACHE_DIR"] = Path.Combine(target, @"pip-cache"),
+                [@"TMP"] = Path.Combine(target, @"tmp"),
+                [@"TEMP"] = Path.Combine(target, @"tmp"),
+            };
+            Directory.CreateDirectory(pipEnv[@"TMP"]);
+
+            await runStep(venvPython, new[] { "-m", "pip", "install", "--upgrade", "pip", "--quiet" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+
+            // 3. pytorch segun gpu (el download gordo, varios GB)
+            bool cuda = DetectDevice() == @"cuda";
+            onLogLine(cuda
+                ? @"installing pytorch with CUDA (this is the big one, a few GB)..."
+                : @"no nvidia gpu found: installing cpu pytorch (generation will be SLOW)...");
+            var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
+            if (cuda)
+            {
+                torchArgs.Add("--index-url");
+                torchArgs.Add("https://download.pytorch.org/whl/cu126");
+            }
+            await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+
+            // 4. slider desde tarball + requirements sin su linea git
+            onLogLine(@"installing dependencies...");
+            await runStep(venvPython, new[] { "-m", "pip", "install", "https://github.com/OliBomby/slider/archive/refs/heads/master.tar.gz" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+
+            string reqs = Path.Combine(checkout, @"requirements.txt");
+            string reqsLocal = Path.Combine(checkout, @"requirements.local.txt");
+            var kept = new List<string>();
+            foreach (string line in await File.ReadAllLinesAsync(reqs, cancellation).ConfigureAwait(false))
+            {
+                if (!line.StartsWith(@"slider @", StringComparison.Ordinal))
+                    kept.Add(line);
+            }
+            await File.WriteAllLinesAsync(reqsLocal, kept, cancellation).ConfigureAwait(false);
+            await runStep(venvPython, new[] { "-m", "pip", "install", "-r", reqsLocal }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+
+            // 5. listo: recordar y validar
+            Config.InstallPath = checkout;
+            Save();
+
+            if (!InstallLooksValid)
+                throw new InvalidOperationException(@"Install finished but inference.py is missing. Something went wrong.");
+
+            onLogLine(@"install complete! the model itself downloads automatically on your first generation.");
+        }
+
+        private static string? findPython310()
+        {
+            foreach ((string exe, string[] probeArgs) in new[] { (@"py", new[] { @"-3.10", @"--version" }), (@"python3.10", new[] { @"--version" }) })
+            {
+                try
+                {
+                    var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+                    foreach (string a in probeArgs) psi.ArgumentList.Add(a);
+                    using var p = Process.Start(psi);
+                    if (p == null) continue;
+
+                    string outp = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+                    p.WaitForExit(6000);
+                    if (p.ExitCode == 0 && outp.Contains(@"3.10"))
+                        return exe == @"py" ? @"py -3.10" : exe;
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>The fixed drive with the most free space; pytorch + model need well over 10 GB.</summary>
+        private static string pickInstallRoot()
+        {
+            string best = Path.GetPathRoot(Path.GetTempPath()) ?? @"C:/";
+            long bestFree = 0;
+
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                try
+                {
+                    if (drive.DriveType == DriveType.Fixed && drive.AvailableFreeSpace > bestFree)
+                    {
+                        best = drive.RootDirectory.FullName;
+                        bestFree = drive.AvailableFreeSpace;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            if (bestFree < 15L * 1024 * 1024 * 1024)
+                throw new InvalidOperationException(@"Not enough disk space: the install needs about 15 GB free on some drive.");
+
+            return best;
+        }
+
+        private async Task runStep(string exe, string[] stepArgs, string workDir, Action<string> onLogLine, CancellationToken cancellation, Dictionary<string, string>? env = null)
+        {
+            // "py -3.10" viaja como exe con argumento adentro
+            string[] exeParts = exe.Split(' ', 2);
+
+            var psi = new ProcessStartInfo(exeParts[0])
+            {
+                WorkingDirectory = workDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            if (exeParts.Length > 1)
+                psi.ArgumentList.Add(exeParts[1]);
+            foreach (string a in stepArgs)
+                psi.ArgumentList.Add(a);
+            if (env != null)
+            {
+                foreach ((string k, string v) in env)
+                    psi.EnvironmentVariables[k] = v;
+            }
+
+            using var process = new Process { StartInfo = psi };
+            process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
+            process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            using (cancellation.Register(() => { try { process.Kill(true); } catch { } }))
+                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+
+            cancellation.ThrowIfCancellationRequested();
+
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"step {Path.GetFileName(exeParts[0])} {string.Join(' ', stepArgs)} failed with exit code {process.ExitCode}.");
+        }
+
+        /// <summary>
         /// Runs inference and returns the path of the generated .osz. The caller owns
         /// cleanup of <see cref="MapperatorinatorRequest.WorkDirectory"/> afterwards.
         /// </summary>
@@ -259,6 +446,7 @@ namespace osu.Game.Mapperatorinator
             var args = new List<string>
             {
                 @"inference.py",
+                @"--config-name", request.Model.ConfigName(),
                 $"audio_path=\"{audio}\"",
                 $"output_path=\"{output}\"",
                 $"gamemode={(int)request.Gamemode}",
@@ -313,6 +501,69 @@ namespace osu.Game.Mapperatorinator
         public double? SpeedFactorCpu { get; set; }
     }
 
+    public enum MapperatorinatorModel
+    {
+        [System.ComponentModel.Description(@"V32 (recommended)")]
+        V32,
+
+        [System.ComponentModel.Description(@"V32 mini (faster, lighter)")]
+        V32Mini,
+
+        [System.ComponentModel.Description(@"V31")]
+        V31,
+
+        [System.ComponentModel.Description(@"V30 (osu! only, basic)")]
+        V30,
+
+        [System.ComponentModel.Description(@"V29")]
+        V29,
+
+        [System.ComponentModel.Description(@"V28")]
+        V28,
+    }
+
+    /// <summary>
+    /// What each model actually understands. Anything not supported is hidden in the UI:
+    /// showing a field the model ignores is worse than not having it.
+    ///
+    /// Source of truth: configs/train/*.yaml (add_mapper_token / add_year_token /
+    /// add_descriptors / min_year / max_year) and static/app.js (modelCapabilities)
+    /// in the Mapperatorinator repo. Keep in sync when new models land.
+    /// </summary>
+    public static class MapperatorinatorModelCapabilities
+    {
+        public static string ConfigName(this MapperatorinatorModel m) => m switch
+        {
+            MapperatorinatorModel.V32 => @"v32",
+            MapperatorinatorModel.V32Mini => @"v32-mini",
+            MapperatorinatorModel.V31 => @"v31",
+            MapperatorinatorModel.V30 => @"v30",
+            MapperatorinatorModel.V29 => @"v29",
+            MapperatorinatorModel.V28 => @"v28",
+            _ => @"v32",
+        };
+
+        public static bool SupportsYear(this MapperatorinatorModel m) => m != MapperatorinatorModel.V30;
+
+        /// <summary>2024 only for the v32 family; the rest were trained up to 2023.</summary>
+        public static int MaxYear(this MapperatorinatorModel m) =>
+            m is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini ? 2024 : 2023;
+
+        public const int MIN_YEAR = 2007;
+
+        public static bool SupportsMapperId(this MapperatorinatorModel m) =>
+            m is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini
+                or MapperatorinatorModel.V29 or MapperatorinatorModel.V28;
+
+        public static bool SupportsDescriptors(this MapperatorinatorModel m) => m != MapperatorinatorModel.V30;
+
+        public static bool SupportsHitsoundsToggle(this MapperatorinatorModel m) => m != MapperatorinatorModel.V30;
+
+        /// <summary>v30 was only trained on osu! standard.</summary>
+        public static bool SupportsGamemode(this MapperatorinatorModel m, MapperatorinatorGamemode mode) =>
+            m != MapperatorinatorModel.V30 || mode == MapperatorinatorGamemode.Osu;
+    }
+
     public enum MapperatorinatorGamemode
     {
         [System.ComponentModel.Description(@"osu!")]
@@ -333,6 +584,8 @@ namespace osu.Game.Mapperatorinator
     /// </summary>
     public class MapperatorinatorRequest
     {
+        public MapperatorinatorModel Model { get; set; } = MapperatorinatorModel.V32;
+
         public string AudioPath { get; set; } = string.Empty;
 
         /// <summary>
