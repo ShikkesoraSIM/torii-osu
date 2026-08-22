@@ -389,12 +389,22 @@ namespace osu.Game.Mapperatorinator
             }
 
             // el nombre de la diff nueva es el que genero la tool, des-colisionado
-            // contra las versiones existentes del set.
+            // contra las versiones que REALMENTE hay en el set (las del snapshot mas
+            // las que leemos de los .osu ya copiados, que son la verdad del disco).
+            var taken = new HashSet<string>(job.TargetSetVersions.Where(v => v.Length > 0), StringComparer.OrdinalIgnoreCase);
+
+            foreach (string existing in Directory.EnumerateFiles(dir, @"*.osu", SearchOption.AllDirectories))
+            {
+                string? existingVersion = readVersion(existing);
+                if (existingVersion != null)
+                    taken.Add(existingVersion);
+            }
+
             string baseVersion = emptyToNull(OszPostProcessor.Peek(oszPath)?.version) ?? $"AI {job.Request.Difficulty:0.0} stars";
             string version = baseVersion;
             int suffix = 2;
 
-            while (job.TargetSetVersions.Contains(version, StringComparer.OrdinalIgnoreCase))
+            while (taken.Contains(version))
                 version = $"{baseVersion} ({suffix++})";
 
             job.Overrides.Version = version;
@@ -409,13 +419,42 @@ namespace osu.Game.Mapperatorinator
                             ?? throw new InvalidOperationException(@"the generated archive has no .osu inside.");
 
                 string filename = sanitizeFilename($"{job.Overrides.Artist} - {job.Overrides.Title} ({job.Overrides.Creator}) [{version}].osu");
-                entry.ExtractToFile(Path.Combine(dir, filename), true);
+                string destination = Path.Combine(dir, filename);
+
+                // pisar un .osu existente borraria esa diff (y sus scores) del set.
+                for (int i = 2; File.Exists(destination); i++)
+                    destination = Path.Combine(dir, sanitizeFilename($"{Path.GetFileNameWithoutExtension(filename)} ({i}).osu"));
+
+                entry.ExtractToFile(destination, false);
             }
 
             // sidecar actualizado con los settings de ESTA generacion (pisa el copiado).
             File.WriteAllText(Path.Combine(dir, MapperatorinatorSidecar.FILENAME), MapperatorinatorSidecar.FromRequest(job.Request, false).Serialize());
 
             return (dir, version);
+        }
+
+        /// <summary>The difficulty name of an .osu on disk, or null if it has none.</summary>
+        private static string? readVersion(string osuPath)
+        {
+            try
+            {
+                foreach (string line in File.ReadLines(osuPath))
+                {
+                    string trimmed = line.Trim();
+
+                    if (trimmed.StartsWith(@"Version:", StringComparison.Ordinal))
+                        return emptyToNull(trimmed.Substring(8).Trim());
+
+                    if (trimmed == @"[Difficulty]" || trimmed == @"[Events]")
+                        break;
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
         }
 
         private static string copyAudioToWorkDir(Func<Stream?> open, string extension, string workDirectory)
