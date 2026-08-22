@@ -285,11 +285,11 @@ namespace osu.Game.Screens.Select
                 }
 
                 // torii: mandar la cancion del set a mapperatorinator. cualquier diff
-                // sirve como fuente, el audio es del set.
+                // sirve como fuente, el audio es del set. para sets ya generados con
+                // la IA el mismo helper devuelve el submenu de regenerar/nueva diff.
                 if (beatmapSet.Beatmaps.FirstOrDefault() is BeatmapInfo sourceBeatmap && songSelect is SoloSongSelect solo)
                 {
-                    items.Add(new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
-                        () => solo.OpenMapperatorinator(sourceBeatmap)) { Icon = FontAwesome.Solid.Magic });
+                    items.AddRange(solo.CreateMapperatorinatorMenuItems(sourceBeatmap));
                     items.Add(new OsuMenuItemSpacer());
                 }
 

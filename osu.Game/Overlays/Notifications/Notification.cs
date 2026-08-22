@@ -61,6 +61,13 @@ namespace osu.Game.Overlays.Notifications
         /// </summary>
         public virtual bool DisplayOnTop => true;
 
+        /// <summary>
+        /// Whether this notification should stay visible as a toast until the user activates
+        /// or dismisses it, instead of auto-forwarding to the tray after a few seconds.
+        /// Checked repeatedly, so implementations may change their answer over time.
+        /// </summary>
+        public virtual bool KeepVisibleAsToast => false;
+
         public virtual string PopInSampleName => "UI/notification-default";
         public virtual string PopOutSampleName => "UI/overlay-pop-out";
 

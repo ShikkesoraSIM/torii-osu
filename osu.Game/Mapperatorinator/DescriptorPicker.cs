@@ -55,6 +55,20 @@ namespace osu.Game.Mapperatorinator
 
         private int gamemodeId;
 
+        /// <summary>Replaces the whole selection (used to prefill from stored settings).</summary>
+        public void SetStates(IEnumerable<string> wanted, IEnumerable<string> avoided)
+        {
+            states.Clear();
+
+            foreach (string tag in wanted)
+                states[tag] = ChipState.Want;
+            foreach (string tag in avoided)
+                states[tag] = ChipState.Avoid;
+
+            if (IsLoaded)
+                rebuild();
+        }
+
         [BackgroundDependencyLoader]
         private void load()
         {

@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -120,6 +120,13 @@ namespace osu.Game.Overlays
                 // Notification forwarded away.
                 if (notification.Parent != toastFlow)
                     return;
+
+                // Notification wants to stay on screen; check again later.
+                if (notification.KeepVisibleAsToast)
+                {
+                    scheduleDismissal();
+                    return;
+                }
 
                 // Notification hovered; delay dismissal.
                 if (notification.IsHovered || notification.IsDragged)

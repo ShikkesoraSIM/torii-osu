@@ -9,6 +9,7 @@ using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
 using osu.Game.Graphics.UserInterface;
@@ -54,6 +55,9 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private OsuGame? game { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private Mapperatorinator.MapperatorinatorGenerationManager? generationManager { get; set; }
+
         private Sample? sampleConfirmSelection { get; set; }
 
         [BackgroundDependencyLoader]
@@ -69,6 +73,37 @@ namespace osu.Game.Screens.Select
         /// Publico porque los paneles del carousel tambien lo ofrecen y no pueden pushear ellos.
         /// </summary>
         public void OpenMapperatorinator(BeatmapInfo beatmap) => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap));
+
+        /// <summary>
+        /// torii: las entradas de menu de mapperatorinator para un beatmap. Para mapas
+        /// que ya salieron de la IA (tag marcador) ofrece regenerar con los mismos
+        /// settings, sumar una diff al set, o arrancar un set nuevo; para el resto,
+        /// la entrada simple de siempre. Compartido con los paneles del carousel.
+        /// </summary>
+        public IEnumerable<OsuMenuItem> CreateMapperatorinatorMenuItems(BeatmapInfo beatmap)
+        {
+            if (!Mapperatorinator.MapperatorinatorGenerationManager.IsGeneratedMap(beatmap))
+            {
+                yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
+                    () => OpenMapperatorinator(beatmap)) { Icon = FontAwesome.Solid.Magic };
+
+                yield break;
+            }
+
+            yield return new OsuMenuItem("Mapperatorinator", MenuItemType.Highlighted)
+            {
+                Icon = FontAwesome.Solid.Magic,
+                Items = new MenuItem[]
+                {
+                    new OsuMenuItem("Regenerate (same settings, new seed)", MenuItemType.Standard,
+                        () => generationManager?.QuickRegenerate(beatmap)),
+                    new OsuMenuItem("New difficulty (tweak settings)", MenuItemType.Standard,
+                        () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true))),
+                    new OsuMenuItem("Generate as a new set", MenuItemType.Standard,
+                        () => OpenMapperatorinator(beatmap)),
+                },
+            };
+        }
 
         public override IEnumerable<OsuMenuItem> GetForwardActions(BeatmapInfo beatmap)
         {
@@ -92,10 +127,10 @@ namespace osu.Game.Screens.Select
                 yield return new OsuMenuItemSpacer();
             }
 
-            // torii: mandar la cancion de este mapa a mapperatorinator. la pantalla
-            // pide las opciones del generador primero y la metadata despues.
-            yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
-                () => OpenMapperatorinator(beatmap)) { Icon = FontAwesome.Solid.Magic };
+            // torii: entradas de mapperatorinator. un mapa ya generado con la IA abre
+            // un submenu (regenerar / nueva diff); el resto, la entrada simple.
+            foreach (var item in CreateMapperatorinatorMenuItems(beatmap))
+                yield return item;
 
             yield return new OsuMenuItemSpacer();
 

@@ -37,21 +37,20 @@ namespace osu.Game.Mapperatorinator
     /// <summary>
     /// The "use this song for Mapperatorinator" flow: generator options up top, the
     /// metadata you want on the finished map below (held aside and applied to the
-    /// .osz after generation), then a live log with a device-aware ETA.
+    /// .osz after generation). Pressing generate hands the job to the game-wide
+    /// manager and leaves; progress lives in a pinned notification from there on.
     /// </summary>
     public partial class MapperatorinatorScreen : OsuScreen
     {
         private readonly BeatmapInfo? sourceBeatmap;
         private readonly string? externalAudioPath;
-
-        [Resolved]
-        private BeatmapManager beatmaps { get; set; } = null!;
+        private readonly bool addToExistingSet;
 
         [Resolved(canBeNull: true)]
         private INotificationOverlay? notifications { get; set; }
 
         [Resolved(canBeNull: true)]
-        private OsuGame? game { get; set; }
+        private MapperatorinatorGenerationManager? generationManager { get; set; }
 
         private MapperatorinatorRunner runner = null!;
 
@@ -85,12 +84,10 @@ namespace osu.Game.Mapperatorinator
         private OsuTextFlowContainer logFlow = null!;
         private OsuScrollContainer logScroll = null!;
 
-        private bool running;
-        private CancellationTokenSource? cancellation;
+        private bool installing;
+        private CancellationTokenSource? installCancellation;
         private string device = @"cpu";
-        private Stopwatch? runStopwatch;
         private TimeSpan currentEstimate;
-        private ScheduledDelegate? etaTicker;
         private int logLines;
 
         private const int max_log_lines = 400;
@@ -99,9 +96,10 @@ namespace osu.Game.Mapperatorinator
         // thread, asi que NADA del task de generacion puede volver a tocarlo.
         private double audioLengthSeconds = 180;
 
-        public MapperatorinatorScreen(BeatmapInfo beatmap)
+        public MapperatorinatorScreen(BeatmapInfo beatmap, bool addToExistingSet = false)
         {
             sourceBeatmap = beatmap;
+            this.addToExistingSet = addToExistingSet;
         }
 
         public MapperatorinatorScreen(string audioPath)
@@ -112,7 +110,9 @@ namespace osu.Game.Mapperatorinator
         [BackgroundDependencyLoader]
         private void load(OsuColour colours, Storage storage)
         {
-            runner = new MapperatorinatorRunner(storage.GetFullPath(string.Empty));
+            // el runner del manager es la unica fuente de verdad de config/install;
+            // instanciar uno propio solo si no hay manager (test scenes).
+            runner = generationManager?.Runner ?? new MapperatorinatorRunner(storage.GetFullPath(string.Empty));
             device = runner.DetectDevice();
             audioLengthSeconds = (sourceBeatmap?.Length ?? 180_000) / 1000.0;
 
@@ -145,7 +145,9 @@ namespace osu.Game.Mapperatorinator
                         {
                             heading(@"Mapperatorinator", 32),
                             caption(sourceBeatmap != null
-                                ? $"song: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title}"
+                                ? (addToExistingSet
+                                    ? $"new difficulty for: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title} (added to the same set)"
+                                    : $"song: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title}")
                                 : $"audio: {Path.GetFileName(externalAudioPath)}"),
 
                             heading(@"Generator", 22),
@@ -204,8 +206,8 @@ namespace osu.Game.Mapperatorinator
                                 Caption = @"Super timing (slower, better for variable BPM songs)",
                             },
 
-                            heading(@"Map info (applied after generation)", 22),
-                            caption(@"these don't affect generation; the finished map comes back with them set."),
+                            metadataHeading = heading(@"Map info (applied after generation)", 22),
+                            metadataCaption = caption(@"these don't affect generation; the finished map comes back with them set."),
                             titleBox = new FormTextBox { Caption = @"Title", PlaceholderText = @"keep generated" },
                             artistBox = new FormTextBox { Caption = @"Artist", PlaceholderText = @"keep generated" },
                             creatorBox = new FormTextBox { Caption = @"Creator", PlaceholderText = @"Mapperatorinator" },
@@ -235,13 +237,7 @@ namespace osu.Game.Mapperatorinator
                                 RelativeSizeAxes = Axes.X,
                                 Height = 50,
                                 Text = @"Generate",
-                                Action = () =>
-                                {
-                                    if (running)
-                                        cancellation?.Cancel();
-                                    else
-                                        startGeneration();
-                                },
+                                Action = startGeneration,
                             },
 
                             logScroll = new OsuScrollContainer
@@ -249,6 +245,9 @@ namespace osu.Game.Mapperatorinator
                                 RelativeSizeAxes = Axes.X,
                                 Height = 240,
                                 Alpha = 0,
+                                // el boton de back de la pantalla flota abajo a la
+                                // izquierda; sin este margen se dibuja arriba del log.
+                                Margin = new MarginPadding { Bottom = 50 },
                                 Child = logFlow = new OsuTextFlowContainer(t => t.Font = OsuFont.GetFont(Typeface.Inter, 13))
                                 {
                                     RelativeSizeAxes = Axes.X,
@@ -284,11 +283,54 @@ namespace osu.Game.Mapperatorinator
             applyModelCapabilities();
             updateSetupVisibility();
             updateIdleEta();
+
+            if (addToExistingSet)
+            {
+                // la metadata es por-set y la diff nueva la hereda; mostrarla aca
+                // solo confundiria.
+                metadataHeading.Alpha = 0;
+                metadataCaption.Alpha = 0;
+                titleBox.Alpha = 0;
+                artistBox.Alpha = 0;
+                creatorBox.Alpha = 0;
+                tagsBox.Alpha = 0;
+                backgroundSelector.Alpha = 0;
+
+                if (sourceBeatmap != null && generationManager?.ReadSidecar(sourceBeatmap) is MapperatorinatorSidecar sidecar)
+                    prefillFromSidecar(sidecar);
+            }
+        }
+
+        /// <summary>
+        /// Preloads the form with the settings the original generation used, so
+        /// "tweak settings" starts from what actually produced this map.
+        /// </summary>
+        private void prefillFromSidecar(MapperatorinatorSidecar sidecar)
+        {
+            var request = sidecar.ToRequest();
+
+            model.Current.Value = request.Model;
+            gamemode.Current.Value = request.Gamemode;
+            if (request.Difficulty != null)
+                difficulty.Current.Value = request.Difficulty.Value;
+            year.Current.Value = request.Year?.ToString() ?? string.Empty;
+            mapperId.Current.Value = request.MapperId?.ToString() ?? string.Empty;
+            keycount.Current.Value = request.Keycount?.ToString() ?? string.Empty;
+            hitsounds.Current.Value = request.Hitsounded;
+            superTiming.Current.Value = request.SuperTiming;
+
+            descriptorPicker.SetStates(request.Descriptors, request.NegativeDescriptors);
+            descriptors.Current.Value = string.Join(@", ", request.Descriptors);
+            negativeDescriptors.Current.Value = string.Join(@", ", request.NegativeDescriptors);
+
+            applyModelCapabilities();
         }
 
         private Drawable setupHeading = null!;
         private Drawable setupCaption = null!;
         private RoundedButton installButton = null!;
+        private Drawable metadataHeading = null!;
+        private Drawable metadataCaption = null!;
 
         /// <summary>
         /// Shows only what the selected model actually understands, and clamps year to
@@ -326,21 +368,21 @@ namespace osu.Game.Mapperatorinator
             setupCaption.Alpha = installed ? 0 : 1;
             installButton.Alpha = installed ? 0 : 1;
             installSelector.Alpha = installed ? 0 : 1;
-            generateButton.Enabled.Value = installed || running;
+            generateButton.Enabled.Value = installed;
         }
 
         private void startInstall()
         {
-            if (running) return;
+            if (installing) return;
 
-            running = true;
+            installing = true;
             installButton.Enabled.Value = false;
             installButton.Text = @"Installing... (watch the log below)";
             logFlow.Clear();
             logLines = 0;
             logScroll.FadeIn(200);
-            cancellation = new CancellationTokenSource();
-            var token = cancellation.Token;
+            installCancellation = new CancellationTokenSource();
+            var token = installCancellation.Token;
 
             Task.Run(async () =>
             {
@@ -366,7 +408,7 @@ namespace osu.Game.Mapperatorinator
                 {
                     Schedule(() =>
                     {
-                        running = false;
+                        installing = false;
                         installButton.Enabled.Value = true;
                         installButton.Text = @"Install Mapperatorinator automatically";
                         updateSetupVisibility();
@@ -402,7 +444,7 @@ namespace osu.Game.Mapperatorinator
 
         private void startGeneration()
         {
-            if (running) return;
+            if (installing) return;
 
             if (!runner.InstallLooksValid)
             {
@@ -434,7 +476,7 @@ namespace osu.Game.Mapperatorinator
             var request = new MapperatorinatorRequest
             {
                 Model = selectedModel,
-                WorkDirectory = Path.Combine(Path.GetTempPath(), @"torii-mapperatorinator", Guid.NewGuid().ToString(@"N")),
+                WorkDirectory = MapperatorinatorGenerationManager.NewWorkDirectory(),
                 Gamemode = gamemode.Current.Value,
                 Difficulty = difficulty.Current.Value,
                 Year = yearValue,
@@ -468,130 +510,35 @@ namespace osu.Game.Mapperatorinator
                 BackgroundImagePath = backgroundSelector.Current.Value?.FullName,
             };
 
-            running = true;
-            generateButton.Text = @"Cancel";
-            logFlow.Clear();
-            logLines = 0;
-            logScroll.FadeIn(200);
+            if (generationManager == null)
+                return;
 
-            runStopwatch = Stopwatch.StartNew();
-            cancellation = new CancellationTokenSource();
-
-            etaTicker?.Cancel();
-            etaTicker = Scheduler.AddDelayed(() =>
-            {
-                if (runStopwatch == null) return;
-
-                var left = currentEstimate - runStopwatch.Elapsed;
-                etaText.Text = left > TimeSpan.Zero
-                    ? $"running on {device} | elapsed {format(runStopwatch.Elapsed)} | ~{format(left)} left"
-                    : $"running on {device} | elapsed {format(runStopwatch.Elapsed)} | taking longer than estimated...";
-            }, 1000, true);
-
-            var token = cancellation.Token;
-
-            // todo lo que toca realm se resuelve ACA, en el update thread. el task de
-            // fondo solo puede ver strings y streams, o revienta con el error de
-            // "Realm accessed from incorrect thread".
-            Func<Stream?>? openAudio;
-            string audioExtension;
+            MapperatorinatorJob job;
 
             try
             {
-                (openAudio, audioExtension) = prepareAudioSource();
+                // el manager resuelve el audio y (en modo add-to-set) el snapshot del
+                // set en el update thread; de aca en adelante todo corre de fondo.
+                job = externalAudioPath != null
+                    ? generationManager.CreateJobFromExternalAudio(externalAudioPath, request, overrides)
+                    : generationManager.CreateJobFromBeatmap(sourceBeatmap!, request, overrides, addToExistingSet);
             }
             catch (Exception e)
             {
-                appendLog($"failed: {e.Message}");
-                finishRun(request.WorkDirectory);
+                notifications?.Post(new SimpleErrorNotification { Text = e.Message });
                 return;
             }
 
-            Task.Run(async () =>
-            {
-                try
-                {
-                    Directory.CreateDirectory(request.WorkDirectory);
-                    request.AudioPath = copyAudioToWorkDir(openAudio, audioExtension, request.WorkDirectory);
+            // el feed de discord solo se entera si el mapa salio con identidad propia
+            // (en modo add-to-set el manager reemplaza los overrides por los del set,
+            // asi que esto queda false solo, que es lo que corresponde).
+            job.AnnounceToFeed = overrides.Title != null && overrides.Artist != null && overrides.BackgroundImagePath != null;
 
-                    string osz = await runner.GenerateAsync(request, line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+            generationManager.Enqueue(job);
 
-                    // aca entran tus settings "en segundo plano": se aplican al osz recien generado
-                    OszPostProcessor.Apply(osz, overrides);
-
-                    var importedSet = await beatmaps.Import(new ImportTask(osz)).ConfigureAwait(false);
-
-                    runner.RecordObservedSpeed(audioLengthSeconds, runStopwatch?.Elapsed ?? TimeSpan.Zero, device);
-
-                    Schedule(() =>
-                    {
-                        appendLog(@"done. imported!");
-
-                        var notification = new SimpleNotification
-                        {
-                            Text = @"Mapperatorinator finished! Click to jump to the new map.",
-                            Icon = osu.Framework.Graphics.Sprites.FontAwesome.Solid.Magic,
-                        };
-
-                        if (importedSet != null)
-                        {
-                            notification.Activated = () =>
-                            {
-                                importedSet.PerformRead(set => game?.PresentBeatmap(set.Detach()));
-                                return true;
-                            };
-                        }
-
-                        notifications?.Post(notification);
-                        finishRun(request.WorkDirectory);
-                    });
-                }
-                catch (OperationCanceledException)
-                {
-                    Schedule(() =>
-                    {
-                        appendLog(@"cancelled.");
-                        finishRun(request.WorkDirectory);
-                    });
-                }
-                catch (Exception e)
-                {
-                    Logger.Log($"[mapperatorinator] generation failed: {e}");
-                    Schedule(() =>
-                    {
-                        appendLog($"failed: {e.Message}");
-                        finishRun(request.WorkDirectory);
-                    });
-                }
-                finally
-                {
-                    // la limpieza va aca y no solo en finishRun: si el usuario salio de la
-                    // pantalla mientras corria, los Schedule de arriba no llegan a ejecutarse
-                    // nunca y la carpeta con el audio copiado quedaria huerfana en temp.
-                    try { Directory.Delete(request.WorkDirectory, true); }
-                    catch { }
-                }
-            }, CancellationToken.None);
-        }
-
-        private void finishRun(string workDirectory)
-        {
-            cancellation?.Dispose();
-            cancellation = null;
-            running = false;
-            generateButton.Text = @"Generate";
-            etaTicker?.Cancel();
-            etaTicker = null;
-            runStopwatch = null;
-            updateIdleEta();
-
-            // el import ya copio todo adentro del juego; la carpeta de trabajo
-            // (audio temporal + osz) no le hace falta a nadie.
-            Task.Run(() =>
-            {
-                try { Directory.Delete(workDirectory, true); }
-                catch { }
-            });
+            // la pantalla ya no hace falta: el progreso vive en la notificacion
+            // pinneada y al terminar el click te lleva al mapa.
+            this.Exit();
         }
 
         private void appendLog(string line)
@@ -605,63 +552,13 @@ namespace osu.Game.Mapperatorinator
             }
 
             logFlow.AddParagraph(line);
-            logScroll.ScrollToEnd();
+
+            // el parrafo recien agregado se mide en el proximo frame; scrollear recien
+            // despues de los hijos o el "end" queda una linea corto.
+            SchedulerAfterChildren.AddOnce(scrollLogToEnd);
         }
 
-        /// <summary>
-        /// Resolves where the audio comes from. MUST run on the update thread: it reads
-        /// realm-backed metadata. Returns a stream factory the background task can use.
-        /// </summary>
-        private (Func<Stream?> open, string extension) prepareAudioSource()
-        {
-            if (externalAudioPath != null)
-            {
-                if (!File.Exists(externalAudioPath))
-                    throw new InvalidOperationException($"Audio file no longer exists: {externalAudioPath}");
-
-                string path = externalAudioPath;
-                return (() => File.OpenRead(path), Path.GetExtension(path));
-            }
-
-            Debug.Assert(sourceBeatmap != null);
-
-            // el BeatmapInfo que llega del menu contextual del carousel viene
-            // desasociado y su BeatmapSet no trae la lista de archivos, asi que
-            // GetPathForFile daba null y el generate moria con "couldn't locate".
-            // refetch: true lo vuelve a buscar entero de realm, con archivos y todo.
-            var working = beatmaps.GetWorkingBeatmap(sourceBeatmap, refetch: true);
-
-            string audioFilename = working.Metadata.AudioFile;
-            if (string.IsNullOrEmpty(audioFilename))
-                throw new InvalidOperationException(@"This beatmap has no audio file.");
-
-            string? storagePath = working.BeatmapSetInfo.GetPathForFile(audioFilename);
-            if (storagePath == null)
-                throw new InvalidOperationException($"Couldn't locate \"{audioFilename}\" inside the beatmap's files.");
-
-            // el stream es un FileStream comun, ese si viaja entre threads sin drama.
-            return (() => working.GetStream(storagePath), Path.GetExtension(audioFilename));
-        }
-
-        /// <summary>
-        /// inference.py wants a real audio file on disk with its original extension;
-        /// storage files are hashed and extensionless. Safe to run on the background task.
-        /// </summary>
-        private static string copyAudioToWorkDir(Func<Stream?> open, string extension, string workDirectory)
-        {
-            string dest = Path.Combine(workDirectory, $"audio{extension}");
-
-            using (var source = open())
-            using (var output = File.Create(dest))
-            {
-                if (source == null)
-                    throw new InvalidOperationException(@"Couldn't open the audio file from storage.");
-
-                source.CopyTo(output);
-            }
-
-            return dest;
-        }
+        private void scrollLogToEnd() => logScroll.ScrollToEnd();
 
         private static int? parseIntOrNull(string? s) => int.TryParse(s, out int v) ? v : null;
 
@@ -674,9 +571,9 @@ namespace osu.Game.Mapperatorinator
 
         public override bool OnExiting(ScreenExitEvent e)
         {
-            // salir cancela; el proceso externo no puede quedar corriendo huerfano.
-            cancellation?.Cancel();
-            etaTicker?.Cancel();
+            // una instalacion a medias no puede quedar corriendo huerfana; las
+            // generaciones viven en el manager y siguen solas.
+            installCancellation?.Cancel();
             return base.OnExiting(e);
         }
     }
