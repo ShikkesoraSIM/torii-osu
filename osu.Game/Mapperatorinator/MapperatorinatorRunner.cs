@@ -154,36 +154,21 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>
-        /// Runs inference and returns the path of the generated .osz.
+        /// Runs inference and returns the path of the generated .osz. The caller owns
+        /// cleanup of <see cref="MapperatorinatorRequest.WorkDirectory"/> afterwards.
         /// </summary>
         public async Task<string> GenerateAsync(MapperatorinatorRequest request, Action<string> onLogLine, CancellationToken cancellation)
         {
             if (!InstallLooksValid)
                 throw new InvalidOperationException(@"Mapperatorinator install path is not set up (needs a folder containing inference.py).");
 
-            string outputDir = Path.Combine(Path.GetTempPath(), @"torii-mapperatorinator", Guid.NewGuid().ToString(@"N"));
+            if (!File.Exists(request.AudioPath))
+                throw new InvalidOperationException($"Audio file not found: {request.AudioPath}");
+
+            string outputDir = Path.Combine(request.WorkDirectory, @"out");
             Directory.CreateDirectory(outputDir);
 
-            var args = new List<string>
-            {
-                @"inference.py",
-                $"audio_path=\"{request.AudioPath}\"",
-                $"output_path=\"{outputDir}\"",
-                $"gamemode={request.Gamemode}",
-                @"export_osz=true",
-                @"device=auto",
-            };
-
-            if (request.Difficulty != null)
-                args.Add($"difficulty={request.Difficulty.Value.ToString(@"0.0#", CultureInfo.InvariantCulture)}");
-            if (request.Year != null)
-                args.Add($"year={request.Year.Value}");
-            if (!request.Hitsounded)
-                args.Add(@"hitsounded=false");
-            if (request.SuperTiming)
-                args.Add(@"super_timing=true");
-            if (!string.IsNullOrWhiteSpace(Config.ExtraArguments))
-                args.AddRange(Config.ExtraArguments.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+            var args = buildArguments(request, outputDir);
 
             var psi = new ProcessStartInfo(PythonExecutable)
             {
@@ -193,10 +178,16 @@ namespace osu.Game.Mapperatorinator
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+
+            // sin esto python bufferea stdout y el log en pantalla parece muerto
+            // hasta el final. HYDRA_FULL_ERROR hace legibles los errores de config.
+            psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
+            psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
+
             foreach (string a in args)
                 psi.ArgumentList.Add(a);
 
-            onLogLine($"$ {PythonExecutable} {string.Join(' ', args)}");
+            onLogLine($"$ {Path.GetFileName(PythonExecutable)} {string.Join(' ', args)}");
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
 
@@ -220,7 +211,16 @@ namespace osu.Game.Mapperatorinator
             process.OutputDataReceived += (_, e) => handle(e.Data);
             process.ErrorDataReceived += (_, e) => handle(e.Data);
 
-            process.Start();
+            try
+            {
+                process.Start();
+            }
+            catch (Exception e)
+            {
+                // el caso tipico: no hay python en el PATH y tampoco venv.
+                throw new InvalidOperationException($"Couldn't start \"{PythonExecutable}\": {e.Message}. Is python installed?");
+            }
+
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -248,6 +248,51 @@ namespace osu.Game.Mapperatorinator
 
             return resultPath;
         }
+
+        private List<string> buildArguments(MapperatorinatorRequest request, string outputDir)
+        {
+            // hydra parsea los overrides; los paths van con barras normales porque los
+            // backslashes de windows se comen como escapes en su gramatica.
+            string audio = request.AudioPath.Replace('\\', '/');
+            string output = outputDir.Replace('\\', '/');
+
+            var args = new List<string>
+            {
+                @"inference.py",
+                $"audio_path=\"{audio}\"",
+                $"output_path=\"{output}\"",
+                $"gamemode={(int)request.Gamemode}",
+                @"export_osz=true",
+                @"device=auto",
+            };
+
+            if (request.Difficulty != null)
+                args.Add($"difficulty={request.Difficulty.Value.ToString(@"0.0#", CultureInfo.InvariantCulture)}");
+            if (request.Year != null)
+                args.Add($"year={request.Year.Value}");
+            if (request.MapperId != null)
+                args.Add($"mapper_id={request.MapperId.Value}");
+            if (request.Seed != null)
+                args.Add($"seed={request.Seed.Value}");
+            if (request.Gamemode == MapperatorinatorGamemode.Mania && request.Keycount != null)
+                args.Add($"keycount={request.Keycount.Value}");
+            if (!request.Hitsounded)
+                args.Add(@"hitsounded=false");
+            if (request.SuperTiming)
+                args.Add(@"super_timing=true");
+
+            if (request.Descriptors.Count > 0)
+                args.Add($"descriptors=[{string.Join(',', request.Descriptors.ConvertAll(quote))}]");
+            if (request.NegativeDescriptors.Count > 0)
+                args.Add($"negative_descriptors=[{string.Join(',', request.NegativeDescriptors.ConvertAll(quote))}]");
+
+            if (!string.IsNullOrWhiteSpace(Config.ExtraArguments))
+                args.AddRange(Config.ExtraArguments.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+            return args;
+
+            static string quote(string s) => $"\"{s.Trim().Replace("\"", string.Empty)}\"";
+        }
     }
 
     public class MapperatorinatorRunnerConfig
@@ -268,6 +313,21 @@ namespace osu.Game.Mapperatorinator
         public double? SpeedFactorCpu { get; set; }
     }
 
+    public enum MapperatorinatorGamemode
+    {
+        [System.ComponentModel.Description(@"osu!")]
+        Osu = 0,
+
+        [System.ComponentModel.Description(@"osu!taiko")]
+        Taiko = 1,
+
+        [System.ComponentModel.Description(@"osu!catch")]
+        Catch = 2,
+
+        [System.ComponentModel.Description(@"osu!mania")]
+        Mania = 3,
+    }
+
     /// <summary>
     /// What to generate. Kept deliberately close to inference.py's own vocabulary.
     /// </summary>
@@ -275,16 +335,33 @@ namespace osu.Game.Mapperatorinator
     {
         public string AudioPath { get; set; } = string.Empty;
 
-        /// <summary>0 = osu!, 1 = taiko, 2 = catch, 3 = mania.</summary>
-        public int Gamemode { get; set; }
+        /// <summary>
+        /// Scratch folder owned by this run: the temp audio copy and the tool output both
+        /// live here so a single delete cleans everything.
+        /// </summary>
+        public string WorkDirectory { get; set; } = string.Empty;
+
+        public MapperatorinatorGamemode Gamemode { get; set; }
 
         public double? Difficulty { get; set; } = 5;
 
         public int? Year { get; set; }
 
+        /// <summary>osu! user id whose mapping style to imitate.</summary>
+        public int? MapperId { get; set; }
+
+        public int? Seed { get; set; }
+
+        /// <summary>Mania only.</summary>
+        public int? Keycount { get; set; }
+
         public bool Hitsounded { get; set; } = true;
 
         /// <summary>Slower but much better timing for songs with variable BPM.</summary>
         public bool SuperTiming { get; set; }
+
+        public List<string> Descriptors { get; } = new List<string>();
+
+        public List<string> NegativeDescriptors { get; } = new List<string>();
     }
 }
