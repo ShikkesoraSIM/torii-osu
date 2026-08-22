@@ -1484,6 +1484,10 @@ namespace osu.Game
             // torii: notas de score. el store batchea los lookups de los iconitos del leaderboard
             // (una request por tanda) y cachea; el overlay es el panel de escribir la nota.
             loadComponentSingleFile(new osu.Game.Online.ScoreNotes.ScoreNoteStore(), Add, true);
+            // torii: generacion de mapas con mapperatorinator en segundo plano. vive a
+            // nivel juego para que cerrar la pantalla no mate la corrida; el progreso
+            // y el resultado van por notificaciones.
+            loadComponentSingleFile(new osu.Game.Mapperatorinator.MapperatorinatorGenerationManager(), Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.ScoreNotes.ScoreNoteOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.CosmeticUnlockOverlay(), topMostOverlayContent.Add, true);
             loadComponentSingleFile(new osu.Game.Overlays.Cosmetics.RedeemCodeOverlay(), topMostOverlayContent.Add, true);
