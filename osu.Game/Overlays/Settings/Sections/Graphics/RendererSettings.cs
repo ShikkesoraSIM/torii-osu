@@ -99,11 +99,12 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"framerate", @"counter" },
                 },
-                // torii: el desglose de latencias, aparte del contador de siempre.
+                // torii: el desglose de latencias. uno o el otro, nunca los dos:
+                // prender este apaga el de fps y al reves.
                 new SettingsItemV2(new FormCheckBox
                 {
-                    Caption = "Detailed performance counter",
-                    HintText = "Shows what each part of the chain costs: audio output, input polling and drawing, with the frame rate on the end.",
+                    Caption = "Show latency counter v2",
+                    HintText = "Replaces the FPS counter with a breakdown of what each part costs: audio output, input polling and drawing, plus the frame rate.",
                     Current = osuConfig.GetBindable<bool>(OsuSetting.ToriiPerformanceCounter),
                 })
                 {

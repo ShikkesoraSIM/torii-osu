@@ -1,7 +1,6 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
-using System;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Bindables;
@@ -10,7 +9,6 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Platform;
@@ -24,11 +22,11 @@ using osuTK.Graphics;
 namespace osu.Game.Graphics.UserInterface
 {
     /// <summary>
-    /// torii: the detailed performance readout. Where the plain FPS counter answers "how
-    /// many frames", this one answers "how long does each part of the chain take": what
-    /// your headphones cost, what your keyboard costs, what drawing costs, and the frame
-    /// rate on the end. Uncapped frame limiter modes are called out visually, because
-    /// running with no limits should look like it.
+    /// torii: the latency counter. Where the plain FPS counter answers "how many frames",
+    /// this one answers "how long does each part of the chain take": what your headphones
+    /// cost, what your keyboard costs, what drawing costs, and the frame rate on the end.
+    /// It lives in the gameplay corner, so it stays deliberately quiet: state shows
+    /// through colour only, no glows, no motion.
     /// </summary>
     public partial class ToriiPerformanceCounter : VisibilityContainer
     {
@@ -41,10 +39,7 @@ namespace osu.Game.Graphics.UserInterface
         private readonly BindableBool noLimits = new BindableBool();
         private IBindable<double> audioLatency = null!;
 
-        private Container background = null!;
-        private Box backgroundBox = null!;
-        private Container flairContainer = null!;
-        private SpriteIcon flairIcon = null!;
+        private SpriteIcon boltIcon = null!;
 
         private Stat audioStat = null!;
         private Stat inputStat = null!;
@@ -58,6 +53,13 @@ namespace osu.Game.Graphics.UserInterface
         private double displayedInputTime;
         private double displayedDrawTime;
         private double lastUpdate;
+
+        // paleta del modo descapeado: de cyan (todo bien) hacia azul/violeta/purpura
+        // a medida que la latencia sube.
+        private static readonly Color4 cyan = Color4Extensions.FromHex(@"4dd9ff");
+        private static readonly Color4 blue = Color4Extensions.FromHex(@"5d7bff");
+        private static readonly Color4 purple = Color4Extensions.FromHex(@"a64dff");
+        private static readonly Color4 red = Color4Extensions.FromHex(@"ff4d4d");
 
         [Resolved]
         private OsuColour colours { get; set; } = null!;
@@ -76,13 +78,13 @@ namespace osu.Game.Graphics.UserInterface
                 Height = height,
                 Children = new Drawable[]
                 {
-                    background = new Container
+                    new Container
                     {
                         RelativeSizeAxes = Axes.Both,
                         CornerRadius = 6,
                         CornerExponent = 5f,
                         Masking = true,
-                        Child = backgroundBox = new Box
+                        Child = new Box
                         {
                             RelativeSizeAxes = Axes.Both,
                             Colour = Color4.Black.Opacity(0.65f),
@@ -98,17 +100,13 @@ namespace osu.Game.Graphics.UserInterface
                         Padding = new MarginPadding { Horizontal = 9 },
                         Children = new Drawable[]
                         {
-                            flairContainer = new Container
+                            boltIcon = new SpriteIcon
                             {
-                                AutoSizeAxes = Axes.Both,
+                                Icon = FontAwesome.Solid.Bolt,
+                                Size = new Vector2(10),
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
                                 Alpha = 0,
-                                Child = flairIcon = new SpriteIcon
-                                {
-                                    Icon = FontAwesome.Solid.Bolt,
-                                    Size = new Vector2(11),
-                                },
                             },
                             audioStat = new Stat(FontAwesome.Solid.Headphones),
                             inputStat = new Stat(FontAwesome.Solid.Keyboard),
@@ -150,68 +148,17 @@ namespace osu.Game.Graphics.UserInterface
         protected override void PopIn() => this.FadeIn(150, Easing.OutQuint);
         protected override void PopOut() => this.FadeOut(150, Easing.OutQuint);
 
+        private bool uncapped => frameSync.Value == FrameSync.UnlimitedNoCap;
+        private bool unhinged => uncapped && noLimits.Value;
+
         /// <summary>
-        /// The counter dresses itself according to how far past the safety rails the user
-        /// has gone: normal, uncapped drawing, and no limits at all.
+        /// State shows through colour alone: normal keeps the usual green-to-red scale,
+        /// uncapped turns cyan and shows the bolt, no-limits paints everything red.
         /// </summary>
         private void updateMode()
         {
-            bool uncapped = frameSync.Value == FrameSync.UnlimitedNoCap;
-            bool unhinged = uncapped && noLimits.Value;
-
-            flairContainer.ClearTransforms(true);
-            flairIcon.ClearTransforms(true);
-            backgroundBox.ClearTransforms();
-            background.EdgeEffect = default;
-
-            if (unhinged)
-            {
-                // no limits: the thing is on fire and it will not sit still.
-                flairContainer.Alpha = 1;
-                flairIcon.Icon = FontAwesome.Solid.Meteor;
-                flairIcon.Colour = colours.Yellow;
-                flairIcon.Size = new Vector2(13);
-
-                flairIcon.Spin(1400, RotationDirection.Clockwise);
-                flairContainer.ScaleTo(1.15f, 260, Easing.OutQuint).Then().ScaleTo(0.95f, 260, Easing.InQuint).Loop();
-
-                backgroundBox.Colour = ColourInfo.GradientHorizontal(
-                    colours.Pink2.Opacity(0.75f),
-                    colours.Orange1.Opacity(0.75f));
-
-                background.EdgeEffect = new EdgeEffectParameters
-                {
-                    Type = EdgeEffectType.Glow,
-                    Colour = colours.Orange1.Opacity(0.5f),
-                    Radius = 12,
-                };
-
-                backgroundBox.FadeTo(0.85f, 400, Easing.OutQuint).Then().FadeTo(1f, 400, Easing.InQuint).Loop();
-            }
-            else if (uncapped)
-            {
-                // uncapped drawing: a bolt, and everything goes blue.
-                flairContainer.Alpha = 1;
-                flairIcon.Icon = FontAwesome.Solid.Bolt;
-                flairIcon.Colour = colours.Blue0;
-                flairIcon.Size = new Vector2(11);
-                flairContainer.Scale = Vector2.One;
-
-                backgroundBox.Colour = colours.Blue3.Opacity(0.5f);
-
-                background.EdgeEffect = new EdgeEffectParameters
-                {
-                    Type = EdgeEffectType.Glow,
-                    Colour = colours.Blue1.Opacity(0.35f),
-                    Radius = 8,
-                };
-            }
-            else
-            {
-                flairContainer.Alpha = 0;
-                flairContainer.Scale = Vector2.One;
-                backgroundBox.Colour = Color4.Black.Opacity(0.65f);
-            }
+            boltIcon.Alpha = uncapped ? 1 : 0;
+            boltIcon.Colour = unhinged ? red : cyan;
 
             updateAudio();
         }
@@ -221,7 +168,7 @@ namespace osu.Game.Graphics.UserInterface
             double latency = audioLatency.Value;
 
             audioStat.Value = latency > 0 ? format(latency) : @"--";
-            audioStat.Colour = tint(latency <= 0 ? colours.Gray6 : latencyColour(latency, 12, 30));
+            audioStat.Colour = latency <= 0 ? (ColourInfo)colours.Gray6 : latencyColour(latency, 15, 45);
         }
 
         protected override void Update()
@@ -238,24 +185,46 @@ namespace osu.Game.Graphics.UserInterface
             lastUpdate = Time.Current;
 
             inputStat.Value = format(displayedInputTime);
-            inputStat.Colour = tint(latencyColour(displayedInputTime, 1.5, 5));
+            inputStat.Colour = latencyColour(displayedInputTime, 1.5, 5);
 
             drawStat.Value = format(displayedDrawTime);
-            drawStat.Colour = tint(latencyColour(displayedDrawTime, 8, 20));
+            drawStat.Colour = latencyColour(displayedDrawTime, 8, 20);
 
             fpsText.Text = $"{displayedFps:#,0}";
-            fpsText.Colour = tint(colours.GrayF);
+            fpsText.Colour = unhinged ? red : uncapped ? cyan : colours.GrayF;
         }
 
-        /// <summary>Blue everything while uncapped, so the state reads at a glance.</summary>
-        private ColourInfo tint(ColourInfo normal) => frameSync.Value == FrameSync.UnlimitedNoCap && !noLimits.Value ? colours.Blue0 : normal;
+        /// <summary>
+        /// The per-stat colour for a latency of <paramref name="ms"/>, where
+        /// <paramref name="good"/> and below is ideal and <paramref name="bad"/> and
+        /// above is a problem. Each mode has its own palette.
+        /// </summary>
+        private ColourInfo latencyColour(double ms, double good, double bad)
+        {
+            if (unhinged)
+                return red;
 
-        private Color4 latencyColour(double ms, double good, double bad) =>
-            ms <= good
-                ? colours.Lime0
-                : ms >= bad
-                    ? colours.Red
-                    : Interpolation.ValueAt(ms, colours.Lime0, colours.Orange2, good, bad);
+            if (uncapped)
+            {
+                // cyan mientras este todo bajo; hacia azul y purpura cuando sube.
+                if (ms <= good)
+                    return cyan;
+                if (ms >= bad)
+                    return purple;
+
+                double mid = (good + bad) / 2;
+                return ms < mid
+                    ? Interpolation.ValueAt(ms, cyan, blue, good, mid)
+                    : Interpolation.ValueAt(ms, blue, purple, mid, bad);
+            }
+
+            if (ms <= good)
+                return colours.Lime0;
+            if (ms >= bad)
+                return colours.Red;
+
+            return Interpolation.ValueAt(ms, colours.Lime0, colours.Orange2, good, bad);
+        }
 
         private static string format(double ms) => ms < 10 ? $"{ms:0.0}" : $"{ms:0}";
 
