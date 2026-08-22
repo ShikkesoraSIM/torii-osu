@@ -38,12 +38,22 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>
+        /// The marker tag every generated map carries, no matter what the user types.
+        /// The client and website read it to show the "made with AI" badge, so it is
+        /// deliberately not optional.
+        /// </summary>
+        public const string MARKER_TAG = @"mapperatorinator";
+
+        /// <summary>
         /// Rewrites <paramref name="oszPath"/> in place with the given overrides applied to every .osu inside.
         /// </summary>
         public static void Apply(string oszPath, MetadataOverrides overrides)
         {
-            if (!overrides.HasAnything)
-                return;
+            // aunque el usuario no haya tocado nada, el tag marcador va igual:
+            // de ese tag sale el badge de "hecho con IA" en el cliente y la web.
+            string tags = overrides.Tags ?? string.Empty;
+            if (!tags.Contains(MARKER_TAG, StringComparison.OrdinalIgnoreCase))
+                overrides.Tags = string.IsNullOrWhiteSpace(tags) ? MARKER_TAG : $"{tags} {MARKER_TAG}";
 
             string? backgroundEntryName = null;
 
