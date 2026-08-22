@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using osu.Framework;
 using osu.Framework.Bindables;
+using osu.Framework.Development;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -253,7 +254,14 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
 
             configExperimentalAudio.BindValueChanged(experimental =>
             {
-                Current.Value = !experimental.NewValue;
+                // torii: el framework apaga esto solo cuando no puede inicializar el
+                // dispositivo, y avisa desde el audio thread. tocar el visto ahi mismo
+                // revienta con InvalidThreadForMutation, o sea que justo cuando el audio
+                // falla se cae el juego entero. hay que volver al update thread.
+                if (ThreadSafety.IsUpdateThread)
+                    Current.Value = !experimental.NewValue;
+                else
+                    Schedule(() => Current.Value = !experimental.NewValue);
             }, true);
         }
     }
