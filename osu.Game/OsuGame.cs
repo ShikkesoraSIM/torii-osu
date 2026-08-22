@@ -1340,6 +1340,13 @@ namespace osu.Game
             var showFpsCounter = LocalConfig.GetBindable<bool>(OsuSetting.ShowFpsDisplay);
             var showLatencyCounter = LocalConfig.GetBindable<bool>(OsuSetting.ToriiPerformanceCounter);
 
+            // el contador nuevo arranca prendido por default. si alguien venia con el de
+            // fps activo, al actualizar quedarian los dos en true: gana el nuevo (la idea
+            // es que se descubra). si despues eligen el viejo, eso persiste el nuevo en
+            // false y esta rama no vuelve a tocar nada.
+            if (showFpsCounter.Value && showLatencyCounter.Value)
+                showFpsCounter.Value = false;
+
             showFpsCounter.ValueChanged += e =>
             {
                 if (e.NewValue)

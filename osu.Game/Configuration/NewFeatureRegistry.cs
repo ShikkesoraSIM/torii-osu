@@ -213,6 +213,22 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string LegacyFont = "v2026.722.0:legacy-font";
 
+        /// <summary>
+        /// Marks the "Show latency counter v2" toggle in Settings → Graphics.
+        /// Replaces the FPS counter with a per-stage latency breakdown (audio
+        /// output, input polling, drawing) plus the frame rate. On by default
+        /// for everyone so the feature gets discovered.
+        /// </summary>
+        public const string LatencyCounter = "v2026.822.1:latency-counter";
+
+        /// <summary>
+        /// Marks the "Exclusive audio device access" toggle in Settings →
+        /// Audio. WASAPI exclusive mode: the lowest output latency the
+        /// hardware can do, at the cost of silencing every other application
+        /// on the device while the game is open.
+        /// </summary>
+        public const string WasapiExclusive = "v2026.822.1:wasapi-exclusive";
+
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
@@ -229,6 +245,8 @@ namespace osu.Game.Configuration
             ReplayRender,
             StableResults,
             LegacyFont,
+            LatencyCounter,
+            WasapiExclusive,
         };
 
         /// <summary>
