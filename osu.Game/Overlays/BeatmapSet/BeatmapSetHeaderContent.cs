@@ -307,6 +307,13 @@ namespace osu.Game.Overlays.BeatmapSet
                         title.AddArbitraryDrawable(new SpotlightBeatmapBadge());
                     }
 
+                    // torii: los mapas hechos con la IA se marcan como tales en todos lados.
+                    if (MapperatorinatorBeatmapBadge.ShouldShowFor(newBeatmapSet))
+                    {
+                        title.AddArbitraryDrawable(Empty().With(d => d.Width = 10));
+                        title.AddArbitraryDrawable(new MapperatorinatorBeatmapBadge());
+                    }
+
                     artist.AddLink(artistText, LinkAction.SearchBeatmapSet, LocalisableString.Interpolate($@"artist=""""{artistText}"""""));
 
                     if (newBeatmapSet.TrackId != null)

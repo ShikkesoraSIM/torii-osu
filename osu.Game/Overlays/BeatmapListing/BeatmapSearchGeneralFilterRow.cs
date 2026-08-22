@@ -55,6 +55,12 @@ namespace osu.Game.Overlays.BeatmapListing
                     case SearchGeneral.FeaturedArtists:
                         return new FeaturedArtistsTabItem();
 
+                    case SearchGeneral.ToriiExclusive:
+                        return new ToriiExclusiveTabItem();
+
+                    case SearchGeneral.AiGenerated:
+                        return new AiGeneratedTabItem();
+
                     default:
                         return new MultipleSelectionFilterTabItem(value);
                 }
@@ -111,6 +117,28 @@ namespace osu.Game.Overlays.BeatmapListing
 
                 if (recommender != null)
                     recommender.StarRatingUpdated -= updateText;
+            }
+        }
+
+        /// <summary>torii: solo mapas subidos a Torii; no existen en osu! oficial.</summary>
+        private partial class ToriiExclusiveTabItem : MultipleSelectionFilterTabItem, IHasTooltip
+        {
+            public LocalisableString TooltipText => @"Only maps uploaded here. These don't exist on osu! official.";
+
+            public ToriiExclusiveTabItem()
+                : base(SearchGeneral.ToriiExclusive)
+            {
+            }
+        }
+
+        /// <summary>torii: los generados con Mapperatorinator, que solo viven aca.</summary>
+        private partial class AiGeneratedTabItem : MultipleSelectionFilterTabItem, IHasTooltip
+        {
+            public LocalisableString TooltipText => @"Only maps generated with Mapperatorinator. Always uploaded here.";
+
+            public AiGeneratedTabItem()
+                : base(SearchGeneral.AiGenerated)
+            {
             }
         }
 

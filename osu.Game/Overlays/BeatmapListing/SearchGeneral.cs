@@ -26,6 +26,14 @@ namespace osu.Game.Overlays.BeatmapListing
 
         [LocalisableDescription(typeof(BeatmapsStrings), nameof(BeatmapsStrings.GeneralFeaturedArtists))]
         [Description("Featured artists")]
-        FeaturedArtists
+        FeaturedArtists,
+
+        // torii: mapas subidos aca (no existen en osu! oficial) y, adentro de esos,
+        // los generados con Mapperatorinator.
+        [Description("Uploaded to Torii")]
+        ToriiExclusive,
+
+        [Description("Generated with Mapperatorinator")]
+        AiGenerated
     }
 }

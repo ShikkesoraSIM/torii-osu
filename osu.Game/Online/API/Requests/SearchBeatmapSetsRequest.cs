@@ -84,8 +84,20 @@ namespace osu.Game.Online.API.Requests
             if (query != null)
                 req.AddParameter("q", query);
 
-            if (General != null && General.Any())
-                req.AddParameter("c", string.Join('.', General.Select(e => e.ToString().ToSnakeCase())));
+            // torii: estos dos no son filtros de la api de osu!, son nuestros. van como
+            // flags aparte y se sacan de `c` para no ensuciar la query que entiende ppy.
+            bool toriiOnly = General?.Contains(SearchGeneral.ToriiExclusive) == true;
+            bool aiOnly = General?.Contains(SearchGeneral.AiGenerated) == true;
+
+            if (toriiOnly)
+                req.AddParameter("is_local", "true");
+            if (aiOnly)
+                req.AddParameter("ai", "true");
+
+            var general = General?.Where(g => g != SearchGeneral.ToriiExclusive && g != SearchGeneral.AiGenerated).ToArray();
+
+            if (general?.Length > 0)
+                req.AddParameter("c", string.Join('.', general.Select(e => e.ToString().ToSnakeCase())));
 
             if (ruleset.OnlineID >= 0)
                 req.AddParameter("m", ruleset.OnlineID.ToString());
