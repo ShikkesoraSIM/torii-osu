@@ -529,10 +529,14 @@ namespace osu.Game.Mapperatorinator
                 return;
             }
 
-            // el feed de discord solo se entera si el mapa salio con identidad propia
-            // (en modo add-to-set el manager reemplaza los overrides por los del set,
-            // asi que esto queda false solo, que es lo que corresponde).
-            job.AnnounceToFeed = overrides.Title != null && overrides.Artist != null && overrides.BackgroundImagePath != null;
+            // el feed de discord solo se entera si el mapa salio con identidad propia:
+            // titulo puesto a mano, imagen elegida, y algo que lo describa (artista o
+            // tags). el que genera por probar y no toca nada no aparece en el feed.
+            // en modo add-to-set el manager reemplaza los overrides por los del set,
+            // asi que esto queda en false solo, que es lo que corresponde.
+            job.AnnounceToFeed = overrides.Title != null
+                                 && overrides.BackgroundImagePath != null
+                                 && (overrides.Artist != null || overrides.Tags != null);
 
             generationManager.Enqueue(job);
 
