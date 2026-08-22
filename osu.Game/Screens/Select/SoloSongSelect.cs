@@ -64,6 +64,12 @@ namespace osu.Game.Screens.Select
             AddInternal(new SongSelectTouchInputDetector());
         }
 
+        /// <summary>
+        /// torii: abre la pantalla de mapperatorinator para el audio de este beatmap.
+        /// Publico porque los paneles del carousel tambien lo ofrecen y no pueden pushear ellos.
+        /// </summary>
+        public void OpenMapperatorinator(BeatmapInfo beatmap) => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap));
+
         public override IEnumerable<OsuMenuItem> GetForwardActions(BeatmapInfo beatmap)
         {
             yield return new OsuMenuItem(ButtonSystemStrings.Play.ToSentence(), MenuItemType.Highlighted, () => SelectAndRun(beatmap, OnStart)) { Icon = FontAwesome.Solid.Check };
@@ -88,8 +94,8 @@ namespace osu.Game.Screens.Select
 
             // torii: mandar la cancion de este mapa a mapperatorinator. la pantalla
             // pide las opciones del generador primero y la metadata despues.
-            yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Standard,
-                () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap))) { Icon = FontAwesome.Solid.Magic };
+            yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
+                () => OpenMapperatorinator(beatmap)) { Icon = FontAwesome.Solid.Magic };
 
             yield return new OsuMenuItemSpacer();
 

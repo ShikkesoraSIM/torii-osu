@@ -13,6 +13,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
@@ -22,6 +23,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
+
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -118,11 +120,16 @@ namespace osu.Game.Mapperatorinator
                     RelativeSizeAxes = Axes.Both,
                     Colour = ColourInfo.GradientVertical(colours.GreySeaFoamDark, colours.GreySeaFoamDarker),
                 },
-                new OsuScrollContainer
+                // FormFileSelector abre su selector en un popover, y sin un
+                // PopoverContainer en la jerarquia HidePopover revienta el juego entero.
+                new PopoverContainer
                 {
                     RelativeSizeAxes = Axes.Both,
-                    Padding = new MarginPadding { Horizontal = 60, Top = 40, Bottom = 90 },
-                    Child = new FillFlowContainer
+                    Child = new OsuScrollContainer
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Padding = new MarginPadding { Horizontal = 60, Top = 40, Bottom = 90 },
+                        Child = new FillFlowContainer
                     {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
@@ -228,6 +235,7 @@ namespace osu.Game.Mapperatorinator
                                     AutoSizeAxes = Axes.Y,
                                 },
                             },
+                        },
                         },
                     },
                 },
