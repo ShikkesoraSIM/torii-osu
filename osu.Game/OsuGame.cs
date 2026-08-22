@@ -1328,6 +1328,15 @@ namespace osu.Game
                 Margin = new MarginPadding(5),
             }, topMostOverlayContent.Add);
 
+            // torii: el contador detallado vive al lado del clasico y se prende por su
+            // propia opcion, asi que se pueden tener los dos, uno, o ninguno.
+            loadComponentSingleFile(new Graphics.UserInterface.ToriiPerformanceCounter
+            {
+                Anchor = Anchor.BottomRight,
+                Origin = Anchor.BottomRight,
+                Margin = new MarginPadding { Right = 5, Bottom = 36 },
+            }, topMostOverlayContent.Add);
+
             if (!IsDeployedBuild)
                 loadComponentSingleFile(devBuildBanner = new DevBuildBanner(), ScreenContainer.Add);
 

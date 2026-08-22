@@ -99,6 +99,16 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                 {
                     Keywords = new[] { @"framerate", @"counter" },
                 },
+                // torii: el desglose de latencias, aparte del contador de siempre.
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Detailed performance counter",
+                    HintText = "Shows what each part of the chain costs: audio output, input polling and drawing, with the frame rate on the end.",
+                    Current = osuConfig.GetBindable<bool>(OsuSetting.ToriiPerformanceCounter),
+                })
+                {
+                    Keywords = new[] { @"framerate", @"counter", @"latency", @"performance", @"audio", @"input" },
+                },
             };
 
             // Force-SDL3 toggle for Linux / macOS only. Windows + mobile are
