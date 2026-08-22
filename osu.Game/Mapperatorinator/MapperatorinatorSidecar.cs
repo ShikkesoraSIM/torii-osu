@@ -37,6 +37,18 @@ namespace osu.Game.Mapperatorinator
         [JsonPropertyName("keycount")]
         public int? Keycount { get; set; }
 
+        [JsonPropertyName("circle_size")]
+        public double? CircleSize { get; set; }
+
+        [JsonPropertyName("approach_rate")]
+        public double? ApproachRate { get; set; }
+
+        [JsonPropertyName("overall_difficulty")]
+        public double? OverallDifficulty { get; set; }
+
+        [JsonPropertyName("hp_drain_rate")]
+        public double? HpDrainRate { get; set; }
+
         [JsonPropertyName("hitsounded")]
         public bool Hitsounded { get; set; } = true;
 
@@ -61,6 +73,10 @@ namespace osu.Game.Mapperatorinator
             Year = request.Year,
             MapperId = request.MapperId,
             Keycount = request.Keycount,
+            CircleSize = request.CircleSize,
+            ApproachRate = request.ApproachRate,
+            OverallDifficulty = request.OverallDifficulty,
+            HpDrainRate = request.HpDrainRate,
             Hitsounded = request.Hitsounded,
             SuperTiming = request.SuperTiming,
             Descriptors = request.Descriptors.ToList(),
@@ -82,6 +98,10 @@ namespace osu.Game.Mapperatorinator
                 Year = Year,
                 MapperId = MapperId,
                 Keycount = Keycount,
+                CircleSize = CircleSize,
+                ApproachRate = ApproachRate,
+                OverallDifficulty = OverallDifficulty,
+                HpDrainRate = HpDrainRate,
                 Hitsounded = Hitsounded,
                 SuperTiming = SuperTiming,
             };

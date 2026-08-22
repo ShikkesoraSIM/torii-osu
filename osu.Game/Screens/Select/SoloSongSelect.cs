@@ -149,6 +149,15 @@ namespace osu.Game.Screens.Select
 
             if (beatmaps.CanHide(beatmap))
                 yield return new OsuMenuItem(WebCommonStrings.ButtonsHide.ToSentence(), MenuItemType.Destructive, () => beatmaps.Hide(beatmap));
+
+            // torii: borrar una sola dificultad. estaba solo en el editor (File > delete
+            // difficulty) y nadie lo encontraba. la ultima que queda no se puede borrar:
+            // un set sin dificultades no existe, para eso esta borrar el mapa entero.
+            if (beatmap.BeatmapSet?.Beatmaps.Count > 1)
+            {
+                yield return new OsuMenuItem("Delete difficulty", MenuItemType.Destructive,
+                    () => dialogOverlay?.Push(new BeatmapDifficultyDeleteDialog(beatmap))) { Icon = FontAwesome.Solid.Trash };
+            }
         }
 
         protected override void OnStart()
