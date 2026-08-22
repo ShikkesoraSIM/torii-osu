@@ -251,6 +251,17 @@ namespace osu.Game.Beatmaps.Drawables.Cards
                 });
             }
 
+            // torii: los mapas hechos con la IA se marcan como tales en todos lados.
+            if (MapperatorinatorBeatmapBadge.ShouldShowFor(BeatmapSet))
+            {
+                titleBadgeArea.Add(new MapperatorinatorBeatmapBadge
+                {
+                    Anchor = Anchor.BottomRight,
+                    Origin = Anchor.BottomRight,
+                    Margin = new MarginPadding { Left = 4 }
+                });
+            }
+
             if (BeatmapSet.TrackId != null)
             {
                 artistContainer.Content[0][1] = new FeaturedArtistBeatmapBadge
