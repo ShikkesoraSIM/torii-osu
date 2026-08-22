@@ -13,6 +13,7 @@ using osu.Framework.Localisation;
 using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Configuration;
 using osu.Game.Localisation;
+using osu.Game.Overlays.Notifications;
 
 namespace osu.Game.Overlays.Settings.Sections.Audio
 {
@@ -57,8 +58,16 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
                 legacyAudio.Current.ValueChanged += _ => onDeviceChanged(string.Empty);
 
                 // el modo exclusivo va sobre wasapi: con el motor legacy prendido no hay
-                // nada que hacer, asi que se muestra deshabilitado en vez de mentir.
-                legacyAudio.Current.BindValueChanged(legacy => exclusiveAudio.Current.Disabled = legacy.NewValue, true);
+                // nada que hacer, asi que se muestra deshabilitado en vez de mentir. y si
+                // alguien vuelve al motor legacy teniendolo prendido, se apaga: dejarlo
+                // marcado sin efecto es peor que sacarlo.
+                legacyAudio.Current.BindValueChanged(legacy =>
+                {
+                    if (legacy.NewValue)
+                        audio.UseExclusiveWasapi.Value = false;
+
+                    exclusiveAudio.Current.Disabled = legacy.NewValue;
+                }, true);
             }
 
             audio.OnNewDevice += onDeviceChanged;
@@ -121,6 +130,12 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         [Resolved]
         private IDialogOverlay? dialogOverlay { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private INotificationOverlay? notifications { get; set; }
+
+        /// <summary>Set while we're waiting to see whether the device actually took it.</summary>
+        private bool awaitingResult;
+
         public ExclusiveAudioCheckbox()
         {
             Caption = AudioSettingsStrings.ExclusiveAudioLabel;
@@ -137,7 +152,7 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         {
             base.LoadComplete();
 
-            Current.Value = configExclusiveAudio.Value;
+            writeState(configExclusiveAudio.Value);
 
             Current.BindValueChanged(enabled =>
             {
@@ -149,22 +164,64 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
 
                 if (dialogOverlay == null)
                 {
-                    configExclusiveAudio.Value = true;
+                    enable();
                     return;
                 }
 
                 dialogOverlay.Push(new ExclusiveAudioWarningDialog(
-                    () => configExclusiveAudio.Value = true,
+                    enable,
                     // volver el visto atras sin re-disparar el dialogo
-                    () => Schedule(() => Current.Value = false)));
+                    () => Schedule(() => writeState(false))));
             });
 
-            // el framework puede apagarlo solo si el dispositivo no lo acepta.
+            // el framework lo apaga solo cuando el dispositivo no lo acepta o cuando otra
+            // aplicacion ya lo tiene agarrado. ese aviso llega desde el audio thread, asi
+            // que sin el Schedule tocar el visto desde ahi revienta con
+            // InvalidThreadForMutation.
             configExclusiveAudio.BindValueChanged(exclusive =>
             {
-                if (!exclusive.NewValue)
-                    Current.Value = false;
+                if (exclusive.NewValue)
+                    return;
+
+                Schedule(() =>
+                {
+                    writeState(false);
+
+                    if (!awaitingResult)
+                        return;
+
+                    awaitingResult = false;
+                    notifications?.Post(new SimpleErrorNotification
+                    {
+                        Text = "Exclusive mode didn't work with this audio device, so it stayed off. "
+                               + "Some devices don't support it, and it also fails if another app already grabbed the device.",
+                    });
+                });
             });
+
+            void enable()
+            {
+                // si el dispositivo lo rechaza, el framework devuelve esto a false y ahi
+                // recien sabemos que no anduvo.
+                awaitingResult = true;
+                configExclusiveAudio.Value = true;
+
+                Scheduler.AddDelayed(() => awaitingResult = false, 3000);
+            }
+        }
+
+        /// <summary>
+        /// Writes the checkbox state from code. Goes around <see cref="Bindable{T}.Disabled"/>
+        /// on purpose: the item is disabled while the legacy engine is on, but we still have
+        /// to reflect what the config actually says instead of throwing.
+        /// </summary>
+        private void writeState(bool value)
+        {
+            bool wasDisabled = Current.Disabled;
+
+            Current.Disabled = false;
+            Current.Value = value;
+            Current.Disabled = wasDisabled;
         }
     }
 
