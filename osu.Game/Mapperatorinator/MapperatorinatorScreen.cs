@@ -56,6 +56,7 @@ namespace osu.Game.Mapperatorinator
         private MapperatorinatorRunner runner = null!;
 
         // paso 1: opciones del generador
+        private FormEnumDropdown<MapperatorinatorModel> model = null!;
         private FormEnumDropdown<MapperatorinatorGamemode> gamemode = null!;
         private FormSliderBar<double> difficulty = null!;
         private FormNumberBox year = null!;
@@ -128,11 +129,14 @@ namespace osu.Game.Mapperatorinator
                     Child = new OsuScrollContainer
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Horizontal = 60, Top = 40, Bottom = 90 },
+                        // la barra de scroll reserva su carril en vez de dibujarse
+                        // arriba de los controles del formulario.
+                        ScrollbarOverlapsContent = false,
                         Child = new FillFlowContainer
                     {
                         RelativeSizeAxes = Axes.X,
                         AutoSizeAxes = Axes.Y,
+                        Padding = new MarginPadding { Horizontal = 60, Top = 40, Bottom = 90 },
                         Direction = FillDirection.Vertical,
                         Spacing = new Vector2(0, 8),
                         Children = new Drawable[]
@@ -143,6 +147,10 @@ namespace osu.Game.Mapperatorinator
                                 : $"audio: {Path.GetFileName(externalAudioPath)}"),
 
                             heading(@"Generator", 22),
+                            model = new FormEnumDropdown<MapperatorinatorModel>
+                            {
+                                Caption = @"Model",
+                            },
                             gamemode = new FormEnumDropdown<MapperatorinatorGamemode>
                             {
                                 Caption = @"Game mode",
@@ -154,7 +162,7 @@ namespace osu.Game.Mapperatorinator
                             },
                             year = new FormNumberBox
                             {
-                                Caption = @"Mapping style year (2007-2024, optional)",
+                                Caption = @"Mapping style year (optional; range depends on model)",
                                 PlaceholderText = @"model default",
                             },
                             mapperId = new FormNumberBox
@@ -203,10 +211,18 @@ namespace osu.Game.Mapperatorinator
                                 Caption = @"Background image",
                             },
 
-                            heading(@"Setup", 22),
+                            setupHeading = heading(@"Setup", 22),
+                            setupCaption = caption(@"Mapperatorinator isn't installed yet. One click installs everything (about 8 GB: the tool, python packages and the AI model)."),
+                            installButton = new RoundedButton
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 40,
+                                Text = @"Install Mapperatorinator automatically",
+                                Action = startInstall,
+                            },
                             installSelector = new FormFileSelector
                             {
-                                Caption = @"Mapperatorinator folder (the checkout containing inference.py)",
+                                Caption = @"Or point to an existing install (its inference.py)",
                             },
                             etaText = new OsuSpriteText { Font = OsuFont.Default.With(size: 16) },
 
@@ -249,7 +265,104 @@ namespace osu.Game.Mapperatorinator
                     installSelector.Current.Value = new FileInfo(anchor);
             }
 
+            model.Current.BindValueChanged(_ => applyModelCapabilities());
+            gamemode.Current.BindValueChanged(_ => applyModelCapabilities());
+            installSelector.Current.BindValueChanged(f =>
+            {
+                if (f.NewValue == null) return;
+
+                string chosen = f.NewValue.FullName;
+                runner.Config.InstallPath = Directory.Exists(chosen) ? chosen : Path.GetDirectoryName(chosen);
+                runner.Save();
+                updateSetupVisibility();
+            });
+
+            applyModelCapabilities();
+            updateSetupVisibility();
             updateIdleEta();
+        }
+
+        private Drawable setupHeading = null!;
+        private Drawable setupCaption = null!;
+        private RoundedButton installButton = null!;
+
+        /// <summary>
+        /// Shows only what the selected model actually understands, and clamps year to
+        /// its trained range. Source: the capability table next to the model enum.
+        /// </summary>
+        private void applyModelCapabilities()
+        {
+            var m = model.Current.Value;
+
+            year.Alpha = m.SupportsYear() ? 1 : 0;
+            mapperId.Alpha = m.SupportsMapperId() ? 1 : 0;
+            descriptors.Alpha = m.SupportsDescriptors() ? 1 : 0;
+            negativeDescriptors.Alpha = m.SupportsDescriptors() ? 1 : 0;
+            hitsounds.Alpha = m.SupportsHitsoundsToggle() ? 1 : 0;
+
+            // v30 solo sabe osu! standard
+            if (!m.SupportsGamemode(gamemode.Current.Value))
+                gamemode.Current.Value = MapperatorinatorGamemode.Osu;
+
+            keycount.Alpha = gamemode.Current.Value == MapperatorinatorGamemode.Mania ? 1 : 0;
+        }
+
+        private void updateSetupVisibility()
+        {
+            bool installed = runner.InstallLooksValid;
+
+            setupHeading.Alpha = installed ? 0 : 1;
+            setupCaption.Alpha = installed ? 0 : 1;
+            installButton.Alpha = installed ? 0 : 1;
+            installSelector.Alpha = installed ? 0 : 1;
+            generateButton.Enabled.Value = installed || running;
+        }
+
+        private void startInstall()
+        {
+            if (running) return;
+
+            running = true;
+            installButton.Enabled.Value = false;
+            installButton.Text = @"Installing... (watch the log below)";
+            logFlow.Clear();
+            logLines = 0;
+            logScroll.FadeIn(200);
+            cancellation = new CancellationTokenSource();
+            var token = cancellation.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await runner.InstallAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+                    Schedule(() =>
+                    {
+                        appendLog(@"ready to generate!");
+                        notifications?.Post(new SimpleNotification { Text = @"Mapperatorinator installed! You can generate maps now." });
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    Schedule(() => appendLog(@"install cancelled."));
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] install failed: {e}");
+                    Schedule(() => appendLog($"install failed: {e.Message}"));
+                }
+                finally
+                {
+                    Schedule(() =>
+                    {
+                        running = false;
+                        installButton.Enabled.Value = true;
+                        installButton.Text = @"Install Mapperatorinator automatically";
+                        updateSetupVisibility();
+                        updateIdleEta();
+                    });
+                }
+            }, CancellationToken.None);
         }
 
         private Drawable heading(string text, int size) => new OsuSpriteText
@@ -280,15 +393,6 @@ namespace osu.Game.Mapperatorinator
         {
             if (running) return;
 
-            // el folder elegido queda persistido para la proxima. si eligieron el
-            // inference.py directamente, el folder es su carpeta.
-            if (installSelector.Current.Value != null)
-            {
-                string chosen = installSelector.Current.Value.FullName;
-                runner.Config.InstallPath = Directory.Exists(chosen) ? chosen : Path.GetDirectoryName(chosen);
-                runner.Save();
-            }
-
             if (!runner.InstallLooksValid)
             {
                 notifications?.Post(new SimpleErrorNotification
@@ -298,30 +402,43 @@ namespace osu.Game.Mapperatorinator
                 return;
             }
 
-            // validaciones baratas antes de gastar minutos de gpu
-            int? yearValue = parseIntOrNull(year.Current.Value);
+            // validaciones baratas antes de gastar minutos de gpu. el rango de anio
+            // depende del modelo (2023 para v28-v31, 2024 para la familia v32), y un
+            // valor fuera de rango se recorta al borde en vez de frenar todo.
+            var selectedModel = model.Current.Value;
+            int? yearValue = selectedModel.SupportsYear() ? parseIntOrNull(year.Current.Value) : null;
 
-            if (yearValue != null && (yearValue < 2007 || yearValue > 2024))
+            if (yearValue != null)
             {
-                notifications?.Post(new SimpleErrorNotification { Text = @"Year must be between 2007 and 2024." });
-                return;
+                int clamped = Math.Clamp(yearValue.Value, MapperatorinatorModelCapabilities.MIN_YEAR, selectedModel.MaxYear());
+                if (clamped != yearValue.Value)
+                {
+                    notifications?.Post(new SimpleNotification { Text = $"Year adjusted to {clamped} ({selectedModel.ConfigName()} supports {MapperatorinatorModelCapabilities.MIN_YEAR}-{selectedModel.MaxYear()})." });
+                    year.Current.Value = clamped.ToString();
+                }
+
+                yearValue = clamped;
             }
 
             var request = new MapperatorinatorRequest
             {
+                Model = selectedModel,
                 WorkDirectory = Path.Combine(Path.GetTempPath(), @"torii-mapperatorinator", Guid.NewGuid().ToString(@"N")),
                 Gamemode = gamemode.Current.Value,
                 Difficulty = difficulty.Current.Value,
                 Year = yearValue,
-                MapperId = parseIntOrNull(mapperId.Current.Value),
+                MapperId = selectedModel.SupportsMapperId() ? parseIntOrNull(mapperId.Current.Value) : null,
                 Seed = parseIntOrNull(seed.Current.Value),
-                Keycount = parseIntOrNull(keycount.Current.Value),
-                Hitsounded = hitsounds.Current.Value,
+                Keycount = parseIntOrNull(keycount.Current.Value) is int k ? Math.Clamp(k, 1, 10) : null,
+                Hitsounded = !selectedModel.SupportsHitsoundsToggle() || hitsounds.Current.Value,
                 SuperTiming = superTiming.Current.Value,
             };
 
-            request.Descriptors.AddRange(splitList(descriptors.Current.Value));
-            request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
+            if (selectedModel.SupportsDescriptors())
+            {
+                request.Descriptors.AddRange(splitList(descriptors.Current.Value));
+                request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
+            }
 
             var overrides = new OszPostProcessor.MetadataOverrides
             {
