@@ -86,6 +86,13 @@ namespace osu.Game.Screens.Select
                 yield return new OsuMenuItemSpacer();
             }
 
+            // torii: mandar la cancion de este mapa a mapperatorinator. la pantalla
+            // pide las opciones del generador primero y la metadata despues.
+            yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Standard,
+                () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap))) { Icon = FontAwesome.Solid.Magic };
+
+            yield return new OsuMenuItemSpacer();
+
             foreach (var i in CreateCollectionMenuActions(beatmap))
                 yield return i;
 
