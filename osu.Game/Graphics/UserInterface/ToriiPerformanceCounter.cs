@@ -111,12 +111,21 @@ namespace osu.Game.Graphics.UserInterface
                             audioStat = new Stat(FontAwesome.Solid.Headphones),
                             inputStat = new Stat(FontAwesome.Solid.Keyboard),
                             drawStat = new Stat(OsuIcon.EditorHitCircle),
-                            fpsText = new OsuSpriteText
+                            new Container
                             {
+                                // casillero fijo para 4 caracteres: la barra no puede
+                                // cambiar de ancho cuando los fps cruzan de 999 a 1000.
+                                Width = 36,
+                                RelativeSizeAxes = Axes.Y,
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Font = OsuFont.Default.With(size: 15, weight: FontWeight.Bold, fixedWidth: true),
-                                Spacing = new Vector2(-1, 0),
+                                Child = fpsText = new OsuSpriteText
+                                {
+                                    Anchor = Anchor.CentreRight,
+                                    Origin = Anchor.CentreRight,
+                                    Font = OsuFont.Default.With(size: 15, weight: FontWeight.Bold, fixedWidth: true),
+                                    Spacing = new Vector2(-1, 0),
+                                },
                             },
                         },
                     },
@@ -190,7 +199,7 @@ namespace osu.Game.Graphics.UserInterface
             drawStat.Value = format(displayedDrawTime);
             drawStat.Colour = latencyColour(displayedDrawTime, 8, 20);
 
-            fpsText.Text = $"{displayedFps:#,0}";
+            fpsText.Text = displayedFps < 9999.5 ? $"{displayedFps:0}" : $"{displayedFps / 1000:0}k";
             fpsText.Colour = unhinged ? red : uncapped ? cyan : colours.GrayF;
         }
 
@@ -226,7 +235,7 @@ namespace osu.Game.Graphics.UserInterface
             return Interpolation.ValueAt(ms, colours.Lime0, colours.Orange2, good, bad);
         }
 
-        private static string format(double ms) => ms < 10 ? $"{ms:0.0}" : $"{ms:0}";
+        private static string format(double ms) => ms < 10 ? $"{ms:0.0}" : $"{System.Math.Min(ms, 999):0}";
 
         /// <summary>An icon and its number, the unit tucked in small at the end.</summary>
         private partial class Stat : FillFlowContainer
@@ -265,12 +274,21 @@ namespace osu.Game.Graphics.UserInterface
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
                     },
-                    value = new OsuSpriteText
+                    new Container
                     {
+                        // casillero fijo para "88.8"/"999": pasar de un digito a dos
+                        // (o el punto que aparece y desaparece) no mueve la barra.
+                        Width = 27,
+                        RelativeSizeAxes = Axes.Y,
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
-                        Font = OsuFont.Default.With(size: 13, weight: FontWeight.SemiBold, fixedWidth: true),
-                        Spacing = new Vector2(-1, 0),
+                        Child = value = new OsuSpriteText
+                        {
+                            Anchor = Anchor.CentreRight,
+                            Origin = Anchor.CentreRight,
+                            Font = OsuFont.Default.With(size: 13, weight: FontWeight.SemiBold, fixedWidth: true),
+                            Spacing = new Vector2(-1, 0),
+                        },
                     },
                     new OsuSpriteText
                     {
