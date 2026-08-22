@@ -201,7 +201,7 @@ namespace osu.Game.Configuration
 
             // Graphics
             SetDefault(OsuSetting.ShowFpsDisplay, false);
-            SetDefault(OsuSetting.ToriiPerformanceCounter, false);
+            SetDefault(OsuSetting.ToriiPerformanceCounter, true);
 
             // Torii: force the SDL3 windowing/input backend on Linux + macOS.
             // Read pre-host from game.ini by Program.cs to flip OSU_SDL3 before

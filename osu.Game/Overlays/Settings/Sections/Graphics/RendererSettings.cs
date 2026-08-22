@@ -106,6 +106,7 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
                     Caption = "Show latency counter v2",
                     HintText = "Replaces the FPS counter with a breakdown of what each part costs: audio output, input polling and drawing, plus the frame rate.",
                     Current = osuConfig.GetBindable<bool>(OsuSetting.ToriiPerformanceCounter),
+                    NewFeatureId = NewFeatureRegistry.LatencyCounter,
                 })
                 {
                     Keywords = new[] { @"framerate", @"counter", @"latency", @"performance", @"audio", @"input" },

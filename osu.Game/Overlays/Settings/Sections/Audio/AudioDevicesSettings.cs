@@ -141,6 +141,7 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         {
             Caption = AudioSettingsStrings.ExclusiveAudioLabel;
             HintText = AudioSettingsStrings.ExclusiveAudioTooltip;
+            NewFeatureId = NewFeatureRegistry.WasapiExclusive;
         }
 
         [BackgroundDependencyLoader]
