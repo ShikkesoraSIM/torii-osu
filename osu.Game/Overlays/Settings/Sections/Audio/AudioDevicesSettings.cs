@@ -11,6 +11,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Localisation;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Configuration;
 using osu.Game.Localisation;
 
 namespace osu.Game.Overlays.Settings.Sections.Audio
@@ -25,6 +26,7 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         private AudioDeviceDropdown dropdown = null!;
 
         private FormCheckBox? legacyAudio;
+        private FormCheckBox? exclusiveAudio;
 
         [BackgroundDependencyLoader]
         private void load()
@@ -47,7 +49,16 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
                     Keywords = new[] { "wasapi", "latency", "exclusive", "legacy", "experimental" },
                 });
 
+                Add(new SettingsItemV2(exclusiveAudio = new ExclusiveAudioCheckbox())
+                {
+                    Keywords = new[] { "wasapi", "latency", "exclusive" },
+                });
+
                 legacyAudio.Current.ValueChanged += _ => onDeviceChanged(string.Empty);
+
+                // el modo exclusivo va sobre wasapi: con el motor legacy prendido no hay
+                // nada que hacer, asi que se muestra deshabilitado en vez de mentir.
+                legacyAudio.Current.BindValueChanged(legacy => exclusiveAudio.Current.Disabled = legacy.NewValue, true);
             }
 
             audio.OnNewDevice += onDeviceChanged;
@@ -96,6 +107,64 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
         {
             protected override LocalisableString GenerateItemText(string item)
                 => string.IsNullOrEmpty(item) ? CommonStrings.Default : base.GenerateItemText(item);
+        }
+    }
+
+    /// <summary>
+    /// torii: exclusive WASAPI. Enabling it warns first, because it silences every other
+    /// application on the device and that surprises people mid-call.
+    /// </summary>
+    public partial class ExclusiveAudioCheckbox : FormCheckBox
+    {
+        private Bindable<bool> configExclusiveAudio = null!;
+
+        [Resolved]
+        private IDialogOverlay? dialogOverlay { get; set; }
+
+        public ExclusiveAudioCheckbox()
+        {
+            Caption = AudioSettingsStrings.ExclusiveAudioLabel;
+            HintText = AudioSettingsStrings.ExclusiveAudioTooltip;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(AudioManager audio)
+        {
+            configExclusiveAudio = audio.UseExclusiveWasapi.GetBoundCopy();
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            Current.Value = configExclusiveAudio.Value;
+
+            Current.BindValueChanged(enabled =>
+            {
+                if (!enabled.NewValue)
+                {
+                    configExclusiveAudio.Value = false;
+                    return;
+                }
+
+                if (dialogOverlay == null)
+                {
+                    configExclusiveAudio.Value = true;
+                    return;
+                }
+
+                dialogOverlay.Push(new ExclusiveAudioWarningDialog(
+                    () => configExclusiveAudio.Value = true,
+                    // volver el visto atras sin re-disparar el dialogo
+                    () => Schedule(() => Current.Value = false)));
+            });
+
+            // el framework puede apagarlo solo si el dispositivo no lo acepta.
+            configExclusiveAudio.BindValueChanged(exclusive =>
+            {
+                if (!exclusive.NewValue)
+                    Current.Value = false;
+            });
         }
     }
 

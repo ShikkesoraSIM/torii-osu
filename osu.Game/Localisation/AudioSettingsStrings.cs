@@ -109,6 +109,16 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString LegacyAudioTooltip => new TranslatableString(getKey(@"legacy_audio_tooltip"), @"Use this if you are experiencing audio issues. Note that audio latency will be higher when this is toggled on.");
 
+        /// <summary>
+        /// "Exclusive audio device access"
+        /// </summary>
+        public static LocalisableString ExclusiveAudioLabel => new TranslatableString(getKey(@"exclusive_audio_label"), @"Exclusive audio device access");
+
+        /// <summary>
+        /// "Lowest latency your hardware can do, but no other application can play sound through this device while the game is open."
+        /// </summary>
+        public static LocalisableString ExclusiveAudioTooltip => new TranslatableString(getKey(@"exclusive_audio_tooltip"), @"Lowest latency your hardware can do, but no other application can play sound through this device while the game is open.");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }
