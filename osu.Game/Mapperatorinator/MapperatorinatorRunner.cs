@@ -455,7 +455,7 @@ namespace osu.Game.Mapperatorinator
             };
 
             if (request.Difficulty != null)
-                args.Add($"difficulty={request.Difficulty.Value.ToString(@"0.0#", CultureInfo.InvariantCulture)}");
+                args.Add($"difficulty={number(request.Difficulty.Value)}");
             if (request.Year != null)
                 args.Add($"year={request.Year.Value}");
             if (request.MapperId != null)
@@ -464,6 +464,15 @@ namespace osu.Game.Mapperatorinator
                 args.Add($"seed={request.Seed.Value}");
             if (request.Gamemode == MapperatorinatorGamemode.Mania && request.Keycount != null)
                 args.Add($"keycount={request.Keycount.Value}");
+            if (request.CircleSize != null)
+                args.Add($"circle_size={number(request.CircleSize.Value)}");
+            if (request.ApproachRate != null)
+                args.Add($"approach_rate={number(request.ApproachRate.Value)}");
+            if (request.OverallDifficulty != null)
+                args.Add($"overall_difficulty={number(request.OverallDifficulty.Value)}");
+            if (request.HpDrainRate != null)
+                args.Add($"hp_drain_rate={number(request.HpDrainRate.Value)}");
+
             if (!request.Hitsounded)
                 args.Add(@"hitsounded=false");
             if (request.SuperTiming)
@@ -478,6 +487,9 @@ namespace osu.Game.Mapperatorinator
                 args.AddRange(Config.ExtraArguments.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
             return args;
+
+            // hydra parsea con punto decimal siempre, sin importar la locale de windows.
+            static string number(double value) => value.ToString(@"0.0#", CultureInfo.InvariantCulture);
 
             static string quote(string s) => $"\"{s.Trim().Replace("\"", string.Empty)}\"";
         }
@@ -607,6 +619,18 @@ namespace osu.Game.Mapperatorinator
 
         /// <summary>Mania only.</summary>
         public int? Keycount { get; set; }
+
+        /// <summary>
+        /// Difficulty settings to force on the generated map. Null lets the model pick
+        /// what fits the style it is generating.
+        /// </summary>
+        public double? CircleSize { get; set; }
+
+        public double? ApproachRate { get; set; }
+
+        public double? OverallDifficulty { get; set; }
+
+        public double? HpDrainRate { get; set; }
 
         public bool Hitsounded { get; set; } = true;
 

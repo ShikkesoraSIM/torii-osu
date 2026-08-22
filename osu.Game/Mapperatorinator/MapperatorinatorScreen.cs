@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -27,6 +28,8 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Screens;
@@ -52,6 +55,9 @@ namespace osu.Game.Mapperatorinator
         [Resolved(canBeNull: true)]
         private MapperatorinatorGenerationManager? generationManager { get; set; }
 
+        [Resolved]
+        private IAPIProvider api { get; set; } = null!;
+
         private MapperatorinatorRunner runner = null!;
 
         // paso 1: opciones del generador
@@ -62,6 +68,11 @@ namespace osu.Game.Mapperatorinator
         private FormNumberBox mapperId = null!;
         private FormNumberBox keycount = null!;
         private FormNumberBox seed = null!;
+        private FormNumberBox circleSize = null!;
+        private FormNumberBox approachRate = null!;
+        private FormNumberBox overallDifficulty = null!;
+        private FormNumberBox hpDrain = null!;
+        private Drawable difficultySettingsCaption = null!;
         private FormTextBox descriptors = null!;
         private FormTextBox negativeDescriptors = null!;
         private DescriptorPicker descriptorPicker = null!;
@@ -163,6 +174,27 @@ namespace osu.Game.Mapperatorinator
                             {
                                 Caption = @"Target star rating",
                                 Current = new BindableDouble(5) { MinValue = 1, MaxValue = 10, Precision = 0.1 },
+                            },
+                            difficultySettingsCaption = caption(@"leave these empty and the model picks whatever fits the style it's generating."),
+                            circleSize = new FormNumberBox(allowDecimals: true)
+                            {
+                                Caption = @"Circle size (CS, 0-10, optional)",
+                                PlaceholderText = @"model decides",
+                            },
+                            approachRate = new FormNumberBox(allowDecimals: true)
+                            {
+                                Caption = @"Approach rate (AR, 0-10, optional)",
+                                PlaceholderText = @"model decides",
+                            },
+                            overallDifficulty = new FormNumberBox(allowDecimals: true)
+                            {
+                                Caption = @"Overall difficulty (OD, 0-10, optional)",
+                                PlaceholderText = @"model decides",
+                            },
+                            hpDrain = new FormNumberBox(allowDecimals: true)
+                            {
+                                Caption = @"HP drain (HP, 0-10, optional)",
+                                PlaceholderText = @"model decides",
                             },
                             year = new FormNumberBox
                             {
@@ -280,6 +312,18 @@ namespace osu.Game.Mapperatorinator
                 updateSetupVisibility();
             });
 
+            // el mapa sale a tu nombre por default (podes cambiarlo igual), y si la
+            // cancion viene de un mapa que ya tenias, hereda su titulo y artista en vez
+            // de terminar como "Unknown Title".
+            if (api.LocalUser.Value is APIUser localUser && localUser.Id > 1)
+                creatorBox.Current.Value = localUser.Username;
+
+            if (sourceBeatmap != null)
+            {
+                titleBox.Current.Value = sourceBeatmap.Metadata.Title;
+                artistBox.Current.Value = sourceBeatmap.Metadata.Artist;
+            }
+
             applyModelCapabilities();
             updateSetupVisibility();
             updateIdleEta();
@@ -316,6 +360,10 @@ namespace osu.Game.Mapperatorinator
             year.Current.Value = request.Year?.ToString() ?? string.Empty;
             mapperId.Current.Value = request.MapperId?.ToString() ?? string.Empty;
             keycount.Current.Value = request.Keycount?.ToString() ?? string.Empty;
+            circleSize.Current.Value = stat(request.CircleSize);
+            approachRate.Current.Value = stat(request.ApproachRate);
+            overallDifficulty.Current.Value = stat(request.OverallDifficulty);
+            hpDrain.Current.Value = stat(request.HpDrainRate);
             hitsounds.Current.Value = request.Hitsounded;
             superTiming.Current.Value = request.SuperTiming;
 
@@ -324,6 +372,8 @@ namespace osu.Game.Mapperatorinator
             negativeDescriptors.Current.Value = string.Join(@", ", request.NegativeDescriptors);
 
             applyModelCapabilities();
+
+            static string stat(double? value) => value?.ToString(@"0.#", CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
         private Drawable setupHeading = null!;
@@ -357,7 +407,15 @@ namespace osu.Game.Mapperatorinator
             if (!m.SupportsGamemode(gamemode.Current.Value))
                 gamemode.Current.Value = MapperatorinatorGamemode.Osu;
 
-            keycount.Alpha = gamemode.Current.Value == MapperatorinatorGamemode.Mania ? 1 : 0;
+            bool esMania = gamemode.Current.Value == MapperatorinatorGamemode.Mania;
+            keycount.Alpha = esMania ? 1 : 0;
+
+            // en mania la "circle size" es la cantidad de teclas (va por keycount) y en
+            // taiko no existe; en el resto sirve igual que en el editor.
+            circleSize.Alpha = esMania || gamemode.Current.Value == MapperatorinatorGamemode.Taiko ? 0 : 1;
+
+            // taiko y mania no tienen approach rate.
+            approachRate.Alpha = esMania || gamemode.Current.Value == MapperatorinatorGamemode.Taiko ? 0 : 1;
         }
 
         private void updateSetupVisibility()
@@ -483,6 +541,10 @@ namespace osu.Game.Mapperatorinator
                 MapperId = selectedModel.SupportsMapperId() ? parseIntOrNull(mapperId.Current.Value) : null,
                 Seed = parseIntOrNull(seed.Current.Value),
                 Keycount = parseIntOrNull(keycount.Current.Value) is int k ? Math.Clamp(k, 1, 10) : null,
+                CircleSize = circleSize.Alpha > 0 ? parseStatOrNull(circleSize.Current.Value) : null,
+                ApproachRate = approachRate.Alpha > 0 ? parseStatOrNull(approachRate.Current.Value) : null,
+                OverallDifficulty = parseStatOrNull(overallDifficulty.Current.Value),
+                HpDrainRate = parseStatOrNull(hpDrain.Current.Value),
                 Hitsounded = !selectedModel.SupportsHitsoundsToggle() || hitsounds.Current.Value,
                 SuperTiming = superTiming.Current.Value,
             };
@@ -565,6 +627,10 @@ namespace osu.Game.Mapperatorinator
         private void scrollLogToEnd() => logScroll.ScrollToEnd();
 
         private static int? parseIntOrNull(string? s) => int.TryParse(s, out int v) ? v : null;
+
+        /// <summary>An AR/CS/OD/HP value clamped to osu!'s legal range, or null if not set.</summary>
+        private static double? parseStatOrNull(string? s) =>
+            double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? Math.Clamp(v, 0, 10) : null;
 
         private static string? emptyToNull(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
