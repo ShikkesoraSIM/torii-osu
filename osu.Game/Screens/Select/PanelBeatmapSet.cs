@@ -284,6 +284,15 @@ namespace osu.Game.Screens.Select
                     items.Add(new OsuMenuItemSpacer());
                 }
 
+                // torii: mandar la cancion del set a mapperatorinator. cualquier diff
+                // sirve como fuente, el audio es del set.
+                if (beatmapSet.Beatmaps.FirstOrDefault() is BeatmapInfo sourceBeatmap && songSelect is SoloSongSelect solo)
+                {
+                    items.Add(new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
+                        () => solo.OpenMapperatorinator(sourceBeatmap)) { Icon = FontAwesome.Solid.Magic });
+                    items.Add(new OsuMenuItemSpacer());
+                }
+
                 var collectionItems = realm.Realm.All<BeatmapCollection>()
                                            .OrderBy(c => c.Name)
                                            .AsEnumerable()
