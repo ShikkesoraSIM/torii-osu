@@ -65,6 +65,8 @@ namespace osu.Game.Mapperatorinator
         private FormNumberBox seed = null!;
         private FormTextBox descriptors = null!;
         private FormTextBox negativeDescriptors = null!;
+        private DescriptorPicker descriptorPicker = null!;
+        private Drawable descriptorPickerCaption = null!;
         private FormCheckBox hitsounds = null!;
         private FormCheckBox superTiming = null!;
 
@@ -180,6 +182,8 @@ namespace osu.Game.Mapperatorinator
                                 Caption = @"Seed (optional, same seed = same map)",
                                 PlaceholderText = @"random",
                             },
+                            descriptorPickerCaption = caption(@"click a style once to ask for it (green), twice to avoid it (red), again to clear."),
+                            descriptorPicker = new DescriptorPicker(),
                             descriptors = new FormTextBox
                             {
                                 Caption = @"Style descriptors (comma separated, optional)",
@@ -296,8 +300,15 @@ namespace osu.Game.Mapperatorinator
 
             year.Alpha = m.SupportsYear() ? 1 : 0;
             mapperId.Alpha = m.SupportsMapperId() ? 1 : 0;
-            descriptors.Alpha = m.SupportsDescriptors() ? 1 : 0;
-            negativeDescriptors.Alpha = m.SupportsDescriptors() ? 1 : 0;
+
+            // la familia v32 usa el vocabulario user_tags, que es el que tienen los
+            // chips; los modelos viejos usan el set omdb, que va por texto libre.
+            bool esV32 = m is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini;
+            descriptorPicker.Alpha = m.SupportsDescriptors() && esV32 ? 1 : 0;
+            descriptorPickerCaption.Alpha = descriptorPicker.Alpha;
+            descriptorPicker.GamemodeId = (int)gamemode.Current.Value;
+            descriptors.Alpha = m.SupportsDescriptors() && !esV32 ? 1 : 0;
+            negativeDescriptors.Alpha = descriptors.Alpha;
             hitsounds.Alpha = m.SupportsHitsoundsToggle() ? 1 : 0;
 
             // v30 solo sabe osu! standard
@@ -436,8 +447,16 @@ namespace osu.Game.Mapperatorinator
 
             if (selectedModel.SupportsDescriptors())
             {
-                request.Descriptors.AddRange(splitList(descriptors.Current.Value));
-                request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
+                if (selectedModel is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini)
+                {
+                    request.Descriptors.AddRange(descriptorPicker.Wanted);
+                    request.NegativeDescriptors.AddRange(descriptorPicker.Avoided);
+                }
+                else
+                {
+                    request.Descriptors.AddRange(splitList(descriptors.Current.Value));
+                    request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
+                }
             }
 
             var overrides = new OszPostProcessor.MetadataOverrides
@@ -606,17 +625,21 @@ namespace osu.Game.Mapperatorinator
 
             Debug.Assert(sourceBeatmap != null);
 
-            string audioFilename = sourceBeatmap.Metadata.AudioFile;
+            // el BeatmapInfo que llega del menu contextual del carousel viene
+            // desasociado y su BeatmapSet no trae la lista de archivos, asi que
+            // GetPathForFile daba null y el generate moria con "couldn't locate".
+            // refetch: true lo vuelve a buscar entero de realm, con archivos y todo.
+            var working = beatmaps.GetWorkingBeatmap(sourceBeatmap, refetch: true);
+
+            string audioFilename = working.Metadata.AudioFile;
             if (string.IsNullOrEmpty(audioFilename))
                 throw new InvalidOperationException(@"This beatmap has no audio file.");
 
-            string? storagePath = sourceBeatmap.BeatmapSet?.GetPathForFile(audioFilename);
+            string? storagePath = working.BeatmapSetInfo.GetPathForFile(audioFilename);
             if (storagePath == null)
-                throw new InvalidOperationException(@"Couldn't locate the audio file in storage.");
+                throw new InvalidOperationException($"Couldn't locate \"{audioFilename}\" inside the beatmap's files.");
 
-            // GetWorkingBeatmap toca realm -> aca, no en el task. el stream que devuelve
-            // es un FileStream comun, ese si viaja entre threads sin drama.
-            var working = beatmaps.GetWorkingBeatmap(sourceBeatmap);
+            // el stream es un FileStream comun, ese si viaja entre threads sin drama.
             return (() => working.GetStream(storagePath), Path.GetExtension(audioFilename));
         }
 
