@@ -9,6 +9,8 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Localisation;
+using osu.Framework.Screens;
+using osu.Game.Graphics.UserInterfaceV2;
 using osu.Framework.Logging;
 using osu.Game.Beatmaps;
 using osu.Game.Localisation;
@@ -45,6 +47,9 @@ namespace osu.Game.Screens.Edit.Setup
 
         [Resolved]
         private SetupScreen setupScreen { get; set; } = null!;
+
+        [Resolved]
+        private OsuGame? game { get; set; }
 
         private SetupScreenBackgroundPreview backgroundPreview = null!;
         private SetupScreenVideoPreview videoPreview = null!;
@@ -83,6 +88,23 @@ namespace osu.Game.Screens.Edit.Setup
                 {
                     Caption = EditorSetupStrings.AudioTrack,
                     PlaceholderText = EditorSetupStrings.ClickToSelectTrack,
+                },
+                // torii: generar un mapa para este audio con mapperatorinator. abandona el
+                // editor (con su prompt de guardar si hay cambios) porque lo generado llega
+                // como un set NUEVO importado, no como una edicion de este.
+                new FormButton
+                {
+                    Caption = "Mapperatorinator",
+                    ButtonText = "Generate a map for this audio",
+                    Action = () =>
+                    {
+                        var beatmapInfo = currentWorkingBeatmap.Value.BeatmapInfo;
+
+                        if (string.IsNullOrEmpty(beatmapInfo.Metadata.AudioFile))
+                            return;
+
+                        game?.PerformFromScreen(s => s.Push(new Mapperatorinator.MapperatorinatorScreen(beatmapInfo)));
+                    },
                 },
                 new FormSampleSetChooser
                 {
