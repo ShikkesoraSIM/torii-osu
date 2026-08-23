@@ -28,8 +28,9 @@ namespace osu.Game.Mapperatorinator
         public bool KfdAccessible { get; init; }
 
         /// <summary>
-        /// La placa esta en una maquina windows. No es un problema de configuracion:
-        /// pytorch no publica build de ROCm para windows, asi que no hay nada que probar.
+        /// La placa esta en windows, donde no hay build oficial de pytorch con ROCm. No
+        /// significa que no se pueda: significa que Torii no lo puede instalar solo, y que
+        /// depende de que la persona tenga un torch que sepa hablarle a su placa.
         /// </summary>
         public bool WindowsWithoutRocm { get; init; }
 
@@ -443,6 +444,11 @@ print('torii-gpu-probe ' + json.dumps(info))";
         /// </summary>
         public static IEnumerable<(string index, string torch, string torchaudio)> RocmIndexes()
         {
+            // windows: no hay ruedas de ROCm publicadas, asi que no hay nada que bajar.
+            // Se prueba con el torch que la persona tenga instalado.
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+                yield break;
+
             yield return (@"rocm7.0", @"torch==2.10.0", @"torchaudio==2.10.0");
 
             // kernels mas nuevos, misma familia: la segunda oportunidad para una placa
@@ -787,10 +793,11 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         }
 
         /// <summary>An AMD GPU is here, the user opted in, and it hasn't faulted on us.</summary>
-        public bool RocmAvailable => Config.RocmEnabled
-                                     && !Config.RocmBlocked
-                                     && DetectAmdGpu() is AmdGpuInfo amd
-                                     && !amd.WindowsWithoutRocm;
+        // en windows no hay build oficial de pytorch con ROCm, pero hay gente que tiene
+        // la placa andando igual (el HIP SDK de AMD, o un torch propio: cualquiera de
+        // esos se presenta como CUDA). Quien lo tenga puede pedirlo, y la prueba de dos
+        // segundos decide si anda de verdad, que es mejor juez que el sistema operativo.
+        public bool RocmAvailable => Config.RocmEnabled && !Config.RocmBlocked && DetectAmdGpu() != null;
 
         /// <summary>
         /// The card faulted: never again on its own. Called when the tool dies with a
