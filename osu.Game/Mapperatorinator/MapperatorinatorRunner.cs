@@ -121,6 +121,14 @@ namespace osu.Game.Mapperatorinator
 
         private const string torch_device_marker = @"torii-torch-device.txt";
 
+        /// <summary>Our device name in inference.py's vocabulary (it only knows cuda/mps/cpu).</summary>
+        private static string toolDevice(string device) => device switch
+        {
+            @"cuda" or @"rocm" => @"cuda",
+            @"mps" => @"mps",
+            _ => @"cpu",
+        };
+
         /// <summary>The pytorch wheel index for a device, or null when the default one is right.</summary>
         public static string? TorchIndexUrl(string device)
         {
@@ -173,6 +181,88 @@ namespace osu.Game.Mapperatorinator
 
             return $"{quoted} -m pip install --force-reinstall torch torchaudio"
                    + (index != null ? $" --index-url {index}" : string.Empty);
+        }
+
+        /// <summary>
+        /// Two seconds of real GPU work (allocate, copy, multiply) before we commit to a
+        /// twenty minute run. The failure we're looking for kills the display driver, so
+        /// it's much better to trigger it here than half way through a generation.
+        /// Returns true when the card did the maths and gave the right answer.
+        /// </summary>
+        public async Task<bool> SmokeTestGpuAsync(Action<string> onLogLine, CancellationToken cancellation)
+        {
+            string? venvPython = VenvPython;
+
+            if (venvPython == null)
+                return false;
+
+            const string script = @"import torch
+assert torch.cuda.is_available(), 'torch cannot see the gpu'
+d = torch.device('cuda')
+a = torch.ones(512, 512, device=d)
+b = (a @ a).sum().item()
+assert b == 512 * 512 * 512, f'wrong result: {b}'
+print('torii-gpu-ok', torch.cuda.get_device_name(0))";
+
+            onLogLine(@"testing the GPU with a small matrix multiply...");
+
+            var psi = new ProcessStartInfo(venvPython)
+            {
+                WorkingDirectory = Config.InstallPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            applyProcessEnvironment(psi);
+            psi.ArgumentList.Add(@"-c");
+            psi.ArgumentList.Add(script);
+
+            using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            bool ok = false;
+
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data)) return;
+
+                if (e.Data.StartsWith(@"torii-gpu-ok", StringComparison.Ordinal))
+                    ok = true;
+
+                onLogLine(e.Data);
+            };
+            process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            // el primer arranque de HIP carga kernels y puede tardar; pasado eso, colgado.
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            timeout.CancelAfter(TimeSpan.FromMinutes(3));
+
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(true); }
+                catch { }
+
+                cancellation.ThrowIfCancellationRequested();
+                onLogLine(@"the test never finished: the GPU isn't answering.");
+                return false;
+            }
+
+            if (process.ExitCode != 0 || !ok)
+            {
+                onLogLine($"the GPU test failed (exit code {process.ExitCode}).");
+                return false;
+            }
+
+            onLogLine(@"GPU test passed.");
+            return true;
         }
 
         /// <summary>
@@ -342,10 +432,11 @@ namespace osu.Game.Mapperatorinator
                 // no nvidia-smi -> no cuda.
             }
 
-            // amd en linux: el driver amdgpu expone la placa en kfd (la puerta de rocm) y
-            // torch.cuda.is_available() da true con la rueda rocm, asi que device=auto la
-            // agarra solo. la rueda trae el runtime adentro: no hay que instalar rocm.
-            if (DetectAmdGpu() != null)
+            // amd en linux: el driver amdgpu expone la placa en kfd (la puerta de rocm).
+            // NO es automatico: en placas nuevas o distros sin el stack de rocm, la placa
+            // rechaza el trabajo y se lleva puesto el driver de video (pantallas en negro,
+            // todo cerrado), asi que va solo si lo pidieron y no fallo antes.
+            if (RocmAvailable)
                 return @"rocm";
 
             // inference.py's device=auto picks mps on apple silicon, same as we do here.
@@ -403,6 +494,28 @@ namespace osu.Game.Mapperatorinator
             }
 
             return null;
+        }
+
+        /// <summary>An AMD GPU is here, the user opted in, and it hasn't faulted on us.</summary>
+        public bool RocmAvailable => Config.RocmEnabled && !Config.RocmBlocked && DetectAmdGpu() != null;
+
+        /// <summary>
+        /// The card faulted: never again on its own. Called when the tool dies with a
+        /// hardware exception, which is the failure that also kills the display driver.
+        /// </summary>
+        public void MarkRocmBlocked()
+        {
+            Config.RocmEnabled = false;
+            Config.RocmBlocked = true;
+            Save();
+        }
+
+        /// <summary>Turn AMD generation on and let the smoke test have the final word.</summary>
+        public void EnableRocm()
+        {
+            Config.RocmEnabled = true;
+            Config.RocmBlocked = false;
+            Save();
         }
 
         private static AmdGpuInfo? amdGpu;
@@ -697,6 +810,18 @@ namespace osu.Game.Mapperatorinator
         /// Turns the tool's output into something a person can act on. Null when nothing
         /// recognisable is in there.
         /// </summary>
+        /// <summary>
+        /// The card itself faulted (not a missing library, not permissions): the queue
+        /// aborted mid-dispatch. On linux this is what takes the display driver with it.
+        /// </summary>
+        public static bool IsGpuFault(string output) =>
+            output.Contains(@"HSA_STATUS_ERROR_EXCEPTION", StringComparison.Ordinal)
+            || output.Contains(@"HSA_STATUS_ERROR_MEMORY_APERTURE_VIOLATION", StringComparison.Ordinal)
+            || output.Contains(@"aborting with error", StringComparison.Ordinal)
+            || output.Contains(@"HSA_STATUS_ERROR_HW_EXCEPTION", StringComparison.Ordinal)
+            || output.Contains(@"GPU core dump", StringComparison.OrdinalIgnoreCase)
+            || output.Contains(@"hipErrorIllegalAddress", StringComparison.Ordinal);
+
         public static string? Diagnose(IEnumerable<string> outputLines)
         {
             string all = string.Join('\n', outputLines);
@@ -712,8 +837,13 @@ namespace osu.Game.Mapperatorinator
             if (all.Contains(@"not compiled with CUDA") || all.Contains(@"Torch not compiled"))
                 return @"PyTorch was installed without GPU support. Re-run the Mapperatorinator install from the requirements list.";
 
-            if (all.Contains(@"HSA_STATUS_ERROR") || all.Contains(@"hipErrorNoDevice") || all.Contains(@"No HIP GPUs are available") || all.Contains(@"rocBLAS error") || all.Contains(@"hipErrorInvalidDevice"))
-                return @"The AMD GPU couldn't be used through ROCm. Look at the 'This machine' line in Mapperatorinator's requirements: usually it's your user not being in the render and video groups.";
+            if (IsGpuFault(all))
+            {
+                return @"Your AMD GPU rejected the work and the run was aborted (this is the failure that can also take the display driver down). GPU generation has been turned off: from now on it runs on the CPU, which is slower but always works.";
+            }
+
+            if (all.Contains(@"hipErrorNoDevice") || all.Contains(@"No HIP GPUs are available") || all.Contains(@"hipErrorInvalidDevice"))
+                return @"ROCm couldn't see your AMD GPU at all. Usually that's your user not being in the render and video groups: sudo usermod -aG render,video $USER, then log out and back in.";
 
             if (all.Contains(@"out of memory", StringComparison.OrdinalIgnoreCase))
                 return @"The GPU ran out of memory. Close other programs using it, or try a shorter song.";
@@ -1103,6 +1233,10 @@ namespace osu.Game.Mapperatorinator
             foreach (string a in args)
                 psi.ArgumentList.Add(a);
 
+            var amd = DetectAmdGpu();
+            if (amd != null)
+                onLogLine($"amd gpu: {amd.Name} ({amd.Gfx}), rocm {(RocmAvailable ? "on" : "off")}");
+
             onLogLine($"$ {Path.GetFileName(PythonExecutable)} {string.Join(' ', args)}");
 
             using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -1168,6 +1302,11 @@ namespace osu.Game.Mapperatorinator
 
             string logPath = writeLastRunLog(args, snapshot);
 
+            // la placa fallo de verdad: se apaga sola para que la proxima no vuelva a
+            // arriesgar la sesion entera de la persona.
+            if (process.ExitCode != 0 && IsGpuFault(string.Join('\n', snapshot)))
+                MarkRocmBlocked();
+
             if (process.ExitCode != 0)
                 throw new MapperatorinatorRunException($"inference.py exited with code {process.ExitCode}.", Diagnose(snapshot), logPath, tail(snapshot));
 
@@ -1201,7 +1340,9 @@ namespace osu.Game.Mapperatorinator
                 $"output_path=\"{output}\"",
                 $"gamemode={(int)request.Gamemode}",
                 @"export_osz=true",
-                @"device=auto",
+                // explicito, nunca auto: con la rueda de rocm instalada torch ve la placa
+                // igual, y device=auto la agarraria aunque nosotros la hayamos descartado.
+                $"device={toolDevice(EffectiveDevice())}",
             };
 
             if (request.Difficulty != null)
@@ -1267,6 +1408,14 @@ namespace osu.Game.Mapperatorinator
 
         [JsonPropertyName(@"speed_factor_rocm")]
         public double? SpeedFactorRocm { get; set; }
+
+        /// <summary>Whether the user chose to generate on an AMD GPU. Off until they say so.</summary>
+        [JsonPropertyName(@"rocm_enabled")]
+        public bool RocmEnabled { get; set; }
+
+        /// <summary>Set once the card has faulted: we don't put anyone through that twice.</summary>
+        [JsonPropertyName(@"rocm_blocked")]
+        public bool RocmBlocked { get; set; }
 
         /// <summary>Full path of the ffmpeg executable the game installed (or the user pointed at).</summary>
         [JsonPropertyName(@"ffmpeg_path")]
