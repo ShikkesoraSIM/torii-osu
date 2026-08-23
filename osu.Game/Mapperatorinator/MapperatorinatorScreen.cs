@@ -25,6 +25,8 @@ using osu.Framework.Threading;
 using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Configuration;
+using osu.Game.Online.API.Requests;
 using osu.Game.Graphics.Containers;
 
 using osu.Game.Graphics.Sprites;
@@ -104,6 +106,16 @@ namespace osu.Game.Mapperatorinator
         private RoundedButton generateButton = null!;
         private OsuSpriteText etaText = null!;
         private OsuTextFlowContainer logFlow = null!;
+        private Drawable presetHeading = null!;
+        private OsuSpriteText presetCaption = null!;
+        private FormDropdown<PresetEntry> presetDropdown = null!;
+        private FormTextBox presetName = null!;
+        private FormButton presetSaveButton = null!;
+        private FormButton presetDeleteButton = null!;
+        private bool applyingPreset;
+
+        /// <summary>Abierta para mirar como se hizo un mapa, no para generar otro.</summary>
+        private readonly bool reviewOnly;
         private RoundedButton openReportButton = null!;
         private OsuScrollContainer logScroll = null!;
 
@@ -120,10 +132,11 @@ namespace osu.Game.Mapperatorinator
         // thread, asi que NADA del task de generacion puede volver a tocarlo.
         private double audioLengthSeconds = 180;
 
-        public MapperatorinatorScreen(BeatmapInfo beatmap, bool addToExistingSet = false)
+        public MapperatorinatorScreen(BeatmapInfo beatmap, bool addToExistingSet = false, bool reviewOnly = false)
         {
             sourceBeatmap = beatmap;
             this.addToExistingSet = addToExistingSet;
+            this.reviewOnly = reviewOnly;
         }
 
         public MapperatorinatorScreen(string audioPath)
@@ -170,6 +183,36 @@ namespace osu.Game.Mapperatorinator
                         {
                             heading(@"Mapperatorinator", 32),
                             credits(),
+
+                            presetHeading = heading(@"Presets", 22),
+                            presetCaption = caption(@"combinaciones guardadas. viven en tu cuenta, asi que siguen estando si formateas la maquina."),
+                            presetDropdown = new FormDropdown<PresetEntry>
+                            {
+                                Caption = @"Load a preset",
+                                HintText = @"Picking one fills the whole form with the settings it was saved with.",
+                                Items = new[] { PresetEntry.None },
+                                NewFeatureId = NewFeatureRegistry.MapperatorinatorPresets,
+                            },
+                            presetName = new FormTextBox
+                            {
+                                Caption = @"Save what's set now as",
+                                HintText = @"A name you'll recognise, like ""stream farm 6 stars"". Reusing a name overwrites that preset.",
+                                PlaceholderText = @"preset name",
+                                TabbableContentContainer = this,
+                            },
+                            presetSaveButton = new FormButton
+                            {
+                                Caption = @"Presets",
+                                ButtonText = @"Save preset",
+                                ButtonIcon = FontAwesome.Solid.Save,
+                                Action = savePreset,
+                            },
+                            presetDeleteButton = new FormButton
+                            {
+                                ButtonText = @"Delete the selected preset",
+                                ButtonIcon = FontAwesome.Solid.TrashAlt,
+                                Action = deletePreset,
+                            },
                             caption(sourceBeatmap != null
                                 ? (addToExistingSet
                                     ? $"new difficulty for: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title} (added to the same set)"
@@ -362,6 +405,10 @@ namespace osu.Game.Mapperatorinator
             updateIdleEta();
             runChecks();
 
+            presetDropdown.Current.BindValueChanged(e => onPresetSelected(e.NewValue ?? PresetEntry.None));
+            presetDeleteButton.Enabled.Value = false;
+            loadPresets();
+
             if (addToExistingSet)
             {
                 // la metadata es por-set y la diff nueva la hereda; mostrarla aca
@@ -376,6 +423,18 @@ namespace osu.Game.Mapperatorinator
 
                 if (sourceBeatmap != null && generationManager?.ReadSidecar(sourceBeatmap) is MapperatorinatorSidecar sidecar)
                     prefillFromSidecar(sidecar);
+            }
+
+            if (reviewOnly)
+            {
+                // el formulario ya quedo con las opciones del mapa: lo que sirve aca es
+                // leerlas y guardarlas, no generar otra cosa encima.
+                generateButton.Alpha = 0;
+                etaText.Alpha = 0;
+                presetCaption.Text = @"estas son las opciones con las que se genero este mapa. podes guardarlas como preset y usarlas en otra cancion.";
+
+                if (sourceBeatmap != null && presetName.Alpha > 0)
+                    presetName.Current.Value = $"{sourceBeatmap.Metadata.Title} style";
             }
         }
 
@@ -1043,37 +1102,7 @@ namespace osu.Game.Mapperatorinator
                 yearValue = clamped;
             }
 
-            var request = new MapperatorinatorRequest
-            {
-                Model = selectedModel,
-                WorkDirectory = MapperatorinatorGenerationManager.NewWorkDirectory(),
-                Gamemode = gamemode.Current.Value,
-                Difficulty = difficulty.Current.Value,
-                Year = yearValue,
-                MapperId = selectedModel.SupportsMapperId() ? parseIntOrNull(mapperId.Current.Value) : null,
-                Seed = parseIntOrNull(seed.Current.Value),
-                Keycount = parseIntOrNull(keycount.Current.Value) is int k ? Math.Clamp(k, 1, 10) : null,
-                CircleSize = circleSize.Alpha > 0 ? parseStatOrNull(circleSize.Current.Value) : null,
-                ApproachRate = approachRate.Alpha > 0 ? parseStatOrNull(approachRate.Current.Value) : null,
-                OverallDifficulty = parseStatOrNull(overallDifficulty.Current.Value),
-                HpDrainRate = parseStatOrNull(hpDrain.Current.Value),
-                Hitsounded = !selectedModel.SupportsHitsoundsToggle() || hitsounds.Current.Value,
-                SuperTiming = superTiming.Current.Value,
-            };
-
-            if (selectedModel.SupportsDescriptors())
-            {
-                if (selectedModel is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini)
-                {
-                    request.Descriptors.AddRange(descriptorPicker.Wanted);
-                    request.NegativeDescriptors.AddRange(descriptorPicker.Avoided);
-                }
-                else
-                {
-                    request.Descriptors.AddRange(splitList(descriptors.Current.Value));
-                    request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
-                }
-            }
+            var request = buildRequest(selectedModel, yearValue);
 
             var overrides = new OszPostProcessor.MetadataOverrides
             {
@@ -1117,6 +1146,180 @@ namespace osu.Game.Mapperatorinator
             // la pantalla ya no hace falta: el progreso vive en la notificacion
             // pinneada y al terminar el click te lleva al mapa.
             this.Exit();
+        }
+
+        /// <summary>
+        /// Una entrada del desplegable de presets. La primera es "ninguno", que existe
+        /// para poder volver atras sin tener que recargar la pantalla.
+        /// </summary>
+        public class PresetEntry
+        {
+            public static readonly PresetEntry None = new PresetEntry(0, @"(none)", string.Empty);
+
+            public int Id { get; }
+            public string Name { get; }
+            public string Settings { get; }
+
+            public PresetEntry(int id, string name, string settings)
+            {
+                Id = id;
+                Name = name;
+                Settings = settings;
+            }
+
+            public override string ToString() => Name;
+        }
+
+        private void loadPresets(int? selectId = null)
+        {
+            if (api.LocalUser.Value.Id <= 1)
+            {
+                // sin cuenta no hay donde guardarlos; la seccion no tiene sentido.
+                setPresetSectionVisible(false);
+                return;
+            }
+
+            var request = new GetMapperatorinatorPresetsRequest();
+
+            request.Success += response => Schedule(() =>
+            {
+                var entries = new List<PresetEntry> { PresetEntry.None };
+                entries.AddRange(response.Presets.Select(p => new PresetEntry(p.Id, p.Name, p.Settings)));
+
+                applyingPreset = true;
+                presetDropdown.Items = entries;
+                presetDropdown.Current.Value = entries.FirstOrDefault(e => e.Id == selectId) ?? PresetEntry.None;
+                applyingPreset = false;
+
+                presetDeleteButton.Enabled.Value = presetDropdown.Current.Value.Id > 0;
+            });
+
+            request.Failure += e => Schedule(() => Logger.Log($"[mapperatorinator] couldn't load presets: {e.Message}"));
+
+            api.Queue(request);
+        }
+
+        private void setPresetSectionVisible(bool visible)
+        {
+            float alpha = visible ? 1 : 0;
+            presetHeading.Alpha = alpha;
+            presetCaption.Alpha = alpha;
+            presetDropdown.Alpha = alpha;
+            presetName.Alpha = alpha;
+            presetSaveButton.Alpha = alpha;
+            presetDeleteButton.Alpha = alpha;
+        }
+
+        private void onPresetSelected(PresetEntry entry)
+        {
+            presetDeleteButton.Enabled.Value = entry.Id > 0;
+
+            if (applyingPreset || entry.Id <= 0 || string.IsNullOrEmpty(entry.Settings))
+                return;
+
+            var sidecar = MapperatorinatorSidecar.Deserialize(entry.Settings);
+
+            if (sidecar == null)
+            {
+                notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't read the preset \"{entry.Name}\"." });
+                return;
+            }
+
+            applyingPreset = true;
+            prefillFromSidecar(sidecar);
+            applyingPreset = false;
+
+            notifications?.Post(new SimpleNotification { Text = $"Loaded preset \"{entry.Name}\"." });
+        }
+
+        private void savePreset()
+        {
+            string name = presetName.Current.Value.Trim();
+
+            if (name.Length == 0)
+            {
+                notifications?.Post(new SimpleErrorNotification { Text = @"Give the preset a name first." });
+                return;
+            }
+
+            // el mismo shape que guarda el sidecar de cada mapa generado: asi un preset
+            // y "las opciones que uso este mapa" son la misma cosa y se pueden mezclar.
+            var request = buildRequest(model.Current.Value, parseIntOrNull(year.Current.Value));
+            string settings = MapperatorinatorSidecar.FromRequest(request, customized: true).Serialize();
+
+            var save = new SaveMapperatorinatorPresetRequest(name, settings);
+
+            save.Success += preset => Schedule(() =>
+            {
+                presetName.Current.Value = string.Empty;
+                notifications?.Post(new SimpleNotification { Text = $"Saved preset \"{preset.Name}\"." });
+                loadPresets(preset.Id);
+            });
+
+            save.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't save the preset: {e.Message}" }));
+
+            api.Queue(save);
+        }
+
+        private void deletePreset()
+        {
+            var entry = presetDropdown.Current.Value;
+
+            if (entry.Id <= 0)
+                return;
+
+            var request = new DeleteMapperatorinatorPresetRequest(entry.Id);
+
+            request.Success += () => Schedule(() =>
+            {
+                notifications?.Post(new SimpleNotification { Text = $"Deleted preset \"{entry.Name}\"." });
+                loadPresets();
+            });
+
+            request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't delete the preset: {e.Message}" }));
+
+            api.Queue(request);
+        }
+
+        /// <summary>
+        /// Lo que el formulario dice ahora, como pedido de generacion. Sale aparte
+        /// porque lo usan dos caminos: generar, y guardar un preset con lo puesto.
+        /// </summary>
+        private MapperatorinatorRequest buildRequest(MapperatorinatorModel selectedModel, int? yearValue)
+        {
+            var request = new MapperatorinatorRequest
+            {
+                Model = selectedModel,
+                WorkDirectory = MapperatorinatorGenerationManager.NewWorkDirectory(),
+                Gamemode = gamemode.Current.Value,
+                Difficulty = difficulty.Current.Value,
+                Year = yearValue,
+                MapperId = selectedModel.SupportsMapperId() ? parseIntOrNull(mapperId.Current.Value) : null,
+                Seed = parseIntOrNull(seed.Current.Value),
+                Keycount = parseIntOrNull(keycount.Current.Value) is int k ? Math.Clamp(k, 1, 10) : null,
+                CircleSize = circleSize.Alpha > 0 ? parseStatOrNull(circleSize.Current.Value) : null,
+                ApproachRate = approachRate.Alpha > 0 ? parseStatOrNull(approachRate.Current.Value) : null,
+                OverallDifficulty = parseStatOrNull(overallDifficulty.Current.Value),
+                HpDrainRate = parseStatOrNull(hpDrain.Current.Value),
+                Hitsounded = !selectedModel.SupportsHitsoundsToggle() || hitsounds.Current.Value,
+                SuperTiming = superTiming.Current.Value,
+            };
+
+            if (selectedModel.SupportsDescriptors())
+            {
+                if (selectedModel is MapperatorinatorModel.V32 or MapperatorinatorModel.V32Mini)
+                {
+                    request.Descriptors.AddRange(descriptorPicker.Wanted);
+                    request.NegativeDescriptors.AddRange(descriptorPicker.Avoided);
+                }
+                else
+                {
+                    request.Descriptors.AddRange(splitList(descriptors.Current.Value));
+                    request.NegativeDescriptors.AddRange(splitList(negativeDescriptors.Current.Value));
+                }
+            }
+
+            return request;
         }
 
         private void appendLog(string line)
