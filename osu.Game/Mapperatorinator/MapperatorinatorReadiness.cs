@@ -146,7 +146,10 @@ namespace osu.Game.Mapperatorinator
                     {
                         Device = device,
                         GpuName = amd.Name,
-                        Description = $"{amd.Name} found, but generating on an AMD card needs ROCm and there is no ROCm build of pytorch for Windows. Generation runs on the CPU. (The same card does work on Linux.)",
+                        AmdOffered = !runner.Config.RocmBlocked,
+                        Description = runner.Config.RocmBlocked
+                            ? $"{amd.Name} found, but it couldn't be used: {runner.Config.RocmLastError ?? "the pytorch installed here can't talk to it"}. Generation runs on the CPU."
+                            : $"{amd.Name} found. Generating on an AMD card needs ROCm, and there's no official ROCm build of pytorch for Windows, so Torii can't set it up for you. If you have one that works with your card (AMD's HIP SDK, or your own python), press the button and we'll test it.",
                     };
                 }
 
@@ -225,7 +228,9 @@ namespace osu.Game.Mapperatorinator
             var amdCard = MapperatorinatorRunner.DetectAmdGpu();
             // en windows no hay nada que ofrecer: sin build de ROCm para windows, la placa
             // no se puede usar por mas que este ahi.
-            bool amdUsable = amdCard != null && installed && amdCard.KfdAccessible && !amdCard.WindowsWithoutRocm;
+            // en windows no hay kfd que consultar: si hay placa y la tool esta, se ofrece
+            // probar, y el resultado lo decide la prueba, no el sistema operativo.
+            bool amdUsable = amdCard != null && installed && (amdCard.WindowsWithoutRocm || amdCard.KfdAccessible);
 
             list.Add(new Requirement
             {
@@ -241,6 +246,7 @@ namespace osu.Game.Mapperatorinator
                     : hardware.GpuAccessBlocked ? @"In a terminal: sudo usermod -aG render,video $USER. Then log out and back in (groups only apply at login), open Torii again and press Check."
                     : runner.Config.RocmEnabled && amdUsable ? @"Generating uses your card. If anything misbehaves (a freeze, a black screen, a crash), press ""Back to the CPU"" and everything keeps working, just slower."
                     : runner.Config.RocmBlocked && amdUsable ? @"You can try again, but save your work first: on a setup that can't handle it, the card takes the display driver down with it. ""GPU report"" writes a file with your card, your kernel and what this pytorch supports: that's the file to send if you want someone to look at it."
+                    : amdUsable && amdCard?.WindowsWithoutRocm == true ? @"We ask pytorch whether it can see your card at all (a build that talks to it reports itself as CUDA, which is normal), and if it can, we run a two-second test. If pytorch can't see it, install one that does into Torii's environment, or point ""Use my own python"" at yours. ""GPU report"" shows what's there without touching the card."
                     : amdUsable ? @"Want to try it? We check what your card is and whether this pytorch has kernels for it before touching it at all, then run a two-second test. If it doesn't hold up, everything goes back to the CPU by itself. ""GPU report"" writes a file with all of that and doesn't touch the card."
                     : hardware.AmdOffered ? @"Install Mapperatorinator first (below); once it's there you can try the GPU from here."
                     : string.Empty,

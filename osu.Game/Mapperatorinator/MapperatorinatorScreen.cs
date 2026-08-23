@@ -884,9 +884,12 @@ namespace osu.Game.Mapperatorinator
                 runner.BeginRocmTrial();
 
                 string? failure = null;
+                bool triedSomething = false;
 
                 foreach (var wheel in MapperatorinatorRunner.RocmIndexes())
                 {
+                    triedSomething = true;
+
                     // lo que ya este instalado se prueba tal cual: sondear es gratis y son
                     // varios GB de bajada por intento.
                     if (runner.InstalledTorchDevice != @"rocm" || (runner.Config.RocmIndex != null && runner.Config.RocmIndex != wheel.index))
@@ -935,6 +938,23 @@ namespace osu.Game.Mapperatorinator
                     }
 
                     failure = @"the card faulted on a two-second test multiply";
+                }
+
+                // en windows no hay ruedas para bajar: se prueba tal cual esta instalado.
+                if (!triedSomething)
+                {
+                    var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                    if (probe.DeviceCount > 0 && probe.Error == null && await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                    {
+                        runner.EndRocmTrial();
+                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your pytorch can use your card. The next map should be a lot faster." }));
+                        return;
+                    }
+
+                    failure = probe.Error ?? (probe.DeviceCount == 0
+                        ? @"the pytorch installed here can't see your card"
+                        : @"the card faulted on a two-second test multiply");
                 }
 
                 runner.EndRocmTrial();
@@ -1185,7 +1205,7 @@ namespace osu.Game.Mapperatorinator
                     // que no hay ninguna.
                     : MapperatorinatorRunner.DetectAmdGpu() is AmdGpuInfo card
                         ? (card.WindowsWithoutRocm
-                            ? $"CPU ({card.Name} can't be used: pytorch has no ROCm build for Windows)"
+                            ? $"CPU ({card.Name} is off for generation: on Windows it needs a pytorch that can talk to it, see the requirements)"
                             : @"CPU (your AMD GPU is off for generation, see the requirements)")
                         : @"CPU only (no supported GPU found, this will be slow)",
             };
