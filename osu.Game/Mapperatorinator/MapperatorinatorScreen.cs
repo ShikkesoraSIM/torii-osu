@@ -1075,6 +1075,12 @@ namespace osu.Game.Mapperatorinator
 
             log($"generation currently runs on: {runner.EffectiveDevice()}");
 
+            // la ruta exacta del python que se usa: es lo primero que necesita cualquiera
+            // que quiera instalarle otro pytorch, y adivinarla termina en "en que disco
+            // estaba?". El instalador elige el disco con mas espacio, asi que cambia por
+            // maquina.
+            log($"python used for generation: {runner.PythonExecutable}");
+
             if (runner.Config.RocmLastError != null)
                 log($"last GPU failure: {runner.Config.RocmLastError}");
 
