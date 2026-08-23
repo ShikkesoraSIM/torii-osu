@@ -498,6 +498,8 @@ namespace osu.Game.Mapperatorinator
                         _ => null,
                     },
                     OpenDownload = r.DownloadUrl == null ? null : () => game?.OpenUrlExternally(r.DownloadUrl),
+                    // en la fila de la maquina, cuando hay una amd para probar: mirar sin tocar.
+                    Secondary = r.Kind == RequirementKind.Platform && r.CanAutoInstall ? (@"GPU report", (Action)gpuReport) : null,
                 });
             }
 
@@ -571,6 +573,9 @@ namespace osu.Game.Mapperatorinator
             public Action? AutoInstall;
             public Action? OpenDownload;
 
+            /// <summary>An extra, always-available action for this row (the GPU report).</summary>
+            public (string label, Action action)? Secondary;
+
             private readonly Requirement requirement;
 
             public RequirementRow(Requirement requirement)
@@ -608,6 +613,9 @@ namespace osu.Game.Mapperatorinator
 
                 if (actionable && OpenDownload != null)
                     buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = requirement.DownloadLabel, Action = OpenDownload });
+
+                if (Secondary != null)
+                    buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = Secondary.Value.label, Action = Secondary.Value.action });
 
                 var text = new FillFlowContainer
                 {
@@ -662,9 +670,11 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>
-        /// Turns AMD generation on, after saying out loud what can go wrong: install the
-        /// ROCm build of pytorch, then a two-second test on the card. If the card doesn't
-        /// hold up, it goes back to the CPU by itself and stays there.
+        /// Turns AMD generation on, after saying out loud what can go wrong. The order
+        /// matters: everything that can be answered by asking torch (which chip is this
+        /// card, which chips does this build carry kernels for) happens before a single
+        /// kernel is dispatched, because dispatching to a chip the build doesn't cover is
+        /// exactly what faults the card and takes the display driver with it.
         /// </summary>
         private void tryGpu()
         {
@@ -672,61 +682,121 @@ namespace osu.Game.Mapperatorinator
 
             string gpuName = MapperatorinatorRunner.DetectAmdGpu()?.Name ?? @"your AMD GPU";
 
-            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () =>
+            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () => runInstallTask(async (log, token) =>
             {
-                installing = true;
-                generateButton.Enabled.Value = false;
-                logFlow.Clear();
-                logLines = 0;
-                logScroll.FadeIn(200);
-                installCancellation = new CancellationTokenSource();
-                var token = installCancellation.Token;
+                runner.EnableRocm();
+                runner.SetRocmOverride(null);
 
-                Task.Run(async () =>
+                string? failure = null;
+
+                foreach (var wheel in MapperatorinatorRunner.RocmIndexes())
                 {
-                    try
+                    // lo que ya este instalado se prueba tal cual: sondear es gratis y son
+                    // varios GB de bajada por intento.
+                    if (runner.InstalledTorchDevice != @"rocm" || (runner.Config.RocmIndex != null && runner.Config.RocmIndex != wheel.index))
+                        await runner.InstallRocmTorchAsync(wheel, log, token).ConfigureAwait(false);
+
+                    var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                    if (probe.Error != null || probe.DeviceCount == 0)
                     {
-                        runner.EnableRocm();
+                        failure = probe.Error ?? @"pytorch can't see the card at all";
+                        continue;
+                    }
 
-                        if (runner.InstalledTorchDevice != @"rocm")
-                            await runner.ReinstallTorchAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+                    if (!probe.ArchSupported)
+                    {
+                        // el chip no esta entre los que trae la rueda: apuntarlo al pariente
+                        // mas cercano de la misma generacion y volver a preguntar.
+                        string? over = probe.Arch == null ? null : MapperatorinatorRunner.OverrideFor(probe.Arch, probe.ArchList);
 
-                        bool ok = await runner.SmokeTestGpuAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
-
-                        if (!ok)
+                        if (over == null)
                         {
-                            runner.MarkRocmBlocked();
-                            Schedule(() =>
-                            {
-                                appendLog(@"the card didn't pass the test, so generation stays on the CPU.");
-                                notifications?.Post(new SimpleNotification { Text = @"Your GPU didn't pass the test, so Mapperatorinator keeps generating on the CPU. Nothing else changed." });
-                            });
-                            return;
+                            failure = $"this pytorch has no kernels for {probe.Arch ?? "your card"} (it carries: {string.Join(", ", probe.ArchList)})";
+                            log(failure);
+                            continue;
                         }
 
-                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on. The next map should be a lot faster." }));
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        runner.MarkRocmBlocked();
-                        Schedule(() => appendLog(@"cancelled, staying on the CPU."));
-                    }
-                    catch (Exception e)
-                    {
-                        Logger.Log($"[mapperatorinator] gpu enable failed: {e}");
-                        runner.MarkRocmBlocked();
-                        Schedule(() => appendLog($"couldn't switch to the GPU: {e.Message}"));
-                    }
-                    finally
-                    {
-                        Schedule(() =>
+                        log($"{probe.Arch} isn't in this build; pointing it at {over} and asking again...");
+                        runner.SetRocmOverride(over);
+                        probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                        if (!probe.ArchSupported)
                         {
-                            installing = false;
-                            runChecks();
-                        });
+                            failure = $"even pointed at {over}, this build can't run on {probe.Arch ?? "your card"}";
+                            log(failure);
+                            runner.SetRocmOverride(null);
+                            continue;
+                        }
                     }
-                }, CancellationToken.None);
-            }, () => { }));
+
+                    // recien aca se le manda trabajo de verdad a la placa.
+                    if (await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                    {
+                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your card passed the test. The next map should be a lot faster." }));
+                        return;
+                    }
+
+                    failure = @"the card faulted on a two-second test multiply";
+                }
+
+                runner.MarkRocmBlocked(failure);
+                Schedule(() =>
+                {
+                    log(@"staying on the CPU. Nothing else changed, generating still works.");
+                    notifications?.Post(new SimpleNotification { Text = $"Your GPU can't be used for generating ({failure}). Mapperatorinator keeps running on the CPU." });
+                });
+            }), () => { }));
+        }
+
+        /// <summary>Everything torch knows about the card, printed to the log. Dispatches nothing.</summary>
+        private void gpuReport() => runInstallTask(async (log, token) =>
+        {
+            var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+            Schedule(() => log(probe.ArchSupported
+                ? @"this pytorch does carry kernels for your card."
+                : @"this pytorch does NOT carry kernels for your card: that's the mismatch that faults the GPU."));
+        });
+
+        /// <summary>Shared plumbing for the long jobs: one at a time, logged, cancellable.</summary>
+        private void runInstallTask(Func<Action<string>, CancellationToken, Task> work)
+        {
+            if (installing) return;
+
+            installing = true;
+            generateButton.Enabled.Value = false;
+            logFlow.Clear();
+            logLines = 0;
+            logScroll.FadeIn(200);
+            installCancellation = new CancellationTokenSource();
+            var token = installCancellation.Token;
+
+            void log(string line) => Schedule(() => appendLog(line));
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await work(log, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    log(@"cancelled.");
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] gpu task failed: {e}");
+                    log($"failed: {e.Message}");
+                }
+                finally
+                {
+                    Schedule(() =>
+                    {
+                        installing = false;
+                        runChecks();
+                    });
+                }
+            }, CancellationToken.None);
         }
 
         /// <summary>Only swaps pytorch for the GPU build: minutes instead of a full reinstall.</summary>

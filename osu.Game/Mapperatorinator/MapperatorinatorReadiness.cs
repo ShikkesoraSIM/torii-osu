@@ -139,7 +139,7 @@ namespace osu.Game.Mapperatorinator
                     GpuName = amd.Name,
                     AmdOffered = !runner.Config.RocmBlocked && amd.KfdAccessible,
                     Description = runner.Config.RocmBlocked
-                        ? $"{amd.Name} found, but it faulted when we tried to generate on it, so generation runs on the CPU. Slower, but it always works."
+                        ? $"{amd.Name} found, but it can't be used for generating: {runner.Config.RocmLastError ?? "it faulted when we tried"}{archNote(runner)}. Generation runs on the CPU, which is slower but always works."
                         : !amd.KfdAccessible
                             ? $"{amd.Name} found, but your user isn't allowed to open it (/dev/kfd), so generation runs on the CPU."
                             : $"{amd.Name} found. Generation runs on the CPU: using the card needs ROCm and on some setups that takes the display driver down, so it's off until you ask for it.",
@@ -153,6 +153,16 @@ namespace osu.Game.Mapperatorinator
                 @"mps" => new HardwareInfo { Device = device, Description = @"Apple Silicon: generation runs on the GPU through MPS. Supported, but slower than an NVIDIA card." },
                 _ => new HardwareInfo { Device = device, Description = @"No supported GPU found: generation runs on the CPU. It works, but expect several minutes per map." },
             };
+        }
+
+        /// <summary>What we learned from torch about the card, when we've asked it.</summary>
+        private static string archNote(MapperatorinatorRunner runner)
+        {
+            if (runner.Config.RocmArch == null)
+                return string.Empty;
+
+            string list = runner.Config.RocmArchList ?? @"none";
+            return $" (your card is {runner.Config.RocmArch}; that pytorch carries kernels for {list})";
         }
 
         private static HardwareInfo amdHardware(string device)
