@@ -103,6 +103,10 @@ namespace osu.Game.Screens.Select
                 {
                     new OsuMenuItem("Regenerate (same settings, new seed)", MenuItemType.Standard,
                         () => generationManager?.QuickRegenerate(beatmap)),
+                    // ver con que se hizo (y poder guardarlo como preset) sin tener que
+                    // adivinar: el mapa se lleva sus settings adentro del set.
+                    new OsuMenuItem("See the settings this map used", MenuItemType.Standard,
+                        () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true, reviewOnly: true))),
                     new OsuMenuItem("New difficulty (tweak settings)", MenuItemType.Standard,
                         () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true))),
                     new OsuMenuItem("Generate as a new set", MenuItemType.Standard,

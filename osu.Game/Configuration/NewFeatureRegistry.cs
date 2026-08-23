@@ -229,6 +229,13 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string WasapiExclusive = "v2026.822.1:wasapi-exclusive";
 
+        /// <summary>
+        /// Marks the preset picker in the Mapperatorinator screen. Saved
+        /// combinations of generation settings live on the account, so they
+        /// survive reinstalling the game or moving to another machine.
+        /// </summary>
+        public const string MapperatorinatorPresets = "v2026.824.0:mapperatorinator-presets";
+
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
@@ -247,6 +254,7 @@ namespace osu.Game.Configuration
             LegacyFont,
             LatencyCounter,
             WasapiExclusive,
+            MapperatorinatorPresets,
         };
 
         /// <summary>
