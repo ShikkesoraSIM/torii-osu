@@ -1359,6 +1359,11 @@ namespace osu.Game.Mapperatorinator
 
             var request = buildRequest(selectedModel, yearValue);
 
+            // de que preset salio esta generacion, para que el mapa lo lleve adentro y
+            // quien despues se guarde estas opciones sepa de quien las saco.
+            var chosen = presetDropdown.Current.Value;
+            generationManager?.SetPresetOrigin(chosen.Id > 0 ? chosen.Id : null, chosen.Id > 0 ? api.LocalUser.Value.Username : null);
+
             var overrides = new OszPostProcessor.MetadataOverrides
             {
                 Title = emptyToNull(titleBox.Current.Value),

@@ -19,11 +19,13 @@ namespace osu.Game.Online.API.Requests
     {
         private readonly string name;
         private readonly string settings;
+        private readonly int? originPresetId;
 
-        public SaveMapperatorinatorPresetRequest(string name, string settings)
+        public SaveMapperatorinatorPresetRequest(string name, string settings, int? originPresetId = null)
         {
             this.name = name;
             this.settings = settings;
+            this.originPresetId = originPresetId;
         }
 
         protected override WebRequest CreateWebRequest()
@@ -31,7 +33,7 @@ namespace osu.Game.Online.API.Requests
             var req = base.CreateWebRequest();
             req.Method = HttpMethod.Put;
             req.ContentType = @"application/json";
-            req.AddRaw(JsonConvert.SerializeObject(new { name, settings }));
+            req.AddRaw(JsonConvert.SerializeObject(new { name, settings, origin_preset_id = originPresetId }));
             return req;
         }
 
