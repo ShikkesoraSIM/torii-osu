@@ -309,7 +309,7 @@ namespace osu.Game.Mapperatorinator
                             warnedCpu = true;
                             Schedule(() => notifications?.Post(new SimpleNotification
                             {
-                                Text = @"Mapperatorinator is generating on the CPU even though this machine has a GPU: the installed pytorch can't use it. Open Mapperatorinator from a map's right-click menu and press Install on the Mapperatorinator row (only pytorch gets replaced).",
+                                Text = @"Mapperatorinator is generating on the CPU even though this machine has a GPU: the installed pytorch can't use it. Right-click any map, Use this song for Mapperatorinator, and press ""Use the GPU"" in the requirements list. It only replaces pytorch.",
                             }));
                         }
                     }, token).ConfigureAwait(false);
