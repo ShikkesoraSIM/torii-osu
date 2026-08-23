@@ -5,6 +5,9 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework;
+using System.Linq;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game;
@@ -162,6 +165,18 @@ namespace osu.Desktop.Updater
                         break;
                 }
 
+                // torii: en macOS el bundle se arma a mano en el CI (cross-compilado, sin
+                // velopack), asi que velopack no "instalo" nada y su check revienta. el
+                // camino de mac es propio: mirar los releases de github y, si hay uno mas
+                // nuevo del stream, ofrecer actualizar con el script de instalacion, que
+                // reemplaza la app en Applications y la vuelve a abrir.
+                if (RuntimeInfo.OS == RuntimeInfo.Platform.macOS && !velopackManagesThisInstall(updateSource))
+                {
+                    bool found = await checkForMacUpdate().ConfigureAwait(false);
+                    scheduleNextUpdateCheck();
+                    return found;
+                }
+
                 Velopack.UpdateManager updateManager = new Velopack.UpdateManager(updateSource, new UpdateOptions
                 {
                     // torii: permitimos downgrade porque es lo que hace andar el switch de stream.
@@ -203,6 +218,153 @@ namespace osu.Desktop.Updater
                 // we shouldn't crash on a web failure. or any failure for the matter.
                 scheduleNextUpdateCheck();
                 return true;
+            }
+        }
+
+        private static bool velopackManagesThisInstall(IUpdateSource source)
+        {
+            try
+            {
+                return new Velopack.UpdateManager(source).IsInstalled;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string? lastOfferedMacVersion;
+
+        /// <summary>
+        /// The manual macOS path: newest release of the current stream on GitHub vs the
+        /// running version. Returns true when an update was found and offered.
+        /// </summary>
+        private async Task<bool> checkForMacUpdate()
+        {
+            if (!game.IsDeployedBuild)
+                return false;
+
+            string suffix = ReleaseStream.Value switch
+            {
+                Game.Configuration.ReleaseStream.Nova => "nova",
+                Game.Configuration.ReleaseStream.Vanilla => "vanilla",
+                _ => "torii",
+            };
+
+            string? latest = await fetchLatestMacTag(suffix).ConfigureAwait(false);
+
+            if (latest == null)
+            {
+                log("macOS update check: couldn't read releases");
+                return false;
+            }
+
+            string current = game.Version.TrimStart('v');
+            string target = latest.TrimStart('v');
+
+            if (!isNewer(target, current))
+            {
+                log($"macOS update check: {current} is current");
+                return false;
+            }
+
+            if (lastOfferedMacVersion == target)
+                return true;
+
+            lastOfferedMacVersion = target;
+            log($"macOS update available: {target}");
+
+            runOutsideOfGameplay(() => notificationOverlay.Post(new SimpleNotification
+            {
+                Text = $"Torii {target} is out. Click to update: it installs in the background and reopens the game.",
+                Icon = FontAwesome.Solid.Download,
+                Activated = () =>
+                {
+                    applyMacUpdate(suffix);
+                    return true;
+                },
+            }), CancellationToken.None);
+
+            return true;
+        }
+
+        private static async Task<string?> fetchLatestMacTag(string suffix)
+        {
+            using var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("torii-updater");
+
+            string json = await client.GetStringAsync("https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=50").ConfigureAwait(false);
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+            foreach (var release in doc.RootElement.EnumerateArray())
+            {
+                if (release.TryGetProperty("draft", out var draft) && draft.GetBoolean())
+                    continue;
+
+                string? tag = release.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() : null;
+                if (tag == null)
+                    continue;
+
+                bool prerelease = release.TryGetProperty("prerelease", out var pre) && pre.GetBoolean();
+
+                // estable = no-prerelease (tags -torii, o -lazer los viejos); nova/vanilla = su sufijo.
+                bool matches = suffix == "torii"
+                    ? !prerelease
+                    : tag.EndsWith($"-{suffix}", StringComparison.OrdinalIgnoreCase);
+
+                if (matches)
+                    return tag;
+            }
+
+            return null;
+        }
+
+        /// <summary>Compares "2026.822.4-nova" style versions numerically, part by part.</summary>
+        private static bool isNewer(string candidate, string current)
+        {
+            static int[] parts(string v)
+            {
+                string core = v.Split('-')[0];
+                return core.Split('.').Select(s => int.TryParse(s, out int n) ? n : 0).ToArray();
+            }
+
+            int[] a = parts(candidate), b = parts(current);
+
+            for (int i = 0; i < Math.Max(a.Length, b.Length); i++)
+            {
+                int x = i < a.Length ? a[i] : 0;
+                int y = i < b.Length ? b[i] : 0;
+                if (x != y) return x > y;
+            }
+
+            return false;
+        }
+
+        private void applyMacUpdate(string suffix)
+        {
+            try
+            {
+                // el script espera a que este proceso cierre, reemplaza la app y la abre.
+                var psi = new System.Diagnostics.ProcessStartInfo("/bin/bash")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add($"curl -fsSL https://lazer.shikkesora.com/install-mac.sh | bash -s -- {suffix} --relaunch");
+                System.Diagnostics.Process.Start(psi);
+
+                log("macOS update script started, exiting to let it replace the app");
+                game.Exit();
+            }
+            catch (Exception e)
+            {
+                log($"macOS update failed to start: {e.Message}");
+                notificationOverlay.Post(new SimpleErrorNotification
+                {
+                    Text = "Couldn't start the update. Run this in Terminal instead: curl -fsSL https://lazer.shikkesora.com/install-mac.sh | bash",
+                });
             }
         }
 
