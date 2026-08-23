@@ -137,6 +137,19 @@ namespace osu.Game.Mapperatorinator
 
             if (device == @"cpu" && amd != null)
             {
+                // windows: la placa esta, pero pytorch no publica build de ROCm para
+                // windows. No es configuracion, no hay boton que lo arregle, y decir
+                // "no se encontro ninguna gpu" con una 9070 XT adentro es mentira.
+                if (amd.WindowsWithoutRocm)
+                {
+                    return new HardwareInfo
+                    {
+                        Device = device,
+                        GpuName = amd.Name,
+                        Description = $"{amd.Name} found, but generating on an AMD card needs ROCm and there is no ROCm build of pytorch for Windows. Generation runs on the CPU. (The same card does work on Linux.)",
+                    };
+                }
+
                 return new HardwareInfo
                 {
                     Device = device,
@@ -210,7 +223,9 @@ namespace osu.Game.Mapperatorinator
 
             // 1. plataforma / hardware
             var amdCard = MapperatorinatorRunner.DetectAmdGpu();
-            bool amdUsable = amdCard != null && installed && amdCard.KfdAccessible;
+            // en windows no hay nada que ofrecer: sin build de ROCm para windows, la placa
+            // no se puede usar por mas que este ahi.
+            bool amdUsable = amdCard != null && installed && amdCard.KfdAccessible && !amdCard.WindowsWithoutRocm;
 
             list.Add(new Requirement
             {
