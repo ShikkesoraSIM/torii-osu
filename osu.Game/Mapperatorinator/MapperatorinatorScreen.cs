@@ -47,6 +47,19 @@ namespace osu.Game.Mapperatorinator
     /// .osz after generation). Pressing generate hands the job to the game-wide
     /// manager and leaves; progress lives in a pinned notification from there on.
     /// </summary>
+    /// <summary>Donde corre la generacion, elegido a mano.</summary>
+    public enum GenerationDevice
+    {
+        [System.ComponentModel.Description("Auto (recommended)")]
+        Auto,
+
+        [System.ComponentModel.Description("GPU (tested when you pick it)")]
+        Gpu,
+
+        [System.ComponentModel.Description("CPU (always works, slower)")]
+        Cpu,
+    }
+
     public partial class MapperatorinatorScreen : OsuScreen, IHandleDroppedFile
     {
         private readonly BeatmapInfo? sourceBeatmap;
@@ -109,6 +122,8 @@ namespace osu.Game.Mapperatorinator
         // setup
         private FormFileSelector installSelector = null!;
         private FormTextBox customPython = null!;
+        private FormEnumDropdown<GenerationDevice> deviceChoice = null!;
+        private bool applyingDeviceChoice;
 
         private RoundedButton generateButton = null!;
         private OsuSpriteText etaText = null!;
@@ -360,6 +375,11 @@ namespace osu.Game.Mapperatorinator
                                 Direction = FillDirection.Vertical,
                                 Spacing = new Vector2(0, 6),
                             },
+                            deviceChoice = new FormEnumDropdown<GenerationDevice>
+                            {
+                                Caption = @"Generate on",
+                                HintText = @"Auto picks your GPU when we're sure it works, and the CPU otherwise. Pick GPU to make it try yours: we test it for two seconds first, and if the card doesn't hold up it goes back to the CPU by itself. Pick CPU if you'd rather not risk it.",
+                            },
                             customPython = new FormTextBox
                             {
                                 Caption = @"Use my own python (advanced)",
@@ -468,6 +488,17 @@ namespace osu.Game.Mapperatorinator
                 updateIdleEta();
                 updateGenerateEnabled();
             });
+
+            applyingDeviceChoice = true;
+            deviceChoice.Current.Value = runner.DevicePreference switch
+            {
+                @"gpu" => GenerationDevice.Gpu,
+                @"cpu" => GenerationDevice.Cpu,
+                _ => GenerationDevice.Auto,
+            };
+            applyingDeviceChoice = false;
+
+            deviceChoice.Current.BindValueChanged(e => onDeviceChoice(e.NewValue));
 
             customPython.Current.Value = runner.Config.PythonPath ?? string.Empty;
             customPython.OnCommit += (_, _) =>
@@ -703,6 +734,7 @@ namespace osu.Game.Mapperatorinator
                 ? @"generating works, but something here would make it a lot faster."
                 : @"everything generating needs on this machine. sort out anything red, then press Check.";
 
+            deviceChoice.Alpha = showList ? 1 : 0;
             customPython.Alpha = showList ? 1 : 0;
             requirementsHeading.Alpha = showList ? 1 : 0;
             requirementsCaption.Alpha = showList ? 1 : 0;
@@ -959,12 +991,61 @@ namespace osu.Game.Mapperatorinator
 
                 runner.EndRocmTrial();
                 runner.MarkRocmBlocked(failure);
+                runner.DevicePreference = @"auto";
+
+                Schedule(() =>
+                {
+                    applyingDeviceChoice = true;
+                    deviceChoice.Current.Value = GenerationDevice.Auto;
+                    applyingDeviceChoice = false;
+                });
+
                 Schedule(() =>
                 {
                     log(@"staying on the CPU. Nothing else changed, generating still works.");
                     notifications?.Post(new SimpleNotification { Text = $"Your GPU can't be used for generating ({failure}). Mapperatorinator keeps running on the CPU." });
                 });
-            }), () => { }));
+            }), () =>
+            {
+                // cancelo el aviso: el desplegable no puede quedar diciendo GPU cuando
+                // no se probo nada.
+                if (runner.DevicePreference != @"gpu")
+                    return;
+
+                runner.DevicePreference = @"auto";
+                applyingDeviceChoice = true;
+                deviceChoice.Current.Value = GenerationDevice.Auto;
+                applyingDeviceChoice = false;
+            }));
+        }
+
+        /// <summary>Que hacer cuando alguien elige donde generar.</summary>
+        private void onDeviceChoice(GenerationDevice choice)
+        {
+            if (applyingDeviceChoice)
+                return;
+
+            switch (choice)
+            {
+                case GenerationDevice.Cpu:
+                    runner.DevicePreference = @"cpu";
+                    runner.DisableRocm();
+                    notifications?.Post(new SimpleNotification { Text = @"Generating on the CPU from now on." });
+                    runChecks();
+                    break;
+
+                case GenerationDevice.Gpu:
+                    // pedirla no alcanza: hay que probar que ande, y esa prueba puede
+                    // tumbar el driver en una maquina que no la banca. Por eso el aviso.
+                    runner.DevicePreference = @"gpu";
+                    tryGpu();
+                    break;
+
+                default:
+                    runner.DevicePreference = @"auto";
+                    runChecks();
+                    break;
+            }
         }
 
         /// <summary>Turn the GPU back off. No drama, no test: straight back to the CPU.</summary>

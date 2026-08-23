@@ -158,6 +158,22 @@ namespace osu.Game.Mapperatorinator
 
         private const string torch_device_marker = @"torii-torch-device.txt";
 
+        /// <summary>
+        /// Que eligio la persona: dejarnos decidir, forzar la placa, o forzar el
+        /// procesador. Existe porque adivinar por sistema operativo y marca de placa deja
+        /// afuera a cualquiera con una configuracion rara, y las hay: la misma placa que
+        /// no anda en una maquina anda en otra.
+        /// </summary>
+        public string DevicePreference
+        {
+            get => Config.DevicePreference ?? @"auto";
+            set
+            {
+                Config.DevicePreference = value == @"auto" ? null : value;
+                Save();
+            }
+        }
+
         /// <summary>Our device name in inference.py's vocabulary (it only knows cuda/mps/cpu).</summary>
         private static string toolDevice(string device) => device switch
         {
@@ -705,23 +721,30 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// </summary>
         public string DetectDevice()
         {
+            // lo que la persona pidio manda sobre cualquier deteccion nuestra.
+            if (DevicePreference == @"cpu")
+                return @"cpu";
+
+            if (DevicePreference == @"gpu")
+            {
+                if (hasNvidia())
+                    return @"cuda";
+
+                if (DetectAmdGpu() != null)
+                    return @"rocm";
+
+                if (MapperatorinatorReadiness.IsAppleSilicon)
+                    return @"mps";
+
+                // no reconocemos la placa y la pidieron igual: que decida torch, que es el
+                // unico que sabe si el build que hay puede con lo que hay.
+                return @"cuda";
+            }
+
             try
             {
-                using var p = Process.Start(new ProcessStartInfo(@"nvidia-smi", @"-L")
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                });
-
-                if (p != null)
-                {
-                    string outp = p.StandardOutput.ReadToEnd();
-                    p.WaitForExit(4000);
-                    if (p.ExitCode == 0 && outp.Contains(@"GPU"))
-                        return @"cuda";
-                }
+                if (hasNvidia())
+                    return @"cuda";
             }
             catch
             {
@@ -790,6 +813,31 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             }
 
             return null;
+        }
+
+        private static bool hasNvidia()
+        {
+            try
+            {
+                using var p = Process.Start(new ProcessStartInfo(@"nvidia-smi", @"-L")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+
+                if (p == null)
+                    return false;
+
+                string outp = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(4000);
+                return p.ExitCode == 0 && outp.Contains(@"GPU");
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>An AMD GPU is here, the user opted in, and it hasn't faulted on us.</summary>
@@ -1842,6 +1890,10 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// <summary>Whether the user chose to generate on an AMD GPU. Off until they say so.</summary>
         [JsonPropertyName(@"rocm_enabled")]
         public bool RocmEnabled { get; set; }
+
+        /// <summary>"auto" (o null), "gpu", "cpu": lo que la persona pidio explicitamente.</summary>
+        [JsonPropertyName(@"device_preference")]
+        public string? DevicePreference { get; set; }
 
         /// <summary>Set once the card has faulted: we don't put anyone through that twice.</summary>
         [JsonPropertyName(@"rocm_blocked")]
