@@ -57,7 +57,11 @@ namespace osu.Game.Mapperatorinator
         /// There is something the person can press or read here. Warnings count when they
         /// come with a fix: "generation works but runs on the CPU" is worth showing.
         /// </summary>
-        public bool Actionable => State == RequirementState.Missing
+        /// <summary>Buttons here matter even when the row is green (turning the GPU back off).</summary>
+        public bool AlwaysActionable { get; set; }
+
+        public bool Actionable => AlwaysActionable
+                                  || State == RequirementState.Missing
                                   || (State == RequirementState.Warning && (CanAutoInstall || DownloadUrl != null));
 
         /// <summary>Whether the game can install this one by itself.</summary>
@@ -205,6 +209,9 @@ namespace osu.Game.Mapperatorinator
             bool gpuUnusable = (hardware.Device == @"cuda" || hardware.Device == @"rocm") && runner.EffectiveDevice(hardware.Device) == @"cpu";
 
             // 1. plataforma / hardware
+            var amdCard = MapperatorinatorRunner.DetectAmdGpu();
+            bool amdUsable = amdCard != null && installed && amdCard.KfdAccessible;
+
             list.Add(new Requirement
             {
                 Kind = RequirementKind.Platform,
@@ -217,12 +224,18 @@ namespace osu.Game.Mapperatorinator
                     : hardware.Description,
                 Instructions = hardware.IsMobile ? @"Generate on a PC or Mac, then play the map anywhere."
                     : hardware.GpuAccessBlocked ? @"In a terminal: sudo usermod -aG render,video $USER. Then log out and back in (groups only apply at login), open Torii again and press Check."
-                    : hardware.AmdOffered && installed ? @"Want to try it? We'll install the ROCm build of pytorch and run a two-second test on the card first. If it doesn't hold up, everything goes back to the CPU by itself."
+                    : runner.Config.RocmEnabled && amdUsable ? @"Generating uses your card. If anything misbehaves (a freeze, a black screen, a crash), press ""Back to the CPU"" and everything keeps working, just slower."
+                    : runner.Config.RocmBlocked && amdUsable ? @"You can try again, but save your work first: on a setup that can't handle it, the card takes the display driver down with it. ""GPU report"" writes a file with your card, your kernel and what this pytorch supports: that's the file to send if you want someone to look at it."
+                    : amdUsable ? @"Want to try it? We check what your card is and whether this pytorch has kernels for it before touching it at all, then run a two-second test. If it doesn't hold up, everything goes back to the CPU by itself. ""GPU report"" writes a file with all of that and doesn't touch the card."
                     : hardware.AmdOffered ? @"Install Mapperatorinator first (below); once it's there you can try the GPU from here."
                     : string.Empty,
-                // el boton solo cuando la tool ya esta: sin venv no hay nada que testear.
-                CanAutoInstall = hardware.AmdOffered && installed,
-                AutoInstallLabel = @"Try the GPU (experimental)",
+                // siempre hay salida: probar, reintentar, o volver a la cpu. antes, si la
+                // placa fallaba, los botones desaparecian y no quedaba forma de tocar nada.
+                CanAutoInstall = amdUsable,
+                AutoInstallLabel = runner.Config.RocmEnabled ? @"Back to the CPU"
+                    : runner.Config.RocmBlocked ? @"Try the GPU again"
+                    : @"Try the GPU (experimental)",
+                AlwaysActionable = amdUsable,
             });
 
             if (hardware.IsMobile)
