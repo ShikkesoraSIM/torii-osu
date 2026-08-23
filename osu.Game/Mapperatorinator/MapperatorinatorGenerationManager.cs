@@ -101,9 +101,22 @@ namespace osu.Game.Mapperatorinator
         /// <summary>
         /// Whether this map came out of Mapperatorinator (carries the marker tag).
         /// </summary>
-        public static bool IsGeneratedMap(IBeatmapInfo beatmap) =>
-            beatmap.Metadata.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                   .Contains(OszPostProcessor.MARKER_TAG, StringComparer.OrdinalIgnoreCase);
+        /// <summary>
+        /// Si el mapa salio de una generacion. El tag es lo primero que se mira porque es
+        /// gratis, pero cualquiera lo borra editando la metadata: la prueba de verdad es
+        /// el archivo con las opciones que el generador deja adentro del set, que viaja
+        /// con el .osz y por lo tanto tambien esta en los mapas que bajaste de otra gente.
+        /// </summary>
+        public static bool IsGeneratedMap(IBeatmapInfo beatmap)
+        {
+            if (beatmap.Metadata.Tags.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                       .Contains(OszPostProcessor.MARKER_TAG, StringComparer.OrdinalIgnoreCase))
+                return true;
+
+            // sin ir a disco: la lista de archivos del set ya esta en realm.
+            return (beatmap as BeatmapInfo)?.BeatmapSet?.Files
+                   .Any(f => string.Equals(f.Filename, MapperatorinatorSidecar.FILENAME, StringComparison.OrdinalIgnoreCase)) == true;
+        }
 
         /// <summary>
         /// Builds a job from a beatmap's audio. Must run on the update thread (touches

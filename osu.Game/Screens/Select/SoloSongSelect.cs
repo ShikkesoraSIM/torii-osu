@@ -97,27 +97,54 @@ namespace osu.Game.Screens.Select
                 yield break;
             }
 
+            // un set ajeno no se toca: mirar como lo hicieron y llevarte las opciones si,
+            // meterle diffs adentro no. Regenerar tampoco, que es reescribir su set.
+            bool mine = isMine(beatmap);
+
+            var items = new List<MenuItem>();
+
+            if (mine)
+            {
+                items.Add(new OsuMenuItem("Regenerate (same settings, new seed)", MenuItemType.Standard,
+                    () => generationManager?.QuickRegenerate(beatmap)));
+            }
+
+            // mirar con que se hizo (la pantalla queda cargada con esas opciones)...
+            items.Add(new OsuMenuItem("See the settings this map used", MenuItemType.Standard,
+                () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true, reviewOnly: true))));
+
+            // ...o guardartelas de una, que es lo que en general vas a querer cuando un
+            // mapa sale bien, sea tuyo o de otra persona.
+            items.Add(new OsuMenuItem("Save these settings as a preset", MenuItemType.Standard,
+                () => dialogOverlay?.Push(new PresetNameDialog($"{beatmap.Metadata.Title} style",
+                    name => generationManager?.SavePresetFromBeatmap(beatmap, name)))));
+
+            if (mine)
+            {
+                items.Add(new OsuMenuItem("New difficulty (tweak settings)", MenuItemType.Standard,
+                    () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true))));
+            }
+
+            items.Add(new OsuMenuItem(mine ? "Generate as a new set" : "Generate my own set from this song", MenuItemType.Standard,
+                () => OpenMapperatorinator(beatmap)));
+
             yield return new OsuMenuItem("Mapperatorinator", MenuItemType.Highlighted)
             {
                 Icon = FontAwesome.Solid.Magic,
-                Items = new MenuItem[]
-                {
-                    new OsuMenuItem("Regenerate (same settings, new seed)", MenuItemType.Standard,
-                        () => generationManager?.QuickRegenerate(beatmap)),
-                    // mirar con que se hizo (la pantalla queda cargada con esas opciones)...
-                    new OsuMenuItem("See the settings this map used", MenuItemType.Standard,
-                        () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true, reviewOnly: true))),
-                    // ...o guardartelas de una, que es lo que en general vas a querer
-                    // cuando un mapa sale bien: un nombre y listo, sin abrir nada.
-                    new OsuMenuItem("Save these settings as a preset", MenuItemType.Standard,
-                        () => dialogOverlay?.Push(new PresetNameDialog($"{beatmap.Metadata.Title} style",
-                            name => generationManager?.SavePresetFromBeatmap(beatmap, name)))),
-                    new OsuMenuItem("New difficulty (tweak settings)", MenuItemType.Standard,
-                        () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true))),
-                    new OsuMenuItem("Generate as a new set", MenuItemType.Standard,
-                        () => OpenMapperatorinator(beatmap)),
-                },
+                Items = items.ToArray(),
             };
+        }
+
+        /// <summary>El set lo hizo la persona que esta jugando (o no hay nadie logueado).</summary>
+        private bool isMine(BeatmapInfo beatmap)
+        {
+            var author = beatmap.Metadata.Author;
+            var local = api.LocalUser.Value;
+
+            if (author.OnlineID > 1 && local.OnlineID > 1)
+                return author.OnlineID == local.OnlineID;
+
+            return string.Equals(author.Username, local.Username, StringComparison.OrdinalIgnoreCase);
         }
 
         public override IEnumerable<OsuMenuItem> GetForwardActions(BeatmapInfo beatmap)
