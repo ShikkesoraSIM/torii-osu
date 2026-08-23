@@ -39,6 +39,16 @@ namespace osu.Game.Mapperatorinator
         public IEnumerable<string> Wanted => states.Where(kv => kv.Value == ChipState.Want).Select(kv => kv.Key);
         public IEnumerable<string> Avoided => states.Where(kv => kv.Value == ChipState.Avoid).Select(kv => kv.Key);
 
+        /// <summary>
+        /// Solo mira, no toca: se dibujan unicamente los estilos elegidos y clickearlos
+        /// no cambia nada. Lo usa el administrador de presets, donde la lista de estilos
+        /// en texto plano no le decia nada a nadie.
+        /// </summary>
+        public bool ReadOnly { get; init; }
+
+        /// <summary>Que hacer cuando alguien clickea un chip en modo de solo lectura.</summary>
+        public Action? ClickedWhileReadOnly { get; init; }
+
         /// <summary>Only tags for this gamemode (plus mode-agnostic ones) are shown.</summary>
         public int GamemodeId
         {
@@ -102,10 +112,15 @@ namespace osu.Game.Mapperatorinator
             content.Clear();
             chips.Clear();
 
-            var visible = MapperatorinatorDescriptors.ALL
-                                                     .Where(d => d.RulesetId == null || d.RulesetId == gamemodeId)
-                                                     .GroupBy(d => d.Name.Split('/')[0])
-                                                     .OrderBy(g => g.Key);
+            var candidates = MapperatorinatorDescriptors.ALL
+                                                        .Where(d => d.RulesetId == null || d.RulesetId == gamemodeId);
+
+            // en modo de solo lectura no tiene sentido dibujar los ciento y pico de
+            // estilos en gris: lo que importa son los que este preset pide y evita.
+            if (ReadOnly)
+                candidates = candidates.Where(d => states.ContainsKey(d.Name));
+
+            var visible = candidates.GroupBy(d => d.Name.Split('/')[0]).OrderBy(g => g.Key);
 
             foreach (var group in visible)
             {
@@ -129,6 +144,8 @@ namespace osu.Game.Mapperatorinator
                 {
                     var chip = new DescriptorChip(descriptor, states.GetValueOrDefault(descriptor.Name))
                     {
+                        ReadOnly = ReadOnly,
+                        ClickedWhileReadOnly = ClickedWhileReadOnly,
                         StateChanged = s =>
                         {
                             if (s == ChipState.Off)
@@ -148,6 +165,8 @@ namespace osu.Game.Mapperatorinator
         private partial class DescriptorChip : CompositeDrawable, IHasTooltip
         {
             public Action<ChipState>? StateChanged;
+            public bool ReadOnly { get; init; }
+            public Action? ClickedWhileReadOnly { get; init; }
 
             public LocalisableString TooltipText { get; }
 
@@ -187,6 +206,12 @@ namespace osu.Game.Mapperatorinator
 
             protected override bool OnClick(ClickEvent e)
             {
+                if (ReadOnly)
+                {
+                    ClickedWhileReadOnly?.Invoke();
+                    return true;
+                }
+
                 state = state switch
                 {
                     ChipState.Off => ChipState.Want,
