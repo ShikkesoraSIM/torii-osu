@@ -589,7 +589,7 @@ namespace osu.Game.Mapperatorinator
                     buttons.Add(new RoundedButton { Width = 190, Height = 30, Text = @"Install automatically", Action = AutoInstall });
 
                 if (actionable && OpenDownload != null)
-                    buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = @"Download page", Action = OpenDownload });
+                    buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = requirement.DownloadLabel, Action = OpenDownload });
 
                 var text = new FillFlowContainer
                 {

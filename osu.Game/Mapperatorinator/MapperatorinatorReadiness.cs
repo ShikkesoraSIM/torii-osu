@@ -47,6 +47,9 @@ namespace osu.Game.Mapperatorinator
         /// <summary>A page to download it from, when we can't install it ourselves.</summary>
         public string? DownloadUrl { get; set; }
 
+        /// <summary>What the download button says.</summary>
+        public string DownloadLabel { get; set; } = @"Download page";
+
         /// <summary>Whether the game can install this one by itself.</summary>
         public bool CanAutoInstall { get; set; }
 
@@ -89,6 +92,7 @@ namespace osu.Game.Mapperatorinator
 
         public static readonly string PYTHON_DOWNLOAD_URL = @"https://www.python.org/downloads/release/python-31011/";
         public static readonly string FFMPEG_DOWNLOAD_URL = @"https://ffmpeg.org/download.html";
+        public static readonly string HOMEBREW_URL = @"https://brew.sh";
 
         public static HardwareInfo DetectHardware(MapperatorinatorRunner runner)
         {
@@ -140,7 +144,7 @@ namespace osu.Game.Mapperatorinator
                 Kind = RequirementKind.Python,
                 Title = @"Python 3.10",
                 State = python != null ? RequirementState.Ok : RequirementState.Missing,
-                Detail = python != null ? $"found ({python})" : @"not found. The model only runs on 3.10, not newer.",
+                Detail = python != null ? $"found ({python})" : @"not found. The model only runs on 3.10, not newer. (Just installed it? Press Check.)",
                 Instructions = pythonInstructions(),
                 DownloadUrl = PYTHON_DOWNLOAD_URL,
             });
@@ -148,15 +152,24 @@ namespace osu.Game.Mapperatorinator
             // 3. ffmpeg (pydub decodes the audio through it; without it the run dies with
             //    a bare "exit code 1")
             string? ffmpeg = runner.FindFfmpeg();
+            bool hasBrew = MapperatorinatorRunner.FindBrew() != null;
             list.Add(new Requirement
             {
                 Kind = RequirementKind.Ffmpeg,
                 Title = @"FFmpeg",
                 State = ffmpeg != null ? RequirementState.Ok : RequirementState.Missing,
                 Detail = ffmpeg != null ? $"found ({(ffmpeg == @"ffmpeg" ? "on PATH" : ffmpeg)})" : @"not found. The audio can't be decoded without it.",
-                Instructions = ffmpegInstructions(),
-                DownloadUrl = FFMPEG_DOWNLOAD_URL,
-                CanAutoInstall = RuntimeInfo.OS == RuntimeInfo.Platform.Windows,
+                Instructions = ffmpegInstructions(hasBrew),
+                // en mac el unico camino sano es brew: mandar a ffmpeg.org (builds de
+                // intel, sin instalador) es un laberinto. en linux, el package manager.
+                DownloadUrl = RuntimeInfo.OS switch
+                {
+                    RuntimeInfo.Platform.Windows => FFMPEG_DOWNLOAD_URL,
+                    RuntimeInfo.Platform.macOS => hasBrew ? null : HOMEBREW_URL,
+                    _ => null,
+                },
+                DownloadLabel = RuntimeInfo.OS == RuntimeInfo.Platform.macOS ? @"Get Homebrew" : @"Download page",
+                CanAutoInstall = RuntimeInfo.OS == RuntimeInfo.Platform.Windows || (RuntimeInfo.OS == RuntimeInfo.Platform.macOS && hasBrew),
             });
 
             // 4. espacio: solo importa antes de instalar la tool
@@ -192,28 +205,30 @@ namespace osu.Game.Mapperatorinator
             switch (RuntimeInfo.OS)
             {
                 case RuntimeInfo.Platform.Windows:
-                    return @"Download the 3.10 installer (Windows installer 64-bit), run it and tick ""Add python.exe to PATH"" before pressing Install. Then press Check.";
+                    return @"Press Download page, get ""Windows installer (64-bit)"" for 3.10, run it with the defaults, then press Check. We look where it installs, so nothing else to set up.";
 
                 case RuntimeInfo.Platform.macOS:
-                    return @"Download the 3.10 macOS installer from the same page and run it. Then press Check.";
+                    return @"Press Download page, get ""macOS 64-bit universal2 installer"" for 3.10, run it, then press Check. We look where it installs, so nothing else to set up. (Homebrew users: brew install python@3.10 works too.)";
 
                 default:
-                    return @"Install it from your package manager, e.g. sudo apt install python3.10 python3.10-venv (Debian/Ubuntu) or sudo dnf install python3.10 (Fedora). Then press Check.";
+                    return @"In a terminal: sudo apt install python3.10 python3.10-venv (Debian/Ubuntu), sudo dnf install python3.10 (Fedora), or your distro's equivalent. Then press Check.";
             }
         }
 
-        private static string ffmpegInstructions()
+        private static string ffmpegInstructions(bool hasBrew)
         {
             switch (RuntimeInfo.OS)
             {
                 case RuntimeInfo.Platform.Windows:
-                    return @"Let the game install it (it's kept inside the Mapperatorinator folder, nothing on your system changes), or grab a build yourself and put its bin folder on PATH.";
+                    return @"Press Install automatically. It's kept inside the Mapperatorinator folder, nothing on your system changes.";
 
                 case RuntimeInfo.Platform.macOS:
-                    return @"brew install ffmpeg (with Homebrew), or download a static build and put it on PATH. Then press Check.";
+                    return hasBrew
+                        ? @"Press Install automatically (it runs brew install ffmpeg for you), or type that in Terminal yourself. Then press Check."
+                        : @"This needs Homebrew. Press Get Homebrew, paste the one line from that page into Terminal, wait for it to finish, then come back and press Check: the Install button appears.";
 
                 default:
-                    return @"sudo apt install ffmpeg (Debian/Ubuntu), sudo dnf install ffmpeg (Fedora), sudo pacman -S ffmpeg (Arch). Then press Check.";
+                    return @"In a terminal: sudo apt install ffmpeg (Debian/Ubuntu), sudo dnf install ffmpeg (Fedora), sudo pacman -S ffmpeg (Arch). Then press Check.";
             }
         }
 
