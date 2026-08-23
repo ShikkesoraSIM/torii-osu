@@ -472,6 +472,11 @@ namespace osu.Game
                 return;
             }
 
+            // torii: la pantalla que esta arriba puede querer el archivo para si (el
+            // generador toma un mp3 como cancion de origen). Si lo toma, no se importa.
+            if (ScreenStack?.CurrentScreen is IHandleDroppedFile handler && handler.HandleDroppedFile(path))
+                return;
+
             lock (dragDropFiles)
             {
                 dragDropFiles.Add(path);

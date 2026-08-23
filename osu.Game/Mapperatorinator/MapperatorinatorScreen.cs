@@ -47,10 +47,10 @@ namespace osu.Game.Mapperatorinator
     /// .osz after generation). Pressing generate hands the job to the game-wide
     /// manager and leaves; progress lives in a pinned notification from there on.
     /// </summary>
-    public partial class MapperatorinatorScreen : OsuScreen
+    public partial class MapperatorinatorScreen : OsuScreen, IHandleDroppedFile
     {
         private readonly BeatmapInfo? sourceBeatmap;
-        private readonly string? externalAudioPath;
+        private string? externalAudioPath;
         private readonly bool addToExistingSet;
 
         [Resolved(canBeNull: true)]
@@ -110,12 +110,18 @@ namespace osu.Game.Mapperatorinator
         private OsuSpriteText presetCaption = null!;
         private FormDropdown<PresetEntry> presetDropdown = null!;
         private FormTextBox presetName = null!;
-        private FormButton presetSaveButton = null!;
-        private FormButton presetDeleteButton = null!;
+        private RoundedButton presetSaveButton = null!;
+        private RoundedButton presetDeleteButton = null!;
         private bool applyingPreset;
 
         /// <summary>Abierta para mirar como se hizo un mapa, no para generar otro.</summary>
         private readonly bool reviewOnly;
+
+        /// <summary>Abierta sin cancion: primero hay que elegir un audio.</summary>
+        private readonly bool standalone;
+
+        private FormFileSelector audioSelector = null!;
+        private OsuSpriteText audioHint = null!;
         private RoundedButton openReportButton = null!;
         private OsuScrollContainer logScroll = null!;
 
@@ -142,6 +148,12 @@ namespace osu.Game.Mapperatorinator
         public MapperatorinatorScreen(string audioPath)
         {
             externalAudioPath = audioPath;
+        }
+
+        /// <summary>Desde el menu principal: todavia no hay cancion, se elige aca.</summary>
+        public MapperatorinatorScreen()
+        {
+            standalone = true;
         }
 
         [BackgroundDependencyLoader]
@@ -184,40 +196,50 @@ namespace osu.Game.Mapperatorinator
                             heading(@"Mapperatorinator", 32),
                             credits(),
 
+                            audioSelector = new FormFileSelector(@".mp3", @".ogg", @".wav", @".flac")
+                            {
+                                Caption = @"Song",
+                                PlaceholderText = @"drop an audio file anywhere on this screen, or click to pick one",
+                            },
+                            audioHint = caption(@"any mp3, ogg, wav or flac. the map gets built from that audio."),
+
                             presetHeading = heading(@"Presets", 22),
-                            presetCaption = caption(@"combinaciones guardadas. viven en tu cuenta, asi que siguen estando si formateas la maquina."),
+                            presetCaption = caption(@"settings you saved before. they live on your account, so reinstalling doesn't lose them."),
                             presetDropdown = new FormDropdown<PresetEntry>
                             {
-                                Caption = @"Load a preset",
-                                HintText = @"Picking one fills the whole form with the settings it was saved with.",
+                                Caption = @"Use a preset",
+                                HintText = @"Picking one fills in everything below with the settings it was saved with.",
                                 Items = new[] { PresetEntry.None },
                                 NewFeatureId = NewFeatureRegistry.MapperatorinatorPresets,
                             },
                             presetName = new FormTextBox
                             {
-                                Caption = @"Save what's set now as",
+                                Caption = @"Preset name",
                                 HintText = @"A name you'll recognise, like ""stream farm 6 stars"". Reusing a name overwrites that preset.",
-                                PlaceholderText = @"preset name",
+                                PlaceholderText = @"name it to save the settings below",
                                 TabbableContentContainer = this,
                             },
-                            presetSaveButton = new FormButton
+                            presetSaveButton = new RoundedButton
                             {
-                                Caption = @"Presets",
-                                ButtonText = @"Save preset",
-                                ButtonIcon = FontAwesome.Solid.Save,
+                                RelativeSizeAxes = Axes.X,
+                                Height = 36,
+                                Text = @"Save these settings as a preset",
                                 Action = savePreset,
                             },
-                            presetDeleteButton = new FormButton
+                            presetDeleteButton = new RoundedButton
                             {
-                                ButtonText = @"Delete the selected preset",
-                                ButtonIcon = FontAwesome.Solid.TrashAlt,
+                                RelativeSizeAxes = Axes.X,
+                                Height = 32,
+                                Text = @"Delete the preset above",
                                 Action = deletePreset,
                             },
                             caption(sourceBeatmap != null
                                 ? (addToExistingSet
                                     ? $"new difficulty for: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title} (added to the same set)"
                                     : $"song: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title}")
-                                : $"audio: {Path.GetFileName(externalAudioPath)}"),
+                                : standalone
+                                    ? @"pick a song below and the model writes a map for it."
+                                    : $"audio: {Path.GetFileName(externalAudioPath)}"),
 
                             heading(@"Generator", 22),
                             model = new FormEnumDropdown<MapperatorinatorModel>
@@ -405,8 +427,34 @@ namespace osu.Game.Mapperatorinator
             updateIdleEta();
             runChecks();
 
+            // el selector de cancion solo existe cuando se entro sin mapa de origen.
+            audioSelector.Alpha = standalone ? 1 : 0;
+            audioHint.Alpha = audioSelector.Alpha;
+            audioSelector.Current.BindValueChanged(f =>
+            {
+                if (f.NewValue == null)
+                    return;
+
+                externalAudioPath = f.NewValue.FullName;
+                audioLengthSeconds = 180;
+                updateIdleEta();
+                updateGenerateEnabled();
+            });
+
             presetDropdown.Current.BindValueChanged(e => onPresetSelected(e.NewValue ?? PresetEntry.None));
-            presetDeleteButton.Enabled.Value = false;
+
+            // se guarda cuando la persona lo pide, no por pasar por el campo: el commit
+            // de un textbox salta tambien al salir del foco, asi que clickear de un campo
+            // a otro estaba disparando un guardado (y un cartel de error) sin que nadie
+            // lo pidiera. El boton manda; enter es solo un atajo.
+            presetName.Current.BindValueChanged(e => presetSaveButton.Enabled.Value = !string.IsNullOrWhiteSpace(e.NewValue), true);
+            presetName.OnCommit += (_, _) =>
+            {
+                if (!string.IsNullOrWhiteSpace(presetName.Current.Value))
+                    savePreset();
+            };
+
+            presetDeleteButton.Alpha = 0;
             loadPresets();
 
             if (addToExistingSet)
@@ -431,9 +479,9 @@ namespace osu.Game.Mapperatorinator
                 // leerlas y guardarlas, no generar otra cosa encima.
                 generateButton.Alpha = 0;
                 etaText.Alpha = 0;
-                presetCaption.Text = @"estas son las opciones con las que se genero este mapa. podes guardarlas como preset y usarlas en otra cancion.";
+                presetCaption.Text = @"these are the settings this map was generated with. name them and they're yours to use on any other song.";
 
-                if (sourceBeatmap != null && presetName.Alpha > 0)
+                if (sourceBeatmap != null)
                     presetName.Current.Value = $"{sourceBeatmap.Metadata.Title} style";
             }
         }
@@ -598,7 +646,7 @@ namespace osu.Game.Mapperatorinator
             checkButton.Alpha = showList ? 1 : 0;
             installSelector.Alpha = showList ? 1 : 0;
 
-            generateButton.Enabled.Value = ready && !installing;
+            updateGenerateEnabled();
 
             detectedDevice = runner.DetectDevice();
             device = runner.EffectiveDevice(detectedDevice);
@@ -1073,6 +1121,36 @@ namespace osu.Game.Mapperatorinator
 
         private static string format(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{(int)t.TotalMinutes}m {t.Seconds:00}s";
 
+        /// <summary>Sin cancion no se puede generar nada, por mas que todo lo demas este.</summary>
+        private void updateGenerateEnabled()
+        {
+            bool hasSong = sourceBeatmap != null || !string.IsNullOrEmpty(externalAudioPath);
+            generateButton.Enabled.Value = ready && !installing && hasSong;
+        }
+
+        /// <summary>
+        /// Arrastrar un mp3 encima de la pantalla es la forma natural de decir "usá esta
+        /// cancion": el juego, si no, intentaria importarlo como si fuera un mapa.
+        /// </summary>
+        public bool HandleDroppedFile(string path)
+        {
+            if (!standalone)
+                return false;
+
+            string extension = Path.GetExtension(path).ToLowerInvariant();
+
+            if (extension != @".mp3" && extension != @".ogg" && extension != @".wav" && extension != @".flac")
+                return false;
+
+            Schedule(() =>
+            {
+                audioSelector.Current.Value = new FileInfo(path);
+                notifications?.Post(new SimpleNotification { Text = $"Using {Path.GetFileName(path)} as the song." });
+            });
+
+            return true;
+        }
+
         private void startGeneration()
         {
             if (installing) return;
@@ -1193,7 +1271,7 @@ namespace osu.Game.Mapperatorinator
                 presetDropdown.Current.Value = entries.FirstOrDefault(e => e.Id == selectId) ?? PresetEntry.None;
                 applyingPreset = false;
 
-                presetDeleteButton.Enabled.Value = presetDropdown.Current.Value.Id > 0;
+                updateDeleteButton(presetDropdown.Current.Value);
             });
 
             request.Failure += e => Schedule(() => Logger.Log($"[mapperatorinator] couldn't load presets: {e.Message}"));
@@ -1209,12 +1287,21 @@ namespace osu.Game.Mapperatorinator
             presetDropdown.Alpha = alpha;
             presetName.Alpha = alpha;
             presetSaveButton.Alpha = alpha;
-            presetDeleteButton.Alpha = alpha;
+
+            if (!visible)
+                presetDeleteButton.Alpha = 0;
+        }
+
+        private void updateDeleteButton(PresetEntry entry)
+        {
+            // sin preset elegido no hay nada que borrar: la fila directamente no esta,
+            // en vez de quedar ahi apagada ocupando lugar.
+            presetDeleteButton.Alpha = entry.Id > 0 ? 1 : 0;
         }
 
         private void onPresetSelected(PresetEntry entry)
         {
-            presetDeleteButton.Enabled.Value = entry.Id > 0;
+            updateDeleteButton(entry);
 
             if (applyingPreset || entry.Id <= 0 || string.IsNullOrEmpty(entry.Settings))
                 return;
@@ -1236,13 +1323,14 @@ namespace osu.Game.Mapperatorinator
 
         private void savePreset()
         {
-            string name = presetName.Current.Value.Trim();
+            // el campo arranca en null, no en vacio: esto era un crash al apretar guardar.
+            string name = (presetName.Current.Value ?? string.Empty).Trim();
 
+            // sin nombre no se hace nada y no se dice nada: el boton ya esta apagado, y
+            // avisarle a alguien que no escribio un nombre cuando no pidio guardar es
+            // molestar por molestar.
             if (name.Length == 0)
-            {
-                notifications?.Post(new SimpleErrorNotification { Text = @"Give the preset a name first." });
                 return;
-            }
 
             // el mismo shape que guarda el sidecar de cada mapa generado: asi un preset
             // y "las opciones que uso este mapa" son la misma cosa y se pueden mezclar.
