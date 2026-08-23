@@ -255,9 +255,26 @@ namespace osu.Game.Mapperatorinator
             /// <summary>The card's chip is among the ones the build can run. Without this, dispatching faults the GPU.</summary>
             public bool ArchSupported => Arch != null && ArchList.Contains(Arch, StringComparer.OrdinalIgnoreCase);
 
-            public string Summary => Error != null
-                ? $"torch couldn't look at the GPU: {Error}"
-                : $"{DeviceName ?? "unknown card"} ({Arch ?? "unknown chip"}), pytorch {TorchVersion} for ROCm {HipVersion}, kernels for: {(ArchList.Count > 0 ? string.Join(", ", ArchList) : "none listed")}";
+            /// <summary>El build instalado no tiene soporte de GPU de ningun tipo.</summary>
+            public bool IsCpuOnly => string.IsNullOrEmpty(HipVersion)
+                                     && (TorchVersion?.Contains(@"+cpu", StringComparison.OrdinalIgnoreCase) == true || ArchList.Count == 0)
+                                     && DeviceCount == 0;
+
+            public string Summary
+            {
+                get
+                {
+                    if (Error != null)
+                        return $"torch couldn't look at the GPU: {Error}";
+
+                    if (IsCpuOnly)
+                        return $"the pytorch installed here is the CPU build ({TorchVersion}): it has no GPU support at all, no matter which card you have.";
+
+                    return $"{DeviceName ?? "unknown card"} ({Arch ?? "unknown chip"}), pytorch {TorchVersion}"
+                           + (string.IsNullOrEmpty(HipVersion) ? string.Empty : $" for ROCm {HipVersion}")
+                           + $", kernels for: {(ArchList.Count > 0 ? string.Join(", ", ArchList) : "none listed")}";
+                }
+            }
         }
 
         /// <summary>
