@@ -1,31 +1,7 @@
 Torii for macOS
 ===============
 
-Easiest: double-click "Install Torii.command". It puts Torii in your Applications
-folder, clears the download quarantine flag, and opens it. No password needed for
-a normal account, nothing else on your Mac is touched.
-
-If macOS refuses to open the .command file ("can't be opened because Apple cannot
-check it for malicious software"), either:
-
-  - right-click it and choose Open, then Open again in the dialog, or
-  - go to System Settings > Privacy & Security and press "Open Anyway".
-
-Or skip the script and do the same two steps by hand:
-
-  1. Drag Torii.app into your Applications folder.
-  2. Open Terminal and run:
-
-       xattr -dr com.apple.quarantine /Applications/Torii.app
-
-     Then open Torii normally.
-
-Why the fuss: Torii isn't signed with a paid Apple developer certificate, and
-macOS flags every downloaded app as quarantined. For unsigned apps that shows up
-as "Torii is damaged and can't be opened" the first time. Clearing the flag is
-safe; you downloaded it yourself.
-
-One-line install / update from Terminal (same thing, no download step):
+Quickest way in (recommended): open Terminal and paste this line.
 
   curl -fsSL https://lazer.shikkesora.com/install-mac.sh | bash
 
@@ -33,5 +9,40 @@ One-line install / update from Terminal (same thing, no download step):
 
   curl -fsSL https://lazer.shikkesora.com/install-mac.sh | bash -s -- nova
 
-Updates: Torii checks for new versions itself and offers to update with one
-click. Running the line above again also updates in place.
+It downloads the right build for your Mac, puts Torii in Applications, makes it
+launchable and opens it. No password needed for a normal account, nothing else
+on your Mac is touched. Running the line again later updates in place, and Torii
+also offers updates by itself.
+
+Using this zip instead:
+
+  Double-clicking "Install Torii.command" does the same job, but recent macOS
+  versions block downloaded scripts ("Apple could not verify ... is free of
+  malware", with only a Move to Trash button). Two ways around it:
+
+  - run it from Terminal, which isn't blocked:
+
+      bash ~/Downloads/"Install Torii.command"
+
+    (adjust the path if you unzipped somewhere else), or
+
+  - after the block, go to System Settings > Privacy & Security, scroll to
+    Security, press "Open Anyway" next to the message about the script, and
+    double-click it again.
+
+Or do it by hand:
+
+  1. Drag Torii.app into your Applications folder.
+  2. In Terminal:
+
+       xattr -dr com.apple.quarantine /Applications/Torii.app
+       codesign --force --deep --sign - /Applications/Torii.app
+
+  3. Open Torii normally.
+
+Why all this: Torii isn't signed with a paid Apple developer certificate. macOS
+marks every downloaded file as quarantined, and an unsigned quarantined app
+shows up as "damaged and can't be opened". On Apple Silicon the system also
+refuses to run any program without a signature at all, so the install gives
+Torii a local one. Clearing the quarantine flag is safe: you downloaded it
+yourself.
