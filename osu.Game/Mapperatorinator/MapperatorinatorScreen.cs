@@ -108,6 +108,7 @@ namespace osu.Game.Mapperatorinator
 
         // setup
         private FormFileSelector installSelector = null!;
+        private FormTextBox customPython = null!;
 
         private RoundedButton generateButton = null!;
         private OsuSpriteText etaText = null!;
@@ -359,6 +360,12 @@ namespace osu.Game.Mapperatorinator
                                 Direction = FillDirection.Vertical,
                                 Spacing = new Vector2(0, 6),
                             },
+                            customPython = new FormTextBox
+                            {
+                                Caption = @"Use my own python (advanced)",
+                                HintText = @"Full path to a python that already has the tool's dependencies. This is the way out if your GPU only works inside a container (distrobox, toolbox): set up ROCm and the packages there, and point this at that python (or at a wrapper script that enters the container). Leave it empty to use the one Torii installs.",
+                                PlaceholderText = @"empty = use the one Torii installed",
+                            },
                             checkButton = new RoundedButton
                             {
                                 RelativeSizeAxes = Axes.X,
@@ -461,6 +468,15 @@ namespace osu.Game.Mapperatorinator
                 updateIdleEta();
                 updateGenerateEnabled();
             });
+
+            customPython.Current.Value = runner.Config.PythonPath ?? string.Empty;
+            customPython.OnCommit += (_, _) =>
+            {
+                string value = (customPython.Current.Value ?? string.Empty).Trim();
+                runner.Config.PythonPath = value.Length > 0 ? value : null;
+                runner.Save();
+                runChecks();
+            };
 
             presetDropdown.Current.BindValueChanged(e => onPresetSelected(e.NewValue ?? PresetEntry.None));
 
@@ -687,6 +703,7 @@ namespace osu.Game.Mapperatorinator
                 ? @"generating works, but something here would make it a lot faster."
                 : @"everything generating needs on this machine. sort out anything red, then press Check.";
 
+            customPython.Alpha = showList ? 1 : 0;
             requirementsHeading.Alpha = showList ? 1 : 0;
             requirementsCaption.Alpha = showList ? 1 : 0;
             requirementsFlow.Alpha = showList ? 1 : 0;
@@ -958,6 +975,16 @@ namespace osu.Game.Mapperatorinator
             var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
 
             runner.EndRocmTrial();
+
+            // el driver y torch tienen que estar de acuerdo en que chip es la placa. Si no
+            // lo estan, hay un HSA_OVERRIDE_GFX_VERSION en el sistema haciendola pasar por
+            // otra, y despachar kernels de otro chip es exactamente lo que la hace fallar.
+            if (amd != null && probe.Arch != null && !probe.Arch.Equals(amd.Gfx, StringComparison.OrdinalIgnoreCase))
+            {
+                log($"WARNING: the driver says this card is {amd.Gfx}, but torch sees {probe.Arch}. "
+                    + @"Something in your system is overriding it (HSA_OVERRIDE_GFX_VERSION), and running another chip's "
+                    + @"kernels is what makes the card abort. Torii clears that override for its own runs now.");
+            }
 
             log(probe.ArchSupported
                 ? @"this pytorch does carry kernels for your card."
