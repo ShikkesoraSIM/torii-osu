@@ -117,7 +117,6 @@ namespace osu.Game.Mapperatorinator
         private FormDropdown<PresetEntry> presetDropdown = null!;
         private FormTextBox presetName = null!;
         private RoundedButton presetSaveButton = null!;
-        private RoundedButton presetDeleteButton = null!;
         private RoundedButton presetManageButton = null!;
         private bool applyingPreset;
 
@@ -126,6 +125,9 @@ namespace osu.Game.Mapperatorinator
 
         /// <summary>Abierta sin cancion: primero hay que elegir un audio.</summary>
         private readonly bool standalone;
+
+        /// <summary>Abierta para cambiar un preset y guardarlo encima.</summary>
+        private readonly APIMapperatorinatorPreset? editingPreset;
 
         private FormFileSelector audioSelector = null!;
         private OsuSpriteText audioHint = null!;
@@ -161,6 +163,15 @@ namespace osu.Game.Mapperatorinator
         public MapperatorinatorScreen()
         {
             standalone = true;
+        }
+
+        /// <summary>
+        /// Editar un preset: el formulario es el mismo, pero no se genera nada. Lo que
+        /// hay puesto se guarda encima del preset, con su mismo nombre.
+        /// </summary>
+        public MapperatorinatorScreen(APIMapperatorinatorPreset preset)
+        {
+            editingPreset = preset;
         }
 
         [BackgroundDependencyLoader]
@@ -232,13 +243,6 @@ namespace osu.Game.Mapperatorinator
                                 Height = 36,
                                 Text = @"Save these settings as a preset",
                                 Action = savePreset,
-                            },
-                            presetDeleteButton = new RoundedButton
-                            {
-                                RelativeSizeAxes = Axes.X,
-                                Height = 32,
-                                Text = @"Delete the preset above",
-                                Action = deletePreset,
                             },
                             presetManageButton = new RoundedButton
                             {
@@ -462,13 +466,14 @@ namespace osu.Game.Mapperatorinator
             // a otro estaba disparando un guardado (y un cartel de error) sin que nadie
             // lo pidiera. El boton manda; enter es solo un atajo.
             presetName.Current.BindValueChanged(e => presetSaveButton.Enabled.Value = !string.IsNullOrWhiteSpace(e.NewValue), true);
-            presetName.OnCommit += (_, _) =>
+            // newText: el commit salta con enter Y tambien al perder el foco. Sin esto,
+            // apretar enter guardaba dos veces (y notificaba dos veces).
+            presetName.OnCommit += (_, newText) =>
             {
-                if (!string.IsNullOrWhiteSpace(presetName.Current.Value))
+                if (newText && !string.IsNullOrWhiteSpace(presetName.Current.Value))
                     savePreset();
             };
 
-            presetDeleteButton.Alpha = 0;
             loadPresets();
 
             if (addToExistingSet)
@@ -485,6 +490,31 @@ namespace osu.Game.Mapperatorinator
 
                 if (sourceBeatmap != null && generationManager?.ReadSidecar(sourceBeatmap) is MapperatorinatorSidecar sidecar)
                     prefillFromSidecar(sidecar);
+            }
+
+            if (editingPreset != null)
+            {
+                // no hay cancion ni mapa: es el preset y nada mas.
+                generateButton.Alpha = 0;
+                etaText.Alpha = 0;
+                audioSelector.Alpha = 0;
+                audioHint.Alpha = 0;
+                metadataHeading.Alpha = 0;
+                metadataCaption.Alpha = 0;
+                titleBox.Alpha = 0;
+                artistBox.Alpha = 0;
+                creatorBox.Alpha = 0;
+                tagsBox.Alpha = 0;
+                backgroundSelector.Alpha = 0;
+                presetDropdown.Alpha = 0;
+                presetManageButton.Alpha = 0;
+
+                presetCaption.Text = $"editing \"{editingPreset.Name}\". change whatever you want below and save it back.";
+                presetName.Current.Value = editingPreset.Name;
+                presetSaveButton.Text = @"Save changes to this preset";
+
+                if (MapperatorinatorSidecar.Deserialize(editingPreset.Settings) is MapperatorinatorSidecar loaded)
+                    prefillFromSidecar(loaded);
             }
 
             if (reviewOnly)
@@ -1284,8 +1314,6 @@ namespace osu.Game.Mapperatorinator
                 presetDropdown.Items = entries;
                 presetDropdown.Current.Value = entries.FirstOrDefault(e => e.Id == selectId) ?? PresetEntry.None;
                 applyingPreset = false;
-
-                updateDeleteButton(presetDropdown.Current.Value);
             });
 
             request.Failure += e => Schedule(() => Logger.Log($"[mapperatorinator] couldn't load presets: {e.Message}"));
@@ -1302,21 +1330,10 @@ namespace osu.Game.Mapperatorinator
             presetName.Alpha = alpha;
             presetSaveButton.Alpha = alpha;
             presetManageButton.Alpha = alpha;
-
-            if (!visible)
-                presetDeleteButton.Alpha = 0;
-        }
-
-        private void updateDeleteButton(PresetEntry entry)
-        {
-            // sin preset elegido no hay nada que borrar: la fila directamente no esta,
-            // en vez de quedar ahi apagada ocupando lugar.
-            presetDeleteButton.Alpha = entry.Id > 0 ? 1 : 0;
         }
 
         private void onPresetSelected(PresetEntry entry)
         {
-            updateDeleteButton(entry);
 
             if (applyingPreset || entry.Id <= 0 || string.IsNullOrEmpty(entry.Settings))
                 return;
@@ -1356,8 +1373,16 @@ namespace osu.Game.Mapperatorinator
 
             save.Success += preset => Schedule(() =>
             {
-                presetName.Current.Value = string.Empty;
                 notifications?.Post(new SimpleNotification { Text = $"Saved preset \"{preset.Name}\"." });
+
+                if (editingPreset != null)
+                {
+                    // vino del administrador a cambiar este preset: guardado, vuelve.
+                    this.Exit();
+                    return;
+                }
+
+                presetName.Current.Value = string.Empty;
                 loadPresets(preset.Id);
             });
 
@@ -1366,25 +1391,6 @@ namespace osu.Game.Mapperatorinator
             api.Queue(save);
         }
 
-        private void deletePreset()
-        {
-            var entry = presetDropdown.Current.Value;
-
-            if (entry.Id <= 0)
-                return;
-
-            var request = new DeleteMapperatorinatorPresetRequest(entry.Id);
-
-            request.Success += () => Schedule(() =>
-            {
-                notifications?.Post(new SimpleNotification { Text = $"Deleted preset \"{entry.Name}\"." });
-                loadPresets();
-            });
-
-            request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't delete the preset: {e.Message}" }));
-
-            api.Queue(request);
-        }
 
         /// <summary>
         /// Lo que el formulario dice ahora, como pedido de generacion. Sale aparte

@@ -250,12 +250,41 @@ namespace osu.Game.Mapperatorinator
                 }
             }
 
+            if (sidecar != null && (sidecar.Descriptors.Count > 0 || sidecar.NegativeDescriptors.Count > 0))
+            {
+                details.Add(new OsuSpriteText
+                {
+                    Text = @"Styles it asks for (green) and avoids (red)",
+                    Font = OsuFont.Default.With(size: 14),
+                    Colour = Colour4.White.Opacity(0.6f),
+                    Margin = new MarginPadding { Top = 8 },
+                });
+
+                var picker = new DescriptorPicker
+                {
+                    ReadOnly = true,
+                    GamemodeId = sidecar.Gamemode,
+                    ClickedWhileReadOnly = () => dialogOverlay?.Push(new ReadOnlyStylesDialog(() => edit(preset))),
+                };
+
+                picker.SetStates(sidecar.Descriptors, sidecar.NegativeDescriptors);
+                details.Add(picker);
+            }
+
+            details.Add(new RoundedButton
+            {
+                RelativeSizeAxes = Axes.X,
+                Height = 36,
+                Text = @"Edit these settings",
+                Margin = new MarginPadding { Top = 14 },
+                Action = () => edit(preset),
+            });
+
             details.Add(new RoundedButton
             {
                 RelativeSizeAxes = Axes.X,
                 Height = 36,
                 Text = @"Rename",
-                Margin = new MarginPadding { Top = 14 },
                 Action = () => dialogOverlay?.Push(new PresetNameDialog(preset.Name, name => rename(preset, name))),
             });
 
@@ -310,14 +339,11 @@ namespace osu.Game.Mapperatorinator
             if (sidecar.SuperTiming)
                 yield return (@"Timing", @"super timing (slower, for variable BPM)");
 
-            if (sidecar.Descriptors.Count > 0)
-                yield return ($"Asks for ({sidecar.Descriptors.Count})", string.Join(@", ", sidecar.Descriptors.Select(shortName)));
-
-            if (sidecar.NegativeDescriptors.Count > 0)
-                yield return ($"Avoids ({sidecar.NegativeDescriptors.Count})", string.Join(@", ", sidecar.NegativeDescriptors.Select(shortName)));
-
-            static string shortName(string descriptor) => descriptor.Split('/').Last();
+            // los estilos no van aca: se dibujan como pildoras, igual que en el generador.
         }
+
+        /// <summary>Abre el generador cargado con este preset para guardarlo encima.</summary>
+        private void edit(APIMapperatorinatorPreset preset) => this.Push(new MapperatorinatorScreen(preset));
 
         private void save(string name, string settings)
         {
@@ -437,6 +463,33 @@ namespace osu.Game.Mapperatorinator
             }
 
             private void updateState() => background.FadeColour(selected ? Colour4.FromHex(@"4aa8ff") : Colour4.FromHex(@"2a2a32"), 120, Easing.OutQuint);
+        }
+
+        /// <summary>
+        /// Las pildoras aca son para mirar. Si alguien las clickea es porque quiere
+        /// cambiar el preset, asi que se le ofrece justo eso en vez de no hacer nada.
+        /// </summary>
+        private partial class ReadOnlyStylesDialog : Overlays.Dialog.PopupDialog
+        {
+            public ReadOnlyStylesDialog(Action edit)
+            {
+                Icon = FontAwesome.Solid.Info;
+                HeaderText = @"These are just a preview";
+                BodyText = @"Looks like you want to change this preset. Use ""Edit these settings"" and pick the styles there.";
+
+                Buttons = new Overlays.Dialog.PopupDialogButton[]
+                {
+                    new Overlays.Dialog.PopupDialogOkButton
+                    {
+                        Text = @"Take me there",
+                        Action = edit,
+                    },
+                    new Overlays.Dialog.PopupDialogCancelButton
+                    {
+                        Text = @"Just looking",
+                    },
+                };
+            }
         }
 
         private partial class DeletePresetDialog : Overlays.Dialog.PopupDialog
