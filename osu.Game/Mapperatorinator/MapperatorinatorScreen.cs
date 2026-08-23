@@ -1061,8 +1061,10 @@ namespace osu.Game.Mapperatorinator
                     ? @"CPU (the GPU can't be used until pytorch is reinstalled, see the requirements)"
                     // la placa amd existe pero la generacion no la usa: decirlo, no fingir
                     // que no hay ninguna.
-                    : MapperatorinatorRunner.DetectAmdGpu() != null
-                        ? @"CPU (your AMD GPU is off for generation, see the requirements)"
+                    : MapperatorinatorRunner.DetectAmdGpu() is AmdGpuInfo card
+                        ? (card.WindowsWithoutRocm
+                            ? $"CPU ({card.Name} can't be used: pytorch has no ROCm build for Windows)"
+                            : @"CPU (your AMD GPU is off for generation, see the requirements)")
                         : @"CPU only (no supported GPU found, this will be slow)",
             };
 

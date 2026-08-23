@@ -27,6 +27,12 @@ namespace osu.Game.Mapperatorinator
         /// <summary>Whether this user can open /dev/kfd. Without that ROCm sees no GPU at all.</summary>
         public bool KfdAccessible { get; init; }
 
+        /// <summary>
+        /// La placa esta en una maquina windows. No es un problema de configuracion:
+        /// pytorch no publica build de ROCm para windows, asi que no hay nada que probar.
+        /// </summary>
+        public bool WindowsWithoutRocm { get; init; }
+
         public string Gfx => $"gfx{GfxTarget / 10000}{GfxTarget / 100 % 100:x}{GfxTarget % 100:x}";
 
         /// <summary>
@@ -781,7 +787,10 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         }
 
         /// <summary>An AMD GPU is here, the user opted in, and it hasn't faulted on us.</summary>
-        public bool RocmAvailable => Config.RocmEnabled && !Config.RocmBlocked && DetectAmdGpu() != null;
+        public bool RocmAvailable => Config.RocmEnabled
+                                     && !Config.RocmBlocked
+                                     && DetectAmdGpu() is AmdGpuInfo amd
+                                     && !amd.WindowsWithoutRocm;
 
         /// <summary>
         /// The card faulted: never again on its own. Called when the tool dies with a
@@ -853,6 +862,15 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             amdGpuProbed = true;
 
+            // en windows la placa existe igual, pero pytorch no publica build de ROCm
+            // para windows: no hay forma de generar en ella. Se detecta lo mismo para
+            // poder decirlo con nombre y apellido en vez de "no se encontro ninguna gpu".
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+            {
+                amdGpu = detectWindowsAmdGpu();
+                return amdGpu;
+            }
+
             if (RuntimeInfo.OS != RuntimeInfo.Platform.Linux || !File.Exists(@"/dev/kfd"))
                 return null;
 
@@ -894,6 +912,69 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
                 amdGpu = new AmdGpuInfo { GfxTarget = bestGfx, Name = amdGpuName(bestGfx), KfdAccessible = canOpenKfd() };
                 return amdGpu;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// La placa AMD de una maquina windows, si hay. No hay kfd ni gfx que leer: lo
+        /// que se busca es la libreria que instala el driver de AMD, y el nombre sale de
+        /// la lista de controladoras de video.
+        /// </summary>
+        private static AmdGpuInfo? detectWindowsAmdGpu()
+        {
+            try
+            {
+                string system32 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System));
+
+                bool amdDriver = new[] { @"atiadlxx.dll", @"amdhip64.dll", @"amdhip64_6.dll", @"aticfx64.dll" }
+                    .Any(dll => File.Exists(Path.Combine(system32, dll)));
+
+                if (!amdDriver)
+                    return null;
+
+                return new AmdGpuInfo
+                {
+                    Name = windowsGpuName() ?? @"Your AMD GPU",
+                    GfxTarget = 0,
+                    KfdAccessible = false,
+                    WindowsWithoutRocm = true,
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string? windowsGpuName()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(@"powershell")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+
+                psi.ArgumentList.Add(@"-NoProfile");
+                psi.ArgumentList.Add(@"-Command");
+                psi.ArgumentList.Add(@"(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | Select-Object -First 1).Name");
+
+                using var p = Process.Start(psi);
+
+                if (p == null)
+                    return null;
+
+                string name = p.StandardOutput.ReadToEnd().Trim();
+                p.WaitForExit(8000);
+
+                return name.Length > 0 ? name : null;
             }
             catch
             {
