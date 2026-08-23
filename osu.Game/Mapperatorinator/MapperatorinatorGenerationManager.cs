@@ -250,18 +250,19 @@ namespace osu.Game.Mapperatorinator
             var notification = job.Notification!;
             notification.State = ProgressNotificationState.Active;
 
-            var estimate = Runner.Estimate(job.AudioLengthSeconds, device);
             var stopwatch = Stopwatch.StartNew();
 
-            // el progreso sale del ETA aprendido (EMA por dispositivo): la tool no
-            // reporta un porcentaje global parseable, y esto se ve suave igual.
+            // el progreso sale de lo que la tool va diciendo: la etapa en la que esta y
+            // su propia barra con tiempo restante. el ETA adivinado por largo de audio
+            // erraba por 30% o mas (la pasada de mapeo depende de lo denso que salga el
+            // mapa) y dejaba la barra clavada en 95% con "taking longer than estimated".
+            var tracker = new MapperatorinatorProgressTracker();
+
             var ticker = Scheduler.AddDelayed(() =>
             {
-                var left = estimate - stopwatch.Elapsed;
-                notification.Progress = (float)Math.Clamp(stopwatch.Elapsed.TotalSeconds / Math.Max(1, estimate.TotalSeconds), 0, 0.95);
-                notification.Text = left > TimeSpan.Zero
-                    ? $"Generating {job.DisplayName} · ~{formatTime(left)} left"
-                    : $"Generating {job.DisplayName} · taking longer than estimated...";
+                var (progress, detail) = tracker.Render();
+                notification.Progress = progress;
+                notification.Text = $"Generating {job.DisplayName} · {detail}";
             }, 1000, true);
 
             var token = job.Cancellation!.Token;
@@ -291,13 +292,17 @@ namespace osu.Game.Mapperatorinator
                     Directory.CreateDirectory(job.Request.WorkDirectory);
                     job.Request.AudioPath = copyAudioToWorkDir(job.OpenAudio, job.AudioExtension, job.Request.WorkDirectory);
 
-                    string osz = await Runner.GenerateAsync(job.Request, line => Logger.Log($"[mapperatorinator] {line}", level: LogLevel.Verbose), token).ConfigureAwait(false);
+                    string osz = await Runner.GenerateAsync(job.Request, line =>
+                    {
+                        tracker.Feed(line);
+                        Logger.Log($"[mapperatorinator] {line}", level: LogLevel.Verbose);
+                    }, token).ConfigureAwait(false);
 
                     token.ThrowIfCancellationRequested();
                     Runner.RecordObservedSpeed(job.AudioLengthSeconds, stopwatch.Elapsed, device);
 
                     notification.Progress = 0.97f;
-                    notification.Text = $"Importing {job.DisplayName}...";
+                    notification.Text = $"Generating {job.DisplayName} · importing...";
 
                     Live<BeatmapSetInfo>? imported;
                     string? newDifficultyName;
@@ -519,7 +524,6 @@ namespace osu.Game.Mapperatorinator
 
         private static string? emptyToNull(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
-        private static string formatTime(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{(int)t.TotalMinutes}m {t.Seconds:00}s";
 
         /// <summary>
         /// The progress notification for a generation: pinned on screen while the run is
