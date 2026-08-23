@@ -618,6 +618,58 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             return env;
         }
 
+        /// <summary>
+        /// La version de pytorch que ya haya en el entorno, o null si no hay ninguno.
+        /// A proposito NO se toca la placa: solo se leen versiones, asi que en una maquina
+        /// donde inicializar el driver revienta, esto igual contesta.
+        /// </summary>
+        private async Task<string?> installedTorchVersion(string venvPython, string workDir, CancellationToken cancellation)
+        {
+            try
+            {
+                string[] launcher = splitLauncher(venvPython);
+                var psi = new ProcessStartInfo(launcher[0])
+                {
+                    WorkingDirectory = workDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+
+                applyProcessEnvironment(psi);
+
+                for (int i = 1; i < launcher.Length; i++)
+                    psi.ArgumentList.Add(launcher[i]);
+
+                psi.ArgumentList.Add(@"-c");
+                psi.ArgumentList.Add(@"import torch; print('torii-torch', torch.__version__, torch.version.cuda, getattr(torch.version, 'hip', None))");
+
+                using var p = Process.Start(psi);
+
+                if (p == null)
+                    return null;
+
+                string output = await p.StandardOutput.ReadToEndAsync(cancellation).ConfigureAwait(false);
+                await p.WaitForExitAsync(cancellation).ConfigureAwait(false);
+
+                if (p.ExitCode != 0)
+                    return null;
+
+                foreach (string line in output.Split('\n'))
+                {
+                    if (line.StartsWith(@"torii-torch ", StringComparison.Ordinal))
+                        return line.Substring(@"torii-torch ".Length).Trim();
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private async Task installTorch(string venvPython, string checkout, Dictionary<string, string> pipEnv, string installDevice, bool replaceExisting, Action<string> onLogLine, CancellationToken cancellation)
         {
             onLogLine(installDevice switch
@@ -669,6 +721,11 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 return detected;
 
             string? installedFor = InstalledTorchDevice;
+
+            // torch puesto por la persona: no sabemos para que esta compilado y no nos
+            // corresponde suponer. Se le cree, y si no anda lo dice la prueba.
+            if (installedFor == @"custom")
+                return detected;
 
             // sin marker = install de antes: rocm no existia, asi que en amd es cpu seguro;
             // en nvidia se instalaba con cuda.
@@ -1457,8 +1514,22 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             await runStep(venvPython, new[] { "-m", "pip", "install", "--upgrade", "pip", "--quiet" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
 
-            // 3. pytorch segun gpu (el download gordo, varios GB)
-            await installTorch(venvPython, checkout, pipEnv, DetectDevice(), venvExisted, onLogLine, cancellation).ConfigureAwait(false);
+            // 3. pytorch. Si ya hay uno instalado, NO se toca: puede ser uno que la persona
+            //    puso a mano para que su placa ande (un build de cuda con una capa de
+            //    compatibilidad, uno armado para su hardware). Pisarselo con el nuestro
+            //    seria deshacerle el trabajo. El boton de "usar la gpu" si lo reemplaza,
+            //    porque ahi lo esta pidiendo.
+            string? existingTorch = await installedTorchVersion(venvPython, checkout, cancellation).ConfigureAwait(false);
+
+            if (existingTorch != null)
+            {
+                onLogLine($"pytorch {existingTorch} ya esta instalado en el entorno: se deja como esta.");
+                await File.WriteAllTextAsync(Path.Combine(checkout, torch_device_marker), @"custom", cancellation).ConfigureAwait(false);
+            }
+            else
+            {
+                await installTorch(venvPython, checkout, pipEnv, DetectDevice(), venvExisted, onLogLine, cancellation).ConfigureAwait(false);
+            }
 
             // 4. slider desde tarball + requirements sin su linea git
             onLogLine(@"installing dependencies...");
