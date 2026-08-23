@@ -307,7 +307,13 @@ namespace osu.Game.Overlays.BeatmapSet
                         title.AddArbitraryDrawable(new SpotlightBeatmapBadge());
                     }
 
-                    // torii: los mapas hechos con la IA se marcan como tales en todos lados.
+                    // torii: de donde salio el mapa (rojo) y como se hizo (azul).
+                    if (ToriiExclusiveBeatmapBadge.ShouldShowFor(newBeatmapSet))
+                    {
+                        title.AddArbitraryDrawable(Empty().With(d => d.Width = 10));
+                        title.AddArbitraryDrawable(new ToriiExclusiveBeatmapBadge());
+                    }
+
                     if (MapperatorinatorBeatmapBadge.ShouldShowFor(newBeatmapSet))
                     {
                         title.AddArbitraryDrawable(Empty().With(d => d.Width = 10));
