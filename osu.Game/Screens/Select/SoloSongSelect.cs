@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
@@ -82,6 +83,11 @@ namespace osu.Game.Screens.Select
         /// </summary>
         public IEnumerable<OsuMenuItem> CreateMapperatorinatorMenuItems(BeatmapInfo beatmap)
         {
+            // un celular no puede correr el modelo (python + varios gb); la opcion ni
+            // aparece en vez de prometer algo que termina en error.
+            if (RuntimeInfo.IsMobile)
+                yield break;
+
             if (!Mapperatorinator.MapperatorinatorGenerationManager.IsGeneratedMap(beatmap))
             {
                 yield return new OsuMenuItem("Use this song for Mapperatorinator", MenuItemType.Highlighted,
