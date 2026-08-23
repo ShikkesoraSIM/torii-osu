@@ -1135,40 +1135,62 @@ jobs:
         mkdir -p release-files
         shopt -s globstar nullglob
 
+        # copy all files from any Releases/ folder in artifacts
+        for f in artifacts/**/Releases/*; do
+          cp -f "$f" release-files/
+        done
+
         # download-artifact@v4 puede reportar N artefactos y bajar N-3 sin fallar
         # (paso de verdad: los dos de apple silicon quedaron sin bajar y el
-        # release salio sin mac arm64). cada artefacto de build esperado se
-        # verifica y, si falta, se baja con gh con reintentos.
+        # release salio sin mac arm64). como la descarga es merge-multiple no hay
+        # carpeta por artefacto: se verifica por archivo esperado, y el artefacto
+        # del que falta se baja explicitamente con gh, con reintentos.
+        declare -A marker=(
+          [torii-windows]="install-win-x64.exe"
+          [torii-windows-arm64]="install-win-arm64.exe"
+          [torii-linux]="torii-linux-x64.AppImage"
+          [torii-linux-arm64]="torii-linux-arm64.AppImage"
+          [torii-macos-intel]="Torii-macOS-Intel.zip"
+          [torii-macos-apple-silicon]="Torii-macOS-AppleSilicon.zip"
+          [torii-android]="torii.apk"
+        )
         VERSION="${{ needs.version.outputs.version }}"
-        for name in torii-windows torii-windows-arm64 torii-linux torii-linux-arm64 torii-macos-intel torii-macos-apple-silicon torii-android; do
-          art="${name}-${VERSION}"
-          if [ -d "artifacts/${art}/Releases" ]; then
+
+        for name in "${!marker[@]}"; do
+          file="${marker[$name]}"
+          if [ -f "release-files/${file}" ]; then
             continue
           fi
-          echo "::warning::artifact ${art} was not downloaded, fetching it explicitly"
+
+          art="${name}-${VERSION}"
+          echo "::warning::${file} missing after download, fetching artifact ${art} explicitly"
+          fetched=0
           for attempt in 1 2 3; do
-            rm -rf "artifacts/${art}"
-            if gh run download "${{ github.run_id }}" -n "${art}" -D "artifacts/${art}" && [ -d "artifacts/${art}/Releases" ]; then
-              echo "fetched ${art} on attempt ${attempt}"
-              break
+            rm -rf "artifacts/retry/${art}"
+            if gh run download "${{ github.run_id }}" --repo "${{ github.repository }}" -n "${art}" -D "artifacts/retry/${art}"; then
+              for f in artifacts/retry/"${art}"/**/Releases/* artifacts/retry/"${art}"/Releases/*; do
+                cp -f "$f" release-files/
+              done
+              if [ -f "release-files/${file}" ]; then
+                echo "fetched ${art} on attempt ${attempt}"
+                fetched=1
+                break
+              fi
             fi
             sleep $((attempt * 10))
           done
-          if [ ! -d "artifacts/${art}/Releases" ]; then
+
+          if [ "$fetched" != "1" ]; then
             # android no existe en el stream estable: ahi no es un error.
             if [ "$name" = "torii-android" ]; then
               echo "no android artifact on this stream, skipping"
             else
-              echo "::error::artifact ${art} could not be downloaded after 3 attempts"
+              echo "::error::${file} (artifact ${art}) could not be recovered after 3 attempts"
               exit 1
             fi
           fi
         done
 
-        # copy all files from any Releases/ folder in artifacts
-        for f in artifacts/**/Releases/*; do
-          cp -f "$f" release-files/
-        done
         echo "Collected files:" && ls -al release-files || true
 
     - name: Verify release bundle completeness
