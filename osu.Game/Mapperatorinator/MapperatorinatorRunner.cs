@@ -1180,10 +1180,22 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             // rocm: una placa fuera de los chips que trae la rueda solo corre apuntada al
             // pariente mas cercano. el valor sale de lo que dijo torch en el sondeo; la
             // lista escrita a mano es el respaldo para cuando todavia no sondeamos.
-            string? hsa = Config.RocmOverride ?? DetectAmdGpu()?.HsaOverride;
+            var amd = DetectAmdGpu();
+            string? hsa = Config.RocmOverride ?? amd?.HsaOverride;
 
-            if (hsa != null && !psi.EnvironmentVariables.ContainsKey(@"HSA_OVERRIDE_GFX_VERSION"))
+            if (hsa != null)
+            {
                 psi.EnvironmentVariables[@"HSA_OVERRIDE_GFX_VERSION"] = hsa;
+            }
+            else if (amd != null && psi.EnvironmentVariables.ContainsKey(@"HSA_OVERRIDE_GFX_VERSION"))
+            {
+                // el sistema ya traia un override puesto (es lo que se recomienda por ahi
+                // para placas viejas, y algunas distros lo dejan seteado). Si la placa que
+                // hay ES una de las que la rueda soporta, ese override la esta haciendo
+                // pasar por otra: se despachan kernels de otro chip y la placa los rechaza
+                // con una excepcion de hardware. Para esta corrida, se saca.
+                psi.EnvironmentVariables.Remove(@"HSA_OVERRIDE_GFX_VERSION");
+            }
 
             var prepend = new List<string>();
 
@@ -1636,9 +1648,17 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             foreach (string a in args)
                 psi.ArgumentList.Add(a);
 
-            var amd = DetectAmdGpu();
-            if (amd != null)
-                onLogLine($"amd gpu: {amd.Name} ({amd.Gfx}), rocm {(RocmAvailable ? "on" : "off")}");
+            var amdCard = DetectAmdGpu();
+
+            if (amdCard != null)
+            {
+                onLogLine($"amd gpu: {amdCard.Name} ({amdCard.Gfx}), rocm {(RocmAvailable ? "on" : "off")}");
+
+                string? systemOverride = Environment.GetEnvironmentVariable(@"HSA_OVERRIDE_GFX_VERSION");
+
+                if (systemOverride != null)
+                    onLogLine($"HSA_OVERRIDE_GFX_VERSION={systemOverride} comes from your system");
+            }
 
             onLogLine($"$ {Path.GetFileName(PythonExecutable)} {string.Join(' ', args)}");
 

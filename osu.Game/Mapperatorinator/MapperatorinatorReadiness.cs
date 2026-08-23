@@ -256,7 +256,25 @@ namespace osu.Game.Mapperatorinator
             if (hardware.IsMobile)
                 return list;
 
-            // 2. python 3.10
+            // 2. python 3.10. Si la persona apunto a un python propio, ese manda: puede
+            //    estar adentro de un contenedor con la placa andando, y ahi no hay nada
+            //    que salga a buscar.
+            if (!string.IsNullOrEmpty(runner.Config.PythonPath))
+            {
+                list.Add(new Requirement
+                {
+                    Kind = RequirementKind.Python,
+                    Title = @"Python",
+                    State = File.Exists(runner.Config.PythonPath) ? RequirementState.Ok : RequirementState.Missing,
+                    Detail = File.Exists(runner.Config.PythonPath)
+                        ? $"using yours: {runner.Config.PythonPath}"
+                        : $"you pointed at {runner.Config.PythonPath} and there's nothing there.",
+                    Instructions = @"Clear the ""Use my own python"" field above to go back to the one Torii installs.",
+                });
+            }
+            else
+            {
+
             string? python = MapperatorinatorRunner.FindPython310();
             list.Add(new Requirement
             {
@@ -267,6 +285,7 @@ namespace osu.Game.Mapperatorinator
                 Instructions = pythonInstructions(),
                 DownloadUrl = PYTHON_DOWNLOAD_URL,
             });
+            }
 
             // 3. ffmpeg (pydub decodes the audio through it; without it the run dies with
             //    a bare "exit code 1")
