@@ -103,6 +103,7 @@ namespace osu.Game.Mapperatorinator
         private bool installing;
         private CancellationTokenSource? installCancellation;
         private string device = @"cpu";
+        private string detectedDevice = @"cpu";
         private TimeSpan currentEstimate;
         private int logLines;
 
@@ -129,7 +130,8 @@ namespace osu.Game.Mapperatorinator
             // el runner del manager es la unica fuente de verdad de config/install;
             // instanciar uno propio solo si no hay manager (test scenes).
             runner = generationManager?.Runner ?? new MapperatorinatorRunner(storage.GetFullPath(string.Empty));
-            device = runner.DetectDevice();
+            detectedDevice = runner.DetectDevice();
+            device = runner.EffectiveDevice(detectedDevice);
             audioLengthSeconds = (sourceBeatmap?.Length ?? 180_000) / 1000.0;
 
             InternalChildren = new Drawable[]
@@ -502,7 +504,8 @@ namespace osu.Game.Mapperatorinator
 
             generateButton.Enabled.Value = ready && !installing;
 
-            device = runner.DetectDevice();
+            detectedDevice = runner.DetectDevice();
+            device = runner.EffectiveDevice(detectedDevice);
             updateIdleEta();
         }
 
@@ -710,7 +713,9 @@ namespace osu.Game.Mapperatorinator
                 @"cuda" => @"NVIDIA GPU (CUDA)",
                 @"rocm" => @"AMD GPU (ROCm)",
                 @"mps" => @"Apple Silicon (MPS, slower than NVIDIA)",
-                _ => @"CPU only (no supported GPU found, this will be slow)",
+                _ => detectedDevice != @"cpu"
+                    ? @"CPU (the GPU can't be used until pytorch is reinstalled, see the requirements)"
+                    : @"CPU only (no supported GPU found, this will be slow)",
             };
 
             etaText.Text = $"{hardware} | estimated time: ~{format(currentEstimate)}";

@@ -81,6 +81,9 @@ namespace osu.Game.Mapperatorinator
         /// <summary>There is a usable GPU but this user isn't allowed to open it (linux groups).</summary>
         public bool GpuAccessBlocked { get; init; }
 
+        /// <summary>How to call the gpu in messages, when there is one.</summary>
+        public string GpuName { get; init; } = @"the GPU";
+
         public string Description { get; init; } = string.Empty;
     }
 
@@ -113,7 +116,7 @@ namespace osu.Game.Mapperatorinator
 
             return device switch
             {
-                @"cuda" => new HardwareInfo { Device = device, Description = @"NVIDIA GPU found: generation runs on CUDA, the fast path." },
+                @"cuda" => new HardwareInfo { Device = device, GpuName = @"NVIDIA GPU", Description = @"NVIDIA GPU found: generation runs on CUDA, the fast path." },
                 @"rocm" => amdHardware(device),
                 @"mps" => new HardwareInfo { Device = device, Description = @"Apple Silicon: generation runs on the GPU through MPS. Supported, but slower than an NVIDIA card." },
                 _ => new HardwareInfo { Device = device, Description = @"No supported GPU found: generation runs on the CPU. It works, but expect several minutes per map." },
@@ -125,13 +128,14 @@ namespace osu.Game.Mapperatorinator
             var amd = MapperatorinatorRunner.DetectAmdGpu();
 
             if (amd == null)
-                return new HardwareInfo { Device = device, Description = @"AMD GPU found: generation runs on it through ROCm." };
+                return new HardwareInfo { Device = device, GpuName = @"AMD GPU", Description = @"AMD GPU found: generation runs on it through ROCm." };
 
             if (!amd.KfdAccessible)
             {
                 return new HardwareInfo
                 {
                     Device = device,
+                    GpuName = amd.Name,
                     GpuAccessBlocked = true,
                     Description = $"{amd.Name} found, but your user isn't allowed to open it (/dev/kfd), so ROCm can't see it and generation would fall back to the CPU.",
                 };
@@ -140,6 +144,7 @@ namespace osu.Game.Mapperatorinator
             return new HardwareInfo
             {
                 Device = device,
+                GpuName = amd.Name,
                 Description = $"{amd.Name} found: generation runs on it through ROCm (the runtime comes with pytorch, nothing else to install).",
             };
         }
@@ -152,15 +157,21 @@ namespace osu.Game.Mapperatorinator
             var list = new List<Requirement>();
             var hardware = DetectHardware(runner);
 
+            // hay gpu pero el pytorch instalado no la ve (la rueda de cpu de un install
+            // anterior): no se dice "gpu ok" cuando va a correr en cpu.
+            bool gpuUnusable = (hardware.Device == @"cuda" || hardware.Device == @"rocm") && runner.EffectiveDevice(hardware.Device) == @"cpu";
+
             // 1. plataforma / hardware
             list.Add(new Requirement
             {
                 Kind = RequirementKind.Platform,
                 Title = @"This machine",
                 State = hardware.IsMobile ? RequirementState.Unsupported
-                    : (hardware.Device == @"cuda" || hardware.Device == @"rocm") && !hardware.GpuAccessBlocked ? RequirementState.Ok
+                    : (hardware.Device == @"cuda" || hardware.Device == @"rocm") && !hardware.GpuAccessBlocked && !gpuUnusable ? RequirementState.Ok
                     : RequirementState.Warning,
-                Detail = hardware.Description,
+                Detail = gpuUnusable
+                    ? $"{hardware.GpuName} found, but the installed pytorch is the CPU build and can't use it: generation runs on the CPU until that's fixed (Mapperatorinator row below)."
+                    : hardware.Description,
                 Instructions = hardware.IsMobile ? @"Generate on a PC or Mac, then play the map anywhere."
                     : hardware.GpuAccessBlocked ? @"In a terminal: sudo usermod -aG render,video $USER. Then log out and back in (groups only apply at login), open Torii again and press Check."
                     : string.Empty,
@@ -222,9 +233,7 @@ namespace osu.Game.Mapperatorinator
             // 5. la tool en si (checkout + venv con torch). si pytorch quedo instalado para
             //    otro device del que hay ahora (cpu en una maquina amd de antes del soporte
             //    rocm, o una gpu nueva), avisar y ofrecer reinstalar: solo se reemplaza torch.
-            string? torchDevice = runner.InstalledTorchDevice;
-            bool gpuNow = hardware.Device == @"cuda" || hardware.Device == @"rocm";
-            bool wrongTorch = installed && gpuNow && (torchDevice == null ? hardware.Device == @"rocm" : torchDevice != hardware.Device);
+            bool wrongTorch = installed && gpuUnusable;
 
             list.Add(new Requirement
             {

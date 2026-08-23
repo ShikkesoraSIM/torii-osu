@@ -66,7 +66,7 @@ namespace osu.Game.Mapperatorinator
         {
             Runner = new MapperatorinatorRunner(storage.GetFullPath(string.Empty));
             filesStorage = storage.GetStorageForDirectory(@"files");
-            device = Runner.DetectDevice();
+            device = Runner.EffectiveDevice();
         }
 
         public static string NewWorkDirectory() => Path.Combine(Path.GetTempPath(), @"torii-mapperatorinator", Guid.NewGuid().ToString(@"N"));
@@ -252,11 +252,16 @@ namespace osu.Game.Mapperatorinator
 
             var stopwatch = Stopwatch.StartNew();
 
-            // el progreso sale de lo que la tool va diciendo: la etapa en la que esta y
-            // su propia barra con tiempo restante. el ETA adivinado por largo de audio
-            // erraba por 30% o mas (la pasada de mapeo depende de lo denso que salga el
-            // mapa) y dejaba la barra clavada en 95% con "taking longer than estimated".
-            var tracker = new MapperatorinatorProgressTracker();
+            // por job, no al cargar: si reinstalaron pytorch para la gpu, cuenta ya.
+            device = Runner.EffectiveDevice();
+
+            // el progreso sale de lo que la tool va diciendo: en que device corre, la
+            // etapa en la que esta y su propia barra con tiempo restante. el ETA adivinado
+            // por largo de audio erraba por 30% o mas (la pasada de mapeo depende de lo
+            // denso que salga el mapa) y dejaba la barra clavada en 95% con "taking longer
+            // than estimated".
+            var tracker = new MapperatorinatorProgressTracker(device);
+            bool warnedCpu = false;
 
             var ticker = Scheduler.AddDelayed(() =>
             {
@@ -296,10 +301,23 @@ namespace osu.Game.Mapperatorinator
                     {
                         tracker.Feed(line);
                         Logger.Log($"[mapperatorinator] {line}", level: LogLevel.Verbose);
+
+                        // la tool se cayo a cpu con una gpu en la maquina: que se sepa ya,
+                        // no despues de 20 minutos.
+                        if (!warnedCpu && tracker.UsesCpuDespiteGpu)
+                        {
+                            warnedCpu = true;
+                            Schedule(() => notifications?.Post(new SimpleNotification
+                            {
+                                Text = @"Mapperatorinator is generating on the CPU even though this machine has a GPU: the installed pytorch can't use it. Open Mapperatorinator from a map's right-click menu and press Install on the Mapperatorinator row (only pytorch gets replaced).",
+                            }));
+                        }
                     }, token).ConfigureAwait(false);
 
                     token.ThrowIfCancellationRequested();
-                    Runner.RecordObservedSpeed(job.AudioLengthSeconds, stopwatch.Elapsed, device);
+                    // la velocidad se anota contra el device que de verdad corrio, o un
+                    // run en cpu te arruina el estimado de la gpu.
+                    Runner.RecordObservedSpeed(job.AudioLengthSeconds, stopwatch.Elapsed, tracker.ActualDevice ?? device);
 
                     notification.Progress = 0.97f;
                     notification.Text = $"Generating {job.DisplayName} · importing...";
