@@ -6,10 +6,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using osu.Framework;
 using osu.Framework.Logging;
 
 namespace osu.Game.Mapperatorinator
@@ -24,11 +26,16 @@ namespace osu.Game.Mapperatorinator
         public const string CONFIG_FILENAME = @"mapperatorinator.json";
 
         private readonly string configPath;
+        private readonly string dataDirectory;
 
         public MapperatorinatorRunnerConfig Config { get; private set; } = new MapperatorinatorRunnerConfig();
 
+        /// <summary>Where the full output of the most recent generation gets written.</summary>
+        public string LastRunLogPath => Path.Combine(dataDirectory, @"logs", @"mapperatorinator-last-run.log");
+
         public MapperatorinatorRunner(string dataDirectory)
         {
+            this.dataDirectory = dataDirectory;
             configPath = Path.Combine(dataDirectory, CONFIG_FILENAME);
             load();
         }
@@ -120,7 +127,207 @@ namespace osu.Game.Mapperatorinator
                 // no nvidia-smi -> no cuda.
             }
 
+            // inference.py's device=auto picks mps on apple silicon, same as we do here.
+            if (MapperatorinatorReadiness.IsAppleSilicon)
+                return @"mps";
+
             return @"cpu";
+        }
+
+        /// <summary>
+        /// The ffmpeg to use: the configured one, a copy we installed next to the tool, or
+        /// plain "ffmpeg" if it's on PATH. Null if it's nowhere, which is the single most
+        /// common reason a run dies with a bare "exit code 1" (pydub decodes through it).
+        /// </summary>
+        public string? FindFfmpeg()
+        {
+            if (!string.IsNullOrEmpty(Config.FfmpegPath) && File.Exists(Config.FfmpegPath))
+                return Config.FfmpegPath;
+
+            string? bundled = findBundledFfmpeg();
+
+            if (bundled != null)
+            {
+                Config.FfmpegPath = bundled;
+                Save();
+                return bundled;
+            }
+
+            try
+            {
+                var psi = new ProcessStartInfo(@"ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+                psi.ArgumentList.Add(@"-version");
+
+                using var p = Process.Start(psi);
+
+                if (p != null)
+                {
+                    p.StandardOutput.ReadToEnd();
+                    p.StandardError.ReadToEnd();
+                    p.WaitForExit(6000);
+                    if (p.ExitCode == 0)
+                        return @"ffmpeg";
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
+        private string? findBundledFfmpeg()
+        {
+            string exeName = RuntimeInfo.OS == RuntimeInfo.Platform.Windows ? @"ffmpeg.exe" : @"ffmpeg";
+
+            foreach (string dir in new[] { ffmpegHome(), Path.Combine(Config.InstallPath ?? string.Empty, @"ffmpeg") })
+            {
+                try
+                {
+                    if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                        continue;
+
+                    foreach (string f in Directory.EnumerateFiles(dir, exeName, SearchOption.AllDirectories))
+                        return f;
+                }
+                catch
+                {
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Where a game-installed ffmpeg lives: next to the tool, never on the system.</summary>
+        private string ffmpegHome()
+        {
+            string root = !string.IsNullOrEmpty(Config.InstallPath)
+                ? Path.GetDirectoryName(Config.InstallPath) ?? Config.InstallPath
+                : Path.Combine(pickInstallRoot(), @"Torii-Mapperatorinator");
+
+            return Path.Combine(root, @"ffmpeg");
+        }
+
+        /// <summary>
+        /// Downloads a static ffmpeg build next to the tool. Windows only: elsewhere the
+        /// package manager is the right answer and we say so instead.
+        /// </summary>
+        public async Task InstallFfmpegAsync(Action<string> onLogLine, CancellationToken cancellation)
+        {
+            if (RuntimeInfo.OS != RuntimeInfo.Platform.Windows)
+                throw new InvalidOperationException(@"Automatic ffmpeg install is Windows only. Install it with your package manager (brew install ffmpeg / sudo apt install ffmpeg).");
+
+            string home = ffmpegHome();
+            Directory.CreateDirectory(home);
+
+            string zip = Path.Combine(home, @"ffmpeg.zip");
+            onLogLine(@"downloading ffmpeg (about 150 MB)...");
+
+            using (var http = new System.Net.Http.HttpClient())
+            using (var resp = await http.GetAsync(@"https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip", cancellation).ConfigureAwait(false))
+            {
+                resp.EnsureSuccessStatusCode();
+                await using var f = File.Create(zip);
+                await resp.Content.CopyToAsync(f, cancellation).ConfigureAwait(false);
+            }
+
+            onLogLine(@"extracting...");
+            System.IO.Compression.ZipFile.ExtractToDirectory(zip, home, true);
+            File.Delete(zip);
+
+            string? exe = findBundledFfmpeg() ?? throw new InvalidOperationException(@"The download didn't contain ffmpeg.exe.");
+
+            Config.FfmpegPath = exe;
+            Save();
+            onLogLine($"ffmpeg ready: {exe}");
+        }
+
+        /// <summary>The most free space on any fixed drive, in bytes.</summary>
+        public long LargestFreeSpace()
+        {
+            long best = 0;
+
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                try
+                {
+                    if (drive.DriveType == DriveType.Fixed && drive.AvailableFreeSpace > best)
+                        best = drive.AvailableFreeSpace;
+                }
+                catch
+                {
+                }
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// Everything the python processes need in their environment: unbuffered output
+        /// (or the log looks dead until the end), readable hydra errors, and our ffmpeg on
+        /// PATH so pydub finds it without touching the system PATH.
+        /// </summary>
+        private void applyProcessEnvironment(ProcessStartInfo psi)
+        {
+            psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
+            psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
+
+            string? ffmpeg = FindFfmpeg();
+
+            if (ffmpeg != null && ffmpeg != @"ffmpeg")
+            {
+                string dir = Path.GetDirectoryName(ffmpeg) ?? string.Empty;
+                string existing = psi.EnvironmentVariables[@"PATH"] ?? Environment.GetEnvironmentVariable(@"PATH") ?? string.Empty;
+                psi.EnvironmentVariables[@"PATH"] = dir + Path.PathSeparator + existing;
+            }
+        }
+
+        /// <summary>
+        /// Turns the tool's output into something a person can act on. Null when nothing
+        /// recognisable is in there.
+        /// </summary>
+        public static string? Diagnose(IEnumerable<string> outputLines)
+        {
+            string all = string.Join('\n', outputLines);
+
+            if (all.Contains(@"Couldn't find ffmpeg", StringComparison.OrdinalIgnoreCase)
+                || all.Contains(@"ffprobe", StringComparison.OrdinalIgnoreCase) && all.Contains(@"not found", StringComparison.OrdinalIgnoreCase)
+                || all.Contains(@"ffmpeg", StringComparison.OrdinalIgnoreCase) && (all.Contains(@"WinError 2") || all.Contains(@"No such file or directory")))
+                return @"FFmpeg is missing, so the song couldn't be decoded. Open Mapperatorinator from a map's right-click menu: the FFmpeg step in the requirements list sorts it out.";
+
+            if (all.Contains(@"No module named"))
+                return @"The python packages are missing or broken. Re-run the Mapperatorinator install from the requirements list.";
+
+            if (all.Contains(@"not compiled with CUDA") || all.Contains(@"Torch not compiled"))
+                return @"PyTorch was installed without GPU support. Re-run the Mapperatorinator install from the requirements list.";
+
+            if (all.Contains(@"out of memory", StringComparison.OrdinalIgnoreCase))
+                return @"The GPU ran out of memory. Close other programs using it, or try a shorter song.";
+
+            if (all.Contains(@"MemoryError"))
+                return @"The machine ran out of RAM while generating.";
+
+            if (all.Contains(@"HTTPError") || all.Contains(@"ConnectionError") || all.Contains(@"Max retries") || all.Contains(@"Name or service not known"))
+                return @"The model couldn't be downloaded (network problem). Check your connection and try again.";
+
+            if (all.Contains(@"Unsupported or broken audio", StringComparison.OrdinalIgnoreCase) || all.Contains(@"CouldntDecodeError"))
+                return @"The audio file couldn't be decoded. Try a different song, or re-encode this one to mp3.";
+
+            return null;
+        }
+
+        private string writeLastRunLog(IEnumerable<string> args, IReadOnlyList<string> output)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(LastRunLogPath)!);
+                File.WriteAllLines(LastRunLogPath, new[] { $"$ {PythonExecutable} {string.Join(' ', args)}", string.Empty }.Concat(output));
+            }
+            catch
+            {
+            }
+
+            return LastRunLogPath;
         }
 
         /// <summary>
@@ -130,9 +337,12 @@ namespace osu.Game.Mapperatorinator
         /// </summary>
         public TimeSpan Estimate(double audioSeconds, string device)
         {
-            double factor = device == @"cuda"
-                ? (Config.SpeedFactorCuda ?? 0.6)
-                : (Config.SpeedFactorCpu ?? 8.0);
+            double factor = device switch
+            {
+                @"cuda" => Config.SpeedFactorCuda ?? 0.6,
+                @"mps" => Config.SpeedFactorMps ?? 2.5,
+                _ => Config.SpeedFactorCpu ?? 8.0,
+            };
 
             // model load + audio preprocessing is a fixed-ish tax on top.
             return TimeSpan.FromSeconds(45 + audioSeconds * factor);
@@ -145,10 +355,20 @@ namespace osu.Game.Mapperatorinator
             double factor = Math.Max(0.05, (elapsed.TotalSeconds - 45) / audioSeconds);
 
             // smooth over runs so one weird result doesn't whiplash the estimate.
-            if (device == @"cuda")
-                Config.SpeedFactorCuda = Config.SpeedFactorCuda == null ? factor : (Config.SpeedFactorCuda * 0.6 + factor * 0.4);
-            else
-                Config.SpeedFactorCpu = Config.SpeedFactorCpu == null ? factor : (Config.SpeedFactorCpu * 0.6 + factor * 0.4);
+            switch (device)
+            {
+                case @"cuda":
+                    Config.SpeedFactorCuda = Config.SpeedFactorCuda == null ? factor : (Config.SpeedFactorCuda * 0.6 + factor * 0.4);
+                    break;
+
+                case @"mps":
+                    Config.SpeedFactorMps = Config.SpeedFactorMps == null ? factor : (Config.SpeedFactorMps * 0.6 + factor * 0.4);
+                    break;
+
+                default:
+                    Config.SpeedFactorCpu = Config.SpeedFactorCpu == null ? factor : (Config.SpeedFactorCpu * 0.6 + factor * 0.4);
+                    break;
+            }
 
             Save();
         }
@@ -166,7 +386,7 @@ namespace osu.Game.Mapperatorinator
         /// </summary>
         public async Task InstallAsync(Action<string> onLogLine, CancellationToken cancellation)
         {
-            string python = findPython310() ?? throw new InvalidOperationException(
+            string python = FindPython310() ?? throw new InvalidOperationException(
                 @"Python 3.10 is required and wasn't found. Install it from python.org (3.10.x) and try again.");
 
             onLogLine($"python 3.10: {python}");
@@ -250,7 +470,7 @@ namespace osu.Game.Mapperatorinator
             onLogLine(@"install complete! the model itself downloads automatically on your first generation.");
         }
 
-        private static string? findPython310()
+        public static string? FindPython310()
         {
             foreach ((string exe, string[] probeArgs) in new[] { (@"py", new[] { @"-3.10", @"--version" }), (@"python3.10", new[] { @"--version" }) })
             {
@@ -318,6 +538,9 @@ namespace osu.Game.Mapperatorinator
                 psi.ArgumentList.Add(exeParts[1]);
             foreach (string a in stepArgs)
                 psi.ArgumentList.Add(a);
+
+            applyProcessEnvironment(psi);
+
             if (env != null)
             {
                 foreach ((string k, string v) in env)
@@ -366,10 +589,7 @@ namespace osu.Game.Mapperatorinator
                 CreateNoWindow = true,
             };
 
-            // sin esto python bufferea stdout y el log en pantalla parece muerto
-            // hasta el final. HYDRA_FULL_ERROR hace legibles los errores de config.
-            psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
-            psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
+            applyProcessEnvironment(psi);
 
             foreach (string a in args)
                 psi.ArgumentList.Add(a);
@@ -380,9 +600,20 @@ namespace osu.Game.Mapperatorinator
 
             string? resultPath = null;
 
+            // todo lo que diga la tool queda guardado: cuando falla, el traceback es la
+            // unica pista, y "exit code 1" solo no le sirve a nadie.
+            var output = new List<string>();
+
             void handle(string? line)
             {
                 if (string.IsNullOrWhiteSpace(line)) return;
+
+                lock (output)
+                {
+                    output.Add(line);
+                    if (output.Count > 800)
+                        output.RemoveAt(0);
+                }
 
                 onLogLine(line);
 
@@ -405,7 +636,9 @@ namespace osu.Game.Mapperatorinator
             catch (Exception e)
             {
                 // el caso tipico: no hay python en el PATH y tampoco venv.
-                throw new InvalidOperationException($"Couldn't start \"{PythonExecutable}\": {e.Message}. Is python installed?");
+                throw new MapperatorinatorRunException($"Couldn't start \"{PythonExecutable}\": {e.Message}",
+                    @"Python 3.10 wasn't found. Open Mapperatorinator from a map's right-click menu and follow the Python step in the requirements list.",
+                    writeLastRunLog(args, Array.Empty<string>()), Array.Empty<string>());
             }
 
             process.BeginOutputReadLine();
@@ -420,8 +653,14 @@ namespace osu.Game.Mapperatorinator
 
             cancellation.ThrowIfCancellationRequested();
 
+            IReadOnlyList<string> snapshot;
+            lock (output)
+                snapshot = output.ToArray();
+
+            string logPath = writeLastRunLog(args, snapshot);
+
             if (process.ExitCode != 0)
-                throw new InvalidOperationException($"inference.py exited with code {process.ExitCode}. Check the log for details.");
+                throw new MapperatorinatorRunException($"inference.py exited with code {process.ExitCode}.", Diagnose(snapshot), logPath, tail(snapshot));
 
             // fallback: some versions only log relative names; scan the output folder.
             if (resultPath == null || !File.Exists(resultPath))
@@ -431,9 +670,11 @@ namespace osu.Game.Mapperatorinator
             }
 
             if (resultPath == null || !File.Exists(resultPath))
-                throw new InvalidOperationException(@"Generation finished but no .osz was produced. Check the log.");
+                throw new MapperatorinatorRunException(@"Generation finished but no .osz was produced.", Diagnose(snapshot), logPath, tail(snapshot));
 
             return resultPath;
+
+            static IReadOnlyList<string> tail(IReadOnlyList<string> lines) => lines.Skip(Math.Max(0, lines.Count - 25)).ToArray();
         }
 
         private List<string> buildArguments(MapperatorinatorRequest request, string outputDir)
@@ -511,6 +752,33 @@ namespace osu.Game.Mapperatorinator
 
         [JsonPropertyName(@"speed_factor_cpu")]
         public double? SpeedFactorCpu { get; set; }
+
+        [JsonPropertyName(@"speed_factor_mps")]
+        public double? SpeedFactorMps { get; set; }
+
+        /// <summary>Full path of the ffmpeg executable the game installed (or the user pointed at).</summary>
+        [JsonPropertyName(@"ffmpeg_path")]
+        public string? FfmpegPath { get; set; }
+    }
+
+    /// <summary>
+    /// A generation that didn't produce a map, with everything needed to tell the user
+    /// why: a diagnosis when the output matched something known, the last lines of
+    /// output, and where the full log went.
+    /// </summary>
+    public class MapperatorinatorRunException : Exception
+    {
+        public string? Diagnosis { get; }
+        public string LogPath { get; }
+        public IReadOnlyList<string> OutputTail { get; }
+
+        public MapperatorinatorRunException(string message, string? diagnosis, string logPath, IReadOnlyList<string> outputTail)
+            : base(message)
+        {
+            Diagnosis = diagnosis;
+            LogPath = logPath;
+            OutputTail = outputTail;
+        }
     }
 
     public enum MapperatorinatorModel

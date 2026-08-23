@@ -4,6 +4,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using osu.Framework;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
@@ -94,6 +95,8 @@ namespace osu.Game.Screens.Edit.Setup
                 // como un set NUEVO importado, no como una edicion de este.
                 new FormButton
                 {
+                    // un celular no puede correr el modelo; el boton no aparece ahi.
+                    Alpha = RuntimeInfo.IsMobile ? 0 : 1,
                     Caption = "Mapperatorinator",
                     ButtonText = "Generate a map for this audio",
                     Action = () =>

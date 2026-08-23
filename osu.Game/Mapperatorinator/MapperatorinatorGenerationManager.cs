@@ -44,6 +44,9 @@ namespace osu.Game.Mapperatorinator
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        [Resolved]
+        private GameHost host { get; set; } = null!;
+
         /// <summary>
         /// The single shared runner (config, install path, speed factors). The screen
         /// uses this same instance so install-path changes are seen everywhere at once.
@@ -269,10 +272,26 @@ namespace osu.Game.Mapperatorinator
 
                 try
                 {
+                    // antes de gastar minutos de gpu: si falta algo (python, ffmpeg, la
+                    // tool) se corta aca con un mensaje que dice QUE falta, no un
+                    // "exit code 1" despues.
+                    var missing = MapperatorinatorReadiness.Check(Runner).Where(r => !r.Satisfied).ToList();
+
+                    if (missing.Count > 0)
+                    {
+                        var first = missing[0];
+                        throw new MapperatorinatorRunException(
+                            $"{first.Title}: {first.Detail}",
+                            first.State == RequirementState.Unsupported
+                                ? first.Detail
+                                : $"{first.Title} is missing ({first.Detail}). Open Mapperatorinator from a map's right-click menu and follow the requirements list.",
+                            Runner.LastRunLogPath, Array.Empty<string>());
+                    }
+
                     Directory.CreateDirectory(job.Request.WorkDirectory);
                     job.Request.AudioPath = copyAudioToWorkDir(job.OpenAudio, job.AudioExtension, job.Request.WorkDirectory);
 
-                    string osz = await Runner.GenerateAsync(job.Request, line => Logger.Log($"[mapperatorinator] {line}", level: LogLevel.Debug), token).ConfigureAwait(false);
+                    string osz = await Runner.GenerateAsync(job.Request, line => Logger.Log($"[mapperatorinator] {line}", level: LogLevel.Verbose), token).ConfigureAwait(false);
 
                     token.ThrowIfCancellationRequested();
                     Runner.RecordObservedSpeed(job.AudioLengthSeconds, stopwatch.Elapsed, device);
@@ -306,6 +325,29 @@ namespace osu.Game.Mapperatorinator
                 catch (OperationCanceledException)
                 {
                     notification.State = ProgressNotificationState.Cancelled;
+                }
+                catch (MapperatorinatorRunException e)
+                {
+                    Logger.Log($"[mapperatorinator] generation failed: {e.Message}\n{string.Join('\n', e.OutputTail)}");
+                    notification.State = ProgressNotificationState.Cancelled;
+
+                    // el diagnostico cuando lo hay; si no, las ultimas lineas de la tool,
+                    // que son la unica pista real. el click abre el log entero.
+                    string text = e.Diagnosis
+                                  ?? (e.OutputTail.Count > 0
+                                      ? $"Mapperatorinator failed: {e.Message} Last output: {string.Join(" | ", e.OutputTail.Skip(Math.Max(0, e.OutputTail.Count - 3)))}"
+                                      : $"Mapperatorinator failed: {e.Message}");
+
+                    Schedule(() => notifications?.Post(new SimpleErrorNotification
+                    {
+                        Text = $"{text} Click to open the full log.",
+                        Activated = () =>
+                        {
+                            if (File.Exists(e.LogPath))
+                                host.OpenFileExternally(e.LogPath);
+                            return true;
+                        },
+                    }));
                 }
                 catch (Exception e)
                 {

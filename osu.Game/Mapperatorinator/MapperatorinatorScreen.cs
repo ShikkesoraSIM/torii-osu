@@ -12,6 +12,8 @@ using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
+using osu.Framework;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
@@ -54,6 +56,9 @@ namespace osu.Game.Mapperatorinator
 
         [Resolved(canBeNull: true)]
         private MapperatorinatorGenerationManager? generationManager { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private OsuGame? game { get; set; }
 
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
@@ -249,18 +254,25 @@ namespace osu.Game.Mapperatorinator
                                 Caption = @"Background image",
                             },
 
-                            setupHeading = heading(@"Setup", 22),
-                            setupCaption = caption(@"Mapperatorinator isn't installed yet. One click installs everything (about 8 GB: the tool, python packages and the AI model)."),
-                            installButton = new RoundedButton
+                            requirementsHeading = heading(@"Requirements", 22),
+                            requirementsCaption = caption(@"everything generating needs on this machine. sort out anything red, then press Check."),
+                            requirementsFlow = new FillFlowContainer
                             {
                                 RelativeSizeAxes = Axes.X,
-                                Height = 40,
-                                Text = @"Install Mapperatorinator automatically",
-                                Action = startInstall,
+                                AutoSizeAxes = Axes.Y,
+                                Direction = FillDirection.Vertical,
+                                Spacing = new Vector2(0, 6),
+                            },
+                            checkButton = new RoundedButton
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 36,
+                                Text = @"Check again",
+                                Action = runChecks,
                             },
                             installSelector = new FormFileSelector
                             {
-                                Caption = @"Or point to an existing install (its inference.py)",
+                                Caption = @"Advanced: point to an existing Mapperatorinator install (its inference.py)",
                             },
                             etaText = new OsuSpriteText { Font = OsuFont.Default.With(size: 16) },
 
@@ -309,7 +321,7 @@ namespace osu.Game.Mapperatorinator
                 string chosen = f.NewValue.FullName;
                 runner.Config.InstallPath = Directory.Exists(chosen) ? chosen : Path.GetDirectoryName(chosen);
                 runner.Save();
-                updateSetupVisibility();
+                runChecks();
             });
 
             // el mapa sale a tu nombre por default (podes cambiarlo igual), y si la
@@ -325,8 +337,8 @@ namespace osu.Game.Mapperatorinator
             }
 
             applyModelCapabilities();
-            updateSetupVisibility();
             updateIdleEta();
+            runChecks();
 
             if (addToExistingSet)
             {
@@ -376,9 +388,14 @@ namespace osu.Game.Mapperatorinator
             static string stat(double? value) => value?.ToString(@"0.#", CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
-        private Drawable setupHeading = null!;
-        private Drawable setupCaption = null!;
-        private RoundedButton installButton = null!;
+        private Drawable requirementsHeading = null!;
+        private Drawable requirementsCaption = null!;
+        private FillFlowContainer requirementsFlow = null!;
+        private RoundedButton checkButton = null!;
+
+        /// <summary>Whether the last check found everything generation needs.</summary>
+        private bool ready;
+        private bool checking;
         private Drawable metadataHeading = null!;
         private Drawable metadataCaption = null!;
 
@@ -418,15 +435,212 @@ namespace osu.Game.Mapperatorinator
             approachRate.Alpha = esMania || gamemode.Current.Value == MapperatorinatorGamemode.Taiko ? 0 : 1;
         }
 
-        private void updateSetupVisibility()
+        /// <summary>
+        /// Re-runs every requirement probe off the update thread and redraws the list.
+        /// Cheap to call often: after an install, after the user presses Check, on load.
+        /// </summary>
+        private void runChecks()
         {
-            bool installed = runner.InstallLooksValid;
+            if (checking) return;
 
-            setupHeading.Alpha = installed ? 0 : 1;
-            setupCaption.Alpha = installed ? 0 : 1;
-            installButton.Alpha = installed ? 0 : 1;
-            installSelector.Alpha = installed ? 0 : 1;
-            generateButton.Enabled.Value = installed;
+            checking = true;
+            checkButton.Enabled.Value = false;
+            generateButton.Enabled.Value = false;
+
+            Task.Run(() =>
+            {
+                List<Requirement> results;
+
+                try
+                {
+                    results = MapperatorinatorReadiness.Check(runner);
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] readiness check failed: {e}");
+                    results = new List<Requirement>
+                    {
+                        new Requirement { Kind = RequirementKind.Tool, Title = @"Requirements check", State = RequirementState.Missing, Detail = $"the check itself failed: {e.Message}" },
+                    };
+                }
+
+                Schedule(() =>
+                {
+                    checking = false;
+                    checkButton.Enabled.Value = true;
+                    applyReadiness(results);
+                });
+            });
+        }
+
+        private void applyReadiness(List<Requirement> results)
+        {
+            ready = results.All(r => r.Satisfied);
+
+            requirementsFlow.Clear();
+
+            foreach (var r in results)
+            {
+                requirementsFlow.Add(new RequirementRow(r)
+                {
+                    AutoInstall = r.Kind switch
+                    {
+                        RequirementKind.Tool => startInstall,
+                        RequirementKind.Ffmpeg => startFfmpegInstall,
+                        _ => null,
+                    },
+                    OpenDownload = r.DownloadUrl == null ? null : () => game?.OpenUrlExternally(r.DownloadUrl),
+                });
+            }
+
+            // con todo verde la lista estorba; el hardware sigue a la vista en la linea del eta.
+            requirementsHeading.Alpha = ready ? 0 : 1;
+            requirementsCaption.Alpha = ready ? 0 : 1;
+            requirementsFlow.Alpha = ready ? 0 : 1;
+            checkButton.Alpha = ready ? 0 : 1;
+            installSelector.Alpha = ready ? 0 : 1;
+
+            generateButton.Enabled.Value = ready && !installing;
+
+            device = runner.DetectDevice();
+            updateIdleEta();
+        }
+
+        private void startFfmpegInstall()
+        {
+            if (installing) return;
+
+            installing = true;
+            generateButton.Enabled.Value = false;
+            logFlow.Clear();
+            logLines = 0;
+            logScroll.FadeIn(200);
+            installCancellation = new CancellationTokenSource();
+            var token = installCancellation.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await runner.InstallFfmpegAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    Schedule(() => appendLog(@"ffmpeg install cancelled."));
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] ffmpeg install failed: {e}");
+                    Schedule(() => appendLog($"ffmpeg install failed: {e.Message}"));
+                }
+                finally
+                {
+                    Schedule(() =>
+                    {
+                        installing = false;
+                        runChecks();
+                    });
+                }
+            }, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// One requirement as a row: status icon, what it is, what was found, and the
+        /// buttons that make sense for it (install for us, download page, instructions).
+        /// </summary>
+        private partial class RequirementRow : CompositeDrawable
+        {
+            public Action? AutoInstall;
+            public Action? OpenDownload;
+
+            private readonly Requirement requirement;
+
+            public RequirementRow(Requirement requirement)
+            {
+                this.requirement = requirement;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load(OsuColour colours)
+            {
+                RelativeSizeAxes = Axes.X;
+                AutoSizeAxes = Axes.Y;
+
+                (IconUsage icon, Colour4 colour) = requirement.State switch
+                {
+                    RequirementState.Ok => (FontAwesome.Solid.CheckCircle, colours.Lime0),
+                    RequirementState.Warning => (FontAwesome.Solid.ExclamationCircle, colours.Orange1),
+                    RequirementState.Missing => (FontAwesome.Solid.TimesCircle, colours.Red),
+                    RequirementState.Unsupported => (FontAwesome.Solid.Ban, colours.Red),
+                    _ => (FontAwesome.Regular.Circle, colours.Gray6),
+                };
+
+                var buttons = new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(6, 0),
+                    Margin = new MarginPadding { Top = 6 },
+                };
+
+                bool actionable = requirement.State == RequirementState.Missing;
+
+                if (actionable && requirement.CanAutoInstall && AutoInstall != null)
+                    buttons.Add(new RoundedButton { Width = 190, Height = 30, Text = @"Install automatically", Action = AutoInstall });
+
+                if (actionable && OpenDownload != null)
+                    buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = @"Download page", Action = OpenDownload });
+
+                var text = new FillFlowContainer
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                    Direction = FillDirection.Vertical,
+                    Padding = new MarginPadding { Left = 30 },
+                    Children = new Drawable[]
+                    {
+                        new OsuSpriteText
+                        {
+                            Text = requirement.Title,
+                            Font = OsuFont.GetFont(size: 16, weight: FontWeight.SemiBold),
+                        },
+                        new OsuTextFlowContainer(s => s.Font = OsuFont.Default.With(size: 13))
+                        {
+                            RelativeSizeAxes = Axes.X,
+                            AutoSizeAxes = Axes.Y,
+                            Colour = Colour4.White.Opacity(0.7f),
+                            Text = requirement.Detail,
+                        },
+                    },
+                };
+
+                if (actionable && !string.IsNullOrEmpty(requirement.Instructions) || requirement.State == RequirementState.Unsupported)
+                {
+                    text.Add(new OsuTextFlowContainer(s => s.Font = OsuFont.Default.With(size: 13))
+                    {
+                        RelativeSizeAxes = Axes.X,
+                        AutoSizeAxes = Axes.Y,
+                        Colour = colours.Orange1,
+                        Text = requirement.Instructions,
+                        Margin = new MarginPadding { Top = 2 },
+                    });
+                }
+
+                if (buttons.Children.Count > 0)
+                    text.Add(buttons);
+
+                InternalChildren = new Drawable[]
+                {
+                    new SpriteIcon
+                    {
+                        Icon = icon,
+                        Colour = colour,
+                        Size = new Vector2(18),
+                        Margin = new MarginPadding { Top = 1 },
+                    },
+                    text,
+                };
+            }
         }
 
         private void startInstall()
@@ -434,8 +648,7 @@ namespace osu.Game.Mapperatorinator
             if (installing) return;
 
             installing = true;
-            installButton.Enabled.Value = false;
-            installButton.Text = @"Installing... (watch the log below)";
+            generateButton.Enabled.Value = false;
             logFlow.Clear();
             logLines = 0;
             logScroll.FadeIn(200);
@@ -467,10 +680,7 @@ namespace osu.Game.Mapperatorinator
                     Schedule(() =>
                     {
                         installing = false;
-                        installButton.Enabled.Value = true;
-                        installButton.Text = @"Install Mapperatorinator automatically";
-                        updateSetupVisibility();
-                        updateIdleEta();
+                        runChecks();
                     });
                 }
             }, CancellationToken.None);
@@ -494,8 +704,14 @@ namespace osu.Game.Mapperatorinator
         private void updateIdleEta()
         {
             currentEstimate = runner.Estimate(audioLengthSeconds, device);
-            etaText.Text = $"device: {device} | estimated time: ~{format(currentEstimate)}"
-                           + (device == @"cpu" ? @"  (no CUDA gpu found; this will be slow)" : string.Empty);
+            string hardware = device switch
+            {
+                @"cuda" => @"NVIDIA GPU (CUDA)",
+                @"mps" => @"Apple Silicon (MPS, slower than NVIDIA)",
+                _ => @"CPU only (no supported GPU found, this will be slow)",
+            };
+
+            etaText.Text = $"{hardware} | estimated time: ~{format(currentEstimate)}";
         }
 
         private static string format(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{(int)t.TotalMinutes}m {t.Seconds:00}s";
@@ -504,11 +720,11 @@ namespace osu.Game.Mapperatorinator
         {
             if (installing) return;
 
-            if (!runner.InstallLooksValid)
+            if (!ready)
             {
                 notifications?.Post(new SimpleErrorNotification
                 {
-                    Text = @"Point the setup at your Mapperatorinator folder first (it needs inference.py inside).",
+                    Text = @"Something generation needs is still missing. Sort out the red items in the requirements list first.",
                 });
                 return;
             }
