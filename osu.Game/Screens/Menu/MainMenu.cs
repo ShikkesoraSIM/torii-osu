@@ -160,6 +160,7 @@ namespace osu.Game.Screens.Menu
                                 skinEditor?.Show();
                             },
                             OnMapperatorinator = () => this.Push(new MapperatorinatorScreen()),
+                            OnMapperatorinatorPresets = () => this.Push(new MapperatorinatorPresetsScreen()),
                             OnSolo = loadSongSelect,
                             OnMultiplayer = () => this.Push(new Multiplayer()),
                             OnQuickPlay = loadQuickPlay,
