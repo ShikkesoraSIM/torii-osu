@@ -269,7 +269,9 @@ namespace osu.Game.Mapperatorinator
         public async Task<GpuProbe> ProbeGpuAsync(Action<string> onLogLine, CancellationToken cancellation)
         {
             var probe = new GpuProbe();
-            string? venvPython = VenvPython;
+            // el que la persona eligio si eligio uno: no tiene sentido sondear el venv
+            // nuestro cuando la placa anda en el python de ella.
+            string? venvPython = PythonExecutable;
 
             if (venvPython == null)
             {
@@ -297,7 +299,8 @@ except Exception as e:
     info['error'] = str(e)
 print('torii-gpu-probe ' + json.dumps(info))";
 
-            var psi = new ProcessStartInfo(venvPython)
+            string[] launcher = splitLauncher(venvPython);
+            var psi = new ProcessStartInfo(launcher[0])
             {
                 WorkingDirectory = Config.InstallPath,
                 RedirectStandardOutput = true,
@@ -307,6 +310,10 @@ print('torii-gpu-probe ' + json.dumps(info))";
             };
 
             applyProcessEnvironment(psi);
+
+            for (int i = 1; i < launcher.Length; i++)
+                psi.ArgumentList.Add(launcher[i]);
+
             psi.ArgumentList.Add(@"-c");
             psi.ArgumentList.Add(script);
 
@@ -503,7 +510,7 @@ print('torii-gpu-probe ' + json.dumps(info))";
         /// </summary>
         public async Task<bool> SmokeTestGpuAsync(Action<string> onLogLine, CancellationToken cancellation)
         {
-            string? venvPython = VenvPython;
+            string? venvPython = PythonExecutable;
 
             if (venvPython == null)
                 return false;
@@ -518,7 +525,8 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             onLogLine(@"testing the GPU with a small matrix multiply...");
 
-            var psi = new ProcessStartInfo(venvPython)
+            string[] launcher = splitLauncher(venvPython);
+            var psi = new ProcessStartInfo(launcher[0])
             {
                 WorkingDirectory = Config.InstallPath,
                 RedirectStandardOutput = true,
@@ -528,6 +536,10 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             };
 
             applyProcessEnvironment(psi);
+
+            for (int i = 1; i < launcher.Length; i++)
+                psi.ArgumentList.Add(launcher[i]);
+
             psi.ArgumentList.Add(@"-c");
             psi.ArgumentList.Add(script);
 
@@ -1584,7 +1596,20 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         }
 
         /// <summary>"py -3.10" is the one executable that carries an argument; real paths may contain spaces.</summary>
-        private static string[] splitLauncher(string exe) => exe.StartsWith(@"py ", StringComparison.Ordinal) ? exe.Split(' ', 2) : new[] { exe };
+        private static string[] splitLauncher(string exe)
+        {
+            // "py -3.10" viaja como exe con argumento adentro.
+            if (exe.StartsWith(@"py ", StringComparison.Ordinal))
+                return exe.Split(' ', 2);
+
+            // un .bat o .cmd no lo puede lanzar el sistema por si solo: va por cmd. Sirve
+            // para envolver setups raros (zluda, entrar a un contenedor) en un script y
+            // apuntar "usar mi propio python" ahi.
+            if (exe.EndsWith(@".bat", StringComparison.OrdinalIgnoreCase) || exe.EndsWith(@".cmd", StringComparison.OrdinalIgnoreCase))
+                return new[] { @"cmd.exe", @"/c", exe };
+
+            return new[] { exe };
+        }
 
         /// <summary>
         /// Where the tool gets installed. Windows: the fixed drive with the most free
@@ -1689,7 +1714,8 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             var args = buildArguments(request, outputDir);
 
-            var psi = new ProcessStartInfo(PythonExecutable)
+            string[] launcher = splitLauncher(PythonExecutable);
+            var psi = new ProcessStartInfo(launcher[0])
             {
                 WorkingDirectory = Config.InstallPath,
                 RedirectStandardOutput = true,
@@ -1699,6 +1725,9 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             };
 
             applyProcessEnvironment(psi);
+
+            for (int i = 1; i < launcher.Length; i++)
+                psi.ArgumentList.Add(launcher[i]);
 
             foreach (string a in args)
                 psi.ArgumentList.Add(a);

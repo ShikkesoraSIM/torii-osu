@@ -383,7 +383,7 @@ namespace osu.Game.Mapperatorinator
                             customPython = new FormTextBox
                             {
                                 Caption = @"Use my own python (advanced)",
-                                HintText = @"Full path to a python that already has the tool's dependencies. This is the way out if your GPU only works inside a container (distrobox, toolbox): set up ROCm and the packages there, and point this at that python (or at a wrapper script that enters the container). Leave it empty to use the one Torii installs.",
+                                HintText = @"Full path to a python that already has the tool's dependencies. This is the way out when your GPU only works in a setup of your own: a container (distrobox, toolbox), a CUDA-compatibility layer, your own build of pytorch. A .bat/.cmd (Windows) or a shell script works too, so you can wrap whatever your card needs. Leave it empty to use the one Torii installs.",
                                 PlaceholderText = @"empty = use the one Torii installed",
                             },
                             checkButton = new RoundedButton
