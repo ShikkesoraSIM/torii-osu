@@ -183,6 +183,260 @@ namespace osu.Game.Mapperatorinator
                    + (index != null ? $" --index-url {index}" : string.Empty);
         }
 
+        /// <summary>What torch knows about this machine's GPU. No kernel ever runs to get this.</summary>
+        public class GpuProbe
+        {
+            public string? TorchVersion { get; set; }
+            public string? HipVersion { get; set; }
+            public int DeviceCount { get; set; }
+            public string? DeviceName { get; set; }
+
+            /// <summary>The card's chip as the driver reports it, e.g. "gfx1201".</summary>
+            public string? Arch { get; set; }
+
+            /// <summary>The chips this pytorch build carries kernels for.</summary>
+            public List<string> ArchList { get; set; } = new List<string>();
+
+            public string? Error { get; set; }
+
+            /// <summary>The card's chip is among the ones the build can run. Without this, dispatching faults the GPU.</summary>
+            public bool ArchSupported => Arch != null && ArchList.Contains(Arch, StringComparer.OrdinalIgnoreCase);
+
+            public string Summary => Error != null
+                ? $"torch couldn't look at the GPU: {Error}"
+                : $"{DeviceName ?? "unknown card"} ({Arch ?? "unknown chip"}), pytorch {TorchVersion} for ROCm {HipVersion}, kernels for: {(ArchList.Count > 0 ? string.Join(", ", ArchList) : "none listed")}";
+        }
+
+        /// <summary>
+        /// Asks torch what the card is and what the installed build can run. This only
+        /// reads properties: no kernel is dispatched, so it can't fault the GPU. It's the
+        /// check that was missing: dispatching to a chip the build has no kernels for is
+        /// what ends in a hardware exception and a dead display driver.
+        /// </summary>
+        public async Task<GpuProbe> ProbeGpuAsync(Action<string> onLogLine, CancellationToken cancellation)
+        {
+            var probe = new GpuProbe();
+            string? venvPython = VenvPython;
+
+            if (venvPython == null)
+            {
+                probe.Error = @"the tool isn't installed yet";
+                return probe;
+            }
+
+            const string script = @"import json
+info = {}
+try:
+    import torch
+    info['torch'] = torch.__version__
+    info['hip'] = getattr(torch.version, 'hip', None)
+    try:
+        info['arch_list'] = [a.split(':')[0] for a in torch.cuda.get_arch_list()]
+    except Exception as e:
+        info['arch_list'] = []
+        info['arch_list_error'] = str(e)
+    info['count'] = torch.cuda.device_count()
+    if info['count']:
+        p = torch.cuda.get_device_properties(0)
+        info['name'] = p.name
+        info['arch'] = getattr(p, 'gcnArchName', '').split(':')[0]
+except Exception as e:
+    info['error'] = str(e)
+print('torii-gpu-probe ' + json.dumps(info))";
+
+            var psi = new ProcessStartInfo(venvPython)
+            {
+                WorkingDirectory = Config.InstallPath,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            applyProcessEnvironment(psi);
+            psi.ArgumentList.Add(@"-c");
+            psi.ArgumentList.Add(script);
+
+            using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            string? json = null;
+
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data)) return;
+
+                const string marker = @"torii-gpu-probe ";
+                if (e.Data.StartsWith(marker, StringComparison.Ordinal))
+                    json = e.Data.Substring(marker.Length);
+                else
+                    onLogLine(e.Data);
+            };
+            process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            timeout.CancelAfter(TimeSpan.FromMinutes(2));
+
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(true); }
+                catch { }
+
+                cancellation.ThrowIfCancellationRequested();
+                probe.Error = @"torch never answered (the driver is stuck)";
+                return probe;
+            }
+
+            if (json == null)
+            {
+                probe.Error = $"the probe didn't report back (exit code {process.ExitCode})";
+                return probe;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                probe.TorchVersion = str(root, @"torch");
+                probe.HipVersion = str(root, @"hip");
+                probe.DeviceName = str(root, @"name");
+                probe.Arch = str(root, @"arch");
+                probe.Error = str(root, @"error");
+                probe.DeviceCount = root.TryGetProperty(@"count", out var c) && c.TryGetInt32(out int n) ? n : 0;
+
+                if (root.TryGetProperty(@"arch_list", out var list) && list.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var a in list.EnumerateArray())
+                    {
+                        if (a.GetString() is string s && s.Length > 0)
+                            probe.ArchList.Add(s);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                probe.Error = $"couldn't read the probe output: {e.Message}";
+            }
+
+            onLogLine(probe.Summary);
+
+            Config.RocmArch = probe.Arch;
+            Config.RocmArchList = probe.ArchList.Count > 0 ? string.Join(@", ", probe.ArchList) : null;
+            Save();
+
+            return probe;
+
+            static string? str(JsonElement root, string name) =>
+                root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+        }
+
+        /// <summary>
+        /// The HSA_OVERRIDE_GFX_VERSION that points a card at the closest chip the build
+        /// does carry kernels for, or null when nothing in the list is close enough.
+        /// Same major generation only: pointing RDNA at CDNA kernels is how GPUs fault.
+        /// </summary>
+        public static string? OverrideFor(string arch, IEnumerable<string> archList)
+        {
+            (int major, int minor, int step)? target = parseGfx(arch);
+
+            if (target == null)
+                return null;
+
+            (int major, int minor, int step)? best = null;
+
+            foreach (string candidate in archList)
+            {
+                var parsed = parseGfx(candidate);
+
+                if (parsed == null || parsed.Value.major != target.Value.major)
+                    continue;
+
+                // el pariente mas cercano por debajo: los kernels de un chip mas viejo de
+                // la misma generacion corren, los de uno mas nuevo no existen todavia.
+                if (compare(parsed.Value, target.Value) > 0)
+                    continue;
+
+                if (best == null || compare(parsed.Value, best.Value) > 0)
+                    best = parsed;
+            }
+
+            return best == null ? null : $"{best.Value.major}.{best.Value.minor}.{best.Value.step}";
+
+            static int compare((int major, int minor, int step) a, (int major, int minor, int step) b)
+                => a.major != b.major ? a.major.CompareTo(b.major) : a.minor != b.minor ? a.minor.CompareTo(b.minor) : a.step.CompareTo(b.step);
+        }
+
+        /// <summary>"gfx1201" -> (12, 0, 1). The last digit is hex ("gfx90a" -> (9, 0, 10)).</summary>
+        private static (int major, int minor, int step)? parseGfx(string arch)
+        {
+            string digits = arch.Trim().ToLowerInvariant();
+
+            if (!digits.StartsWith(@"gfx", StringComparison.Ordinal))
+                return null;
+
+            digits = digits.Substring(3).Split(':')[0];
+
+            if (digits.Length < 3)
+                return null;
+
+            try
+            {
+                int step = Convert.ToInt32(digits.Substring(digits.Length - 1), 16);
+                int minor = Convert.ToInt32(digits.Substring(digits.Length - 2, 1), 16);
+                int major = int.Parse(digits.Substring(0, digits.Length - 2), CultureInfo.InvariantCulture);
+                return (major, minor, step);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The ROCm wheel indexes worth trying, best guess first. Each entry pins a
+        /// torch/torchaudio pair that exists for python 3.10 in that index: the model
+        /// needs torchaudio (v32's spectrogram is the torchaudio one), so a torch-only
+        /// install would leave the tool unable to read the audio at all.
+        /// </summary>
+        public static IEnumerable<(string index, string torch, string torchaudio)> RocmIndexes()
+        {
+            yield return (@"rocm7.0", @"torch==2.10.0", @"torchaudio==2.10.0");
+
+            // kernels mas nuevos, misma familia: la segunda oportunidad para una placa
+            // que la 7.0 reconoce pero no aguanta.
+            yield return (@"rocm7.2", @"torch==2.11.0", @"torchaudio==2.11.0");
+
+            // placas viejas (rdna2 y anteriores) que las 7.x ya no traen.
+            yield return (@"rocm6.4", @"torch==2.9.1", @"torchaudio==2.9.1");
+        }
+
+        /// <summary>Installs a specific ROCm pytorch pair over whatever is in the venv.</summary>
+        public async Task InstallRocmTorchAsync((string index, string torch, string torchaudio) wheel, Action<string> onLogLine, CancellationToken cancellation)
+        {
+            string checkout = Config.InstallPath ?? throw new InvalidOperationException(@"Mapperatorinator isn't installed yet.");
+            string venvPython = VenvPython ?? throw new InvalidOperationException(@"The python environment inside the install is missing.");
+            var pipEnv = pipEnvironment(Path.GetDirectoryName(checkout) ?? checkout);
+
+            onLogLine($"installing pytorch for {wheel.index} (a few GB)...");
+            await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+            await runStep(venvPython, new[]
+            {
+                "-m", "pip", "install", wheel.torch, wheel.torchaudio,
+                "--index-url", $"https://download.pytorch.org/whl/{wheel.index}",
+            }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+
+            await File.WriteAllTextAsync(Path.Combine(checkout, torch_device_marker), @"rocm", cancellation).ConfigureAwait(false);
+            Config.RocmIndex = wheel.index;
+            Save();
+        }
+
         /// <summary>
         /// Two seconds of real GPU work (allocate, copy, multiply) before we commit to a
         /// twenty minute run. The failure we're looking for kills the display driver, so
@@ -503,10 +757,14 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// The card faulted: never again on its own. Called when the tool dies with a
         /// hardware exception, which is the failure that also kills the display driver.
         /// </summary>
-        public void MarkRocmBlocked()
+        public void MarkRocmBlocked(string? reason = null)
         {
             Config.RocmEnabled = false;
             Config.RocmBlocked = true;
+
+            if (reason != null)
+                Config.RocmLastError = reason;
+
             Save();
         }
 
@@ -515,6 +773,14 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         {
             Config.RocmEnabled = true;
             Config.RocmBlocked = false;
+            Config.RocmLastError = null;
+            Save();
+        }
+
+        /// <summary>Point the runtime at a different chip's kernels (or stop doing that).</summary>
+        public void SetRocmOverride(string? hsaVersion)
+        {
+            Config.RocmOverride = hsaVersion;
             Save();
         }
 
@@ -777,9 +1043,12 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
             psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
 
-            // rocm: placas fuera de la lista de la rueda andan apuntadas al pariente mas
-            // cercano. si el usuario ya lo seteo a mano, se respeta.
-            if (DetectAmdGpu()?.HsaOverride is string hsa && !psi.EnvironmentVariables.ContainsKey(@"HSA_OVERRIDE_GFX_VERSION"))
+            // rocm: una placa fuera de los chips que trae la rueda solo corre apuntada al
+            // pariente mas cercano. el valor sale de lo que dijo torch en el sondeo; la
+            // lista escrita a mano es el respaldo para cuando todavia no sondeamos.
+            string? hsa = Config.RocmOverride ?? DetectAmdGpu()?.HsaOverride;
+
+            if (hsa != null && !psi.EnvironmentVariables.ContainsKey(@"HSA_OVERRIDE_GFX_VERSION"))
                 psi.EnvironmentVariables[@"HSA_OVERRIDE_GFX_VERSION"] = hsa;
 
             var prepend = new List<string>();
@@ -1305,7 +1574,7 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             // la placa fallo de verdad: se apaga sola para que la proxima no vuelva a
             // arriesgar la sesion entera de la persona.
             if (process.ExitCode != 0 && IsGpuFault(string.Join('\n', snapshot)))
-                MarkRocmBlocked();
+                MarkRocmBlocked(@"the card faulted during a real generation");
 
             if (process.ExitCode != 0)
                 throw new MapperatorinatorRunException($"inference.py exited with code {process.ExitCode}.", Diagnose(snapshot), logPath, tail(snapshot));
@@ -1416,6 +1685,26 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// <summary>Set once the card has faulted: we don't put anyone through that twice.</summary>
         [JsonPropertyName(@"rocm_blocked")]
         public bool RocmBlocked { get; set; }
+
+        /// <summary>What torch says the card is ("gfx1201"), straight from the driver.</summary>
+        [JsonPropertyName(@"rocm_arch")]
+        public string? RocmArch { get; set; }
+
+        /// <summary>The chips the installed pytorch actually has kernels for.</summary>
+        [JsonPropertyName(@"rocm_arch_list")]
+        public string? RocmArchList { get; set; }
+
+        /// <summary>HSA_OVERRIDE_GFX_VERSION that made the card match, when one was needed.</summary>
+        [JsonPropertyName(@"rocm_override")]
+        public string? RocmOverride { get; set; }
+
+        /// <summary>Which pytorch wheel index the ROCm build came from.</summary>
+        [JsonPropertyName(@"rocm_index")]
+        public string? RocmIndex { get; set; }
+
+        /// <summary>Why the GPU was given up on, in the user's words.</summary>
+        [JsonPropertyName(@"rocm_last_error")]
+        public string? RocmLastError { get; set; }
 
         /// <summary>Full path of the ffmpeg executable the game installed (or the user pointed at).</summary>
         [JsonPropertyName(@"ffmpeg_path")]
