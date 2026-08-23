@@ -25,3 +25,7 @@ App.config text eol=crlf
 .travis.yml text eol=lf
 # Vendored Satori GC runtime binaries (net10)
 satori-runtime/**/*.zip binary
+# torii: scripts que corren en mac/linux no pueden tener CRLF
+*.command text eol=lf
+*.sh text eol=lf
+osu.Desktop/macos-package/README.txt text eol=lf

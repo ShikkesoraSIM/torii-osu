@@ -771,15 +771,71 @@ jobs:
       shell: bash
       run: |
         if [[ "${{ matrix.runtime }}" == osx-* ]] && [[ "${{ matrix.os }}" != macos* ]]; then
-          # Cross-building macOS on Linux: create plain zip fallback instead of vpk.
+          # Cross-building macOS on Linux: vpk can't bundle here, so the .app is
+          # assembled by hand. A bundle is just a folder layout plus Info.plist;
+          # the old "zip of loose files" was what made every Mac user need
+          # terminal help to get it running.
           mkdir -p Releases
-          ZIP_NAME="torii.app.Intel.zip"
+          ZIP_NAME="Torii-macOS-Intel.zip"
+          MIN_OS="10.15"
           if [[ "${{ matrix.runtime }}" == "osx-arm64" ]]; then
-            ZIP_NAME="torii.app.Apple.Silicon.zip"
+            ZIP_NAME="Torii-macOS-AppleSilicon.zip"
+            MIN_OS="11.0"
           fi
+
+          STAGE="bundle-${{ matrix.runtime }}"
+          APP="$STAGE/Torii.app"
+          rm -rf "$STAGE"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+          cp -R "publish/${{ matrix.runtime }}/." "$APP/Contents/MacOS/"
+          chmod +x "$APP/Contents/MacOS/${RESOLVED_EXECUTABLE}"
+
+          if [ -s osu.Desktop/torii.icns ]; then
+            cp osu.Desktop/torii.icns "$APP/Contents/Resources/torii.icns"
+          fi
+
+          cat > "$APP/Contents/Info.plist" <<PLIST
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>CFBundleName</key><string>Torii</string>
+          <key>CFBundleDisplayName</key><string>Torii</string>
+          <key>CFBundleIdentifier</key><string>com.shikkesora.torii</string>
+          <key>CFBundleExecutable</key><string>${RESOLVED_EXECUTABLE}</string>
+          <key>CFBundleIconFile</key><string>torii.icns</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+          <key>CFBundleShortVersionString</key><string>${{ needs.version.outputs.semver }}</string>
+          <key>CFBundleVersion</key><string>${{ needs.version.outputs.fileVersion }}</string>
+          <key>LSMinimumSystemVersion</key><string>${MIN_OS}</string>
+          <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
+          <key>NSHighResolutionCapable</key><true/>
+          <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+          <key>CFBundleURLTypes</key>
+          <array>
+            <dict>
+              <key>CFBundleURLName</key><string>osu! links</string>
+              <key>CFBundleURLSchemes</key><array><string>osu</string><string>osump</string></array>
+            </dict>
+          </array>
+        </dict>
+        </plist>
+        PLIST
+          # el heredoc va indentado por el yaml; sacarle la sangria para que quede un plist limpio
+          sed -i 's/^        //' "$APP/Contents/Info.plist"
+          printf 'APPL????' > "$APP/Contents/PkgInfo"
+
+          cp "osu.Desktop/macos-package/Install Torii.command" "$STAGE/Install Torii.command"
+          cp osu.Desktop/macos-package/README.txt "$STAGE/README.txt"
+          chmod +x "$STAGE/Install Torii.command"
+
+          # -y keeps symlinks, and unix permissions travel inside the zip so the
+          # executable bit survives Archive Utility on the other side.
           (
-            cd "publish/${{ matrix.runtime }}"
-            zip -r "../../Releases/${ZIP_NAME}" .
+            cd "$STAGE"
+            zip -r -y "../Releases/${ZIP_NAME}" .
           )
         elif [[ "${{ matrix.runtime }}" == osx-* ]]; then
           # macOS Velopack icon: prefer torii.icns (committed by the rebrand
@@ -856,7 +912,7 @@ jobs:
         # macOS zip rename if present
         if [[ "${{ matrix.runtime }}" == osx-* ]]; then
           if [[ "${{ matrix.runtime }}" == "osx-x64" ]]; then
-            for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/torii.app.Intel.zip; done
+            for f in Releases/*osx-x64*.zip; do mv -f "$f" Releases/Torii-macOS-Intel.zip; done
             # Ensure nupkg channel naming uses osx-x64-full.nupkg
             for f in Releases/*.nupkg; do
               if [[ "$f" == *osx*full.nupkg ]] && [[ "$f" != *arm64* ]]; then
@@ -865,7 +921,7 @@ jobs:
               fi
             done
           else
-            for f in Releases/*osx-arm64*.zip; do mv -f "$f" Releases/torii.app.Apple.Silicon.zip; done
+            for f in Releases/*osx-arm64*.zip; do mv -f "$f" Releases/Torii-macOS-AppleSilicon.zip; done
             # Ensure nupkg channel naming uses osx-arm64-full.nupkg
             for f in Releases/*.nupkg; do
               if [[ "$f" == *osx*full.nupkg ]]; then
@@ -951,11 +1007,11 @@ jobs:
             required_files+=("Releases/portable-${{ matrix.runtime }}.tar.gz")
             ;;
           osx-x64)
-            required_files+=("Releases/torii.app.Intel.zip")
+            required_files+=("Releases/Torii-macOS-Intel.zip")
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
           osx-arm64)
-            required_files+=("Releases/torii.app.Apple.Silicon.zip")
+            required_files+=("Releases/Torii-macOS-AppleSilicon.zip")
             required_files+=("Releases/portable-${{ matrix.runtime }}.zip")
             ;;
         esac
@@ -1094,8 +1150,8 @@ jobs:
           "torii-linux-arm64.AppImage"
           "portable-linux-x64.tar.gz"
           "portable-linux-arm64.tar.gz"
-          "torii.app.Intel.zip"
-          "torii.app.Apple.Silicon.zip"
+          "Torii-macOS-Intel.zip"
+          "Torii-macOS-AppleSilicon.zip"
           "portable-osx-x64.zip"
           "portable-osx-arm64.zip"
         )
@@ -1161,8 +1217,8 @@ jobs:
         - **Linux (ARM64) AppImage:** \`torii-linux-arm64.AppImage\`
         - **Linux Portable (x64):** \`portable-linux-x64.tar.gz\`
         - **Linux Portable (ARM64):** \`portable-linux-arm64.tar.gz\`
-        - **macOS (Intel):** \`torii.app.Intel.zip\`
-        - **macOS (Apple Silicon):** \`torii.app.Apple.Silicon.zip\`
+        - **macOS (Apple Silicon):** \`Torii-macOS-AppleSilicon.zip\` (unzip, double-click "Install Torii.command")
+        - **macOS (Intel):** \`Torii-macOS-Intel.zip\` (unzip, double-click "Install Torii.command")
         - **macOS Portable (Intel):** \`portable-osx-x64.zip\`
         - **macOS Portable (Apple Silicon):** \`portable-osx-arm64.zip\`
 
