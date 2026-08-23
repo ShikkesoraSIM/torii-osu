@@ -1065,8 +1065,13 @@ namespace osu.Game.Mapperatorinator
             log($"torii {game?.Version}, {RuntimeInfo.OS}");
 
             var amd = MapperatorinatorRunner.DetectAmdGpu();
+
             if (amd != null)
-                log($"card seen by the driver: {amd.Name} ({amd.Gfx}), /dev/kfd readable: {amd.KfdAccessible}");
+            {
+                log(amd.WindowsWithoutRocm
+                    ? $"card seen by the driver: {amd.Name}"
+                    : $"card seen by the driver: {amd.Name} ({amd.Gfx}), /dev/kfd readable: {amd.KfdAccessible}");
+            }
 
             log($"generation currently runs on: {runner.EffectiveDevice()}");
 
@@ -1087,8 +1092,8 @@ namespace osu.Game.Mapperatorinator
                     + @"kernels is what makes the card abort. Torii clears that override for its own runs now.");
             }
 
-            log(probe.ArchSupported
-                ? @"this pytorch does carry kernels for your card."
+            log(probe.ArchSupported ? @"this pytorch does carry kernels for your card."
+                : probe.IsCpuOnly ? @"install a pytorch with GPU support into Torii's environment (or point ""Use my own python"" at one that has it) and press Check again."
                 : @"this pytorch does NOT carry kernels for your card: that's the mismatch that faults the GPU.");
         });
 
