@@ -153,6 +153,14 @@ namespace osu.Game.Mapperatorinator
                 return bundled;
             }
 
+            // donde lo dejan brew / los package managers: nada de esto esta en el PATH
+            // de una app abierta desde finder.
+            foreach (string candidate in knownFfmpegPaths())
+            {
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
             try
             {
                 var psi = new ProcessStartInfo(@"ffmpeg") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
@@ -171,6 +179,36 @@ namespace osu.Game.Mapperatorinator
             }
             catch
             {
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> knownFfmpegPaths()
+        {
+            switch (RuntimeInfo.OS)
+            {
+                case RuntimeInfo.Platform.macOS:
+                    return new[] { @"/opt/homebrew/bin/ffmpeg", @"/usr/local/bin/ffmpeg" };
+
+                case RuntimeInfo.Platform.Linux:
+                    return new[] { @"/usr/bin/ffmpeg", @"/usr/local/bin/ffmpeg", @"/snap/bin/ffmpeg" };
+
+                default:
+                    return Array.Empty<string>();
+            }
+        }
+
+        /// <summary>Homebrew, if it's installed (apple silicon or intel layout). Null if not.</summary>
+        public static string? FindBrew()
+        {
+            if (RuntimeInfo.OS != RuntimeInfo.Platform.macOS)
+                return null;
+
+            foreach (string candidate in new[] { @"/opt/homebrew/bin/brew", @"/usr/local/bin/brew" })
+            {
+                if (File.Exists(candidate))
+                    return candidate;
             }
 
             return null;
@@ -203,7 +241,7 @@ namespace osu.Game.Mapperatorinator
         {
             string root = !string.IsNullOrEmpty(Config.InstallPath)
                 ? Path.GetDirectoryName(Config.InstallPath) ?? Config.InstallPath
-                : Path.Combine(pickInstallRoot(), @"Torii-Mapperatorinator");
+                : InstallRoot();
 
             return Path.Combine(root, @"ffmpeg");
         }
@@ -214,8 +252,24 @@ namespace osu.Game.Mapperatorinator
         /// </summary>
         public async Task InstallFfmpegAsync(Action<string> onLogLine, CancellationToken cancellation)
         {
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.macOS)
+            {
+                string brew = FindBrew() ?? throw new InvalidOperationException(@"Homebrew isn't installed. Install it from brew.sh first, then press Install again.");
+
+                onLogLine($"$ {brew} install ffmpeg");
+                await runStep(brew, new[] { "install", "ffmpeg" }, Path.GetTempPath(), onLogLine, cancellation, new Dictionary<string, string>
+                {
+                    [@"HOMEBREW_NO_AUTO_UPDATE"] = @"1",
+                    [@"NONINTERACTIVE"] = @"1",
+                }).ConfigureAwait(false);
+
+                string? installed = FindFfmpeg() ?? throw new InvalidOperationException(@"brew finished but ffmpeg still isn't there. Run `brew install ffmpeg` in Terminal to see what it says.");
+                onLogLine($"ffmpeg ready: {installed}");
+                return;
+            }
+
             if (RuntimeInfo.OS != RuntimeInfo.Platform.Windows)
-                throw new InvalidOperationException(@"Automatic ffmpeg install is Windows only. Install it with your package manager (brew install ffmpeg / sudo apt install ffmpeg).");
+                throw new InvalidOperationException(@"Install ffmpeg with your package manager: sudo apt install ffmpeg (Debian/Ubuntu), sudo dnf install ffmpeg (Fedora), sudo pacman -S ffmpeg (Arch). Then press Check.");
 
             string home = ffmpegHome();
             Directory.CreateDirectory(home);
@@ -242,24 +296,20 @@ namespace osu.Game.Mapperatorinator
             onLogLine($"ffmpeg ready: {exe}");
         }
 
-        /// <summary>The most free space on any fixed drive, in bytes.</summary>
+        /// <summary>Free space where the install would go, in bytes.</summary>
         public long LargestFreeSpace()
         {
-            long best = 0;
-
-            foreach (var drive in DriveInfo.GetDrives())
+            try
             {
-                try
-                {
-                    if (drive.DriveType == DriveType.Fixed && drive.AvailableFreeSpace > best)
-                        best = drive.AvailableFreeSpace;
-                }
-                catch
-                {
-                }
-            }
+                if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+                    return new DriveInfo(largestFreeWindowsDrive()).AvailableFreeSpace;
 
-            return best;
+                return new DriveInfo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)).AvailableFreeSpace;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         /// <summary>
@@ -272,13 +322,27 @@ namespace osu.Game.Mapperatorinator
             psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
             psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
 
-            string? ffmpeg = FindFfmpeg();
+            var prepend = new List<string>();
 
+            string? ffmpeg = FindFfmpeg();
             if (ffmpeg != null && ffmpeg != @"ffmpeg")
+                prepend.Add(Path.GetDirectoryName(ffmpeg) ?? string.Empty);
+
+            // una app abierta desde finder no tiene los dirs de brew en el PATH, y el
+            // python de adentro los necesita para encontrar ffmpeg/ffprobe.
+            if (RuntimeInfo.OS == RuntimeInfo.Platform.macOS)
             {
-                string dir = Path.GetDirectoryName(ffmpeg) ?? string.Empty;
+                foreach (string dir in new[] { @"/opt/homebrew/bin", @"/usr/local/bin" })
+                {
+                    if (Directory.Exists(dir))
+                        prepend.Add(dir);
+                }
+            }
+
+            if (prepend.Count > 0)
+            {
                 string existing = psi.EnvironmentVariables[@"PATH"] ?? Environment.GetEnvironmentVariable(@"PATH") ?? string.Empty;
-                psi.EnvironmentVariables[@"PATH"] = dir + Path.PathSeparator + existing;
+                psi.EnvironmentVariables[@"PATH"] = string.Join(Path.PathSeparator, prepend.Where(d => d.Length > 0).Distinct()) + Path.PathSeparator + existing;
             }
         }
 
@@ -391,10 +455,9 @@ namespace osu.Game.Mapperatorinator
 
             onLogLine($"python 3.10: {python}");
 
-            string root = pickInstallRoot();
-            string target = Path.Combine(root, @"Torii-Mapperatorinator");
+            string target = InstallRoot();
             Directory.CreateDirectory(target);
-            onLogLine($"installing to {target} (drive with the most free space)");
+            onLogLine($"installing to {target}");
 
             // 1. bajar el repo (tarball, sin depender de git)
             string tarball = Path.Combine(target, @"src.tar.gz");
@@ -443,6 +506,12 @@ namespace osu.Game.Mapperatorinator
                 torchArgs.Add("--index-url");
                 torchArgs.Add("https://download.pytorch.org/whl/cu126");
             }
+            else if (RuntimeInfo.OS == RuntimeInfo.Platform.Linux)
+            {
+                // la rueda default de linux trae cuda (2 GB de mas); sin gpu nvidia va la cpu.
+                torchArgs.Add("--index-url");
+                torchArgs.Add("https://download.pytorch.org/whl/cpu");
+            }
             await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
 
             // 4. slider desde tarball + requirements sin su linea git
@@ -472,32 +541,141 @@ namespace osu.Game.Mapperatorinator
 
         public static string? FindPython310()
         {
-            foreach ((string exe, string[] probeArgs) in new[] { (@"py", new[] { @"-3.10", @"--version" }), (@"python3.10", new[] { @"--version" }) })
+            // el PATH de una app abierta desde finder/explorer es minimo: el python.org
+            // de mac queda en /Library/Frameworks y el de brew en /opt/homebrew, y
+            // ninguno de los dos esta en ese PATH. se prueban las rutas donde cada
+            // instalador lo deja, y recien despues el PATH.
+            foreach ((string exe, string[] probeArgs) in pythonCandidates())
             {
-                try
-                {
-                    var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
-                    foreach (string a in probeArgs) psi.ArgumentList.Add(a);
-                    using var p = Process.Start(psi);
-                    if (p == null) continue;
-
-                    string outp = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
-                    p.WaitForExit(6000);
-                    if (p.ExitCode == 0 && outp.Contains(@"3.10"))
-                        return exe == @"py" ? @"py -3.10" : exe;
-                }
-                catch
-                {
-                }
+                if (probePython(exe, probeArgs))
+                    return exe;
             }
 
             return null;
         }
 
-        /// <summary>The fixed drive with the most free space; pytorch + model need well over 10 GB.</summary>
-        private static string pickInstallRoot()
+        private static IEnumerable<(string exe, string[] args)> pythonCandidates()
         {
-            string best = Path.GetPathRoot(Path.GetTempPath()) ?? @"C:/";
+            const string version = @"--version";
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+            switch (RuntimeInfo.OS)
+            {
+                case RuntimeInfo.Platform.Windows:
+                    yield return (@"py -3.10", new[] { version });
+
+                    foreach (string candidate in new[]
+                             {
+                                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs", @"Python", @"Python310", @"python.exe"),
+                                 @"C:\Python310\python.exe",
+                                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Python310", @"python.exe"),
+                             })
+                    {
+                        if (File.Exists(candidate))
+                            yield return (candidate, new[] { version });
+                    }
+
+                    break;
+
+                case RuntimeInfo.Platform.macOS:
+                    foreach (string candidate in new[]
+                             {
+                                 @"/Library/Frameworks/Python.framework/Versions/3.10/bin/python3.10",
+                                 @"/opt/homebrew/bin/python3.10",
+                                 @"/opt/homebrew/opt/python@3.10/bin/python3.10",
+                                 @"/usr/local/bin/python3.10",
+                                 @"/usr/local/opt/python@3.10/bin/python3.10",
+                             })
+                    {
+                        if (File.Exists(candidate))
+                            yield return (candidate, new[] { version });
+                    }
+
+                    foreach (string candidate in pyenvCandidates(home))
+                        yield return (candidate, new[] { version });
+
+                    yield return (@"python3.10", new[] { version });
+                    break;
+
+                default:
+                    foreach (string candidate in new[] { @"/usr/bin/python3.10", @"/usr/local/bin/python3.10" })
+                    {
+                        if (File.Exists(candidate))
+                            yield return (candidate, new[] { version });
+                    }
+
+                    foreach (string candidate in pyenvCandidates(home))
+                        yield return (candidate, new[] { version });
+
+                    yield return (@"python3.10", new[] { version });
+                    break;
+            }
+        }
+
+        private static IEnumerable<string> pyenvCandidates(string home)
+        {
+            string versions = Path.Combine(home, @".pyenv", @"versions");
+
+            if (!Directory.Exists(versions))
+                yield break;
+
+            foreach (string dir in Directory.EnumerateDirectories(versions, @"3.10.*").OrderByDescending(d => d))
+            {
+                string python = Path.Combine(dir, @"bin", @"python");
+                if (File.Exists(python))
+                    yield return python;
+            }
+        }
+
+        private static bool probePython(string exe, string[] probeArgs)
+        {
+            try
+            {
+                string[] parts = splitLauncher(exe);
+                var psi = new ProcessStartInfo(parts[0]) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+                for (int i = 1; i < parts.Length; i++) psi.ArgumentList.Add(parts[i]);
+                foreach (string a in probeArgs) psi.ArgumentList.Add(a);
+
+                using var p = Process.Start(psi);
+                if (p == null) return false;
+
+                string outp = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+                p.WaitForExit(6000);
+                return p.ExitCode == 0 && outp.Contains(@"3.10");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>"py -3.10" is the one executable that carries an argument; real paths may contain spaces.</summary>
+        private static string[] splitLauncher(string exe) => exe.StartsWith(@"py ", StringComparison.Ordinal) ? exe.Split(' ', 2) : new[] { exe };
+
+        /// <summary>
+        /// Where the tool gets installed. Windows: the fixed drive with the most free
+        /// space (pytorch + model need well over 10 GB and C: is often nearly full).
+        /// Elsewhere: inside the user's home, because the filesystem root isn't
+        /// writable (macOS mounts it read-only) and that's where things belong anyway.
+        /// </summary>
+        public static string InstallRoot()
+        {
+            switch (RuntimeInfo.OS)
+            {
+                case RuntimeInfo.Platform.Windows:
+                    return Path.Combine(largestFreeWindowsDrive(), @"Torii-Mapperatorinator");
+
+                case RuntimeInfo.Platform.macOS:
+                    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @"Library", @"Application Support", @"Torii-Mapperatorinator");
+
+                default:
+                    return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @".local", @"share", @"torii-mapperatorinator");
+            }
+        }
+
+        private static string largestFreeWindowsDrive()
+        {
+            string best = Path.GetPathRoot(Path.GetTempPath()) ?? @"C:\";
             long bestFree = 0;
 
             foreach (var drive in DriveInfo.GetDrives())
@@ -515,16 +693,13 @@ namespace osu.Game.Mapperatorinator
                 }
             }
 
-            if (bestFree < 15L * 1024 * 1024 * 1024)
-                throw new InvalidOperationException(@"Not enough disk space: the install needs about 15 GB free on some drive.");
-
             return best;
         }
 
         private async Task runStep(string exe, string[] stepArgs, string workDir, Action<string> onLogLine, CancellationToken cancellation, Dictionary<string, string>? env = null)
         {
-            // "py -3.10" viaja como exe con argumento adentro
-            string[] exeParts = exe.Split(' ', 2);
+            // "py -3.10" viaja como exe con argumento adentro; las rutas reales pueden tener espacios.
+            string[] exeParts = splitLauncher(exe);
 
             var psi = new ProcessStartInfo(exeParts[0])
             {
