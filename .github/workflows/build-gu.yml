@@ -1129,9 +1129,42 @@ jobs:
 
     - name: Collect release files
       shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         mkdir -p release-files
         shopt -s globstar nullglob
+
+        # download-artifact@v4 puede reportar N artefactos y bajar N-3 sin fallar
+        # (paso de verdad: los dos de apple silicon quedaron sin bajar y el
+        # release salio sin mac arm64). cada artefacto de build esperado se
+        # verifica y, si falta, se baja con gh con reintentos.
+        VERSION="${{ needs.version.outputs.version }}"
+        for name in torii-windows torii-windows-arm64 torii-linux torii-linux-arm64 torii-macos-intel torii-macos-apple-silicon torii-android; do
+          art="${name}-${VERSION}"
+          if [ -d "artifacts/${art}/Releases" ]; then
+            continue
+          fi
+          echo "::warning::artifact ${art} was not downloaded, fetching it explicitly"
+          for attempt in 1 2 3; do
+            rm -rf "artifacts/${art}"
+            if gh run download "${{ github.run_id }}" -n "${art}" -D "artifacts/${art}" && [ -d "artifacts/${art}/Releases" ]; then
+              echo "fetched ${art} on attempt ${attempt}"
+              break
+            fi
+            sleep $((attempt * 10))
+          done
+          if [ ! -d "artifacts/${art}/Releases" ]; then
+            # android no existe en el stream estable: ahi no es un error.
+            if [ "$name" = "torii-android" ]; then
+              echo "no android artifact on this stream, skipping"
+            else
+              echo "::error::artifact ${art} could not be downloaded after 3 attempts"
+              exit 1
+            fi
+          fi
+        done
+
         # copy all files from any Releases/ folder in artifacts
         for f in artifacts/**/Releases/*; do
           cp -f "$f" release-files/
