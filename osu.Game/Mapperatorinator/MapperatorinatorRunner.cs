@@ -16,6 +16,52 @@ using osu.Framework.Logging;
 
 namespace osu.Game.Mapperatorinator
 {
+    /// <summary>An AMD GPU the amdgpu driver exposes to ROCm on linux.</summary>
+    public class AmdGpuInfo
+    {
+        public string Name { get; init; } = @"AMD GPU";
+
+        /// <summary>As kfd reports it: 120001 = gfx1201 (major 12, minor 0, step 1).</summary>
+        public int GfxTarget { get; init; }
+
+        /// <summary>Whether this user can open /dev/kfd. Without that ROCm sees no GPU at all.</summary>
+        public bool KfdAccessible { get; init; }
+
+        public string Gfx => $"gfx{GfxTarget / 10000}{GfxTarget / 100 % 100:x}{GfxTarget % 100:x}";
+
+        /// <summary>
+        /// The pytorch rocm wheel ships kernels for a fixed list of chips. Anything else
+        /// only runs with HSA_OVERRIDE_GFX_VERSION pointing it at the closest chip that is
+        /// in the list (what every "rocm on my 6700 XT" guide tells you to do).
+        /// </summary>
+        public string? HsaOverride
+        {
+            get
+            {
+                if (native_wheel_targets.Contains(Gfx))
+                    return null;
+
+                int major = GfxTarget / 10000, minor = GfxTarget / 100 % 100;
+
+                return major switch
+                {
+                    10 => @"10.3.0",
+                    11 when minor == 5 => @"11.5.1",
+                    11 => @"11.0.0",
+                    12 => @"12.0.1",
+                    _ => null,
+                };
+            }
+        }
+
+        // lo que compila la rueda rocm7.0 de pytorch (PYTORCH_ROCM_ARCH).
+        private static readonly HashSet<string> native_wheel_targets = new HashSet<string>
+        {
+            @"gfx900", @"gfx906", @"gfx908", @"gfx90a", @"gfx942", @"gfx950",
+            @"gfx1030", @"gfx1100", @"gfx1101", @"gfx1102", @"gfx1150", @"gfx1151", @"gfx1200", @"gfx1201",
+        };
+    }
+
     /// <summary>
     /// Runs a local Mapperatorinator install (https://github.com/OliBomby/Mapperatorinator)
     /// as an external process and reports progress. The tool itself is python + pytorch,
@@ -73,6 +119,31 @@ namespace osu.Game.Mapperatorinator
             !string.IsNullOrEmpty(Config.InstallPath)
             && File.Exists(Path.Combine(Config.InstallPath, @"inference.py"));
 
+        private const string torch_device_marker = @"torii-torch-device.txt";
+
+        /// <summary>
+        /// Which device pytorch was installed for ("cuda", "rocm", "mps", "cpu"). Null for
+        /// installs older than the marker, or when nothing is installed.
+        /// </summary>
+        public string? InstalledTorchDevice
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Config.InstallPath))
+                    return null;
+
+                try
+                {
+                    string marker = Path.Combine(Config.InstallPath, torch_device_marker);
+                    return File.Exists(marker) ? File.ReadAllText(marker).Trim() : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
+
         /// <summary>
         /// The python to use: an install-local venv if present, otherwise whatever is on PATH.
         /// </summary>
@@ -99,7 +170,8 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>
-        /// Best-effort device detection. CUDA if an nvidia GPU is visible, otherwise CPU.
+        /// Best-effort device detection. CUDA if an nvidia GPU is visible, ROCm for an AMD
+        /// card on linux, MPS on apple silicon, otherwise CPU.
         /// The distinction only drives the ETA; inference.py picks its own device with device=auto.
         /// </summary>
         public string DetectDevice()
@@ -126,6 +198,12 @@ namespace osu.Game.Mapperatorinator
             {
                 // no nvidia-smi -> no cuda.
             }
+
+            // amd en linux: el driver amdgpu expone la placa en kfd (la puerta de rocm) y
+            // torch.cuda.is_available() da true con la rueda rocm, asi que device=auto la
+            // agarra solo. la rueda trae el runtime adentro: no hay que instalar rocm.
+            if (DetectAmdGpu() != null)
+                return @"rocm";
 
             // inference.py's device=auto picks mps on apple silicon, same as we do here.
             if (MapperatorinatorReadiness.IsAppleSilicon)
@@ -182,6 +260,127 @@ namespace osu.Game.Mapperatorinator
             }
 
             return null;
+        }
+
+        private static AmdGpuInfo? amdGpu;
+        private static bool amdGpuProbed;
+
+        /// <summary>
+        /// The AMD GPU ROCm would use, or null. Reads the kfd topology the amdgpu driver
+        /// publishes in sysfs: no rocm install needed for that. Integrated GPUs (the 2 CU
+        /// thing inside a Ryzen, laptop APUs) are skipped: the model would crawl on them.
+        /// Cached: hardware doesn't change mid-session, and group changes need a re-login anyway.
+        /// </summary>
+        public static AmdGpuInfo? DetectAmdGpu()
+        {
+            if (amdGpuProbed)
+                return amdGpu;
+
+            amdGpuProbed = true;
+
+            if (RuntimeInfo.OS != RuntimeInfo.Platform.Linux || !File.Exists(@"/dev/kfd"))
+                return null;
+
+            try
+            {
+                const string nodes = @"/sys/class/kfd/kfd/topology/nodes";
+                if (!Directory.Exists(nodes))
+                    return null;
+
+                int bestGfx = 0;
+
+                foreach (string node in Directory.EnumerateDirectories(nodes))
+                {
+                    string props = Path.Combine(node, @"properties");
+                    if (!File.Exists(props))
+                        continue;
+
+                    int gfx = 0, simds = 0;
+
+                    foreach (string line in File.ReadLines(props))
+                    {
+                        int space = line.IndexOf(' ');
+                        if (space <= 0 || !int.TryParse(line.AsSpan(space + 1).Trim(), out int value))
+                            continue;
+
+                        string key = line.Substring(0, space);
+                        if (key == @"gfx_target_version") gfx = value;
+                        else if (key == @"simd_count") simds = value;
+                    }
+
+                    // la cpu tambien es un nodo (gfx 0). 32 simds = 16 CUs: deja afuera las
+                    // igpu y entra cualquier placa de verdad (una 6600 tiene 28 CUs).
+                    if (gfx >= 90000 && simds >= 32 && gfx > bestGfx)
+                        bestGfx = gfx;
+                }
+
+                if (bestGfx == 0)
+                    return null;
+
+                amdGpu = new AmdGpuInfo { GfxTarget = bestGfx, Name = amdGpuName(bestGfx), KfdAccessible = canOpenKfd() };
+                return amdGpu;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string amdGpuName(int gfx)
+        {
+            string fallback = $"AMD GPU (gfx{gfx / 10000}{gfx / 100 % 100:x}{gfx % 100:x})";
+
+            try
+            {
+                using var p = Process.Start(new ProcessStartInfo(@"lspci", @"-d 1002: -nn")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+
+                if (p == null)
+                    return fallback;
+
+                string outp = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(4000);
+
+                // "03:00.0 VGA compatible controller [0300]: Advanced Micro Devices, Inc. [AMD/ATI] Navi 48 [Radeon RX 9070/9070 XT] [1002:7550]"
+                foreach (string line in outp.Split('\n'))
+                {
+                    if (!line.Contains(@"VGA") && !line.Contains(@"Display") && !line.Contains(@"3D"))
+                        continue;
+
+                    var m = System.Text.RegularExpressions.Regex.Match(line, @"\[(Radeon[^\]]*)\]");
+                    if (m.Success)
+                        return m.Groups[1].Value;
+                }
+            }
+            catch
+            {
+                // sin lspci (pciutils) nos quedamos con el gfx.
+            }
+
+            return fallback;
+        }
+
+        private static bool canOpenKfd()
+        {
+            try
+            {
+                using var f = new FileStream(@"/dev/kfd", FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch
+            {
+                // cualquier otro error no habla de permisos; que lo intente.
+                return true;
+            }
         }
 
         private static IEnumerable<string> knownFfmpegPaths()
@@ -322,6 +521,11 @@ namespace osu.Game.Mapperatorinator
             psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
             psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
 
+            // rocm: placas fuera de la lista de la rueda andan apuntadas al pariente mas
+            // cercano. si el usuario ya lo seteo a mano, se respeta.
+            if (DetectAmdGpu()?.HsaOverride is string hsa && !psi.EnvironmentVariables.ContainsKey(@"HSA_OVERRIDE_GFX_VERSION"))
+                psi.EnvironmentVariables[@"HSA_OVERRIDE_GFX_VERSION"] = hsa;
+
             var prepend = new List<string>();
 
             string? ffmpeg = FindFfmpeg();
@@ -365,6 +569,9 @@ namespace osu.Game.Mapperatorinator
             if (all.Contains(@"not compiled with CUDA") || all.Contains(@"Torch not compiled"))
                 return @"PyTorch was installed without GPU support. Re-run the Mapperatorinator install from the requirements list.";
 
+            if (all.Contains(@"HSA_STATUS_ERROR") || all.Contains(@"hipErrorNoDevice") || all.Contains(@"No HIP GPUs are available") || all.Contains(@"rocBLAS error") || all.Contains(@"hipErrorInvalidDevice"))
+                return @"The AMD GPU couldn't be used through ROCm. Look at the 'This machine' line in Mapperatorinator's requirements: usually it's your user not being in the render and video groups.";
+
             if (all.Contains(@"out of memory", StringComparison.OrdinalIgnoreCase))
                 return @"The GPU ran out of memory. Close other programs using it, or try a shorter song.";
 
@@ -404,6 +611,7 @@ namespace osu.Game.Mapperatorinator
             double factor = device switch
             {
                 @"cuda" => Config.SpeedFactorCuda ?? 0.6,
+                @"rocm" => Config.SpeedFactorRocm ?? 1.0,
                 @"mps" => Config.SpeedFactorMps ?? 2.5,
                 _ => Config.SpeedFactorCpu ?? 8.0,
             };
@@ -423,6 +631,10 @@ namespace osu.Game.Mapperatorinator
             {
                 case @"cuda":
                     Config.SpeedFactorCuda = Config.SpeedFactorCuda == null ? factor : (Config.SpeedFactorCuda * 0.6 + factor * 0.4);
+                    break;
+
+                case @"rocm":
+                    Config.SpeedFactorRocm = Config.SpeedFactorRocm == null ? factor : (Config.SpeedFactorRocm * 0.6 + factor * 0.4);
                     break;
 
                 case @"mps":
@@ -479,6 +691,7 @@ namespace osu.Game.Mapperatorinator
                 throw new InvalidOperationException(@"Download extracted but the expected folder is missing.");
 
             // 2. venv + pip al dia
+            bool venvExisted = Directory.Exists(Path.Combine(checkout, @".venv"));
             onLogLine(@"creating python environment...");
             await runStep(python, new[] { "-m", "venv", ".venv" }, checkout, onLogLine, cancellation).ConfigureAwait(false);
             string venvPython = Path.Combine(checkout, @".venv", @"Scripts", @"python.exe");
@@ -496,23 +709,52 @@ namespace osu.Game.Mapperatorinator
             await runStep(venvPython, new[] { "-m", "pip", "install", "--upgrade", "pip", "--quiet" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
 
             // 3. pytorch segun gpu (el download gordo, varios GB)
-            bool cuda = DetectDevice() == @"cuda";
-            onLogLine(cuda
-                ? @"installing pytorch with CUDA (this is the big one, a few GB)..."
-                : @"no nvidia gpu found: installing cpu pytorch (generation will be SLOW)...");
-            var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
-            if (cuda)
+            string installDevice = DetectDevice();
+            onLogLine(installDevice switch
             {
-                torchArgs.Add("--index-url");
-                torchArgs.Add("https://download.pytorch.org/whl/cu126");
+                @"cuda" => @"installing pytorch with CUDA (this is the big one, a few GB)...",
+                @"rocm" => @"amd gpu found: installing pytorch with ROCm (this is the big one, a few GB; the runtime comes inside the package, nothing to install on your system)...",
+                @"mps" => @"installing pytorch (apple silicon runs it through MPS)...",
+                _ => @"no nvidia/amd gpu found: installing cpu pytorch (generation will be SLOW)...",
+            });
+            string deviceMarker = Path.Combine(checkout, torch_device_marker);
+            string? previousDevice = File.Exists(deviceMarker) ? File.ReadAllText(deviceMarker).Trim() : null;
+
+            if (venvExisted && previousDevice != installDevice)
+            {
+                // pip da por cumplido "torch" aunque sea la rueda de otro device: hay que sacarla.
+                onLogLine(@"pytorch in there was installed for a different device: replacing it...");
+                await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
             }
-            else if (RuntimeInfo.OS == RuntimeInfo.Platform.Linux)
+
+            var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
+
+            switch (installDevice)
             {
-                // la rueda default de linux trae cuda (2 GB de mas); sin gpu nvidia va la cpu.
-                torchArgs.Add("--index-url");
-                torchArgs.Add("https://download.pytorch.org/whl/cpu");
+                case @"cuda":
+                    torchArgs.Add("--index-url");
+                    torchArgs.Add("https://download.pytorch.org/whl/cu126");
+                    break;
+
+                case @"rocm":
+                    // 7.0: la primera con kernels para rdna4 (rx 9000) que todavia publica
+                    // ruedas de python 3.10 con torch y torchaudio de la misma version.
+                    torchArgs.Add("--index-url");
+                    torchArgs.Add("https://download.pytorch.org/whl/rocm7.0");
+                    break;
+
+                default:
+                    if (RuntimeInfo.OS == RuntimeInfo.Platform.Linux)
+                    {
+                        // la rueda default de linux trae cuda (2 GB de mas); sin gpu va la cpu.
+                        torchArgs.Add("--index-url");
+                        torchArgs.Add("https://download.pytorch.org/whl/cpu");
+                    }
+
+                    break;
             }
             await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+            await File.WriteAllTextAsync(deviceMarker, installDevice, cancellation).ConfigureAwait(false);
 
             // 4. slider desde tarball + requirements sin su linea git
             onLogLine(@"installing dependencies...");
@@ -930,6 +1172,9 @@ namespace osu.Game.Mapperatorinator
 
         [JsonPropertyName(@"speed_factor_mps")]
         public double? SpeedFactorMps { get; set; }
+
+        [JsonPropertyName(@"speed_factor_rocm")]
+        public double? SpeedFactorRocm { get; set; }
 
         /// <summary>Full path of the ffmpeg executable the game installed (or the user pointed at).</summary>
         [JsonPropertyName(@"ffmpeg_path")]
