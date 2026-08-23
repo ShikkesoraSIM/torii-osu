@@ -111,8 +111,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     # Prevent concurrent builds from interfering with each other's NuGet operations
+    # un grupo por ref: si no, el CI de un push a la rama y el build de un tag pelean
+    # por el mismo grupo, y github cancela el que estaba esperando cuando entra un
+    # tercero (asi se perdio el build de la .823.4-nova: master + tag nova + tag torii
+    # en un minuto). por ref solo se deduplican pushes repetidos a la misma rama/tag.
     concurrency:
-      group: build-${{ matrix.os }}-${{ matrix.runtime }}
+      group: build-${{ github.ref }}-${{ matrix.os }}-${{ matrix.runtime }}
       cancel-in-progress: false
     strategy:
       fail-fast: false
