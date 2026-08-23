@@ -73,10 +73,13 @@ namespace osu.Game.Mapperatorinator
     /// </summary>
     public class HardwareInfo
     {
-        /// <summary>"cuda", "mps" or "cpu": what inference.py's device=auto will end up on.</summary>
+        /// <summary>"cuda", "rocm", "mps" or "cpu": what inference.py's device=auto will end up on.</summary>
         public string Device { get; init; } = @"cpu";
 
         public bool IsMobile { get; init; }
+
+        /// <summary>There is a usable GPU but this user isn't allowed to open it (linux groups).</summary>
+        public bool GpuAccessBlocked { get; init; }
 
         public string Description { get; init; } = string.Empty;
     }
@@ -111,8 +114,33 @@ namespace osu.Game.Mapperatorinator
             return device switch
             {
                 @"cuda" => new HardwareInfo { Device = device, Description = @"NVIDIA GPU found: generation runs on CUDA, the fast path." },
+                @"rocm" => amdHardware(device),
                 @"mps" => new HardwareInfo { Device = device, Description = @"Apple Silicon: generation runs on the GPU through MPS. Supported, but slower than an NVIDIA card." },
                 _ => new HardwareInfo { Device = device, Description = @"No supported GPU found: generation runs on the CPU. It works, but expect several minutes per map." },
+            };
+        }
+
+        private static HardwareInfo amdHardware(string device)
+        {
+            var amd = MapperatorinatorRunner.DetectAmdGpu();
+
+            if (amd == null)
+                return new HardwareInfo { Device = device, Description = @"AMD GPU found: generation runs on it through ROCm." };
+
+            if (!amd.KfdAccessible)
+            {
+                return new HardwareInfo
+                {
+                    Device = device,
+                    GpuAccessBlocked = true,
+                    Description = $"{amd.Name} found, but your user isn't allowed to open it (/dev/kfd), so ROCm can't see it and generation would fall back to the CPU.",
+                };
+            }
+
+            return new HardwareInfo
+            {
+                Device = device,
+                Description = $"{amd.Name} found: generation runs on it through ROCm (the runtime comes with pytorch, nothing else to install).",
             };
         }
 
@@ -129,9 +157,13 @@ namespace osu.Game.Mapperatorinator
             {
                 Kind = RequirementKind.Platform,
                 Title = @"This machine",
-                State = hardware.IsMobile ? RequirementState.Unsupported : hardware.Device == @"cuda" ? RequirementState.Ok : RequirementState.Warning,
+                State = hardware.IsMobile ? RequirementState.Unsupported
+                    : (hardware.Device == @"cuda" || hardware.Device == @"rocm") && !hardware.GpuAccessBlocked ? RequirementState.Ok
+                    : RequirementState.Warning,
                 Detail = hardware.Description,
-                Instructions = hardware.IsMobile ? @"Generate on a PC or Mac, then play the map anywhere." : string.Empty,
+                Instructions = hardware.IsMobile ? @"Generate on a PC or Mac, then play the map anywhere."
+                    : hardware.GpuAccessBlocked ? @"In a terminal: sudo usermod -aG render,video $USER. Then log out and back in (groups only apply at login), open Torii again and press Check."
+                    : string.Empty,
             });
 
             if (hardware.IsMobile)
@@ -187,13 +219,24 @@ namespace osu.Game.Mapperatorinator
                 Instructions = @"Free up space on any drive; the install picks whichever has the most room.",
             });
 
-            // 5. la tool en si (checkout + venv con torch)
+            // 5. la tool en si (checkout + venv con torch). si pytorch quedo instalado para
+            //    otro device del que hay ahora (cpu en una maquina amd de antes del soporte
+            //    rocm, o una gpu nueva), avisar y ofrecer reinstalar: solo se reemplaza torch.
+            string? torchDevice = runner.InstalledTorchDevice;
+            bool gpuNow = hardware.Device == @"cuda" || hardware.Device == @"rocm";
+            bool wrongTorch = installed && gpuNow && (torchDevice == null ? hardware.Device == @"rocm" : torchDevice != hardware.Device);
+
             list.Add(new Requirement
             {
                 Kind = RequirementKind.Tool,
                 Title = @"Mapperatorinator",
-                State = installed ? RequirementState.Ok : RequirementState.Missing,
-                Detail = installed ? $"installed ({runner.Config.InstallPath})" : @"not installed yet. One click does it: the tool, the python packages and pytorch (about 8 GB; the model downloads on your first generation).",
+                State = !installed ? RequirementState.Missing : wrongTorch ? RequirementState.Warning : RequirementState.Ok,
+                Detail = !installed
+                    ? @"not installed yet. One click does it: the tool, the python packages and pytorch (about 8 GB; the model downloads on your first generation)."
+                    : wrongTorch
+                        ? $"installed, but its pytorch isn't the {hardware.Device} build, so generation ignores the GPU and runs on the CPU."
+                        : $"installed ({runner.Config.InstallPath})",
+                Instructions = wrongTorch ? @"Press Install automatically: it swaps pytorch for the GPU build (a few GB) and leaves the rest alone." : string.Empty,
                 CanAutoInstall = true,
             });
 

@@ -583,7 +583,8 @@ namespace osu.Game.Mapperatorinator
                     Margin = new MarginPadding { Top = 6 },
                 };
 
-                bool actionable = requirement.State == RequirementState.Missing;
+                // warning con instalacion posible = "anda, pero apretando esto anda mejor" (torch para otro device).
+                bool actionable = requirement.State == RequirementState.Missing || requirement.State == RequirementState.Warning && requirement.CanAutoInstall;
 
                 if (actionable && requirement.CanAutoInstall && AutoInstall != null)
                     buttons.Add(new RoundedButton { Width = 190, Height = 30, Text = @"Install automatically", Action = AutoInstall });
@@ -707,6 +708,7 @@ namespace osu.Game.Mapperatorinator
             string hardware = device switch
             {
                 @"cuda" => @"NVIDIA GPU (CUDA)",
+                @"rocm" => @"AMD GPU (ROCm)",
                 @"mps" => @"Apple Silicon (MPS, slower than NVIDIA)",
                 _ => @"CPU only (no supported GPU found, this will be slow)",
             };
