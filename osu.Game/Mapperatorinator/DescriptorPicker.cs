@@ -34,7 +34,7 @@ namespace osu.Game.Mapperatorinator
 
         private readonly Dictionary<string, ChipState> states = new Dictionary<string, ChipState>();
         private readonly List<DescriptorChip> chips = new List<DescriptorChip>();
-        private FillFlowContainer content = null!;
+        private FillFlowContainer? content;
 
         public IEnumerable<string> Wanted => states.Where(kv => kv.Value == ChipState.Want).Select(kv => kv.Key);
         public IEnumerable<string> Avoided => states.Where(kv => kv.Value == ChipState.Avoid).Select(kv => kv.Key);
@@ -48,7 +48,11 @@ namespace osu.Game.Mapperatorinator
                 if (gamemodeId == value) return;
 
                 gamemodeId = value;
-                if (IsLoaded)
+
+                // content, no IsLoaded: los chips ya existen apenas corre el load del
+                // control, pero IsLoaded recien es true un frame despues. Mirar IsLoaded
+                // hacia que todo lo que se seteara en el medio no se dibujara nunca.
+                if (content != null)
                     rebuild();
             }
         }
@@ -65,7 +69,11 @@ namespace osu.Game.Mapperatorinator
             foreach (string tag in avoided)
                 states[tag] = ChipState.Avoid;
 
-            if (IsLoaded)
+            // idem: prefill corre durante el load de la pantalla, cuando los chips ya
+            // estan construidos (en gris) pero el control todavia no figura como loaded.
+            // Ese chequeo era la razon por la que abrir un mapa generado mostraba todos
+            // los estilos apagados aunque el mapa se hubiera pedido con la mitad en verde.
+            if (content != null)
                 rebuild();
         }
 
@@ -88,6 +96,9 @@ namespace osu.Game.Mapperatorinator
 
         private void rebuild()
         {
+            if (content == null)
+                return;
+
             content.Clear();
             chips.Clear();
 

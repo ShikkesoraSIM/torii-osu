@@ -48,6 +48,33 @@ namespace osu.Game.Mapperatorinator
         private GameHost host { get; set; } = null!;
 
         /// <summary>
+        /// Guarda las opciones con las que se genero un mapa como preset con nombre.
+        /// El camino natural es este: generaste, te gusto como quedo, y recien ahi
+        /// queres guardartelo. No hace falta abrir el generador para eso.
+        /// </summary>
+        public void SavePresetFromBeatmap(BeatmapInfo beatmap, string name)
+        {
+            var sidecar = ReadSidecar(beatmap);
+
+            if (sidecar == null)
+            {
+                notifications?.Post(new SimpleErrorNotification { Text = @"This map doesn't carry the settings it was generated with." });
+                return;
+            }
+
+            var request = new SaveMapperatorinatorPresetRequest(name, sidecar.Serialize());
+
+            request.Success += preset => Schedule(() => notifications?.Post(new SimpleNotification
+            {
+                Text = $"Saved \"{preset.Name}\". Pick it from the preset list next time you generate.",
+            }));
+
+            request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't save the preset: {e.Message}" }));
+
+            api.Queue(request);
+        }
+
+        /// <summary>
         /// The single shared runner (config, install path, speed factors). The screen
         /// uses this same instance so install-path changes are seen everywhere at once.
         /// </summary>

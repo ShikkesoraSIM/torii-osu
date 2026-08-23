@@ -16,6 +16,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
+using osu.Game.Mapperatorinator;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
 using osu.Game.Rulesets.Mods;
@@ -103,10 +104,14 @@ namespace osu.Game.Screens.Select
                 {
                     new OsuMenuItem("Regenerate (same settings, new seed)", MenuItemType.Standard,
                         () => generationManager?.QuickRegenerate(beatmap)),
-                    // ver con que se hizo (y poder guardarlo como preset) sin tener que
-                    // adivinar: el mapa se lleva sus settings adentro del set.
+                    // mirar con que se hizo (la pantalla queda cargada con esas opciones)...
                     new OsuMenuItem("See the settings this map used", MenuItemType.Standard,
                         () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true, reviewOnly: true))),
+                    // ...o guardartelas de una, que es lo que en general vas a querer
+                    // cuando un mapa sale bien: un nombre y listo, sin abrir nada.
+                    new OsuMenuItem("Save these settings as a preset", MenuItemType.Standard,
+                        () => dialogOverlay?.Push(new PresetNameDialog($"{beatmap.Metadata.Title} style",
+                            name => generationManager?.SavePresetFromBeatmap(beatmap, name)))),
                     new OsuMenuItem("New difficulty (tweak settings)", MenuItemType.Standard,
                         () => this.Push(new Mapperatorinator.MapperatorinatorScreen(beatmap, addToExistingSet: true))),
                     new OsuMenuItem("Generate as a new set", MenuItemType.Standard,

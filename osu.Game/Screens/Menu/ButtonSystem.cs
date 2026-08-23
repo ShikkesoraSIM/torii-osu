@@ -42,6 +42,7 @@ namespace osu.Game.Screens.Menu
 
         public Action? OnEditBeatmap;
         public Action? OnEditSkin;
+        public Action? OnMapperatorinator;
         public Action<UIEvent>? OnExit;
         public Action? OnBeatmapListing;
         public Action? OnSolo;
@@ -173,6 +174,11 @@ namespace osu.Game.Screens.Menu
                 Padding = new MarginPadding { Left = WEDGE_WIDTH },
             });
             buttonsEdit.Add(new MainMenuButton(SkinEditorStrings.SkinEditor.ToLower(), @"button-default-select", OsuIcon.SkinB, new Color4(220, 160, 0, 255), (_, _) => OnEditSkin?.Invoke(), Key.S));
+
+            // torii: generar un mapa desde una cancion suelta, sin tener que buscar un
+            // mapa que ya tenga ese audio.
+            buttonsEdit.Add(new MainMenuButton(@"mapperatorinator", @"button-default-select", FontAwesome.Solid.Magic, new Color4(200, 140, 0, 255),
+                (_, _) => OnMapperatorinator?.Invoke(), Key.M));
             buttonsEdit.ForEach(b => b.VisibleState = ButtonSystemState.Edit);
 
             buttonsTopLevel.Add(new MainMenuButton(ButtonSystemStrings.Play, @"button-play-select", OsuIcon.Logo, new Color4(102, 68, 204, 255), (_, _) => State = ButtonSystemState.Play, Key.P, Key.M,
