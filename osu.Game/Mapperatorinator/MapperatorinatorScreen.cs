@@ -232,6 +232,9 @@ namespace osu.Game.Mapperatorinator
                             },
                             presetName = new FormTextBox
                             {
+                                // mismo limite que acepta el server: cortarlo aca es mejor
+                                // que un error despues de escribir parrafos.
+                                LengthLimit = 60,
                                 Caption = @"Preset name",
                                 HintText = @"A name you'll recognise, like ""stream farm 6 stars"". Reusing a name overwrites that preset.",
                                 PlaceholderText = @"name it to save the settings below",
@@ -1398,6 +1401,8 @@ namespace osu.Game.Mapperatorinator
         /// </summary>
         private MapperatorinatorRequest buildRequest(MapperatorinatorModel selectedModel, int? yearValue)
         {
+            warnedThisPass = false;
+
             var request = new MapperatorinatorRequest
             {
                 Model = selectedModel,
@@ -1405,13 +1410,13 @@ namespace osu.Game.Mapperatorinator
                 Gamemode = gamemode.Current.Value,
                 Difficulty = difficulty.Current.Value,
                 Year = yearValue,
-                MapperId = selectedModel.SupportsMapperId() ? parseIntOrNull(mapperId.Current.Value) : null,
+                MapperId = selectedModel.SupportsMapperId() ? readMapperId() : null,
                 Seed = parseIntOrNull(seed.Current.Value),
-                Keycount = parseIntOrNull(keycount.Current.Value) is int k ? Math.Clamp(k, 1, 10) : null,
-                CircleSize = circleSize.Alpha > 0 ? parseStatOrNull(circleSize.Current.Value) : null,
-                ApproachRate = approachRate.Alpha > 0 ? parseStatOrNull(approachRate.Current.Value) : null,
-                OverallDifficulty = parseStatOrNull(overallDifficulty.Current.Value),
-                HpDrainRate = parseStatOrNull(hpDrain.Current.Value),
+                Keycount = readKeycount(),
+                CircleSize = circleSize.Alpha > 0 ? readStat(circleSize, @"CS") : null,
+                ApproachRate = approachRate.Alpha > 0 ? readStat(approachRate, @"AR") : null,
+                OverallDifficulty = readStat(overallDifficulty, @"OD"),
+                HpDrainRate = readStat(hpDrain, @"HP"),
                 Hitsounded = !selectedModel.SupportsHitsoundsToggle() || hitsounds.Current.Value,
                 SuperTiming = superTiming.Current.Value,
             };
@@ -1458,6 +1463,86 @@ namespace osu.Game.Mapperatorinator
         private void scrollLogToEnd() => logScroll.ScrollToEnd();
 
         private static int? parseIntOrNull(string? s) => int.TryParse(s, out int v) ? v : null;
+
+        /// <summary>
+        /// Un CS/AR/OD/HP del formulario. Fuera de rango no se recorta en silencio: se
+        /// corrige el campo y se dice que paso, porque guardar 10 cuando la persona
+        /// escribio 33 y no avisarle es peor que no aceptarlo.
+        /// </summary>
+        private double? readStat(FormNumberBox box, string label)
+        {
+            string? text = box.Current.Value;
+
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+            {
+                warn($"{label} has to be a number. Leaving it for the model to decide.");
+                box.Current.Value = string.Empty;
+                return null;
+            }
+
+            double clamped = Math.Clamp(value, 0, 10);
+
+            if (Math.Abs(clamped - value) > 0.001)
+            {
+                warn($"{label} goes from 0 to 10, so {value:0.#} became {clamped:0.#}.");
+                box.Current.Value = clamped.ToString(@"0.#", CultureInfo.InvariantCulture);
+            }
+
+            return clamped;
+        }
+
+        private int? readKeycount()
+        {
+            if (string.IsNullOrWhiteSpace(keycount.Current.Value))
+                return null;
+
+            if (parseIntOrNull(keycount.Current.Value) is not int keys)
+            {
+                warn(@"Key count has to be a number. Leaving it for the model to decide.");
+                keycount.Current.Value = string.Empty;
+                return null;
+            }
+
+            int clamped = Math.Clamp(keys, 1, 10);
+
+            if (clamped != keys)
+            {
+                warn($"Mania goes from 1 to 10 keys, so {keys} became {clamped}.");
+                keycount.Current.Value = clamped.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return clamped;
+        }
+
+        private int? readMapperId()
+        {
+            if (string.IsNullOrWhiteSpace(mapperId.Current.Value))
+                return null;
+
+            if (parseIntOrNull(mapperId.Current.Value) is not int id || id <= 0)
+            {
+                warn(@"The mapper to imitate is an osu! user ID (a number). Ignoring it.");
+                mapperId.Current.Value = string.Empty;
+                return null;
+            }
+
+            return id;
+        }
+
+        /// <summary>Un aviso por corrida: si corregiste tres campos, no salen tres carteles.</summary>
+        private void warn(string message)
+        {
+            if (warnedThisPass)
+                return;
+
+            warnedThisPass = true;
+            notifications?.Post(new SimpleNotification { Text = message });
+        }
+
+        private bool warnedThisPass;
 
         /// <summary>An AR/CS/OD/HP value clamped to osu!'s legal range, or null if not set.</summary>
         private static double? parseStatOrNull(string? s) =>

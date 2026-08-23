@@ -159,6 +159,15 @@ namespace osu.Game.Mapperatorinator
             refresh();
         }
 
+        public override void OnResuming(ScreenTransitionEvent e)
+        {
+            base.OnResuming(e);
+
+            // se vuelve aca despues de editar un preset: la lista tiene que mostrar lo
+            // que se acaba de guardar, no lo que habia antes de entrar.
+            refresh();
+        }
+
         private void refresh(int? selectId = null)
         {
             loading.Show();
