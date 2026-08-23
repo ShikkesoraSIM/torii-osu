@@ -79,11 +79,41 @@ namespace osu.Game.Mapperatorinator
         /// <summary>Where the full output of the most recent generation gets written.</summary>
         public string LastRunLogPath => Path.Combine(dataDirectory, @"logs", @"mapperatorinator-last-run.log");
 
+        /// <summary>Where a report written by <see cref="WriteReport"/> lands.</summary>
+        public string ReportPath(string name) => Path.Combine(dataDirectory, @"logs", $"mapperatorinator-{name}.log");
+
+        /// <summary>
+        /// Dumps whatever a long job printed to a file, so it can be read after the fact
+        /// and sent to someone. The in-game log panel is for watching, not for keeping.
+        /// </summary>
+        public string? WriteReport(string name, IEnumerable<string> lines)
+        {
+            try
+            {
+                string path = ReportPath(name);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllLines(path, lines);
+                return path;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public MapperatorinatorRunner(string dataDirectory)
         {
             this.dataDirectory = dataDirectory;
             configPath = Path.Combine(dataDirectory, CONFIG_FILENAME);
             load();
+
+            // la prueba anterior nunca termino: el unico final que no escribe nada es que
+            // la placa se llevo el juego puesta. no se vuelve a intentar sola.
+            if (Config.RocmTrialPending)
+            {
+                Config.RocmTrialPending = false;
+                MarkRocmBlocked(@"the game went down while testing the card");
+            }
         }
 
         private void load()
@@ -774,6 +804,29 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             Config.RocmEnabled = true;
             Config.RocmBlocked = false;
             Config.RocmLastError = null;
+            Save();
+        }
+
+        /// <summary>Back to the CPU because the user said so: no failure, no block.</summary>
+        public void DisableRocm()
+        {
+            Config.RocmEnabled = false;
+            Config.RocmBlocked = false;
+            Config.RocmLastError = null;
+            Config.RocmTrialPending = false;
+            Save();
+        }
+
+        /// <summary>Written to disk before the card is touched, cleared once it answers.</summary>
+        public void BeginRocmTrial()
+        {
+            Config.RocmTrialPending = true;
+            Save();
+        }
+
+        public void EndRocmTrial()
+        {
+            Config.RocmTrialPending = false;
             Save();
         }
 
@@ -1705,6 +1758,13 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// <summary>Why the GPU was given up on, in the user's words.</summary>
         [JsonPropertyName(@"rocm_last_error")]
         public string? RocmLastError { get; set; }
+
+        /// <summary>
+        /// True while the card is being tested. If it's still true at startup, the test
+        /// took the game down with it, which is all we need to know about that card.
+        /// </summary>
+        [JsonPropertyName(@"rocm_trial_pending")]
+        public bool RocmTrialPending { get; set; }
 
         /// <summary>Full path of the ffmpeg executable the game installed (or the user pointed at).</summary>
         [JsonPropertyName(@"ffmpeg_path")]

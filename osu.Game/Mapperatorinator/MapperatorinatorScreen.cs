@@ -66,6 +66,9 @@ namespace osu.Game.Mapperatorinator
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        [Resolved]
+        private GameHost host { get; set; } = null!;
+
         private MapperatorinatorRunner runner = null!;
 
         // paso 1: opciones del generador
@@ -101,6 +104,7 @@ namespace osu.Game.Mapperatorinator
         private RoundedButton generateButton = null!;
         private OsuSpriteText etaText = null!;
         private OsuTextFlowContainer logFlow = null!;
+        private RoundedButton openReportButton = null!;
         private OsuScrollContainer logScroll = null!;
 
         private bool installing;
@@ -290,10 +294,22 @@ namespace osu.Game.Mapperatorinator
                                 Action = startGeneration,
                             },
 
+                            openReportButton = new RoundedButton
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 32,
+                                Alpha = 0,
+                                Text = @"Open the log file",
+                                Action = () =>
+                                {
+                                    if (lastReportPath != null)
+                                        openReport(lastReportPath);
+                                },
+                            },
                             logScroll = new OsuScrollContainer
                             {
                                 RelativeSizeAxes = Axes.X,
-                                Height = 240,
+                                Height = 340,
                                 Alpha = 0,
                                 // el boton de back de la pantalla flota abajo a la
                                 // izquierda; sin este margen se dibuja arriba del log.
@@ -495,12 +511,15 @@ namespace osu.Game.Mapperatorinator
                         // no se rebaja todo de nuevo.
                         RequirementKind.Tool => r.State == RequirementState.Warning ? startTorchFix : startInstall,
                         RequirementKind.Ffmpeg => startFfmpegInstall,
-                        RequirementKind.Platform => tryGpu,
+                        // probar / reintentar / volver a la cpu, segun donde estemos parados.
+                        RequirementKind.Platform => runner.Config.RocmEnabled ? backToCpu : tryGpu,
                         _ => null,
                     },
                     OpenDownload = r.DownloadUrl == null ? null : () => game?.OpenUrlExternally(r.DownloadUrl),
-                    // en la fila de la maquina, cuando hay una amd para probar: mirar sin tocar.
-                    Secondary = r.Kind == RequirementKind.Platform && r.CanAutoInstall ? (@"GPU report", (Action)gpuReport) : null,
+                    // el reporte esta SIEMPRE que haya una placa amd y la tool instalada,
+                    // incluso (sobre todo) despues de que algo falle: es lo que se manda
+                    // para pedir ayuda.
+                    Secondary = r.Kind == RequirementKind.Platform && r.AlwaysActionable ? (@"GPU report", (Action)gpuReport) : null,
                 });
             }
 
@@ -683,10 +702,15 @@ namespace osu.Game.Mapperatorinator
 
             string gpuName = MapperatorinatorRunner.DetectAmdGpu()?.Name ?? @"your AMD GPU";
 
-            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () => runInstallTask(async (log, token) =>
+            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () => runInstallTask(@"gpu-test", async (log, token) =>
             {
                 runner.EnableRocm();
                 runner.SetRocmOverride(null);
+
+                // desde aca hasta el final se toca la placa. si el cliente no llega a
+                // borrar esta marca, es porque se murio con el driver: al proximo arranque
+                // se da por fallada y nadie repite el paseo sin querer.
+                runner.BeginRocmTrial();
 
                 string? failure = null;
 
@@ -734,6 +758,7 @@ namespace osu.Game.Mapperatorinator
                     // recien aca se le manda trabajo de verdad a la placa.
                     if (await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
                     {
+                        runner.EndRocmTrial();
                         Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your card passed the test. The next map should be a lot faster." }));
                         return;
                     }
@@ -741,6 +766,7 @@ namespace osu.Game.Mapperatorinator
                     failure = @"the card faulted on a two-second test multiply";
                 }
 
+                runner.EndRocmTrial();
                 runner.MarkRocmBlocked(failure);
                 Schedule(() =>
                 {
@@ -750,17 +776,46 @@ namespace osu.Game.Mapperatorinator
             }), () => { }));
         }
 
-        /// <summary>Everything torch knows about the card, printed to the log. Dispatches nothing.</summary>
-        private void gpuReport() => runInstallTask(async (log, token) =>
+        /// <summary>Turn the GPU back off. No drama, no test: straight back to the CPU.</summary>
+        private void backToCpu()
         {
+            runner.DisableRocm();
+            notifications?.Post(new SimpleNotification { Text = @"Generation is back on the CPU." });
+            runChecks();
+        }
+
+        /// <summary>Everything torch knows about the card, printed to the log. Dispatches nothing.</summary>
+        private void gpuReport() => runInstallTask(@"gpu-report", async (log, token) =>
+        {
+            // leer las propiedades igual inicializa HIP: si eso mata al cliente, que la
+            // proxima sesion lo sepa en vez de intentar generar en la placa.
+            runner.BeginRocmTrial();
+            log($"torii {game?.Version}, {RuntimeInfo.OS}");
+
+            var amd = MapperatorinatorRunner.DetectAmdGpu();
+            if (amd != null)
+                log($"card seen by the driver: {amd.Name} ({amd.Gfx}), /dev/kfd readable: {amd.KfdAccessible}");
+
+            log($"generation currently runs on: {runner.EffectiveDevice()}");
+
+            if (runner.Config.RocmLastError != null)
+                log($"last GPU failure: {runner.Config.RocmLastError}");
+
             var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
-            Schedule(() => log(probe.ArchSupported
+
+            runner.EndRocmTrial();
+
+            log(probe.ArchSupported
                 ? @"this pytorch does carry kernels for your card."
-                : @"this pytorch does NOT carry kernels for your card: that's the mismatch that faults the GPU."));
+                : @"this pytorch does NOT carry kernels for your card: that's the mismatch that faults the GPU.");
         });
 
-        /// <summary>Shared plumbing for the long jobs: one at a time, logged, cancellable.</summary>
-        private void runInstallTask(Func<Action<string>, CancellationToken, Task> work)
+        /// <summary>
+        /// Shared plumbing for the long jobs: one at a time, cancellable, and everything
+        /// they print ends up in a file. The panel below is for watching; the file is what
+        /// you can actually read afterwards and send to someone.
+        /// </summary>
+        private void runInstallTask(string reportName, Func<Action<string>, CancellationToken, Task> work)
         {
             if (installing) return;
 
@@ -772,7 +827,15 @@ namespace osu.Game.Mapperatorinator
             installCancellation = new CancellationTokenSource();
             var token = installCancellation.Token;
 
-            void log(string line) => Schedule(() => appendLog(line));
+            var collected = new List<string>();
+
+            void log(string line)
+            {
+                lock (collected)
+                    collected.Add(line);
+
+                Schedule(() => appendLog(line));
+            }
 
             Task.Run(async () =>
             {
@@ -791,54 +854,62 @@ namespace osu.Game.Mapperatorinator
                 }
                 finally
                 {
+                    string[] lines;
+                    lock (collected)
+                        lines = collected.ToArray();
+
+                    string? path = runner.WriteReport(reportName, lines);
+
                     Schedule(() =>
                     {
                         installing = false;
+                        lastReportPath = path;
+                        openReportButton.Alpha = path != null ? 1 : 0;
                         runChecks();
+
+                        if (path != null)
+                            postReportNotification(path);
                     });
                 }
             }, CancellationToken.None);
+        }
+
+        private string? lastReportPath;
+
+        /// <summary>The report is only useful if it can be opened and sent; say where it is.</summary>
+        private void postReportNotification(string path)
+        {
+            notifications?.Post(new SimpleNotification
+            {
+                Text = $"Saved to {Path.GetFileName(path)} — click to open it (attach it if you're asking for help).",
+                Icon = FontAwesome.Solid.FileAlt,
+                Activated = () =>
+                {
+                    openReport(path);
+                    return true;
+                },
+            });
+        }
+
+        private void openReport(string path)
+        {
+            try
+            {
+                host.OpenFileExternally(path);
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"[mapperatorinator] couldn't open the report: {e.Message}");
+                host.PresentFileExternally(path);
+            }
         }
 
         /// <summary>Only swaps pytorch for the GPU build: minutes instead of a full reinstall.</summary>
-        private void startTorchFix()
+        private void startTorchFix() => runInstallTask(@"torch-fix", async (log, token) =>
         {
-            if (installing) return;
-
-            installing = true;
-            generateButton.Enabled.Value = false;
-            logFlow.Clear();
-            logLines = 0;
-            logScroll.FadeIn(200);
-            installCancellation = new CancellationTokenSource();
-            var token = installCancellation.Token;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await runner.ReinstallTorchAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
-                    Schedule(() => notifications?.Post(new SimpleNotification { Text = @"Mapperatorinator now uses your GPU. The next generation should be a lot faster." }));
-                }
-                catch (OperationCanceledException)
-                {
-                    Schedule(() => appendLog(@"cancelled."));
-                }
-                catch (Exception e)
-                {
-                    Logger.Log($"[mapperatorinator] torch fix failed: {e}");
-                    Schedule(() => appendLog($"couldn't replace pytorch: {e.Message}"));
-                }
-                finally
-                {
-                    Schedule(() =>
-                    {
-                        installing = false;
-                        runChecks();
-                    });
-                }
-            }, CancellationToken.None);
-        }
+            await runner.ReinstallTorchAsync(log, token).ConfigureAwait(false);
+            Schedule(() => notifications?.Post(new SimpleNotification { Text = @"Mapperatorinator now uses your GPU. The next generation should be a lot faster." }));
+        });
 
         private void startInstall()
         {
@@ -1058,11 +1129,16 @@ namespace osu.Game.Mapperatorinator
                 logLines = 1;
             }
 
+            // si la persona subio a leer algo, no se le arrastra la vista de vuelta abajo
+            // en cada linea; eso era lo que hacia imposible leer el final.
+            bool follow = logScroll.IsScrolledToEnd(10);
+
             logFlow.AddParagraph(line);
 
             // el parrafo recien agregado se mide en el proximo frame; scrollear recien
             // despues de los hijos o el "end" queda una linea corto.
-            SchedulerAfterChildren.AddOnce(scrollLogToEnd);
+            if (follow)
+                SchedulerAfterChildren.AddOnce(scrollLogToEnd);
         }
 
         private void scrollLogToEnd() => logScroll.ScrollToEnd();
