@@ -62,6 +62,13 @@ namespace osu.Game.Mapperatorinator
         public List<string> NegativeDescriptors { get; set; } = new List<string>();
 
         /// <summary>Whether the user gave the map its own title/artist/background.</summary>
+        /// <summary>El preset del que salio esta generacion, si salio de alguno.</summary>
+        [JsonPropertyName("preset_id")]
+        public int? PresetId { get; set; }
+
+        [JsonPropertyName("preset_owner")]
+        public string? PresetOwner { get; set; }
+
         [JsonPropertyName("customized")]
         public bool Customized { get; set; }
 

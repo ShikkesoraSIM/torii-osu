@@ -8,8 +8,10 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Screens;
 using osu.Game.Graphics;
@@ -232,11 +234,17 @@ namespace osu.Game.Mapperatorinator
 
             details.Add(new OsuSpriteText
             {
-                Text = $"last saved {preset.UpdatedAt.LocalDateTime:d MMM yyyy, HH:mm}",
+                Text = preset.OriginUsername != null
+                    ? $"last saved {preset.UpdatedAt.LocalDateTime:d MMM yyyy, HH:mm} · taken from {preset.OriginUsername}"
+                    : $"last saved {preset.UpdatedAt.LocalDateTime:d MMM yyyy, HH:mm}",
                 Font = OsuFont.Default.With(size: 13),
                 Colour = Colour4.White.Opacity(0.6f),
                 Margin = new MarginPadding { Bottom = 6 },
             });
+
+            // lo lindo de compartir un estilo: ver que a alguien le sirvio.
+            if (preset.Forks > 0)
+                details.Add(new ForkCount(preset));
 
             if (sidecar == null)
             {
@@ -411,6 +419,59 @@ namespace osu.Game.Mapperatorinator
             request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't delete it: {e.Message}" }));
 
             api.Queue(request);
+        }
+
+        /// <summary>
+        /// "lo agarraron N personas", y al pasar el mouse, quienes. No es una metrica:
+        /// es la parte que da gusto de que alguien haya usado tu estilo.
+        /// </summary>
+        private partial class ForkCount : CompositeDrawable, IHasTooltip
+        {
+            private readonly APIMapperatorinatorPreset preset;
+
+            public LocalisableString TooltipText => preset.ForkedBy.Count > 0
+                ? $"taken by {string.Join(", ", preset.ForkedBy)}"
+                : @"taken by someone who's since left";
+
+            public ForkCount(APIMapperatorinatorPreset preset)
+            {
+                this.preset = preset;
+            }
+
+            [BackgroundDependencyLoader]
+            private void load()
+            {
+                AutoSizeAxes = Axes.Both;
+                Margin = new MarginPadding { Bottom = 4 };
+
+                InternalChild = new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(5, 0),
+                    Children = new Drawable[]
+                    {
+                        new SpriteIcon
+                        {
+                            Icon = FontAwesome.Solid.Star,
+                            Size = new Vector2(13),
+                            Colour = Colour4.FromHex(@"ffd75e"),
+                            // mismo anclaje que el texto: un flow horizontal con anclajes
+                            // distintos entre hijos se cae.
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                        },
+                        new OsuSpriteText
+                        {
+                            Text = preset.Forks == 1 ? @"1 person took this preset" : $"{preset.Forks} people took this preset",
+                            Font = OsuFont.Default.With(size: 14, weight: FontWeight.SemiBold),
+                            Colour = Colour4.FromHex(@"ffd75e"),
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                        },
+                    },
+                };
+            }
         }
 
         private partial class PresetRow : OsuClickableContainer

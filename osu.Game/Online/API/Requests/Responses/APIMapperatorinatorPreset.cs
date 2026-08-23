@@ -25,6 +25,17 @@ namespace osu.Game.Online.API.Requests.Responses
 
         [JsonProperty(@"updated_at")]
         public DateTimeOffset UpdatedAt { get; set; }
+
+        /// <summary>De quien lo sacaste, cuando lo sacaste del mapa de otra persona.</summary>
+        [JsonProperty(@"origin_username")]
+        public string? OriginUsername { get; set; }
+
+        /// <summary>Cuanta gente se llevo este preset tuyo.</summary>
+        [JsonProperty(@"forks")]
+        public int Forks { get; set; }
+
+        [JsonProperty(@"forked_by")]
+        public List<string> ForkedBy { get; set; } = new List<string>();
     }
 
     public class APIMapperatorinatorPresetList

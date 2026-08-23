@@ -47,6 +47,24 @@ namespace osu.Game.Mapperatorinator
         [Resolved]
         private GameHost host { get; set; } = null!;
 
+        private int? presetOriginId;
+        private string? presetOriginOwner;
+
+        /// <summary>De que preset salio la proxima generacion (si salio de alguno).</summary>
+        public void SetPresetOrigin(int? presetId, string? owner)
+        {
+            presetOriginId = presetId;
+            presetOriginOwner = owner;
+        }
+
+        private MapperatorinatorSidecar sidecarFor(MapperatorinatorRequest request, bool announce)
+        {
+            var sidecar = MapperatorinatorSidecar.FromRequest(request, announce);
+            sidecar.PresetId = presetOriginId;
+            sidecar.PresetOwner = presetOriginOwner;
+            return sidecar;
+        }
+
         /// <summary>
         /// Guarda las opciones con las que se genero un mapa como preset con nombre.
         /// El camino natural es este: generaste, te gusto como quedo, y recien ahi
@@ -62,7 +80,9 @@ namespace osu.Game.Mapperatorinator
                 return;
             }
 
-            var request = new SaveMapperatorinatorPresetRequest(name, sidecar.Serialize());
+            // si el mapa salio de un preset de otra persona, queda anotado: asi el dueño
+            // ve que su estilo le sirvio a alguien.
+            var request = new SaveMapperatorinatorPresetRequest(name, sidecar.Serialize(), sidecar.PresetId);
 
             request.Success += preset => Schedule(() => notifications?.Post(new SimpleNotification
             {
@@ -368,7 +388,7 @@ namespace osu.Game.Mapperatorinator
                     if (job.TargetSetSnapshot == null)
                     {
                         // set nuevo: metadata del usuario + sidecar con los settings usados.
-                        job.Overrides.SidecarJson = MapperatorinatorSidecar.FromRequest(job.Request, job.AnnounceToFeed).Serialize();
+                        job.Overrides.SidecarJson = sidecarFor(job.Request, job.AnnounceToFeed).Serialize();
                         OszPostProcessor.Apply(osz, job.Overrides);
                         newDifficultyName = OszPostProcessor.Peek(osz)?.version;
                         imported = await beatmaps.Import(new ImportTask(osz)).ConfigureAwait(false);
@@ -534,7 +554,7 @@ namespace osu.Game.Mapperatorinator
             }
 
             // sidecar actualizado con los settings de ESTA generacion (pisa el copiado).
-            File.WriteAllText(Path.Combine(dir, MapperatorinatorSidecar.FILENAME), MapperatorinatorSidecar.FromRequest(job.Request, false).Serialize());
+            File.WriteAllText(Path.Combine(dir, MapperatorinatorSidecar.FILENAME), sidecarFor(job.Request, false).Serialize());
 
             return (dir, version);
         }
