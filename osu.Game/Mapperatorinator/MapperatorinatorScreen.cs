@@ -165,6 +165,7 @@ namespace osu.Game.Mapperatorinator
                         Children = new Drawable[]
                         {
                             heading(@"Mapperatorinator", 32),
+                            credits(),
                             caption(sourceBeatmap != null
                                 ? (addToExistingSet
                                     ? $"new difficulty for: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title} (added to the same set)"
@@ -888,6 +889,27 @@ namespace osu.Game.Mapperatorinator
             Font = OsuFont.GetFont(size: size, weight: FontWeight.SemiBold),
             Margin = new MarginPadding { Top = size > 24 ? 0 : 18, Bottom = 4 },
         };
+
+        /// <summary>
+        /// Whose work this is. The model and the tool are OliBomby's, MIT licensed; we
+        /// only drive them. Costs one line and it's the least the project deserves.
+        /// </summary>
+        private Drawable credits()
+        {
+            var flow = new LinkFlowContainer(s => s.Font = OsuFont.Default.With(size: 14))
+            {
+                RelativeSizeAxes = Axes.X,
+                AutoSizeAxes = Axes.Y,
+                Colour = Colour4.White.Opacity(0.6f),
+                Margin = new MarginPadding { Bottom = 6 },
+            };
+
+            flow.AddText(@"model and generator by ");
+            flow.AddLink(@"OliBomby's Mapperatorinator", @"https://github.com/OliBomby/Mapperatorinator");
+            flow.AddText(@" (MIT). it runs on your machine, nothing is sent anywhere.");
+
+            return flow;
+        }
 
         private OsuSpriteText caption(string text) => new OsuSpriteText
         {
