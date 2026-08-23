@@ -121,6 +121,123 @@ namespace osu.Game.Mapperatorinator
 
         private const string torch_device_marker = @"torii-torch-device.txt";
 
+        /// <summary>The pytorch wheel index for a device, or null when the default one is right.</summary>
+        public static string? TorchIndexUrl(string device)
+        {
+            switch (device)
+            {
+                case @"cuda":
+                    return @"https://download.pytorch.org/whl/cu126";
+
+                case @"rocm":
+                    // 7.0: la primera con kernels para rdna4 (rx 9000) que todavia publica
+                    // ruedas de python 3.10 con torch y torchaudio de la misma version.
+                    return @"https://download.pytorch.org/whl/rocm7.0";
+
+                default:
+                    // la rueda default de linux trae cuda (2 GB de mas); sin gpu va la cpu.
+                    return RuntimeInfo.OS == RuntimeInfo.Platform.Linux ? @"https://download.pytorch.org/whl/cpu" : null;
+            }
+        }
+
+        /// <summary>The python inside the tool's venv, when the tool is installed.</summary>
+        public string? VenvPython
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(Config.InstallPath))
+                    return null;
+
+                string windows = Path.Combine(Config.InstallPath, @".venv", @"Scripts", @"python.exe");
+                if (File.Exists(windows))
+                    return windows;
+
+                string unix = Path.Combine(Config.InstallPath, @".venv", @"bin", @"python");
+                return File.Exists(unix) ? unix : null;
+            }
+        }
+
+        /// <summary>
+        /// The one line that installs the right pytorch by hand, for people who would
+        /// rather type it than press a button. Null when the tool isn't installed.
+        /// </summary>
+        public string? ManualTorchCommand(string device)
+        {
+            string? python = VenvPython;
+
+            if (python == null)
+                return null;
+
+            string quoted = python.Contains(' ') ? $"\"{python}\"" : python;
+            string? index = TorchIndexUrl(device);
+
+            return $"{quoted} -m pip install --force-reinstall torch torchaudio"
+                   + (index != null ? $" --index-url {index}" : string.Empty);
+        }
+
+        /// <summary>
+        /// Swaps just pytorch in an existing install (minutes, not the full reinstall).
+        /// This is what the GPU fix button runs.
+        /// </summary>
+        public async Task ReinstallTorchAsync(Action<string> onLogLine, CancellationToken cancellation)
+        {
+            if (!InstallLooksValid)
+                throw new InvalidOperationException(@"Mapperatorinator isn't installed yet, so there's no pytorch to replace.");
+
+            string checkout = Config.InstallPath!;
+            string venvPython = VenvPython ?? throw new InvalidOperationException(@"The python environment inside the install is missing. Use the full install instead.");
+
+            var pipEnv = pipEnvironment(Path.GetDirectoryName(checkout) ?? checkout);
+            await installTorch(venvPython, checkout, pipEnv, DetectDevice(), replaceExisting: true, onLogLine, cancellation).ConfigureAwait(false);
+        }
+
+        private Dictionary<string, string> pipEnvironment(string target)
+        {
+            var env = new Dictionary<string, string>
+            {
+                [@"PIP_CACHE_DIR"] = Path.Combine(target, @"pip-cache"),
+                [@"TMP"] = Path.Combine(target, @"tmp"),
+                [@"TEMP"] = Path.Combine(target, @"tmp"),
+            };
+
+            Directory.CreateDirectory(env[@"TMP"]);
+            return env;
+        }
+
+        private async Task installTorch(string venvPython, string checkout, Dictionary<string, string> pipEnv, string installDevice, bool replaceExisting, Action<string> onLogLine, CancellationToken cancellation)
+        {
+            onLogLine(installDevice switch
+            {
+                @"cuda" => @"installing pytorch with CUDA (this is the big one, a few GB)...",
+                @"rocm" => @"amd gpu found: installing pytorch with ROCm (this is the big one, a few GB; the runtime comes inside the package, nothing to install on your system)...",
+                @"mps" => @"installing pytorch (apple silicon runs it through MPS)...",
+                _ => @"no nvidia/amd gpu found: installing cpu pytorch (generation will be SLOW)...",
+            });
+
+            string deviceMarker = Path.Combine(checkout, torch_device_marker);
+            string? previousDevice = File.Exists(deviceMarker) ? File.ReadAllText(deviceMarker).Trim() : null;
+
+            if (replaceExisting && previousDevice != installDevice)
+            {
+                // pip da por cumplido "torch" aunque sea la rueda de otro device: hay que sacarla.
+                onLogLine(@"pytorch in there was installed for a different device: replacing it...");
+                await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+            }
+
+            var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
+            string? index = TorchIndexUrl(installDevice);
+
+            if (index != null)
+            {
+                torchArgs.Add("--index-url");
+                torchArgs.Add(index);
+            }
+
+            await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+            await File.WriteAllTextAsync(deviceMarker, installDevice, cancellation).ConfigureAwait(false);
+            onLogLine($"pytorch ready for {installDevice}.");
+        }
+
         /// <summary>
         /// The device generation actually runs on: what's detected, unless the installed
         /// pytorch was built for something else. A cpu wheel can't see a gpu, and that is
@@ -724,63 +841,12 @@ namespace osu.Game.Mapperatorinator
             if (!File.Exists(venvPython))
                 venvPython = Path.Combine(checkout, @".venv", @"bin", @"python");
 
-            var pipEnv = new Dictionary<string, string>
-            {
-                [@"PIP_CACHE_DIR"] = Path.Combine(target, @"pip-cache"),
-                [@"TMP"] = Path.Combine(target, @"tmp"),
-                [@"TEMP"] = Path.Combine(target, @"tmp"),
-            };
-            Directory.CreateDirectory(pipEnv[@"TMP"]);
+            var pipEnv = pipEnvironment(target);
 
             await runStep(venvPython, new[] { "-m", "pip", "install", "--upgrade", "pip", "--quiet" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
 
             // 3. pytorch segun gpu (el download gordo, varios GB)
-            string installDevice = DetectDevice();
-            onLogLine(installDevice switch
-            {
-                @"cuda" => @"installing pytorch with CUDA (this is the big one, a few GB)...",
-                @"rocm" => @"amd gpu found: installing pytorch with ROCm (this is the big one, a few GB; the runtime comes inside the package, nothing to install on your system)...",
-                @"mps" => @"installing pytorch (apple silicon runs it through MPS)...",
-                _ => @"no nvidia/amd gpu found: installing cpu pytorch (generation will be SLOW)...",
-            });
-            string deviceMarker = Path.Combine(checkout, torch_device_marker);
-            string? previousDevice = File.Exists(deviceMarker) ? File.ReadAllText(deviceMarker).Trim() : null;
-
-            if (venvExisted && previousDevice != installDevice)
-            {
-                // pip da por cumplido "torch" aunque sea la rueda de otro device: hay que sacarla.
-                onLogLine(@"pytorch in there was installed for a different device: replacing it...");
-                await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
-            }
-
-            var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
-
-            switch (installDevice)
-            {
-                case @"cuda":
-                    torchArgs.Add("--index-url");
-                    torchArgs.Add("https://download.pytorch.org/whl/cu126");
-                    break;
-
-                case @"rocm":
-                    // 7.0: la primera con kernels para rdna4 (rx 9000) que todavia publica
-                    // ruedas de python 3.10 con torch y torchaudio de la misma version.
-                    torchArgs.Add("--index-url");
-                    torchArgs.Add("https://download.pytorch.org/whl/rocm7.0");
-                    break;
-
-                default:
-                    if (RuntimeInfo.OS == RuntimeInfo.Platform.Linux)
-                    {
-                        // la rueda default de linux trae cuda (2 GB de mas); sin gpu va la cpu.
-                        torchArgs.Add("--index-url");
-                        torchArgs.Add("https://download.pytorch.org/whl/cpu");
-                    }
-
-                    break;
-            }
-            await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
-            await File.WriteAllTextAsync(deviceMarker, installDevice, cancellation).ConfigureAwait(false);
+            await installTorch(venvPython, checkout, pipEnv, DetectDevice(), venvExisted, onLogLine, cancellation).ConfigureAwait(false);
 
             // 4. slider desde tarball + requirements sin su linea git
             onLogLine(@"installing dependencies...");

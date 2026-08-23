@@ -391,7 +391,7 @@ namespace osu.Game.Mapperatorinator
         }
 
         private Drawable requirementsHeading = null!;
-        private Drawable requirementsCaption = null!;
+        private OsuSpriteText requirementsCaption = null!;
         private FillFlowContainer requirementsFlow = null!;
         private RoundedButton checkButton = null!;
 
@@ -487,7 +487,9 @@ namespace osu.Game.Mapperatorinator
                 {
                     AutoInstall = r.Kind switch
                     {
-                        RequirementKind.Tool => startInstall,
+                        // instalado pero con el torch equivocado: solo se cambia pytorch,
+                        // no se rebaja todo de nuevo.
+                        RequirementKind.Tool => r.State == RequirementState.Warning ? startTorchFix : startInstall,
                         RequirementKind.Ffmpeg => startFfmpegInstall,
                         _ => null,
                     },
@@ -495,12 +497,21 @@ namespace osu.Game.Mapperatorinator
                 });
             }
 
-            // con todo verde la lista estorba; el hardware sigue a la vista en la linea del eta.
-            requirementsHeading.Alpha = ready ? 0 : 1;
-            requirementsCaption.Alpha = ready ? 0 : 1;
-            requirementsFlow.Alpha = ready ? 0 : 1;
-            checkButton.Alpha = ready ? 0 : 1;
-            installSelector.Alpha = ready ? 0 : 1;
+            // con todo verde la lista estorba, PERO un warning con arreglo (el pytorch que
+            // ignora la gpu) tiene que quedar a la vista: si no, el aviso dice "mira los
+            // requisitos" y no hay requisitos que mirar.
+            bool anythingToDo = results.Any(r => r.Actionable);
+            bool showList = !ready || anythingToDo;
+
+            requirementsCaption.Text = ready && anythingToDo
+                ? @"generating works, but something here would make it a lot faster."
+                : @"everything generating needs on this machine. sort out anything red, then press Check.";
+
+            requirementsHeading.Alpha = showList ? 1 : 0;
+            requirementsCaption.Alpha = showList ? 1 : 0;
+            requirementsFlow.Alpha = showList ? 1 : 0;
+            checkButton.Alpha = showList ? 1 : 0;
+            installSelector.Alpha = showList ? 1 : 0;
 
             generateButton.Enabled.Value = ready && !installing;
 
@@ -586,11 +597,10 @@ namespace osu.Game.Mapperatorinator
                     Margin = new MarginPadding { Top = 6 },
                 };
 
-                // warning con instalacion posible = "anda, pero apretando esto anda mejor" (torch para otro device).
-                bool actionable = requirement.State == RequirementState.Missing || requirement.State == RequirementState.Warning && requirement.CanAutoInstall;
+                bool actionable = requirement.Actionable;
 
                 if (actionable && requirement.CanAutoInstall && AutoInstall != null)
-                    buttons.Add(new RoundedButton { Width = 190, Height = 30, Text = @"Install automatically", Action = AutoInstall });
+                    buttons.Add(new RoundedButton { Width = 190, Height = 30, Text = requirement.AutoInstallLabel, Action = AutoInstall });
 
                 if (actionable && OpenDownload != null)
                     buttons.Add(new RoundedButton { Width = 150, Height = 30, Text = requirement.DownloadLabel, Action = OpenDownload });
@@ -647,6 +657,46 @@ namespace osu.Game.Mapperatorinator
             }
         }
 
+        /// <summary>Only swaps pytorch for the GPU build: minutes instead of a full reinstall.</summary>
+        private void startTorchFix()
+        {
+            if (installing) return;
+
+            installing = true;
+            generateButton.Enabled.Value = false;
+            logFlow.Clear();
+            logLines = 0;
+            logScroll.FadeIn(200);
+            installCancellation = new CancellationTokenSource();
+            var token = installCancellation.Token;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await runner.ReinstallTorchAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+                    Schedule(() => notifications?.Post(new SimpleNotification { Text = @"Mapperatorinator now uses your GPU. The next generation should be a lot faster." }));
+                }
+                catch (OperationCanceledException)
+                {
+                    Schedule(() => appendLog(@"cancelled."));
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] torch fix failed: {e}");
+                    Schedule(() => appendLog($"couldn't replace pytorch: {e.Message}"));
+                }
+                finally
+                {
+                    Schedule(() =>
+                    {
+                        installing = false;
+                        runChecks();
+                    });
+                }
+            }, CancellationToken.None);
+        }
+
         private void startInstall()
         {
             if (installing) return;
@@ -697,7 +747,7 @@ namespace osu.Game.Mapperatorinator
             Margin = new MarginPadding { Top = size > 24 ? 0 : 18, Bottom = 4 },
         };
 
-        private Drawable caption(string text) => new OsuSpriteText
+        private OsuSpriteText caption(string text) => new OsuSpriteText
         {
             Text = text,
             Font = OsuFont.Default.With(size: 14),

@@ -50,6 +50,16 @@ namespace osu.Game.Mapperatorinator
         /// <summary>What the download button says.</summary>
         public string DownloadLabel { get; set; } = @"Download page";
 
+        /// <summary>What the install button says.</summary>
+        public string AutoInstallLabel { get; set; } = @"Install automatically";
+
+        /// <summary>
+        /// There is something the person can press or read here. Warnings count when they
+        /// come with a fix: "generation works but runs on the CPU" is worth showing.
+        /// </summary>
+        public bool Actionable => State == RequirementState.Missing
+                                  || (State == RequirementState.Warning && (CanAutoInstall || DownloadUrl != null));
+
         /// <summary>Whether the game can install this one by itself.</summary>
         public bool CanAutoInstall { get; set; }
 
@@ -243,13 +253,31 @@ namespace osu.Game.Mapperatorinator
                 Detail = !installed
                     ? @"not installed yet. One click does it: the tool, the python packages and pytorch (about 8 GB; the model downloads on your first generation)."
                     : wrongTorch
-                        ? $"installed, but its pytorch isn't the {hardware.Device} build, so generation ignores the GPU and runs on the CPU."
+                        ? $"installed, but its pytorch is the CPU build, so generation ignores the {hardware.GpuName} and runs on the CPU."
                         : $"installed ({runner.Config.InstallPath})",
-                Instructions = wrongTorch ? @"Press Install automatically: it swaps pytorch for the GPU build (a few GB) and leaves the rest alone." : string.Empty,
+                Instructions = wrongTorch ? torchFixInstructions(runner, hardware.Device) : string.Empty,
+                AutoInstallLabel = wrongTorch ? @"Use the GPU" : @"Install automatically",
                 CanAutoInstall = true,
             });
 
             return list;
+        }
+
+        /// <summary>
+        /// The fix for "there's a GPU but pytorch is the CPU build", with the exact command
+        /// for people who would rather type it: the version is the question everyone asks.
+        /// </summary>
+        private static string torchFixInstructions(MapperatorinatorRunner runner, string device)
+        {
+            string label = device == @"rocm" ? @"the ROCm build" : @"the CUDA build";
+            string text = $"Press \"Use the GPU\": it replaces pytorch with {label} (a few GB) and leaves everything else alone. Nothing else on your system changes.";
+
+            string? manual = runner.ManualTorchCommand(device);
+
+            if (manual != null)
+                text += $"\n\nRather do it yourself? In a terminal:\n{manual}";
+
+            return text;
         }
 
         private static string pythonInstructions()
