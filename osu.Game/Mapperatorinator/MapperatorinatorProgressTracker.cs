@@ -17,6 +17,7 @@ namespace osu.Game.Mapperatorinator
     public class MapperatorinatorProgressTracker
     {
         private readonly object sync = new object();
+        private readonly string expectedDevice;
 
         private string stage = @"starting up";
         private bool stageHasBar;
@@ -27,6 +28,29 @@ namespace osu.Game.Mapperatorinator
         private string? remaining;
         private bool sawTimingPass;
         private bool done;
+
+        /// <param name="expectedDevice">What we think it will run on ("cpu", "cuda", "rocm", "mps"), to name the gpu and to notice a cpu fallback.</param>
+        public MapperatorinatorProgressTracker(string expectedDevice = @"cpu")
+        {
+            this.expectedDevice = expectedDevice;
+        }
+
+        /// <summary>What the tool said it runs on ("cpu", "cuda" or "mps"), once it said it.</summary>
+        public string? ReportedDevice { get; private set; }
+
+        /// <summary>The reported device in our own naming (rocm shows up as cuda inside torch).</summary>
+        public string? ActualDevice => ReportedDevice switch
+        {
+            null => null,
+            @"cuda" => expectedDevice == @"rocm" ? @"rocm" : @"cuda",
+            var d => d,
+        };
+
+        /// <summary>The tool fell back to the cpu although this machine has a gpu. Worth shouting about.</summary>
+        public bool UsesCpuDespiteGpu => ReportedDevice == @"cpu" && expectedDevice != @"cpu";
+
+        // "Using CPU for inference (auto-selected fallback)." / "Model loaded: ... on device cuda:0"
+        private static readonly Regex device_regex = new Regex(@"Using (?<a>\w+) for inference|on device (?<b>[a-z]+)", RegexOptions.Compiled);
 
         // "  4%|▍         | 9/207 [00:15<05:33,  1.68s/it, 20.1 tok/s]"
         // "model.safetensors:  45%|████      | 1.12G/2.50G [00:30<00:37, 37.0MB/s]"
@@ -44,6 +68,15 @@ namespace osu.Game.Mapperatorinator
             {
                 if (done)
                     return;
+
+                var dev = device_regex.Match(line);
+
+                if (dev.Success)
+                {
+                    string d = (dev.Groups[@"a"].Success ? dev.Groups[@"a"].Value : dev.Groups[@"b"].Value).ToLowerInvariant();
+                    if (d == @"cpu" || d == @"cuda" || d == @"mps")
+                        ReportedDevice = d;
+                }
 
                 if (line.Contains(@"Generated .osz saved to", StringComparison.Ordinal) || line.Contains(@"Generated beatmap saved to", StringComparison.Ordinal))
                 {
@@ -105,13 +138,22 @@ namespace osu.Game.Mapperatorinator
         {
             lock (sync)
             {
+                // el device va primero: es lo que mas importa saber cuando tarda.
+                string prefix = ReportedDevice switch
+                {
+                    @"cpu" => expectedDevice == @"cpu" ? @"CPU · " : @"CPU (GPU not used!) · ",
+                    @"mps" => @"GPU (MPS) · ",
+                    @"cuda" => expectedDevice == @"rocm" ? @"GPU (ROCm) · " : @"GPU (CUDA) · ",
+                    _ => string.Empty,
+                };
+
                 if (done)
-                    return (0.97f, @"importing...");
+                    return (0.97f, prefix + @"importing...");
 
                 float progress = currentOverall();
 
                 if (!stageHasBar)
-                    return (progress, $"{stage}...");
+                    return (progress, $"{prefix}{stage}...");
 
                 string text = counter != null ? $"{stage} {counter}" : stage;
 
@@ -120,7 +162,7 @@ namespace osu.Game.Mapperatorinator
                 else if (stageFraction <= 0)
                     text += @" · warming up";
 
-                return (progress, text);
+                return (progress, prefix + text);
             }
         }
 

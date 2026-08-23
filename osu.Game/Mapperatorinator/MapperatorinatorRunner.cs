@@ -122,6 +122,32 @@ namespace osu.Game.Mapperatorinator
         private const string torch_device_marker = @"torii-torch-device.txt";
 
         /// <summary>
+        /// The device generation actually runs on: what's detected, unless the installed
+        /// pytorch was built for something else. A cpu wheel can't see a gpu, and that is
+        /// exactly what an install older than the rocm support has on an amd machine.
+        /// </summary>
+        public string EffectiveDevice(string? detected = null)
+        {
+            detected ??= DetectDevice();
+
+            if (detected != @"cuda" && detected != @"rocm")
+                return detected;
+
+            // nada instalado todavia: el install va a elegir bien.
+            if (!InstallLooksValid)
+                return detected;
+
+            string? installedFor = InstalledTorchDevice;
+
+            // sin marker = install de antes: rocm no existia, asi que en amd es cpu seguro;
+            // en nvidia se instalaba con cuda.
+            if (installedFor == null)
+                return detected == @"rocm" ? @"cpu" : detected;
+
+            return installedFor == detected ? detected : @"cpu";
+        }
+
+        /// <summary>
         /// Which device pytorch was installed for ("cuda", "rocm", "mps", "cpu"). Null for
         /// installs older than the marker, or when nothing is installed.
         /// </summary>
