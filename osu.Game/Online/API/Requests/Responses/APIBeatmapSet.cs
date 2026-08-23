@@ -43,6 +43,13 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"spotlight")]
         public bool FeaturedInSpotlight { get; set; }
 
+        /// <summary>
+        /// torii: el set se subio aca y no existe en osu! oficial. Lo manda el server;
+        /// en un mapa de bancho viene en false.
+        /// </summary>
+        [JsonProperty(@"is_local")]
+        public bool IsLocal { get; set; }
+
         [JsonProperty(@"video")]
         public bool HasVideo { get; set; }
 

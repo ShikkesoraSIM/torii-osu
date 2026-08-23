@@ -120,26 +120,56 @@ namespace osu.Game.Overlays.BeatmapListing
             }
         }
 
-        /// <summary>torii: solo mapas subidos a Torii; no existen en osu! oficial.</summary>
+        /// <summary>torii: los mapas subidos aca. Prendido: apagalo para no verlos.</summary>
         private partial class ToriiExclusiveTabItem : MultipleSelectionFilterTabItem, IHasTooltip
         {
-            public LocalisableString TooltipText => @"Only maps uploaded here. These don't exist on osu! official.";
+            [Resolved]
+            private OsuColour colours { get; set; } = null!;
+
+            [Resolved]
+            private OsuConfigManager config { get; set; } = null!;
+
+            public LocalisableString TooltipText => @"Maps uploaded here, which don't exist on osu! official. Turn this off to leave them out of the listing.";
 
             public ToriiExclusiveTabItem()
                 : base(SearchGeneral.ToriiExclusive)
             {
             }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+                config.BindWith(OsuSetting.BeatmapListingToriiFilter, Active);
+            }
+
+            protected override Color4 ColourNormal => colours.Red1;
+            protected override Color4 ColourActive => colours.Red2;
         }
 
-        /// <summary>torii: los generados con Mapperatorinator, que solo viven aca.</summary>
+        /// <summary>torii: los generados con Mapperatorinator, de aca o de bancho.</summary>
         private partial class AiGeneratedTabItem : MultipleSelectionFilterTabItem, IHasTooltip
         {
-            public LocalisableString TooltipText => @"Only maps generated with Mapperatorinator. Always uploaded here.";
+            [Resolved]
+            private OsuColour colours { get; set; } = null!;
+
+            [Resolved]
+            private OsuConfigManager config { get; set; } = null!;
+
+            public LocalisableString TooltipText => @"Maps generated with Mapperatorinator, from here or from osu! official. Turn this off to leave them out of the listing.";
 
             public AiGeneratedTabItem()
                 : base(SearchGeneral.AiGenerated)
             {
             }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+                config.BindWith(OsuSetting.BeatmapListingAiFilter, Active);
+            }
+
+            protected override Color4 ColourNormal => colours.Blue1;
+            protected override Color4 ColourActive => colours.Blue2;
         }
 
         private partial class FeaturedArtistsTabItem : MultipleSelectionFilterTabItem, IHasTooltip

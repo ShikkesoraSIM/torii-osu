@@ -136,6 +136,10 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.BeatmapListingCardSize, BeatmapCardSize.Normal);
             SetDefault(OsuSetting.BeatmapListingFeaturedArtistFilter, true);
+            // torii: los mapas de aca y los generados con IA entran al listado como
+            // cualquier otro; estos dos son para apagarlos, no para pedirlos.
+            SetDefault(OsuSetting.BeatmapListingToriiFilter, true);
+            SetDefault(OsuSetting.BeatmapListingAiFilter, true);
 
             SetDefault(OsuSetting.ProfileCoverExpanded, true);
 
@@ -658,6 +662,8 @@ namespace osu.Game.Configuration
         MultiplayerShowInProgressFilter,
         MultiplayerShowFullFilter,
         BeatmapListingFeaturedArtistFilter,
+        BeatmapListingToriiFilter,
+        BeatmapListingAiFilter,
         ShowMobileDisclaimer,
         EditorShowStoryboard,
         EditorSubmissionNotifyOnDiscussionReplies,

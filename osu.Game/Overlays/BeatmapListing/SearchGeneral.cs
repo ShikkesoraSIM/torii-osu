@@ -28,12 +28,13 @@ namespace osu.Game.Overlays.BeatmapListing
         [Description("Featured artists")]
         FeaturedArtists,
 
-        // torii: mapas subidos aca (no existen en osu! oficial) y, adentro de esos,
-        // los generados con Mapperatorinator.
-        [Description("Uploaded to Torii")]
+        // torii: estos dos vienen prendidos y son para APAGAR. Los mapas subidos aca y
+        // los generados con IA son parte del listado como cualquier otro; si a alguien
+        // no le interesan, los saca.
+        [Description("Torii maps")]
         ToriiExclusive,
 
-        [Description("Generated with Mapperatorinator")]
+        [Description("AI maps")]
         AiGenerated
     }
 }

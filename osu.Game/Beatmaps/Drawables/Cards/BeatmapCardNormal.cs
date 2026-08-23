@@ -251,7 +251,19 @@ namespace osu.Game.Beatmaps.Drawables.Cards
                 });
             }
 
-            // torii: los mapas hechos con la IA se marcan como tales en todos lados.
+            // torii: primero de donde salio el mapa (rojo, subido aca) y despues como se
+            // hizo (azul, IA). Un mapa puede tener los dos, y muchos mapas de bancho solo
+            // el segundo: sus autores tambien generan con la tool.
+            if (ToriiExclusiveBeatmapBadge.ShouldShowFor(BeatmapSet))
+            {
+                titleBadgeArea.Add(new ToriiExclusiveBeatmapBadge
+                {
+                    Anchor = Anchor.BottomRight,
+                    Origin = Anchor.BottomRight,
+                    Margin = new MarginPadding { Left = 4 }
+                });
+            }
+
             if (MapperatorinatorBeatmapBadge.ShouldShowFor(BeatmapSet))
             {
                 titleBadgeArea.Add(new MapperatorinatorBeatmapBadge

@@ -21,10 +21,10 @@ namespace osu.Game.Overlays.BeatmapSet
         [BackgroundDependencyLoader]
         private void load()
         {
-            BadgeText = @"AI generated";
-            // rosa: no lo usa ningun otro badge, asi que no se confunde con spotlight
-            // (verde) ni featured artist (azul).
-            BadgeColour = Colour4.FromHex(@"ff6ec7");
+            // corto a proposito: en una card conviven el badge de Torii y este, y
+            // "AI GENERATED" entero se come el ancho del titulo.
+            BadgeText = @"AI gen";
+            BadgeColour = Colour4.FromHex(@"4aa8ff");
         }
 
         /// <summary>Whether this set was generated with Mapperatorinator.</summary>
