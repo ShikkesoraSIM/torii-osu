@@ -53,6 +53,12 @@ namespace osu.Game.Mapperatorinator
         private string? externalAudioPath;
         private readonly bool addToExistingSet;
 
+        // los controles de formulario (el selector de archivos, sobre todo) piden un
+        // OverlayColourProvider. Abriendo la pantalla desde song select venia de arriba;
+        // desde el menu principal no hay ninguno y la pantalla se caia al abrirse.
+        [Cached]
+        private OverlayColourProvider colourProvider = new OverlayColourProvider(OverlayColourScheme.Pink);
+
         [Resolved(canBeNull: true)]
         private INotificationOverlay? notifications { get; set; }
 
@@ -112,6 +118,7 @@ namespace osu.Game.Mapperatorinator
         private FormTextBox presetName = null!;
         private RoundedButton presetSaveButton = null!;
         private RoundedButton presetDeleteButton = null!;
+        private RoundedButton presetManageButton = null!;
         private bool applyingPreset;
 
         /// <summary>Abierta para mirar como se hizo un mapa, no para generar otro.</summary>
@@ -232,6 +239,13 @@ namespace osu.Game.Mapperatorinator
                                 Height = 32,
                                 Text = @"Delete the preset above",
                                 Action = deletePreset,
+                            },
+                            presetManageButton = new RoundedButton
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 32,
+                                Text = @"Manage all my presets",
+                                Action = () => this.Push(new MapperatorinatorPresetsScreen()),
                             },
                             caption(sourceBeatmap != null
                                 ? (addToExistingSet
@@ -1287,6 +1301,7 @@ namespace osu.Game.Mapperatorinator
             presetDropdown.Alpha = alpha;
             presetName.Alpha = alpha;
             presetSaveButton.Alpha = alpha;
+            presetManageButton.Alpha = alpha;
 
             if (!visible)
                 presetDeleteButton.Alpha = 0;

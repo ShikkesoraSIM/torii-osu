@@ -43,6 +43,7 @@ namespace osu.Game.Screens.Menu
         public Action? OnEditBeatmap;
         public Action? OnEditSkin;
         public Action? OnMapperatorinator;
+        public Action? OnMapperatorinatorPresets;
         public Action<UIEvent>? OnExit;
         public Action? OnBeatmapListing;
         public Action? OnSolo;
@@ -179,6 +180,8 @@ namespace osu.Game.Screens.Menu
             // mapa que ya tenga ese audio.
             buttonsEdit.Add(new MainMenuButton(@"mapperatorinator", @"button-default-select", FontAwesome.Solid.Magic, new Color4(200, 140, 0, 255),
                 (_, _) => OnMapperatorinator?.Invoke(), Key.M));
+            buttonsEdit.Add(new MainMenuButton(@"presets", @"button-default-select", FontAwesome.Solid.SlidersH, new Color4(184, 128, 0, 255),
+                (_, _) => OnMapperatorinatorPresets?.Invoke(), Key.P));
             buttonsEdit.ForEach(b => b.VisibleState = ButtonSystemState.Edit);
 
             buttonsTopLevel.Add(new MainMenuButton(ButtonSystemStrings.Play, @"button-play-select", OsuIcon.Logo, new Color4(102, 68, 204, 255), (_, _) => State = ButtonSystemState.Play, Key.P, Key.M,
