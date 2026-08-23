@@ -94,6 +94,9 @@ namespace osu.Game.Mapperatorinator
         /// <summary>How to call the gpu in messages, when there is one.</summary>
         public string GpuName { get; init; } = @"the GPU";
 
+        /// <summary>There's an AMD card sitting unused and the user can choose to try it.</summary>
+        public bool AmdOffered { get; init; }
+
         public string Description { get; init; } = string.Empty;
     }
 
@@ -123,6 +126,25 @@ namespace osu.Game.Mapperatorinator
             }
 
             string device = runner.DetectDevice();
+
+            // hay placa amd pero la generacion NO la usa: o no la pidieron todavia, o ya
+            // fallo. es informacion, no un problema: en cpu anda igual.
+            var amd = MapperatorinatorRunner.DetectAmdGpu();
+
+            if (device == @"cpu" && amd != null)
+            {
+                return new HardwareInfo
+                {
+                    Device = device,
+                    GpuName = amd.Name,
+                    AmdOffered = !runner.Config.RocmBlocked && amd.KfdAccessible,
+                    Description = runner.Config.RocmBlocked
+                        ? $"{amd.Name} found, but it faulted when we tried to generate on it, so generation runs on the CPU. Slower, but it always works."
+                        : !amd.KfdAccessible
+                            ? $"{amd.Name} found, but your user isn't allowed to open it (/dev/kfd), so generation runs on the CPU."
+                            : $"{amd.Name} found. Generation runs on the CPU: using the card needs ROCm and on some setups that takes the display driver down, so it's off until you ask for it.",
+                };
+            }
 
             return device switch
             {
@@ -166,6 +188,7 @@ namespace osu.Game.Mapperatorinator
         {
             var list = new List<Requirement>();
             var hardware = DetectHardware(runner);
+            bool installed = runner.InstallLooksValid;
 
             // hay gpu pero el pytorch instalado no la ve (la rueda de cpu de un install
             // anterior): no se dice "gpu ok" cuando va a correr en cpu.
@@ -184,7 +207,12 @@ namespace osu.Game.Mapperatorinator
                     : hardware.Description,
                 Instructions = hardware.IsMobile ? @"Generate on a PC or Mac, then play the map anywhere."
                     : hardware.GpuAccessBlocked ? @"In a terminal: sudo usermod -aG render,video $USER. Then log out and back in (groups only apply at login), open Torii again and press Check."
+                    : hardware.AmdOffered && installed ? @"Want to try it? We'll install the ROCm build of pytorch and run a two-second test on the card first. If it doesn't hold up, everything goes back to the CPU by itself."
+                    : hardware.AmdOffered ? @"Install Mapperatorinator first (below); once it's there you can try the GPU from here."
                     : string.Empty,
+                // el boton solo cuando la tool ya esta: sin venv no hay nada que testear.
+                CanAutoInstall = hardware.AmdOffered && installed,
+                AutoInstallLabel = @"Try the GPU (experimental)",
             });
 
             if (hardware.IsMobile)
@@ -226,7 +254,6 @@ namespace osu.Game.Mapperatorinator
             });
 
             // 4. espacio: solo importa antes de instalar la tool
-            bool installed = runner.InstallLooksValid;
             long free = runner.LargestFreeSpace();
             list.Add(new Requirement
             {

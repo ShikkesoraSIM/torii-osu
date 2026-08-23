@@ -55,6 +55,9 @@ namespace osu.Game.Mapperatorinator
         private INotificationOverlay? notifications { get; set; }
 
         [Resolved(canBeNull: true)]
+        private IDialogOverlay? dialogOverlay { get; set; }
+
+        [Resolved(canBeNull: true)]
         private MapperatorinatorGenerationManager? generationManager { get; set; }
 
         [Resolved(canBeNull: true)]
@@ -491,6 +494,7 @@ namespace osu.Game.Mapperatorinator
                         // no se rebaja todo de nuevo.
                         RequirementKind.Tool => r.State == RequirementState.Warning ? startTorchFix : startInstall,
                         RequirementKind.Ffmpeg => startFfmpegInstall,
+                        RequirementKind.Platform => tryGpu,
                         _ => null,
                     },
                     OpenDownload = r.DownloadUrl == null ? null : () => game?.OpenUrlExternally(r.DownloadUrl),
@@ -657,6 +661,74 @@ namespace osu.Game.Mapperatorinator
             }
         }
 
+        /// <summary>
+        /// Turns AMD generation on, after saying out loud what can go wrong: install the
+        /// ROCm build of pytorch, then a two-second test on the card. If the card doesn't
+        /// hold up, it goes back to the CPU by itself and stays there.
+        /// </summary>
+        private void tryGpu()
+        {
+            if (installing) return;
+
+            string gpuName = MapperatorinatorRunner.DetectAmdGpu()?.Name ?? @"your AMD GPU";
+
+            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () =>
+            {
+                installing = true;
+                generateButton.Enabled.Value = false;
+                logFlow.Clear();
+                logLines = 0;
+                logScroll.FadeIn(200);
+                installCancellation = new CancellationTokenSource();
+                var token = installCancellation.Token;
+
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        runner.EnableRocm();
+
+                        if (runner.InstalledTorchDevice != @"rocm")
+                            await runner.ReinstallTorchAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+
+                        bool ok = await runner.SmokeTestGpuAsync(line => Schedule(() => appendLog(line)), token).ConfigureAwait(false);
+
+                        if (!ok)
+                        {
+                            runner.MarkRocmBlocked();
+                            Schedule(() =>
+                            {
+                                appendLog(@"the card didn't pass the test, so generation stays on the CPU.");
+                                notifications?.Post(new SimpleNotification { Text = @"Your GPU didn't pass the test, so Mapperatorinator keeps generating on the CPU. Nothing else changed." });
+                            });
+                            return;
+                        }
+
+                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on. The next map should be a lot faster." }));
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        runner.MarkRocmBlocked();
+                        Schedule(() => appendLog(@"cancelled, staying on the CPU."));
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Log($"[mapperatorinator] gpu enable failed: {e}");
+                        runner.MarkRocmBlocked();
+                        Schedule(() => appendLog($"couldn't switch to the GPU: {e.Message}"));
+                    }
+                    finally
+                    {
+                        Schedule(() =>
+                        {
+                            installing = false;
+                            runChecks();
+                        });
+                    }
+                }, CancellationToken.None);
+            }, () => { }));
+        }
+
         /// <summary>Only swaps pytorch for the GPU build: minutes instead of a full reinstall.</summary>
         private void startTorchFix()
         {
@@ -765,7 +837,11 @@ namespace osu.Game.Mapperatorinator
                 @"mps" => @"Apple Silicon (MPS, slower than NVIDIA)",
                 _ => detectedDevice != @"cpu"
                     ? @"CPU (the GPU can't be used until pytorch is reinstalled, see the requirements)"
-                    : @"CPU only (no supported GPU found, this will be slow)",
+                    // la placa amd existe pero la generacion no la usa: decirlo, no fingir
+                    // que no hay ninguna.
+                    : MapperatorinatorRunner.DetectAmdGpu() != null
+                        ? @"CPU (your AMD GPU is off for generation, see the requirements)"
+                        : @"CPU only (no supported GPU found, this will be slow)",
             };
 
             etaText.Text = $"{hardware} | estimated time: ~{format(currentEstimate)}";
