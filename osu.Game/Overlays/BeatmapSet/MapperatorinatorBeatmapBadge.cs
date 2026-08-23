@@ -27,8 +27,13 @@ namespace osu.Game.Overlays.BeatmapSet
             BadgeColour = Colour4.FromHex(@"4aa8ff");
         }
 
-        /// <summary>Whether this set was generated with Mapperatorinator.</summary>
-        public static bool ShouldShowFor(APIBeatmapSet? beatmapSet) => HasMarkerTag(beatmapSet?.Tags);
+        /// <summary>
+        /// Whether this set was generated with Mapperatorinator. The server's answer wins:
+        /// the tag lives in one .osu and anyone can wipe it by editing the metadata, while
+        /// the server marks the set from the file the generator leaves inside it. The tag
+        /// stays as the fallback for anything the server hasn't marked.
+        /// </summary>
+        public static bool ShouldShowFor(APIBeatmapSet? beatmapSet) => beatmapSet?.Ai == true || HasMarkerTag(beatmapSet?.Tags);
 
         public static bool HasMarkerTag(string? tags)
         {
