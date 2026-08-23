@@ -50,6 +50,14 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"is_local")]
         public bool IsLocal { get; set; }
 
+        /// <summary>
+        /// torii: el set salio de una generacion. Lo resuelve el server (para los de aca,
+        /// por el archivo que el generador deja adentro del set, que sobrevive a que
+        /// alguien edite la metadata; para los de bancho, por el tag del autor).
+        /// </summary>
+        [JsonProperty(@"ai")]
+        public bool Ai { get; set; }
+
         [JsonProperty(@"video")]
         public bool HasVideo { get; set; }
 
