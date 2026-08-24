@@ -577,6 +577,11 @@ namespace osu.Game
                 BeatmapManager.PauseImports = p.NewValue != LocalUserPlayingState.NotPlaying;
                 SkinManager.PauseImports = p.NewValue != LocalUserPlayingState.NotPlaying;
                 ScoreManager.PauseImports = p.NewValue != LocalUserPlayingState.NotPlaying;
+
+                // mismo criterio que los imports: reparar la latencia de audio cuesta un
+                // saltito, asi que se hace entre intentos y nunca en el medio de uno.
+                if (Host.AudioThread != null)
+                    Host.AudioThread.AllowLatencyRepair.Value = p.NewValue == LocalUserPlayingState.NotPlaying;
             }, true);
 
             IsActive.BindValueChanged(active => updateActiveState(active.NewValue), true);
