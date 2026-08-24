@@ -1690,8 +1690,10 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         {
             try
             {
+                // el disco donde va a ir de verdad, que no siempre es el mas grande:
+                // en el disco del sistema el install se va al perfil del usuario.
                 if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
-                    return new DriveInfo(largestFreeWindowsDrive()).AvailableFreeSpace;
+                    return new DriveInfo(Path.GetPathRoot(InstallRoot()) ?? largestFreeWindowsDrive()).AvailableFreeSpace;
 
                 return new DriveInfo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)).AvailableFreeSpace;
             }
@@ -1917,6 +1919,7 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             string target = InstallRoot();
             Directory.CreateDirectory(target);
+            target = writableInstallRoot(target, onLogLine);
             onLogLine($"installing to {target}");
 
             // 1. bajar el repo (tarball, sin depender de git)
@@ -2120,16 +2123,26 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
         /// <summary>
         /// Where the tool gets installed. Windows: the fixed drive with the most free
-        /// space (pytorch + model need well over 10 GB and C: is often nearly full).
-        /// Elsewhere: inside the user's home, because the filesystem root isn't
-        /// writable (macOS mounts it read-only) and that's where things belong anyway.
+        /// space (pytorch + model need well over 10 GB and C: is often nearly full), pero
+        /// NUNCA la raiz del disco del sistema: ahi windows deja crear la carpeta y
+        /// despues niega escribir adentro si no sos administrador, y eso es exactamente
+        /// por que a uno le anda (le toco un disco de datos) y al de al lado le pide
+        /// permisos de administrador para crear el venv. En un disco de datos la raiz no
+        /// tiene ese problema. Elsewhere: inside the user's home, because the filesystem
+        /// root isn't writable (macOS mounts it read-only) and that's where things belong.
         /// </summary>
         public static string InstallRoot()
         {
             switch (RuntimeInfo.OS)
             {
                 case RuntimeInfo.Platform.Windows:
-                    return Path.Combine(largestFreeWindowsDrive(), @"Torii-Mapperatorinator");
+                {
+                    string drive = largestFreeWindowsDrive();
+
+                    return isSystemDrive(drive)
+                        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Torii-Mapperatorinator")
+                        : Path.Combine(drive, @"Torii-Mapperatorinator");
+                }
 
                 case RuntimeInfo.Platform.macOS:
                     return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @"Library", @"Application Support", @"Torii-Mapperatorinator");
@@ -2137,6 +2150,73 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 default:
                     return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @".local", @"share", @"torii-mapperatorinator");
             }
+        }
+
+        /// <summary>El disco donde vive windows.</summary>
+        private static bool isSystemDrive(string drive)
+        {
+            try
+            {
+                string? system = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+                return system != null && string.Equals(Path.GetFullPath(system), Path.GetFullPath(drive), StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // sin poder saberlo, se asume que si: el perfil del usuario siempre anda.
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Probar a escribir de verdad, no solo que la carpeta exista. Windows deja crear
+        /// la carpeta y despues niega crear cosas adentro, asi que se hace lo mismo que
+        /// hace el venv: una carpeta adentro y un archivo adentro de esa.
+        /// </summary>
+        private static bool canWriteInside(string root)
+        {
+            string probe = Path.Combine(root, @".torii-write-test");
+
+            try
+            {
+                Directory.CreateDirectory(probe);
+                File.WriteAllText(Path.Combine(probe, @"probe"), @"ok");
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(probe))
+                        Directory.Delete(probe, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        /// <summary>
+        /// Un lugar donde de verdad se pueda escribir, o el perfil del usuario, que
+        /// siempre es suyo. Sin esto el install se cae a la mitad, despues de bajar el
+        /// repo, con un "acceso denegado" que solo se arregla abriendo el juego como
+        /// administrador, que no es algo que haya que pedirle a nadie.
+        /// </summary>
+        private static string writableInstallRoot(string target, Action<string> onLogLine)
+        {
+            if (canWriteInside(target))
+                return target;
+
+            string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Torii-Mapperatorinator");
+
+            if (string.Equals(fallback, target, StringComparison.OrdinalIgnoreCase) || !canWriteInside(fallback))
+                throw new InvalidOperationException($"Windows won't let Torii write to {target}, and neither to your user folder. Install Mapperatorinator yourself wherever you can write, then point the \"Advanced\" field above at its inference.py.");
+
+            onLogLine($"{target} needs administrator rights to write into, so the install goes to {fallback} instead.");
+            return fallback;
         }
 
         private static string largestFreeWindowsDrive()
