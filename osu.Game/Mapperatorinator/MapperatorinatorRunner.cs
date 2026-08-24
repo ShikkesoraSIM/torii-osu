@@ -228,7 +228,15 @@ namespace osu.Game.Mapperatorinator
             switch (device)
             {
                 case @"cuda":
-                    return @"https://download.pytorch.org/whl/cu126";
+                    // las RTX 50xx (blackwell, capacidad 12.0) no tienen kernels en las
+                    // ruedas de cuda 12.6: pytorch arranca, ve la placa, y la generacion
+                    // se cae con cudaErrorNoKernelImageForDevice. La 12.8 si los trae, y
+                    // ahi torch y torchaudio van parejos en 2.11 para python 3.10. La 13.0
+                    // no sirve aunque sea mas nueva: tiene torch 2.13 con torchaudio 2.11,
+                    // desparejos, y el modelo lee el audio con torchaudio.
+                    return NvidiaCapability() >= 12.0
+                        ? @"https://download.pytorch.org/whl/cu128"
+                        : @"https://download.pytorch.org/whl/cu126";
 
                 case @"rocm":
                     // 7.0: la primera con kernels para rdna4 (rx 9000) que todavia publica
@@ -916,6 +924,16 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             await runStep(venvPython, torchArgs.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
             await File.WriteAllTextAsync(deviceMarker, installDevice, cancellation).ConfigureAwait(false);
+
+            // de que indice salio: si mañana la placa necesita una rueda mas nueva (una
+            // 50xx con la de cuda 12.6, por ejemplo), la lista de requisitos lo ve sin
+            // tener que arrancar la generacion para que se caiga.
+            if (installDevice == @"cuda")
+            {
+                Config.CudaIndex = index;
+                Save();
+            }
+
             onLogLine($"pytorch ready for {installDevice}.");
         }
 
@@ -1133,6 +1151,59 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
         /// <summary>Si hay una placa nvidia en la maquina.</summary>
         public static bool HasNvidiaGpu => hasNvidia();
+
+        private static double? nvidiaCapability;
+        private static bool nvidiaCapabilityProbed;
+
+        /// <summary>
+        /// La capacidad de computo de la placa nvidia mas nueva de la maquina, como la
+        /// reporta el driver: 8.9 es una RTX 40xx, 12.0 una RTX 50xx. Es el unico dato de
+        /// la placa que se puede preguntar ANTES de instalar pytorch, y hace falta
+        /// justamente para no bajarle una rueda que no tiene kernels para ella.
+        /// </summary>
+        public static double? NvidiaCapability()
+        {
+            if (nvidiaCapabilityProbed)
+                return nvidiaCapability;
+
+            nvidiaCapabilityProbed = true;
+
+            try
+            {
+                using var p = Process.Start(new ProcessStartInfo(@"nvidia-smi", @"--query-gpu=compute_cap --format=csv,noheader")
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+
+                if (p == null)
+                    return null;
+
+                string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(4000);
+
+                if (p.ExitCode != 0)
+                    return null;
+
+                // con varias placas manda la mas nueva: la rueda tiene que servirle a esa.
+                foreach (string line in output.Split('\n'))
+                {
+                    if (double.TryParse(line.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double cap)
+                        && (nvidiaCapability == null || cap > nvidiaCapability))
+                    {
+                        nvidiaCapability = cap;
+                    }
+                }
+            }
+            catch
+            {
+                // sin nvidia-smi no hay dato, y el default de siempre sigue sirviendo.
+            }
+
+            return nvidiaCapability;
+        }
 
         private static bool? nvidiaPresent;
 
@@ -1810,6 +1881,15 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             if (all.Contains(@"No module named"))
                 return @"The python packages are missing or broken. Re-run the Mapperatorinator install from the requirements list.";
+
+            if (all.Contains(@"NoKernelImage", StringComparison.OrdinalIgnoreCase)
+                || all.Contains(@"no kernel image is available", StringComparison.OrdinalIgnoreCase)
+                || all.Contains(@"not compatible with the current PyTorch installation", StringComparison.OrdinalIgnoreCase))
+            {
+                return @"The pytorch that's installed has no kernels for your graphics card, so it can see it but can't run anything on it. "
+                       + @"This is what happens to an RTX 50 series card with a CUDA 12.6 build. Open Mapperatorinator from a map's right-click "
+                       + @"menu and press the button on the Mapperatorinator row: it reinstalls the build that does have them.";
+            }
 
             if (all.Contains(@"not compiled with CUDA") || all.Contains(@"Torch not compiled"))
                 return @"PyTorch was installed without GPU support. Re-run the Mapperatorinator install from the requirements list.";
@@ -2590,6 +2670,9 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
         /// <summary>Que hardware habia cuando se eligio, para no fijar un indice viejo.</summary>
         public string? GpuSignature { get; set; }
+
+        /// <summary>De que indice de cuda salio el pytorch instalado.</summary>
+        public string? CudaIndex { get; set; }
 
         /// <summary>Why the GPU was given up on, in the user's words.</summary>
         [JsonPropertyName(@"rocm_last_error")]
