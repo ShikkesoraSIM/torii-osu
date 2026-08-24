@@ -278,6 +278,9 @@ namespace osu.Game.Configuration
             // torii: marca de una sola vez. el primer arranque siembra el default de hz segun la
             // maquina (ver OsuGameBase) sin pisar nunca una eleccion posterior del usuario.
             SetDefault(OsuSetting.ToriiInputAudioHzAutoTuned, false);
+            // torii: segundo pase del tuner. El primero dejaba a los quad-core viejos con
+            // mucha ram en 2000; este los baja UNA vez a lo que el tuner arreglado diria.
+            SetDefault(OsuSetting.ToriiInputAudioHzRetunedWeakQuad, false);
 
             // Torii: cuanta CPU usa el recalculo de star rating de fondo. default gentil (lazer) asi si el
             // popup de arranque se cierra/falla, no se come la maquina. el popup la guarda como preferencia.
@@ -691,6 +694,7 @@ namespace osu.Game.Configuration
         ToriiPotatoMode,
         ToriiInputAudioHz,
         ToriiInputAudioHzAutoTuned,
+        ToriiInputAudioHzRetunedWeakQuad,
         ToriiNovaRendererMigrated,
         ToriiKeyDebounceEnabled,
         ToriiKeyDebounceThresholdMs,

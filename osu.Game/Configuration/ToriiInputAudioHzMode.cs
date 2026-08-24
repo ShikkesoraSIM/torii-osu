@@ -19,7 +19,7 @@ namespace osu.Game.Configuration
         [Description("1000 Hz")]
         Hz1000 = 1000,
 
-        [Description("2000 Hz (recommended)")]
+        [Description("2000 Hz (modern PCs)")]
         Hz2000 = 2000,
 
         [Description("4000 Hz")]
@@ -48,8 +48,11 @@ namespace osu.Game.Configuration
             if (cores <= 2 || ramGb < 4)
                 return ToriiInputAudioHzMode.Hz500;
 
-            // quad-core economico viejo (pocos cores Y poca ram): a la segura en el rate de lazer.
-            if (cores <= 4 && ramGb < 8)
+            // pocos cores = rate de lazer, SIN mirar la ram: la ram no dice nada de la
+            // velocidad de la cpu. El caso real que rompio el "&& ram < 8": un i3-2310M
+            // de 2011 (2C/4T) con 12 GB puestos despues, que quedo sembrado en 2000 y
+            // perdio un tercio de los fps contra el lazer oficial en la misma maquina.
+            if (cores <= 4)
                 return ToriiInputAudioHzMode.Hz1000;
 
             return ToriiInputAudioHzMode.Hz2000;

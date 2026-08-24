@@ -524,6 +524,27 @@ namespace osu.Game
                 Logger.Log($"Torii: first-launch input/audio Hz auto-tuned to {(int)tunedHz} ({Environment.ProcessorCount} cores).");
                 LocalConfig.SetValue(OsuSetting.ToriiInputAudioHz, tunedHz);
                 LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzAutoTuned, true);
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzRetunedWeakQuad, true);
+            }
+
+            // torii: rescate de los que el tuner viejo (o el default pelado, antes de que
+            // el tuner existiera) dejo en 2000 con una cpu de pocos cores: un i3 de 2011
+            // con ht y 12 GB de ram quedaba corriendo input/audio/update al doble del
+            // lazer oficial y perdia un tercio de los fps. Solo se toca si el valor es
+            // EXACTAMENTE el 2000 heredado; el que eligio otra cosa en el dropdown no se
+            // entera de que esto existe, y el dropdown sigue mandando despues.
+            if (!LocalConfig.Get<bool>(OsuSetting.ToriiInputAudioHzRetunedWeakQuad))
+            {
+                var retuned = ToriiInputAudioHzDefaults.ForThisMachine();
+
+                if (retuned != ToriiInputAudioHzMode.Hz2000
+                    && LocalConfig.Get<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz) == ToriiInputAudioHzMode.Hz2000)
+                {
+                    Logger.Log($"Torii: input/audio Hz re-tuned 2000 -> {(int)retuned} ({Environment.ProcessorCount} cores).");
+                    LocalConfig.SetValue(OsuSetting.ToriiInputAudioHz, retuned);
+                }
+
+                LocalConfig.SetValue(OsuSetting.ToriiInputAudioHzRetunedWeakQuad, true);
             }
 
             toriiInputAudioHz = LocalConfig.GetBindable<ToriiInputAudioHzMode>(OsuSetting.ToriiInputAudioHz);
