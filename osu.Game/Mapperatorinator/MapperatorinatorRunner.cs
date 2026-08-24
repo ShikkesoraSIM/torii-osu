@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework;
@@ -16,6 +17,21 @@ using osu.Framework.Logging;
 
 namespace osu.Game.Mapperatorinator
 {
+    /// <summary>Un juego de ruedas de pytorch con ROCm: de donde bajarlas y que pedir.</summary>
+    public class RocmWheel
+    {
+        /// <summary>Lo que se guarda para saber cual quedo instalada.</summary>
+        public string Id { get; init; } = string.Empty;
+
+        public string IndexUrl { get; init; } = string.Empty;
+
+        /// <summary>Lo que se le pasa a pip, con la version pineada.</summary>
+        public string[] Packages { get; init; } = Array.Empty<string>();
+
+        /// <summary>El indice de AMD no tiene todo lo que torch necesita para instalarse.</summary>
+        public bool AlsoPypi { get; init; }
+    }
+
     /// <summary>An AMD GPU the amdgpu driver exposes to ROCm on linux.</summary>
     public class AmdGpuInfo
     {
@@ -27,12 +43,22 @@ namespace osu.Game.Mapperatorinator
         /// <summary>Whether this user can open /dev/kfd. Without that ROCm sees no GPU at all.</summary>
         public bool KfdAccessible { get; init; }
 
+        /// <summary>La placa esta en windows.</summary>
+        public bool Windows { get; init; }
+
         /// <summary>
-        /// La placa esta en windows, donde no hay build oficial de pytorch con ROCm. No
-        /// significa que no se pueda: significa que Torii no lo puede instalar solo, y que
-        /// depende de que la persona tenga un torch que sepa hablarle a su placa.
+        /// Los paquetes de kernels que le tocan en el indice de AMD, o null si no la
+        /// reconocimos (AMD solo publica windows para RDNA3 en adelante). Van todos los
+        /// chips de la generacion, no el de esta placa: son 48 MB cada uno y asi no hay
+        /// forma de errarle al chip por leer mal un numero de modelo.
         /// </summary>
-        public bool WindowsWithoutRocm { get; init; }
+        public string[]? WheelTargets { get; init; }
+
+        /// <summary>
+        /// Windows y no tenemos rueda para esta placa: Torii no se la puede instalar, asi
+        /// que depende de que la persona tenga un torch que sepa hablarle.
+        /// </summary>
+        public bool WindowsWithoutRocm => Windows && WheelTargets == null;
 
         public string Gfx => $"gfx{GfxTarget / 10000}{GfxTarget / 100 % 100:x}{GfxTarget % 100:x}";
 
@@ -137,15 +163,29 @@ namespace osu.Game.Mapperatorinator
             }
         }
 
+        private readonly object saveLock = new object();
+
         public void Save()
         {
-            try
+            // se llama desde el hilo de la ui y desde las tareas de install a la vez: sin
+            // esto dos escrituras se pisan y el json queda cortado por la mitad, que es
+            // perder el install path entero.
+            lock (saveLock)
             {
-                File.WriteAllText(configPath, JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true }));
-            }
-            catch (Exception e)
-            {
-                Logger.Log($"[mapperatorinator] couldn't save config: {e.Message}");
+                try
+                {
+                    string json = JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true });
+
+                    // se escribe al lado y se mueve encima: si el juego se muere en el
+                    // medio, queda el de antes y no uno a medio escribir.
+                    string temp = configPath + @".tmp";
+                    File.WriteAllText(temp, json);
+                    File.Move(temp, configPath, true);
+                }
+                catch (Exception e)
+                {
+                    Logger.Log($"[mapperatorinator] couldn't save config: {e.Message}");
+                }
             }
         }
 
@@ -237,6 +277,22 @@ namespace osu.Game.Mapperatorinator
         }
 
         /// <summary>What torch knows about this machine's GPU. No kernel ever runs to get this.</summary>
+        /// <summary>Una de las placas que torch enumera.</summary>
+        public class GpuDevice
+        {
+            public int Index { get; init; }
+            public string Name { get; init; } = string.Empty;
+            public string Arch { get; init; } = string.Empty;
+
+            /// <summary>Unidades de computo. Una integrada tiene 2, una placa de verdad 60 y pico.</summary>
+            public int Cus { get; init; }
+
+            public long MemoryMB { get; init; }
+
+            public override string ToString() =>
+                $"#{Index} {Name}" + (Arch.Length > 0 ? $" ({Arch})" : string.Empty) + $", {Cus} CUs, {MemoryMB} MB";
+        }
+
         public class GpuProbe
         {
             public string? TorchVersion { get; set; }
@@ -249,6 +305,12 @@ namespace osu.Game.Mapperatorinator
 
             /// <summary>The chips this pytorch build carries kernels for.</summary>
             public List<string> ArchList { get; set; } = new List<string>();
+
+            /// <summary>Todas las placas que torch ve, en el orden en que las enumera.</summary>
+            public List<GpuDevice> Devices { get; } = new List<GpuDevice>();
+
+            /// <summary>La que elegimos para generar: la mas grande, no la primera.</summary>
+            public int ChosenIndex { get; set; }
 
             public string? Error { get; set; }
 
@@ -288,11 +350,11 @@ namespace osu.Game.Mapperatorinator
             var probe = new GpuProbe();
             // el que la persona eligio si eligio uno: no tiene sentido sondear el venv
             // nuestro cuando la placa anda en el python de ella.
-            string? venvPython = PythonExecutable;
+            string venvPython = PythonExecutable;
 
-            if (venvPython == null)
+            if (pythonProblem() is string problem)
             {
-                probe.Error = @"the tool isn't installed yet";
+                probe.Error = problem;
                 return probe;
             }
 
@@ -308,10 +370,22 @@ try:
         info['arch_list'] = []
         info['arch_list_error'] = str(e)
     info['count'] = torch.cuda.device_count()
-    if info['count']:
-        p = torch.cuda.get_device_properties(0)
-        info['name'] = p.name
-        info['arch'] = getattr(p, 'gcnArchName', '').split(':')[0]
+    devices = []
+    for i in range(info['count']):
+        # una placa que no contesta no puede tapar a las demas: sin esto, una sola
+        # que falle deja el reporte entero en 'error' y no se ve ninguna.
+        try:
+            p = torch.cuda.get_device_properties(i)
+            devices.append({
+                'index': i,
+                'name': p.name,
+                'arch': getattr(p, 'gcnArchName', '').split(':')[0],
+                'cus': getattr(p, 'multi_processor_count', 0),
+                'mb': getattr(p, 'total_memory', 0) // (1024 * 1024),
+            })
+        except Exception as e:
+            devices.append({'index': i, 'name': 'unreadable (' + str(e) + ')', 'arch': '', 'cus': 0, 'mb': 0})
+    info['devices'] = devices
 except Exception as e:
     info['error'] = str(e)
 print('torii-gpu-probe ' + json.dumps(info))";
@@ -326,7 +400,9 @@ print('torii-gpu-probe ' + json.dumps(info))";
                 CreateNoWindow = true,
             };
 
-            applyProcessEnvironment(psi);
+            // sin el filtro de placa: es justamente el sondeo el que decide cual usar, y
+            // con el filtro puesto solo veria la que elegimos la vez pasada.
+            applyProcessEnvironment(psi, selectDevice: false);
 
             for (int i = 1; i < launcher.Length; i++)
                 psi.ArgumentList.Add(launcher[i]);
@@ -383,10 +459,23 @@ print('torii-gpu-probe ' + json.dumps(info))";
 
                 probe.TorchVersion = str(root, @"torch");
                 probe.HipVersion = str(root, @"hip");
-                probe.DeviceName = str(root, @"name");
-                probe.Arch = str(root, @"arch");
                 probe.Error = str(root, @"error");
                 probe.DeviceCount = root.TryGetProperty(@"count", out var c) && c.TryGetInt32(out int n) ? n : 0;
+
+                if (root.TryGetProperty(@"devices", out var devices) && devices.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var d in devices.EnumerateArray())
+                    {
+                        probe.Devices.Add(new GpuDevice
+                        {
+                            Index = num(d, @"index"),
+                            Name = str(d, @"name") ?? @"unknown card",
+                            Arch = str(d, @"arch") ?? string.Empty,
+                            Cus = num(d, @"cus"),
+                            MemoryMB = num(d, @"mb"),
+                        });
+                    }
+                }
 
                 if (root.TryGetProperty(@"arch_list", out var list) && list.ValueKind == JsonValueKind.Array)
                 {
@@ -402,6 +491,28 @@ print('torii-gpu-probe ' + json.dumps(info))";
                 probe.Error = $"couldn't read the probe output: {e.Message}";
             }
 
+            // torch enumera primero la integrada del procesador y despues la placa de
+            // verdad. Mandarle el trabajo a la primera sin mirar es como termina una 9070
+            // XT generando en una radeon integrada de 2 CUs: la integrada tambien tiene
+            // kernels, acepta el trabajo, y se cae con violacion de acceso.
+            var best = probe.Devices.OrderByDescending(d => d.Cus).ThenByDescending(d => d.MemoryMB).FirstOrDefault();
+
+            if (best != null)
+            {
+                probe.ChosenIndex = best.Index;
+                probe.DeviceName = best.Name;
+                probe.Arch = best.Arch.Length > 0 ? best.Arch : null;
+
+                if (probe.Devices.Count > 1)
+                {
+                    onLogLine($"{probe.Devices.Count} gpus here: {string.Join(@"; ", probe.Devices)}");
+                    onLogLine($"using {best.Name} (the biggest one), not the one the system lists first.");
+                }
+
+                Config.GpuIndex = best.Index;
+                Config.GpuSignature = currentGpuSignature();
+            }
+
             onLogLine(probe.Summary);
 
             Config.RocmArch = probe.Arch;
@@ -412,6 +523,9 @@ print('torii-gpu-probe ' + json.dumps(info))";
 
             static string? str(JsonElement root, string name) =>
                 root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            static int num(JsonElement root, string name) =>
+                root.TryGetProperty(name, out var v) && v.TryGetInt32(out int i) ? i : 0;
         }
 
         /// <summary>
@@ -482,40 +596,103 @@ print('torii-gpu-probe ' + json.dumps(info))";
         /// needs torchaudio (v32's spectrogram is the torchaudio one), so a torch-only
         /// install would leave the tool unable to read the audio at all.
         /// </summary>
-        public static IEnumerable<(string index, string torch, string torchaudio)> RocmIndexes()
+        public static IEnumerable<RocmWheel> RocmIndexes(AmdGpuInfo? card = null)
         {
-            // windows: no hay ruedas de ROCm publicadas, asi que no hay nada que bajar.
-            // Se prueba con el torch que la persona tenga instalado.
             if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
-                yield break;
+            {
+                // con una nvidia en la maquina, el torch que hay es el de CUDA y sirve:
+                // bajarle encima el de AMD por una integrada Radeon le rompe lo que ya
+                // andaba. La placa que vale es la nvidia y va por el otro camino.
+                if (HasNvidiaGpu)
+                    yield break;
 
-            yield return (@"rocm7.0", @"torch==2.10.0", @"torchaudio==2.10.0");
+                // AMD publica pytorch con ROCm para windows, con ruedas para python 3.10
+                // (el que instalamos). Los kernels NO vienen adentro de torch: van en un
+                // paquete aparte por familia de chip, y sin ese paquete torch ve la placa
+                // pero no puede correr nada encima.
+                string[]? targets = (card ?? DetectAmdGpu())?.WheelTargets;
+
+                if (targets != null)
+                {
+                    const string version = @"2.11.0+rocm7.14.0";
+
+                    var packages = new List<string> { $"torch=={version}", $"torchaudio=={version}" };
+                    packages.AddRange(targets.Select(target => $"amd-torch-device-{target}=={version}"));
+
+                    yield return new RocmWheel
+                    {
+                        Id = $"amd-rocm7.14-{targets[0]}",
+                        IndexUrl = @"https://repo.amd.com/rocm/whl-multi-arch/",
+                        Packages = packages.ToArray(),
+                        AlsoPypi = true,
+                    };
+                }
+
+                // placa que no reconocimos: no hay nada que bajar y se prueba con el torch
+                // que la persona tenga puesto.
+                yield break;
+            }
+
+            // la etiqueta local (+rocm7.0) va SIEMPRE: sin ella, "torch==2.10.0" lo cumple
+            // igual un 2.10.0+cpu ya instalado, pip no baja nada, y el marcador queda
+            // diciendo rocm sobre una rueda de cpu.
+            yield return new RocmWheel
+            {
+                Id = @"rocm7.0",
+                IndexUrl = @"https://download.pytorch.org/whl/rocm7.0",
+                Packages = new[] { @"torch==2.10.0+rocm7.0", @"torchaudio==2.10.0+rocm7.0" },
+            };
 
             // kernels mas nuevos, misma familia: la segunda oportunidad para una placa
             // que la 7.0 reconoce pero no aguanta.
-            yield return (@"rocm7.2", @"torch==2.11.0", @"torchaudio==2.11.0");
+            yield return new RocmWheel
+            {
+                Id = @"rocm7.2",
+                IndexUrl = @"https://download.pytorch.org/whl/rocm7.2",
+                Packages = new[] { @"torch==2.11.0+rocm7.2", @"torchaudio==2.11.0+rocm7.2" },
+            };
 
             // placas viejas (rdna2 y anteriores) que las 7.x ya no traen.
-            yield return (@"rocm6.4", @"torch==2.9.1", @"torchaudio==2.9.1");
+            yield return new RocmWheel
+            {
+                Id = @"rocm6.4",
+                IndexUrl = @"https://download.pytorch.org/whl/rocm6.4",
+                Packages = new[] { @"torch==2.9.1+rocm6.4", @"torchaudio==2.9.1+rocm6.4" },
+            };
         }
 
-        /// <summary>Installs a specific ROCm pytorch pair over whatever is in the venv.</summary>
-        public async Task InstallRocmTorchAsync((string index, string torch, string torchaudio) wheel, Action<string> onLogLine, CancellationToken cancellation)
+        /// <summary>Installs a specific ROCm pytorch set over whatever is in the venv.</summary>
+        public async Task InstallRocmTorchAsync(RocmWheel wheel, Action<string> onLogLine, CancellationToken cancellation)
         {
             string checkout = Config.InstallPath ?? throw new InvalidOperationException(@"Mapperatorinator isn't installed yet.");
             string venvPython = VenvPython ?? throw new InvalidOperationException(@"The python environment inside the install is missing.");
             var pipEnv = pipEnvironment(Path.GetDirectoryName(checkout) ?? checkout);
 
-            onLogLine($"installing pytorch for {wheel.index} (a few GB)...");
-            await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
-            await runStep(venvPython, new[]
+            onLogLine($"installing pytorch for {wheel.Id} (a few GB)...");
+            await installTorchFromWheel(venvPython, checkout, pipEnv, wheel, onLogLine, cancellation).ConfigureAwait(false);
+        }
+
+        /// <summary>Baja e instala una rueda de ROCm en un venv concreto.</summary>
+        private async Task installTorchFromWheel(string venvPython, string checkout, Dictionary<string, string> pipEnv, RocmWheel wheel, Action<string> onLogLine, CancellationToken cancellation)
+        {
+            // las versiones van pineadas, asi que pip reemplaza lo que haya sin desinstalar
+            // primero. Es a proposito: si la bajada se corta a la mitad, el entorno se
+            // queda con el torch que ya tenia en vez de quedarse sin ninguno.
+            var args = new List<string> { "-m", "pip", "install" };
+            args.AddRange(wheel.Packages);
+            args.Add("--index-url");
+            args.Add(wheel.IndexUrl);
+
+            if (wheel.AlsoPypi)
             {
-                "-m", "pip", "install", wheel.torch, wheel.torchaudio,
-                "--index-url", $"https://download.pytorch.org/whl/{wheel.index}",
-            }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
+                args.Add("--extra-index-url");
+                args.Add(@"https://pypi.org/simple");
+            }
+
+            await runStep(venvPython, args.ToArray(), checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
 
             await File.WriteAllTextAsync(Path.Combine(checkout, torch_device_marker), @"rocm", cancellation).ConfigureAwait(false);
-            Config.RocmIndex = wheel.index;
+            Config.RocmIndex = wheel.Id;
             Save();
         }
 
@@ -527,10 +704,13 @@ print('torii-gpu-probe ' + json.dumps(info))";
         /// </summary>
         public async Task<bool> SmokeTestGpuAsync(Action<string> onLogLine, CancellationToken cancellation)
         {
-            string? venvPython = PythonExecutable;
+            string venvPython = PythonExecutable;
 
-            if (venvPython == null)
+            if (pythonProblem() is string problem)
+            {
+                onLogLine(problem);
                 return false;
+            }
 
             const string script = @"import torch
 assert torch.cuda.is_available(), 'torch cannot see the gpu'
@@ -697,6 +877,24 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 _ => @"no nvidia/amd gpu found: installing cpu pytorch (generation will be SLOW)...",
             });
 
+            var rocmWheel = installDevice == @"rocm" ? RocmIndexes().FirstOrDefault() : null;
+
+            if (installDevice == @"rocm" && rocmWheel == null && RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
+            {
+                // windows con una placa que no reconocemos: no hay rueda que bajar. Va la
+                // de cpu y se dice, que mentirle al marker es peor: despues nadie entiende
+                // por que genera lento.
+                onLogLine(@"no rocm wheel exists for this card on windows: installing the cpu build instead.");
+                installDevice = @"cpu";
+            }
+
+            if (rocmWheel != null)
+            {
+                await installTorchFromWheel(venvPython, checkout, pipEnv, rocmWheel, onLogLine, cancellation).ConfigureAwait(false);
+                onLogLine(@"pytorch ready for rocm.");
+                return;
+            }
+
             string deviceMarker = Path.Combine(checkout, torch_device_marker);
             string? previousDevice = File.Exists(deviceMarker) ? File.ReadAllText(deviceMarker).Trim() : null;
 
@@ -801,6 +999,20 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         }
 
         /// <summary>
+        /// El motivo por el que el python configurado no sirve, o null si esta todo bien.
+        /// PythonExecutable siempre devuelve algo (termina en "python" a secas), asi que
+        /// chequear null no servia de nada: el caso real es el campo de "usar mi propio
+        /// python" apuntando a algo que se movio o se borro.
+        /// </summary>
+        private string? pythonProblem()
+        {
+            if (!string.IsNullOrEmpty(Config.PythonPath) && !File.Exists(Config.PythonPath))
+                return $"the python you pointed at isn't there any more ({Config.PythonPath}). Clear the \"use my own python\" field to go back to the one Torii installed.";
+
+            return null;
+        }
+
+        /// <summary>
         /// Best-effort device detection. CUDA if an nvidia GPU is visible, ROCm for an AMD
         /// card on linux, MPS on apple silicon, otherwise CPU.
         /// The distinction only drives the ETA; inference.py picks its own device with device=auto.
@@ -816,8 +1028,10 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 if (hasNvidia())
                     return @"cuda";
 
+                // la placa fallo antes: pedir gpu no alcanza para volver a mandarla al
+                // muere. Hay que volver a pasar la prueba, que es lo que la desbloquea.
                 if (DetectAmdGpu() != null)
-                    return @"rocm";
+                    return Config.RocmBlocked ? @"cpu" : @"rocm";
 
                 if (MapperatorinatorReadiness.IsAppleSilicon)
                     return @"mps";
@@ -901,7 +1115,42 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             return null;
         }
 
+        /// <summary>
+        /// Si la placa que se eligio la vez pasada sigue siendo la misma. El indice sale
+        /// del orden en que torch enumera, asi que no significa nada por si solo: si
+        /// cambio el hardware (una placa mas, una menos) o el json se copio a otra
+        /// maquina, ese numero apunta a cualquier cosa. Se guarda junto con la lista de
+        /// placas que habia cuando se eligio, y si no coincide no se fija ninguna: torch
+        /// elige, que es exactamente lo que pasaba antes de todo esto.
+        /// </summary>
+        public bool GpuChoiceStillValid => Config.GpuSignature != null && Config.GpuSignature == currentGpuSignature();
+
+        private static string currentGpuSignature()
+        {
+            var amd = DetectAmdGpu();
+            return $"{RuntimeInfo.OS}/nv:{HasNvidiaGpu}/amd:{amd?.Name ?? "none"}";
+        }
+
+        /// <summary>Si hay una placa nvidia en la maquina.</summary>
+        public static bool HasNvidiaGpu => hasNvidia();
+
+        private static bool? nvidiaPresent;
+
+        /// <summary>
+        /// Si hay una placa nvidia. Cacheado igual que la deteccion de AMD: esto arranca
+        /// nvidia-smi y lo espera, y se llama desde el hilo de la interfaz cada vez que se
+        /// revisan los requisitos. El hardware no cambia a mitad de sesion.
+        /// </summary>
         private static bool hasNvidia()
+        {
+            if (nvidiaPresent is bool cached)
+                return cached;
+
+            nvidiaPresent = detectNvidia();
+            return nvidiaPresent.Value;
+        }
+
+        private static bool detectNvidia()
         {
             try
             {
@@ -980,6 +1229,27 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             Save();
         }
 
+        /// <summary>
+        /// El torch que ya estaba instalado paso la prueba de la placa: se marca como
+        /// propio para que EffectiveDevice deje de mandarlo a la cpu por no reconocerlo.
+        /// Sin esto el cartel dice que la gpu esta prendida y la generacion igual corre
+        /// en cpu, que es la peor de las dos mentiras posibles.
+        /// </summary>
+        public void MarkTorchVerified()
+        {
+            if (string.IsNullOrEmpty(Config.InstallPath))
+                return;
+
+            try
+            {
+                File.WriteAllText(Path.Combine(Config.InstallPath, torch_device_marker), @"custom");
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"[mapperatorinator] couldn't write the device marker: {e.Message}");
+            }
+        }
+
         /// <summary>Point the runtime at a different chip's kernels (or stop doing that).</summary>
         public void SetRocmOverride(string? hsaVersion)
         {
@@ -998,19 +1268,31 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// </summary>
         public static AmdGpuInfo? DetectAmdGpu()
         {
-            if (amdGpuProbed)
-                return amdGpu;
+            // el candado y el flag al final van juntos: si el flag se prende antes de
+            // tener el valor, cualquier otro hilo que pregunte mientras corre el
+            // powershell se lleva un null como si no hubiera placa, y esa respuesta
+            // queda pegada en lo que sea que haya decidido con ese null.
+            lock (amd_probe_lock)
+            {
+                if (amdGpuProbed)
+                    return amdGpu;
 
-            amdGpuProbed = true;
+                amdGpu = detectAmdGpuUncached();
+                amdGpuProbed = true;
+                return amdGpu;
+            }
+        }
+
+        private static readonly object amd_probe_lock = new object();
+
+        private static AmdGpuInfo? detectAmdGpuUncached()
+        {
 
             // en windows la placa existe igual, pero pytorch no publica build de ROCm
             // para windows: no hay forma de generar en ella. Se detecta lo mismo para
             // poder decirlo con nombre y apellido en vez de "no se encontro ninguna gpu".
             if (RuntimeInfo.OS == RuntimeInfo.Platform.Windows)
-            {
-                amdGpu = detectWindowsAmdGpu();
-                return amdGpu;
-            }
+                return detectWindowsAmdGpu();
 
             if (RuntimeInfo.OS != RuntimeInfo.Platform.Linux || !File.Exists(@"/dev/kfd"))
                 return null;
@@ -1051,7 +1333,7 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 if (bestGfx == 0)
                     return null;
 
-                amdGpu = new AmdGpuInfo { GfxTarget = bestGfx, Name = amdGpuName(bestGfx), KfdAccessible = canOpenKfd() };
+                return new AmdGpuInfo { GfxTarget = bestGfx, Name = amdGpuName(bestGfx), KfdAccessible = canOpenKfd() };
                 return amdGpu;
             }
             catch
@@ -1077,12 +1359,31 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 if (!amdDriver)
                     return null;
 
+                var names = windowsGpuNames();
+
+                // los kernels se juntan de TODAS las placas AMD que reconocemos, no de una
+                // sola: con una integrada reconocida (un 760M) mas una placa aparte,
+                // quedarse con "la primera que reconozco" bajaba los kernels de una y el
+                // trabajo lo termina haciendo la otra, la de mas unidades de computo, que
+                // se queda sin kernels y encima queda marcada como fallada.
+                var targets = new List<string>();
+
+                foreach (string candidate in names)
+                {
+                    foreach (string target in windowsWheelTargets(candidate) ?? Array.Empty<string>())
+                    {
+                        if (!targets.Contains(target))
+                            targets.Add(target);
+                    }
+                }
+
                 return new AmdGpuInfo
                 {
-                    Name = windowsGpuName() ?? @"Your AMD GPU",
+                    Name = windowsBestName(names) ?? @"Your AMD GPU",
                     GfxTarget = 0,
                     KfdAccessible = false,
-                    WindowsWithoutRocm = true,
+                    Windows = true,
+                    WheelTargets = targets.Count > 0 ? targets.ToArray() : null,
                 };
             }
             catch
@@ -1091,8 +1392,92 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             }
         }
 
-        private static string? windowsGpuName()
+        /// <summary>
+        /// Los paquetes de kernels que AMD publica para la generacion de esta placa. Se
+        /// baja la generacion entera y no el chip exacto a proposito: son 48 MB por chip,
+        /// y la alternativa es adivinar que una "RX 9070" es gfx1201 y una "RX 9060" es
+        /// gfx1200 leyendo el nombre que reporta el driver, que es justo la clase de
+        /// suposicion que despues deja a alguien sin kernels. Solo RDNA3 en adelante, que
+        /// es lo que AMD soporta en windows: mandar una placa vieja a bajar los GB de
+        /// ROCm para que despues no arranque es peor que decirle de entrada que no hay.
+        /// </summary>
+        private static string[]? windowsWheelTargets(string? name)
         {
+            if (string.IsNullOrEmpty(name))
+                return null;
+
+            // "AMD Radeon RX 9070 XT" -> 9070.
+            var discrete = Regex.Match(name, RX_MODEL, RegexOptions.IgnoreCase);
+
+            if (discrete.Success && int.TryParse(discrete.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int model))
+            {
+                return model switch
+                {
+                    >= 9000 and < 10000 => rdna4,
+                    >= 7000 and < 8000 => rdna3,
+                    _ => null, // rdna2 y anteriores no tienen windows
+                };
+            }
+
+            // las PRO llevan el mismo chip que las RX de su generacion: W7900 es gfx1100.
+            if (Regex.IsMatch(name, PRO_MODEL, RegexOptions.IgnoreCase))
+                return rdna3;
+
+            // integradas: 880M/890M (strix) y 780M/760M (phoenix).
+            var igpu = Regex.Match(name, IGPU_MODEL, RegexOptions.IgnoreCase);
+
+            if (igpu.Success)
+            {
+                return igpu.Groups[1].Value switch
+                {
+                    @"8" or @"9" => strix,
+                    @"7" => phoenix,
+                    _ => null,
+                };
+            }
+
+            // strix halo se llama distinto (8060S, 8050S): termina en S y lleva cuatro
+            // digitos, asi que no entra por el molde de las otras integradas.
+            var halo = Regex.Match(name, HALO_MODEL, RegexOptions.IgnoreCase);
+
+            if (halo.Success && halo.Groups[1].Value == @"8")
+                return strix;
+
+            return null;
+        }
+
+        // el primero de cada lista es el paquete de la familia entera, que es el que
+        // pesa; los otros son los kernels afinados de cada chip, como los pide AMD.
+        private static readonly string[] rdna4 = { @"gfx12-0", @"gfx1200", @"gfx1201" };
+        private static readonly string[] rdna3 = { @"gfx110x", @"gfx1100", @"gfx1101", @"gfx1102" };
+        private static readonly string[] strix = { @"gfx115x", @"gfx1150", @"gfx1151", @"gfx1152", @"gfx1153" };
+        private static readonly string[] phoenix = { @"gfx1103" };
+
+        private const string RX_MODEL = @"RX\s*(\d{4})";
+        private const string PRO_MODEL = @"\bW7\d{3}\b";
+        private const string HALO_MODEL = @"\b(\d)\d{2}0S\b";
+        private const string IGPU_MODEL = @"\b(\d)\d0M\b";
+
+        /// <summary>
+        /// La placa AMD que conviene nombrar. Windows enumera primero la integrada del
+        /// procesador, que ademas se llama "AMD Radeon(TM) Graphics" a secas: quedarse con
+        /// la primera es como una maquina con una 9070 XT adentro termina mostrando el
+        /// nombre de la integrada en todos los carteles. Gana la placa aparte, que es la
+        /// que efectivamente va a hacer el trabajo.
+        /// </summary>
+        private static string? windowsBestName(List<string> names) =>
+            names.FirstOrDefault(isDiscrete)
+            ?? names.FirstOrDefault(n => windowsWheelTargets(n) != null)
+            ?? names.FirstOrDefault();
+
+        /// <summary>Una placa aparte (RX o PRO), no la integrada del procesador.</summary>
+        private static bool isDiscrete(string name) =>
+            Regex.IsMatch(name, RX_MODEL, RegexOptions.IgnoreCase) || Regex.IsMatch(name, PRO_MODEL, RegexOptions.IgnoreCase);
+
+        private static List<string> windowsGpuNames()
+        {
+            var names = new List<string>();
+
             try
             {
                 var psi = new ProcessStartInfo(@"powershell")
@@ -1105,22 +1490,30 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
                 psi.ArgumentList.Add(@"-NoProfile");
                 psi.ArgumentList.Add(@"-Command");
-                psi.ArgumentList.Add(@"(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | Select-Object -First 1).Name");
+                psi.ArgumentList.Add(@"Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'AMD|Radeon' } | ForEach-Object { $_.Name }");
 
                 using var p = Process.Start(psi);
 
                 if (p == null)
-                    return null;
+                    return names;
 
-                string name = p.StandardOutput.ReadToEnd().Trim();
+                string output = p.StandardOutput.ReadToEnd();
                 p.WaitForExit(8000);
 
-                return name.Length > 0 ? name : null;
+                foreach (string line in output.Split('\n'))
+                {
+                    string name = line.Trim();
+
+                    if (name.Length > 0)
+                        names.Add(name);
+                }
             }
             catch
             {
-                return null;
+                // sin powershell no hay nombre, y no es motivo para romper nada.
             }
+
+            return names;
         }
 
         private static string amdGpuName(int gfx)
@@ -1313,10 +1706,36 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// (or the log looks dead until the end), readable hydra errors, and our ffmpeg on
         /// PATH so pydub finds it without touching the system PATH.
         /// </summary>
-        private void applyProcessEnvironment(ProcessStartInfo psi)
+        private void applyProcessEnvironment(ProcessStartInfo psi, bool selectDevice = true)
         {
             psi.EnvironmentVariables[@"PYTHONUNBUFFERED"] = @"1";
             psi.EnvironmentVariables[@"HYDRA_FULL_ERROR"] = @"1";
+
+            // con mas de una placa, torch usa la primera, y en cualquier maquina con un
+            // procesador con video integrado la primera es la integrada. Se le dice cual
+            // queremos; adentro del proceso esa pasa a ser la 0, asi que inference.py
+            // sigue pidiendo "cuda" y no se entera de nada.
+            if (selectDevice && Config.GpuIndex is int gpu && GpuChoiceStillValid)
+            {
+                string index = gpu.ToString(CultureInfo.InvariantCulture);
+
+                // ROCR filtra ANTES que HIP: si el sistema traia uno puesto, nuestro
+                // indice queda contado sobre la lista recortada y termina apuntando a
+                // otra placa. Se saca, y el que elige es HIP.
+                psi.EnvironmentVariables.Remove(@"ROCR_VISIBLE_DEVICES");
+                psi.EnvironmentVariables[@"HIP_VISIBLE_DEVICES"] = index;
+                psi.EnvironmentVariables[@"CUDA_VISIBLE_DEVICES"] = index;
+            }
+            else if (!selectDevice)
+            {
+                // el sondeo tiene que ver TODAS. Si el sistema ya venia con un filtro
+                // puesto (es lo que se recomienda por ahi para esconder la integrada), la
+                // lista llega recortada y el indice que guardamos queda contado sobre otra
+                // lista que la de la generacion: se termina eligiendo justo la que no era.
+                psi.EnvironmentVariables.Remove(@"HIP_VISIBLE_DEVICES");
+                psi.EnvironmentVariables.Remove(@"CUDA_VISIBLE_DEVICES");
+                psi.EnvironmentVariables.Remove(@"ROCR_VISIBLE_DEVICES");
+            }
 
             // rocm: una placa fuera de los chips que trae la rueda solo corre apuntada al
             // pariente mas cercano. el valor sale de lo que dijo torch en el sondeo; la
@@ -1772,7 +2191,18 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             using var process = new Process { StartInfo = psi };
             process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
             process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
-            process.Start();
+
+            try
+            {
+                process.Start();
+            }
+            catch (Exception e)
+            {
+                // el sistema operativo no lo pudo arrancar (no existe, no tiene permisos):
+                // sin esto sale la excepcion cruda y nadie entiende que fue.
+                throw new InvalidOperationException($"couldn't run {exeParts[0]}: {e.Message}", e);
+            }
+
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
@@ -2031,6 +2461,12 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         /// <summary>Which pytorch wheel index the ROCm build came from.</summary>
         [JsonPropertyName(@"rocm_index")]
         public string? RocmIndex { get; set; }
+
+        /// <summary>Cual de las placas usar cuando hay mas de una. La elige el sondeo.</summary>
+        public int? GpuIndex { get; set; }
+
+        /// <summary>Que hardware habia cuando se eligio, para no fijar un indice viejo.</summary>
+        public string? GpuSignature { get; set; }
 
         /// <summary>Why the GPU was given up on, in the user's words.</summary>
         [JsonPropertyName(@"rocm_last_error")]

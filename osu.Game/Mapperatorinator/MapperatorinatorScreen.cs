@@ -122,6 +122,12 @@ namespace osu.Game.Mapperatorinator
         // setup
         private FormFileSelector installSelector = null!;
         private FormTextBox customPython = null!;
+
+        /// <summary>Cambio algo mientras el chequeo estaba corriendo: hay que repetirlo.</summary>
+        private bool checkAgain;
+
+        /// <summary>La linea que dice de que cancion sale el mapa. Editando un preset no hay cancion.</summary>
+        private OsuSpriteText sourceCaption = null!;
         private FormEnumDropdown<GenerationDevice> deviceChoice = null!;
         private bool applyingDeviceChoice;
 
@@ -144,6 +150,12 @@ namespace osu.Game.Mapperatorinator
 
         /// <summary>Abierta para cambiar un preset y guardarlo encima.</summary>
         private readonly APIMapperatorinatorPreset? editingPreset;
+
+        // de que preset salieron las opciones que hay puestas ahora: el elegido en la
+        // lista, o el que traia adentro el mapa que se abrio. viaja al mapa que se genere
+        // y al preset que se guarde desde aca, asi el fork se le acredita al que lo armo.
+        private int? originPresetId;
+        private string? originPresetOwner;
 
         private FormFileSelector audioSelector = null!;
         private OsuSpriteText audioHint = null!;
@@ -270,7 +282,7 @@ namespace osu.Game.Mapperatorinator
                                 Text = @"Manage all my presets",
                                 Action = () => this.Push(new MapperatorinatorPresetsScreen()),
                             },
-                            caption(sourceBeatmap != null
+                            sourceCaption = caption(sourceBeatmap != null
                                 ? (addToExistingSet
                                     ? $"new difficulty for: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title} (added to the same set)"
                                     : $"song: {sourceBeatmap.Metadata.Artist} - {sourceBeatmap.Metadata.Title}")
@@ -539,7 +551,14 @@ namespace osu.Game.Mapperatorinator
                 backgroundSelector.Alpha = 0;
 
                 if (sourceBeatmap != null && generationManager?.ReadSidecar(sourceBeatmap) is MapperatorinatorSidecar sidecar)
+                {
                     prefillFromSidecar(sidecar);
+
+                    // el mapa se acuerda de que preset salio, y guardarse estas opciones
+                    // desde aca es forkear ese preset: sin esto el "taken from" se perdia.
+                    originPresetId = sidecar.PresetId;
+                    originPresetOwner = sidecar.PresetOwner;
+                }
             }
 
             if (editingPreset != null)
@@ -558,6 +577,7 @@ namespace osu.Game.Mapperatorinator
                 backgroundSelector.Alpha = 0;
                 presetDropdown.Alpha = 0;
                 presetManageButton.Alpha = 0;
+                sourceCaption.Alpha = 0;
 
                 presetCaption.Text = $"editing \"{editingPreset.Name}\". change whatever you want below and save it back.";
                 presetName.Current.Value = editingPreset.Name;
@@ -664,7 +684,14 @@ namespace osu.Game.Mapperatorinator
         /// </summary>
         private void runChecks()
         {
-            if (checking) return;
+            if (checking)
+            {
+                // ya hay uno en vuelo. Antes se descartaba la llamada y la lista quedaba
+                // mostrando lo de antes del cambio que la disparo, con el boton de generar
+                // habilitado sobre un estado viejo.
+                checkAgain = true;
+                return;
+            }
 
             checking = true;
             checkButton.Enabled.Value = false;
@@ -687,16 +714,28 @@ namespace osu.Game.Mapperatorinator
                     };
                 }
 
+                // el device se calcula aca y no adentro de applyReadiness: DetectDevice
+                // arranca nvidia-smi y lo espera, y applyReadiness corre en el hilo que
+                // dibuja, asi que cada chequeo se sentia como un tironcito.
+                string detected = runner.DetectDevice();
+                string effective = runner.EffectiveDevice(detected);
+
                 Schedule(() =>
                 {
                     checking = false;
                     checkButton.Enabled.Value = true;
-                    applyReadiness(results);
+                    applyReadiness(results, detected, effective);
+
+                    if (checkAgain)
+                    {
+                        checkAgain = false;
+                        runChecks();
+                    }
                 });
             });
         }
 
-        private void applyReadiness(List<Requirement> results)
+        private void applyReadiness(List<Requirement> results, string detected, string effective)
         {
             ready = results.All(r => r.Satisfied);
 
@@ -713,7 +752,7 @@ namespace osu.Game.Mapperatorinator
                         RequirementKind.Tool => r.State == RequirementState.Warning ? startTorchFix : startInstall,
                         RequirementKind.Ffmpeg => startFfmpegInstall,
                         // probar / reintentar / volver a la cpu, segun donde estemos parados.
-                        RequirementKind.Platform => runner.Config.RocmEnabled ? backToCpu : tryGpu,
+                        RequirementKind.Platform => runner.Config.RocmEnabled ? backToCpu : () => tryGpu(),
                         _ => null,
                     },
                     OpenDownload = r.DownloadUrl == null ? null : () => game?.OpenUrlExternally(r.DownloadUrl),
@@ -744,8 +783,8 @@ namespace osu.Game.Mapperatorinator
 
             updateGenerateEnabled();
 
-            detectedDevice = runner.DetectDevice();
-            device = runner.EffectiveDevice(detectedDevice);
+            detectedDevice = detected;
+            device = effective;
             updateIdleEta();
         }
 
@@ -899,112 +938,147 @@ namespace osu.Game.Mapperatorinator
         /// kernel is dispatched, because dispatching to a chip the build doesn't cover is
         /// exactly what faults the card and takes the display driver with it.
         /// </summary>
-        private void tryGpu()
+        /// <summary>
+        /// Arranca la prueba de la placa. Devuelve false si no llego a arrancar, para que
+        /// el desplegable no quede diciendo GPU cuando no se probo nada.
+        /// </summary>
+        private bool tryGpu()
         {
-            if (installing) return;
+            if (installing || dialogOverlay == null)
+                return false;
 
             string gpuName = MapperatorinatorRunner.DetectAmdGpu()?.Name ?? @"your AMD GPU";
 
-            dialogOverlay?.Push(new RocmWarningDialog(gpuName, () => runInstallTask(@"gpu-test", async (log, token) =>
+            // recien aca se guarda la preferencia: si se guardara antes de este punto, la
+            // placa queda armada aunque el aviso no se llegue a mostrar nunca.
+            runner.DevicePreference = @"gpu";
+
+            dialogOverlay.Push(new RocmWarningDialog(gpuName, () => runInstallTask(@"gpu-test", async (log, token) =>
             {
-                runner.EnableRocm();
-                runner.SetRocmOverride(null);
-
-                // desde aca hasta el final se toca la placa. si el cliente no llega a
-                // borrar esta marca, es porque se murio con el driver: al proximo arranque
-                // se da por fallada y nadie repite el paseo sin querer.
-                runner.BeginRocmTrial();
-
-                string? failure = null;
-                bool triedSomething = false;
-
-                foreach (var wheel in MapperatorinatorRunner.RocmIndexes())
+                try
                 {
-                    triedSomething = true;
+                    runner.EnableRocm();
+                    runner.SetRocmOverride(null);
 
-                    // lo que ya este instalado se prueba tal cual: sondear es gratis y son
-                    // varios GB de bajada por intento.
-                    if (runner.InstalledTorchDevice != @"rocm" || (runner.Config.RocmIndex != null && runner.Config.RocmIndex != wheel.index))
-                        await runner.InstallRocmTorchAsync(wheel, log, token).ConfigureAwait(false);
+                    string? failure = null;
+                    bool triedSomething = false;
 
-                    var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+                    // con un python propio no se instala nada: ese pytorch vive en otro lado y
+                    // lo que bajemos al entorno nuestro no lo va a usar nadie. Se prueba
+                    // directamente el que la persona tiene puesto.
+                    bool ownPython = !string.IsNullOrEmpty(runner.Config.PythonPath);
 
-                    if (probe.Error != null || probe.DeviceCount == 0)
+                    if (ownPython)
+                        log(@"you're using your own python, so nothing gets installed into Torii's environment: testing the pytorch that's in there.");
+
+                    foreach (var wheel in ownPython ? Enumerable.Empty<RocmWheel>() : MapperatorinatorRunner.RocmIndexes())
                     {
-                        failure = probe.Error ?? @"pytorch can't see the card at all";
-                        continue;
-                    }
+                        triedSomething = true;
 
-                    if (!probe.ArchSupported)
-                    {
-                        // el chip no esta entre los que trae la rueda: apuntarlo al pariente
-                        // mas cercano de la misma generacion y volver a preguntar.
-                        string? over = probe.Arch == null ? null : MapperatorinatorRunner.OverrideFor(probe.Arch, probe.ArchList);
+                        // lo que ya este instalado se prueba tal cual: sondear es gratis y son
+                        // varios GB de bajada por intento.
+                        if (runner.InstalledTorchDevice != @"rocm" || (runner.Config.RocmIndex != null && runner.Config.RocmIndex != wheel.Id))
+                            await runner.InstallRocmTorchAsync(wheel, log, token).ConfigureAwait(false);
 
-                        if (over == null)
+                        // recien aca se toca la placa. La marca va DESPUES de la bajada a
+                        // proposito: cancelar o cortarse a mitad de varios GB no es que la
+                        // placa se haya llevado puesto al juego, y ponerla antes hacia que al
+                        // reiniciar se diera por fallada una placa que nunca se llego a probar.
+                        runner.BeginRocmTrial();
+
+                        var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                        if (probe.Error != null || probe.DeviceCount == 0)
                         {
-                            failure = $"this pytorch has no kernels for {probe.Arch ?? "your card"} (it carries: {string.Join(", ", probe.ArchList)})";
-                            log(failure);
+                            failure = probe.Error ?? @"pytorch can't see the card at all";
                             continue;
                         }
-
-                        log($"{probe.Arch} isn't in this build; pointing it at {over} and asking again...");
-                        runner.SetRocmOverride(over);
-                        probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
 
                         if (!probe.ArchSupported)
                         {
-                            failure = $"even pointed at {over}, this build can't run on {probe.Arch ?? "your card"}";
-                            log(failure);
-                            runner.SetRocmOverride(null);
-                            continue;
+                            // el chip no esta entre los que trae la rueda: apuntarlo al pariente
+                            // mas cercano de la misma generacion y volver a preguntar.
+                            string? over = probe.Arch == null ? null : MapperatorinatorRunner.OverrideFor(probe.Arch, probe.ArchList);
+
+                            if (over == null)
+                            {
+                                failure = $"this pytorch has no kernels for {probe.Arch ?? "your card"} (it carries: {string.Join(", ", probe.ArchList)})";
+                                log(failure);
+                                continue;
+                            }
+
+                            log($"{probe.Arch} isn't in this build; pointing it at {over} and asking again...");
+                            runner.SetRocmOverride(over);
+                            probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                            if (!probe.ArchSupported)
+                            {
+                                failure = $"even pointed at {over}, this build can't run on {probe.Arch ?? "your card"}";
+                                log(failure);
+                                runner.SetRocmOverride(null);
+                                continue;
+                            }
                         }
+
+                        // recien aca se le manda trabajo de verdad a la placa.
+                        if (await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                        {
+                            runner.EndRocmTrial();
+                            Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your card passed the test. The next map should be a lot faster." }));
+                            return;
+                        }
+
+                        failure = @"the card faulted on a two-second test multiply";
                     }
 
-                    // recien aca se le manda trabajo de verdad a la placa.
-                    if (await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                    // en windows no hay ruedas para bajar: se prueba tal cual esta instalado.
+                    if (!triedSomething)
                     {
-                        runner.EndRocmTrial();
-                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your card passed the test. The next map should be a lot faster." }));
-                        return;
+                        runner.BeginRocmTrial();
+
+                        var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+
+                        if (probe.DeviceCount > 0 && probe.Error == null && await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                        {
+                            // el torch que puso la persona anda: se deja anotado. Sin esto la
+                            // generacion mira el marcador, ve el device con el que instalamos
+                            // nosotros, y se va a la cpu igual mientras el cartel dice que la
+                            // placa esta prendida.
+                            runner.MarkTorchVerified();
+                            runner.EndRocmTrial();
+                            Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your pytorch can use your card. The next map should be a lot faster." }));
+                            return;
+                        }
+
+                        failure = probe.Error ?? (probe.DeviceCount == 0
+                            ? @"the pytorch installed here can't see your card"
+                            : @"the card faulted on a two-second test multiply");
                     }
 
-                    failure = @"the card faulted on a two-second test multiply";
-                }
+                    runner.EndRocmTrial();
+                    runner.MarkRocmBlocked(failure);
+                    runner.DevicePreference = @"auto";
 
-                // en windows no hay ruedas para bajar: se prueba tal cual esta instalado.
-                if (!triedSomething)
-                {
-                    var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
-
-                    if (probe.DeviceCount > 0 && probe.Error == null && await runner.SmokeTestGpuAsync(log, token).ConfigureAwait(false))
+                    Schedule(() =>
                     {
-                        runner.EndRocmTrial();
-                        Schedule(() => notifications?.Post(new SimpleNotification { Text = @"GPU generation is on: your pytorch can use your card. The next map should be a lot faster." }));
-                        return;
-                    }
+                        applyingDeviceChoice = true;
+                        deviceChoice.Current.Value = GenerationDevice.Auto;
+                        applyingDeviceChoice = false;
+                    });
 
-                    failure = probe.Error ?? (probe.DeviceCount == 0
-                        ? @"the pytorch installed here can't see your card"
-                        : @"the card faulted on a two-second test multiply");
+                    Schedule(() =>
+                    {
+                        log(@"staying on the CPU. Nothing else changed, generating still works.");
+                        notifications?.Post(new SimpleNotification { Text = $"Your GPU can't be used for generating ({failure}). Mapperatorinator keeps running on the CPU." });
+                    });
                 }
-
-                runner.EndRocmTrial();
-                runner.MarkRocmBlocked(failure);
-                runner.DevicePreference = @"auto";
-
-                Schedule(() =>
+                finally
                 {
-                    applyingDeviceChoice = true;
-                    deviceChoice.Current.Value = GenerationDevice.Auto;
-                    applyingDeviceChoice = false;
-                });
-
-                Schedule(() =>
-                {
-                    log(@"staying on the CPU. Nothing else changed, generating still works.");
-                    notifications?.Post(new SimpleNotification { Text = $"Your GPU can't be used for generating ({failure}). Mapperatorinator keeps running on the CPU." });
-                });
+                    // la marca de "estoy tocando la placa" queda en disco y, si sigue ahi
+                    // al arrancar, se da por hecho que la placa se llevo puesto al juego.
+                    // Salir de la pantalla o cancelar a mitad de camino no es eso.
+                    runner.EndRocmTrial();
+                }
             }), () =>
             {
                 // cancelo el aviso: el desplegable no puede quedar diciendo GPU cuando
@@ -1017,6 +1091,8 @@ namespace osu.Game.Mapperatorinator
                 deviceChoice.Current.Value = GenerationDevice.Auto;
                 applyingDeviceChoice = false;
             }));
+
+            return true;
         }
 
         /// <summary>Que hacer cuando alguien elige donde generar.</summary>
@@ -1037,8 +1113,17 @@ namespace osu.Game.Mapperatorinator
                 case GenerationDevice.Gpu:
                     // pedirla no alcanza: hay que probar que ande, y esa prueba puede
                     // tumbar el driver en una maquina que no la banca. Por eso el aviso.
-                    runner.DevicePreference = @"gpu";
-                    tryGpu();
+                    // Si la prueba no llega a arrancar (hay un install en curso), el
+                    // desplegable vuelve a lo que estaba en vez de quedar mostrando GPU.
+                    if (!tryGpu())
+                    {
+                        applyingDeviceChoice = true;
+                        deviceChoice.Current.Value = runner.DevicePreference == @"cpu" ? GenerationDevice.Cpu : GenerationDevice.Auto;
+                        applyingDeviceChoice = false;
+
+                        notifications?.Post(new SimpleNotification { Text = @"Something's installing right now. Try the GPU again once it finishes." });
+                    }
+
                     break;
 
                 default:
@@ -1068,7 +1153,10 @@ namespace osu.Game.Mapperatorinator
 
             if (amd != null)
             {
-                log(amd.WindowsWithoutRocm
+                // en windows no hay kfd ni gfx que leerle al driver: imprimir "gfx000" y
+                // "/dev/kfd readable: False" es ruido que manda a cualquiera al lugar
+                // equivocado. El chip de verdad lo dice torch mas abajo.
+                log(amd.Windows
                     ? $"card seen by the driver: {amd.Name}"
                     : $"card seen by the driver: {amd.Name} ({amd.Gfx}), /dev/kfd readable: {amd.KfdAccessible}");
             }
@@ -1084,14 +1172,23 @@ namespace osu.Game.Mapperatorinator
             if (runner.Config.RocmLastError != null)
                 log($"last GPU failure: {runner.Config.RocmLastError}");
 
-            var probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+            MapperatorinatorRunner.GpuProbe probe;
 
-            runner.EndRocmTrial();
+            try
+            {
+                probe = await runner.ProbeGpuAsync(log, token).ConfigureAwait(false);
+            }
+            finally
+            {
+                // si el sondeo se cae o lo cancelan, la marca no puede quedar puesta: al
+                // proximo arranque acusaria a la placa de algo que no hizo.
+                runner.EndRocmTrial();
+            }
 
             // el driver y torch tienen que estar de acuerdo en que chip es la placa. Si no
             // lo estan, hay un HSA_OVERRIDE_GFX_VERSION en el sistema haciendola pasar por
             // otra, y despachar kernels de otro chip es exactamente lo que la hace fallar.
-            if (amd != null && probe.Arch != null && !probe.Arch.Equals(amd.Gfx, StringComparison.OrdinalIgnoreCase))
+            if (amd != null && !amd.Windows && probe.Arch != null && !probe.Arch.Equals(amd.Gfx, StringComparison.OrdinalIgnoreCase))
             {
                 log($"WARNING: the driver says this card is {amd.Gfx}, but torch sees {probe.Arch}. "
                     + @"Something in your system is overriding it (HSA_OVERRIDE_GFX_VERSION), and running another chip's "
@@ -1370,11 +1467,6 @@ namespace osu.Game.Mapperatorinator
 
             var request = buildRequest(selectedModel, yearValue);
 
-            // de que preset salio esta generacion, para que el mapa lo lleve adentro y
-            // quien despues se guarde estas opciones sepa de quien las saco.
-            var chosen = presetDropdown.Current.Value;
-            generationManager?.SetPresetOrigin(chosen.Id > 0 ? chosen.Id : null, chosen.Id > 0 ? api.LocalUser.Value.Username : null);
-
             var overrides = new OszPostProcessor.MetadataOverrides
             {
                 Title = emptyToNull(titleBox.Current.Value),
@@ -1411,6 +1503,11 @@ namespace osu.Game.Mapperatorinator
             job.AnnounceToFeed = overrides.Title != null
                                  && overrides.BackgroundImagePath != null
                                  && (overrides.Artist != null || overrides.Tags != null);
+
+            // de que preset salio esta generacion, para que el mapa lo lleve adentro y
+            // quien despues se guarde estas opciones sepa de quien las saco.
+            job.PresetId = originPresetId;
+            job.PresetOwner = originPresetOwner;
 
             generationManager.Enqueue(job);
 
@@ -1497,6 +1594,10 @@ namespace osu.Game.Mapperatorinator
             prefillFromSidecar(sidecar);
             applyingPreset = false;
 
+            // lo que hay puesto ahora sale de este preset, no de lo que traia el mapa.
+            originPresetId = entry.Id;
+            originPresetOwner = api.LocalUser.Value.Username;
+
             notifications?.Post(new SimpleNotification { Text = $"Loaded preset \"{entry.Name}\"." });
         }
 
@@ -1516,21 +1617,29 @@ namespace osu.Game.Mapperatorinator
             var request = buildRequest(model.Current.Value, parseIntOrNull(year.Current.Value));
             string settings = MapperatorinatorSidecar.FromRequest(request, customized: true).Serialize();
 
-            var save = new SaveMapperatorinatorPresetRequest(name, settings);
+            // editando uno que ya existe se actualiza esa fila, con nombre y todo: guardar
+            // con otro nombre encima dejaba dos presets y el viejo colgado.
+            if (editingPreset == null)
+            {
+                MapperatorinatorPresetSaver.Save(api, dialogOverlay, notifications, name, settings, originPresetId, originPresetOwner,
+                    preset =>
+                    {
+                        notifications?.Post(new SimpleNotification { Text = $"Saved preset \"{preset.Name}\"." });
+                        presetName.Current.Value = string.Empty;
+                        loadPresets(preset.Id);
+                    },
+                    a => Schedule(a));
+                return;
+            }
+
+            APIRequest<APIMapperatorinatorPreset> save = UpdateMapperatorinatorPresetRequest.Update(editingPreset.Id, name, settings);
 
             save.Success += preset => Schedule(() =>
             {
                 notifications?.Post(new SimpleNotification { Text = $"Saved preset \"{preset.Name}\"." });
 
-                if (editingPreset != null)
-                {
-                    // vino del administrador a cambiar este preset: guardado, vuelve.
-                    this.Exit();
-                    return;
-                }
-
-                presetName.Current.Value = string.Empty;
-                loadPresets(preset.Id);
+                // vino del administrador a cambiar este preset: guardado, vuelve.
+                this.Exit();
             });
 
             save.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't save the preset: {e.Message}" }));

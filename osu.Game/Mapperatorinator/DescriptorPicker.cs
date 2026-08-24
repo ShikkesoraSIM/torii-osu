@@ -36,8 +36,22 @@ namespace osu.Game.Mapperatorinator
         private readonly List<DescriptorChip> chips = new List<DescriptorChip>();
         private FillFlowContainer? content;
 
-        public IEnumerable<string> Wanted => states.Where(kv => kv.Value == ChipState.Want).Select(kv => kv.Key);
-        public IEnumerable<string> Avoided => states.Where(kv => kv.Value == ChipState.Avoid).Select(kv => kv.Key);
+        public IEnumerable<string> Wanted => inThisMode(states.Where(kv => kv.Value == ChipState.Want).Select(kv => kv.Key));
+        public IEnumerable<string> Avoided => inThisMode(states.Where(kv => kv.Value == ChipState.Avoid).Select(kv => kv.Key));
+
+        /// <summary>
+        /// Solo los estilos que existen en el modo elegido. Se filtra al LEER y no al
+        /// cambiar de modo a proposito: los de otro modo no se dibujan, asi que mandarlos
+        /// al modelo es mandar algo que nadie ve, pero borrarlos en el momento hace que ir
+        /// a otro modo y volver te deje toda la seleccion en gris. Asi sobrevive el ida y
+        /// vuelta y no se filtra nada igual.
+        ///
+        /// El chequeo es "hay ALGUNO con este nombre que valga en este modo", no "el
+        /// primero que se llame asi": hay siete nombres repetidos entre modos, y mirar
+        /// solo el primero decidia con el modo de otro chip.
+        /// </summary>
+        private IEnumerable<string> inThisMode(IEnumerable<string> names) =>
+            names.Where(name => MapperatorinatorDescriptors.ALL.Any(d => d.Name == name && (d.RulesetId == null || d.RulesetId == gamemodeId)));
 
         /// <summary>
         /// Solo mira, no toca: se dibujan unicamente los estilos elegidos y clickearlos
