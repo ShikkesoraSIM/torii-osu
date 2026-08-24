@@ -804,6 +804,18 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 throw new InvalidOperationException(@"Mapperatorinator isn't installed yet, so there's no pytorch to replace.");
 
             string checkout = Config.InstallPath!;
+
+            // la carpeta puede no ser de esta persona: pasa cuando la instalacion salio
+            // una vez con permisos de administrador. Ahi cambiar pytorch adentro no se
+            // puede y no tiene sentido hacerla pelear con eso, asi que se instala de nuevo
+            // donde si pueda escribir, que es un solo boton para ella igual.
+            if (!canWriteInside(checkout))
+            {
+                onLogLine($"{checkout} isn't writable by this user, so pytorch can't be swapped in place. Installing fresh somewhere you own instead.");
+                await InstallAsync(onLogLine, cancellation).ConfigureAwait(false);
+                return;
+            }
+
             string venvPython = VenvPython ?? throw new InvalidOperationException(@"The python environment inside the install is missing. Use the full install instead.");
 
             var pipEnv = pipEnvironment(Path.GetDirectoryName(checkout) ?? checkout);
