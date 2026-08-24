@@ -311,7 +311,11 @@ namespace osu.Game.Mapperatorinator
                 Text = @"Duplicate",
                 // la copia se lleva de quien salio el original: si no, duplicar borraba el
                 // "taken from" y quedaba como si el estilo fuese tuyo de toda la vida.
-                Action = () => dialogOverlay?.Push(new PresetNameDialog($"{preset.Name} copy", name => save(name, preset.Settings, preset.OriginPresetId, preset.OriginUsername))),
+                // se manda el id del PROPIO preset, no el del que lo origino: el server ve
+                // que es tuyo y le pasa la atribucion a la copia. Mandar el del abuelo
+                // dependia de que esa fila siguiera existiendo, y si el otro lo borro la
+                // copia salia sin el "taken from" que la fila de al lado si tiene.
+                Action = () => dialogOverlay?.Push(new PresetNameDialog($"{preset.Name} copy", name => save(name, preset.Settings, preset.Id, null))),
             });
 
             details.Add(new RoundedButton

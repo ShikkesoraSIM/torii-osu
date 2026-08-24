@@ -1579,7 +1579,19 @@ namespace osu.Game.Mapperatorinator
         private void onPresetSelected(PresetEntry entry)
         {
 
-            if (applyingPreset || entry.Id <= 0 || string.IsNullOrEmpty(entry.Settings))
+            if (applyingPreset)
+                return;
+
+            // "(none)" es sacar el preset: lo que se genere de aca en mas no sale de
+            // ninguno, y si no se limpia se le sigue acreditando al ultimo que se toco.
+            if (entry.Id <= 0)
+            {
+                originPresetId = null;
+                originPresetOwner = null;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(entry.Settings))
                 return;
 
             var sidecar = MapperatorinatorSidecar.Deserialize(entry.Settings);

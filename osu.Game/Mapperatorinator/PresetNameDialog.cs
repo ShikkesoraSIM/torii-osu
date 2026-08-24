@@ -51,6 +51,9 @@ namespace osu.Game.Mapperatorinator
                 Child = nameBox = new OsuTextBox
                 {
                     RelativeSizeAxes = Axes.X,
+                    // el mismo limite que acepta el server: pasarse hacia que la respuesta
+                    // fuera el json crudo del validador, que no le dice nada a nadie.
+                    LengthLimit = 60,
                     PlaceholderText = @"preset name",
                     Text = defaultName,
                     SelectAllOnFocus = true,
