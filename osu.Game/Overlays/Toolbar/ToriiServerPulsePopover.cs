@@ -652,8 +652,31 @@ namespace osu.Game.Overlays.Toolbar
                 anchorRect.BottomLeft.X + anchorRect.Width / 2f,
                 anchorRect.BottomLeft.Y));
 
-            // 8px gap below the button for a breath of air.
-            Position = new Vector2(localTopCentre.X, localTopCentre.Y + 8);
+            // 8px gap below the button for a breath of air. Y el centro se
+            // corre lo que haga falta para que el panel entre ENTERO en la
+            // ventana: el boton vive pegado al borde derecho, asi que anclado
+            // al centro del boton el popover nacia cortado, siempre, sin
+            // forma de verlo completo.
+            float x = localTopCentre.X;
+
+            var inputManager = GetContainingInputManager();
+
+            if (inputManager != null)
+            {
+                var windowQuad = inputManager.ScreenSpaceDrawQuad;
+                float halfWidth = DrawWidth / 2f;
+                const float window_margin = 10;
+
+                // los bordes de la ventana, traidos al mismo espacio en el que
+                // se expresa nuestra Position (el del padre).
+                float rightEdge = Parent.ToLocalSpace(new Vector2(windowQuad.TopRight.X, anchorRect.BottomLeft.Y)).X;
+                float leftEdge = Parent.ToLocalSpace(new Vector2(windowQuad.TopLeft.X, anchorRect.BottomLeft.Y)).X;
+
+                x = Math.Min(x, rightEdge - halfWidth - window_margin);
+                x = Math.Max(x, leftEdge + halfWidth + window_margin);
+            }
+
+            Position = new Vector2(x, localTopCentre.Y + 8);
 
             // Auto-hide if our anchoring button (or any of its
             // ancestors) has been faded out. The classic Toolbar fades
