@@ -571,12 +571,22 @@ namespace osu.Game.Overlays.Toolbar
             armOutsideClickCatcher();
         }
 
+        /// <summary>
+        /// Avisa cada vez que el popover se esconde, POR LA VIA QUE SEA. Hace
+        /// falta porque se cierra por tres lados que no pasan por el boton
+        /// (Escape, el click afuera, y el fade del toolbar), y sin el aviso el
+        /// provider se quedaba en cadencia activa reconstruyendo las paginas y
+        /// calentando portadas con el overlay cerrado, para siempre.
+        /// </summary>
+        public Action Closed { get; set; } = () => { };
+
         protected override void PopOut()
         {
             this.MoveToY(-6, 180, Easing.OutQuint);
             this.FadeOut(180, Easing.OutQuint);
             autoAdvanceDelegate?.Cancel();
             disposeOutsideClickCatcher();
+            Closed.Invoke();
         }
 
         private OutsideClickCatcher? outsideClickCatcher;

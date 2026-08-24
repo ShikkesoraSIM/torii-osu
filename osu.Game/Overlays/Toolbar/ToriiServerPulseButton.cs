@@ -244,6 +244,10 @@ namespace osu.Game.Overlays.Toolbar
             popover = new ToriiServerPulsePopover
             {
                 BypassAutoSizeAxes = Axes.Both,
+                // el popover se esconde por Escape / click afuera / el fade del
+                // toolbar, y ninguno pasa por togglePopover: sin este aviso el
+                // provider cree que sigue abierto y se queda en cadencia activa.
+                Closed = notifyPopoverClosed,
             };
 
             LoadComponentAsync(popover, p =>
@@ -338,6 +342,11 @@ namespace osu.Game.Overlays.Toolbar
             base.OnHoverLost(e);
         }
 
+        /// <summary>Si el popover esta abierto ahora mismo. Lo mira el auto-hide del toolbar.</summary>
+        public bool PopoverVisible => popover?.State.Value == Visibility.Visible;
+
+        private void notifyPopoverClosed() => pulse?.SetPopoverOpen(false);
+
         private void togglePopover()
         {
             // Wrap in try/catch + verbose logging so a regression in popover
@@ -377,8 +386,11 @@ namespace osu.Game.Overlays.Toolbar
                 {
                     Logger.Log("[ToriiServerPulse] showing popover", LoggingTarget.Runtime, LogLevel.Verbose);
                     popover.Show();
+
+                    // SetPopoverOpen(true) ya dispara el refresh inmediato. El
+                    // RefreshNow() que habia aca cancelaba ese mismo poll para
+                    // reagendarlo igual, un request al pedo por cada apertura.
                     pulse?.SetPopoverOpen(true);
-                    pulse?.RefreshNow();
                 }
             }
             catch (Exception ex)
@@ -403,7 +415,7 @@ namespace osu.Game.Overlays.Toolbar
                     popover = null;
 
                     // Kick off a fresh async-load so a future click works.
-                    popover = new ToriiServerPulsePopover { BypassAutoSizeAxes = Axes.Both };
+                    popover = new ToriiServerPulsePopover { BypassAutoSizeAxes = Axes.Both, Closed = notifyPopoverClosed };
                     LoadComponentAsync(popover, p =>
                     {
                         AddInternal(p);

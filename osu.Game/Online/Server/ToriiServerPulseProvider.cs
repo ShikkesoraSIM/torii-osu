@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Textures;
 using osu.Framework.Logging;
 using osu.Framework.Threading;
 using osu.Game.Configuration;
@@ -85,6 +86,14 @@ namespace osu.Game.Online.Server
     /// kicks off polling on first load. <see cref="Component.Dispose"/>
     /// cancels the in-flight scheduler delegate so we don't leak the
     /// timer when the game shuts down.
+    ///
+    /// Portadas
+    /// --------
+    /// El popover resuelve la textura de cada portada sincronico en el update
+    /// thread (ver <see cref="ToriiCoverPrewarmer"/>), asi que Group B no se
+    /// publica hasta que las portadas de ese snapshot ya esten en la cache de
+    /// texturas. La regla que hay que respetar si se toca esto: nunca publicar
+    /// un mapa con una url de portada que no este calentada.
     /// </summary>
     public partial class ToriiServerPulseProvider : Component
     {
@@ -130,6 +139,17 @@ namespace osu.Game.Online.Server
         // collecting and short enough that the toolbar pip is fresh again
         // before the user has finished reading their results.
         private const int settle_window_ms = 4000;
+
+        // El popover dibuja las portadas en cuadrados de 36 y 64 px, pero
+        // BestCoverUrl arranca por cover@2x, que es el banner de 1800x500 del
+        // set: unos cientos de kb y ~900k pixeles para decodificar por
+        // miniatura. Si el set trae alguna variante de tarjeta le sacamos las
+        // grandes al dict, asi BestCoverUrl cae en card@2x: misma foto, mismo
+        // recorte apaisado, una fraccion de los bytes y de la vram.
+        private static readonly string[] oversized_cover_keys = { @"cover@2x", @"cover", @"slimcover@2x", @"slimcover" };
+        // solo card: list es 150x50, otro aspect ratio, y estirada en la
+        // tarjeta grande del overview se nota feo.
+        private static readonly string[] thumbnail_cover_keys = { @"card@2x", @"card" };
 
         /// <summary>
         /// Number of in-flight gameplay sessions on the server (currently
@@ -230,6 +250,14 @@ namespace osu.Game.Online.Server
         [Resolved(canBeNull: true)]
         private ILocalUserPlayInfo? playInfo { get; set; }
 
+        // canBeNull igual que playInfo: en escenas de test sin OsuGameBase no
+        // hay store cacheado. Sin store no pre-calentamos nada y el widget se
+        // comporta como antes.
+        [Resolved(canBeNull: true)]
+        private LargeTextureStore? textures { get; set; }
+
+        private ToriiCoverPrewarmer? coverPrewarmer;
+
         private readonly Bindable<bool> enabledBindable = new BindableBool(true);
 
         // Local bound copy so we can subscribe + unbind on dispose without
@@ -273,6 +301,9 @@ namespace osu.Game.Online.Server
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            if (textures != null)
+                coverPrewarmer = new ToriiCoverPrewarmer(textures, action => Schedule(action));
 
             config.BindWith(OsuSetting.ToriiServerPulseEnabled, enabledBindable);
 
@@ -363,24 +394,22 @@ namespace osu.Game.Online.Server
                 // the assignment and the Schedule firing.
                 var snap = lastSnapshot;
                 if (snap != null)
-                    Schedule(() => applyGroupB(snap));
+                    publishGroupB(snap);
 
                 triggerImmediatePoll();
             }
             else
-                rearmPollIfPollable();
-        }
+            {
+                // Al cerrar no pedimos nada nuevo: si quedo un poll agendado o
+                // uno en vuelo, ese mismo ciclo se reagenda solo a la cadencia
+                // idle. Rearmamos unicamente si no quedo nada pendiente, que
+                // seria la unica forma de matar el loop.
+                bool pollPending = activeRequest != null
+                                   || (scheduledPoll != null && !scheduledPoll.Completed && !scheduledPoll.Cancelled);
 
-        /// <summary>
-        /// Force an immediate refresh, cancelling any pending scheduled
-        /// poll. Useful when the user explicitly opens the popover —
-        /// don't make them wait up to 60s for fresh data when they JUST
-        /// asked to see it.
-        /// </summary>
-        public void RefreshNow()
-        {
-            if (!IsPollable) return;
-            triggerImmediatePoll();
+                if (!pollPending)
+                    rearmPollIfPollable();
+            }
         }
 
         // Polling is on whenever the widget is enabled AND the API is
@@ -531,6 +560,11 @@ namespace osu.Game.Online.Server
 
             lastObservedPlaysLastMinute = snapshot.PlaysLastMinute;
 
+            // Antes de que nadie le lea una url a este snapshot, lo dejamos
+            // apuntando a las portadas del tamaño que el popover realmente
+            // dibuja.
+            trimCoversToThumbnails(snapshot);
+
             // Stash the snapshot before deciding whether to fire Group B.
             // SetPopoverOpen(true) reads this to replay the last-known
             // state to the popover bindables the moment the popover
@@ -559,7 +593,108 @@ namespace osu.Game.Online.Server
             // last snapshot on open, so visible state is up-to-date the
             // moment the popover appears.
             if (popoverOpen)
-                Schedule(() => applyGroupB(snapshot));
+                publishGroupB(snapshot);
+        }
+
+        /// <summary>
+        /// Calienta las portadas del snapshot y recien despues lo empuja a las
+        /// bindables del popover.
+        /// </summary>
+        /// <remarks>
+        /// Los sprites de portada del popover resuelven su textura sincronico
+        /// en el update thread, asi que publicar un snapshot con portadas que
+        /// todavia no estan en cache clava el frame lo que tarde la descarga.
+        /// El callback del prewarmer ya vuelve en el update thread; el Schedule
+        /// de adentro es el defer de un frame que ya existia, para partir la
+        /// cascada de bindables en dos.
+        ///
+        /// Ojo con "arreglar" esto publicando el snapshot con las portadas
+        /// vacias y llenandolas despues: tanto el diff de sameTopMaps como el
+        /// de HotMapRow.Apply matchean por BeatmapId + PlayCount5Min, o sea
+        /// que un mapa que ya se dibujo sin portada nunca se entera de que
+        /// ahora si la tiene.
+        /// </remarks>
+        private void publishGroupB(APIToriiServerPulse snapshot)
+        {
+            if (coverPrewarmer == null)
+            {
+                Schedule(() => publishGroupBIfStillOpen(snapshot));
+                return;
+            }
+
+            coverPrewarmer.Warm(collectCoverUrls(snapshot), () => Schedule(() => publishGroupBIfStillOpen(snapshot)));
+        }
+
+        private void publishGroupBIfStillOpen(APIToriiServerPulse snapshot)
+        {
+            // el aviso puede llegar segundos despues de pedirlo (portadas
+            // frias). Si en el medio cerraron el popover, reconstruir las
+            // paginas y arrancar fetches de avatares sobre un overlay
+            // invisible es todo costo y nada de beneficio: al reabrir,
+            // SetPopoverOpen(true) replaya lastSnapshot igual.
+            if (!popoverOpen)
+                return;
+
+            applyGroupB(snapshot);
+        }
+
+        private static List<string> collectCoverUrls(APIToriiServerPulse snapshot)
+        {
+            var urls = new List<string>();
+
+            addCoverUrl(urls, snapshot.TopMap);
+
+            // TopMap y TopMaps[0] vienen como objetos distintos aunque sean el
+            // mismo mapa, por eso el dedupe va por url y no por referencia.
+            if (snapshot.TopMaps != null)
+            {
+                foreach (var map in snapshot.TopMaps)
+                    addCoverUrl(urls, map);
+            }
+
+            return urls;
+        }
+
+        private static void addCoverUrl(List<string> urls, APIToriiServerPulseTopMap? map)
+        {
+            string? url = map?.BestCoverUrl;
+
+            if (!string.IsNullOrEmpty(url) && !urls.Contains(url))
+                urls.Add(url);
+        }
+
+        private static void trimCoversToThumbnails(APIToriiServerPulse snapshot)
+        {
+            trimCovers(snapshot.TopMap);
+
+            if (snapshot.TopMaps == null) return;
+
+            foreach (var map in snapshot.TopMaps)
+                trimCovers(map);
+        }
+
+        private static void trimCovers(APIToriiServerPulseTopMap? map)
+        {
+            var covers = map?.Covers;
+
+            if (covers == null) return;
+
+            bool hasThumbnail = false;
+
+            foreach (string key in thumbnail_cover_keys)
+            {
+                if (covers.TryGetValue(key, out string? url) && !string.IsNullOrEmpty(url))
+                {
+                    hasThumbnail = true;
+                    break;
+                }
+            }
+
+            // Sin variante chica no hay nada que ganar, dejamos el dict como vino.
+            if (!hasThumbnail) return;
+
+            foreach (string key in oversized_cover_keys)
+                covers.Remove(key);
         }
 
         /// <summary>
@@ -722,6 +857,8 @@ namespace osu.Game.Online.Server
             cancelInFlight();
             settleClearDelegate?.Cancel();
             settleClearDelegate = null;
+            coverPrewarmer?.Dispose();
+            coverPrewarmer = null;
             base.Dispose(isDisposing);
         }
     }
