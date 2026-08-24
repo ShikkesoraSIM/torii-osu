@@ -339,7 +339,15 @@ namespace osu.Game.Mapperatorinator
             // 5. la tool en si (checkout + venv con torch). si pytorch quedo instalado para
             //    otro device del que hay ahora (cpu en una maquina amd de antes del soporte
             //    rocm, o una gpu nueva), avisar y ofrecer reinstalar: solo se reemplaza torch.
-            bool wrongTorch = installed && gpuUnusable;
+            // la placa esta y pytorch la ve, pero esa build no tiene kernels para ella: es
+            // el caso de una RTX 50xx con la rueda de cuda 12.6. Se detecta comparando el
+            // indice del que salio con el que le corresponde hoy, asi no hay que esperar a
+            // que una generacion se caiga para enterarse.
+            bool staleCuda = installed && hardware.Device == @"cuda"
+                                       && runner.Config.CudaIndex != null
+                                       && runner.Config.CudaIndex != MapperatorinatorRunner.TorchIndexUrl(@"cuda");
+
+            bool wrongTorch = installed && (gpuUnusable || staleCuda);
 
             list.Add(new Requirement
             {
@@ -348,11 +356,13 @@ namespace osu.Game.Mapperatorinator
                 State = !installed ? RequirementState.Missing : wrongTorch ? RequirementState.Warning : RequirementState.Ok,
                 Detail = !installed
                     ? @"not installed yet. One click does it: the tool, the python packages and pytorch (about 8 GB; the model downloads on your first generation)."
-                    : wrongTorch
-                        ? $"installed, but its pytorch is the CPU build, so generation ignores the {hardware.GpuName} and runs on the CPU."
-                        : $"installed ({runner.Config.InstallPath})",
+                    : staleCuda
+                        ? $"installed, but its pytorch has no kernels for the {hardware.GpuName}: generating would die with cudaErrorNoKernelImageForDevice. One press swaps it for the build that does."
+                        : wrongTorch
+                            ? $"installed, but its pytorch is the CPU build, so generation ignores the {hardware.GpuName} and runs on the CPU."
+                            : $"installed ({runner.Config.InstallPath})",
                 Instructions = wrongTorch ? torchFixInstructions(runner, hardware.Device) : string.Empty,
-                AutoInstallLabel = wrongTorch ? @"Use the GPU" : @"Install automatically",
+                AutoInstallLabel = staleCuda ? @"Fix pytorch for this card" : wrongTorch ? @"Use the GPU" : @"Install automatically",
                 CanAutoInstall = true,
             });
 
