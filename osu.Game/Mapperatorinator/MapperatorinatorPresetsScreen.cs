@@ -12,7 +12,6 @@ using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
-using osu.Framework.Logging;
 using osu.Framework.Screens;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -310,7 +309,9 @@ namespace osu.Game.Mapperatorinator
                 RelativeSizeAxes = Axes.X,
                 Height = 36,
                 Text = @"Duplicate",
-                Action = () => dialogOverlay?.Push(new PresetNameDialog($"{preset.Name} copy", name => save(name, preset.Settings))),
+                // la copia se lleva de quien salio el original: si no, duplicar borraba el
+                // "taken from" y quedaba como si el estilo fuese tuyo de toda la vida.
+                Action = () => dialogOverlay?.Push(new PresetNameDialog($"{preset.Name} copy", name => save(name, preset.Settings, preset.OriginPresetId, preset.OriginUsername))),
             });
 
             details.Add(new RoundedButton
@@ -362,42 +363,27 @@ namespace osu.Game.Mapperatorinator
         /// <summary>Abre el generador cargado con este preset para guardarlo encima.</summary>
         private void edit(APIMapperatorinatorPreset preset) => this.Push(new MapperatorinatorScreen(preset));
 
-        private void save(string name, string settings)
+        private void save(string name, string settings, int? originPresetId = null, string? originUsername = null)
         {
-            var request = new SaveMapperatorinatorPresetRequest(name, settings);
-
-            request.Success += preset => Schedule(() =>
-            {
-                notifications?.Post(new SimpleNotification { Text = $"Saved \"{preset.Name}\"." });
-                refresh(preset.Id);
-            });
-
-            request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't save it: {e.Message}" }));
-
-            api.Queue(request);
+            MapperatorinatorPresetSaver.Save(api, dialogOverlay, notifications, name, settings, originPresetId, originUsername,
+                preset =>
+                {
+                    notifications?.Post(new SimpleNotification { Text = $"Saved \"{preset.Name}\"." });
+                    refresh(preset.Id);
+                },
+                a => Schedule(a));
         }
 
-        /// <summary>Renaming is saving under the new name and dropping the old row.</summary>
+        /// <summary>Renombrar es renombrar: la fila es la misma, con el mismo id.</summary>
         private void rename(APIMapperatorinatorPreset preset, string name)
         {
-            if (name == preset.Name)
+            // Ordinal a proposito: "Stream" -> "stream" es un cambio y tiene que pasar.
+            if (string.Equals(name, preset.Name, StringComparison.Ordinal))
                 return;
 
-            var request = new SaveMapperatorinatorPresetRequest(name, preset.Settings);
+            var request = UpdateMapperatorinatorPresetRequest.Rename(preset.Id, name);
 
-            request.Success += created => Schedule(() =>
-            {
-                var drop = new DeleteMapperatorinatorPresetRequest(preset.Id);
-                drop.Success += () => Schedule(() => refresh(created.Id));
-                drop.Failure += e => Schedule(() =>
-                {
-                    Logger.Log($"[mapperatorinator] renamed but couldn't drop the old preset: {e.Message}");
-                    refresh(created.Id);
-                });
-
-                api.Queue(drop);
-            });
-
+            request.Success += updated => Schedule(() => refresh(updated.Id));
             request.Failure += e => Schedule(() => notifications?.Post(new SimpleErrorNotification { Text = $"Couldn't rename it: {e.Message}" }));
 
             api.Queue(request);

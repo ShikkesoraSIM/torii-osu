@@ -30,6 +30,10 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty(@"origin_username")]
         public string? OriginUsername { get; set; }
 
+        /// <summary>Y de que preset suyo: sin esto, una copia pierde el "taken from".</summary>
+        [JsonProperty(@"origin_preset_id")]
+        public int? OriginPresetId { get; set; }
+
         /// <summary>Cuanta gente se llevo este preset tuyo.</summary>
         [JsonProperty(@"forks")]
         public int Forks { get; set; }
