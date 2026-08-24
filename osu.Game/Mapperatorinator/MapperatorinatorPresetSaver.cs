@@ -21,7 +21,7 @@ namespace osu.Game.Mapperatorinator
     /// de apretar: el preset de al lado se iba sin que nadie se enterara, y encima con un
     /// cartel diciendo "guardado".
     /// </summary>
-    public static class MapperatorinatorPresetSaver
+    public static partial class MapperatorinatorPresetSaver
     {
         public static void Save(IAPIProvider api, IDialogOverlay? dialogOverlay, INotificationOverlay? notifications,
                                 string name, string settings, int? originPresetId, string? originUsername,
