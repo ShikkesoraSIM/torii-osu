@@ -202,6 +202,7 @@ namespace osu.Desktop.Updater
                 {
                     // No update is available.
                     log("No update found");
+                    notifyIfStreamHasNoBuilds();
                     scheduleNextUpdateCheck();
                     return false;
                 }
@@ -219,6 +220,41 @@ namespace osu.Desktop.Updater
                 scheduleNextUpdateCheck();
                 return true;
             }
+        }
+
+        private string? lastMissingStreamNotified;
+
+        /// <summary>
+        /// El usuario eligio un stream que no tiene ni un build publicado: el check
+        /// termina en "no update" y desde afuera es identico a estar al dia, asi que
+        /// la persona toquetea el dropdown y jura que esta roto (nos paso con vanilla,
+        /// que todavia no publica releases). Se avisa una vez por stream elegido, no
+        /// en cada check de fondo, que seria spam cada media hora.
+        /// </summary>
+        private void notifyIfStreamHasNoBuilds()
+        {
+            string? buildSuffix = streamSuffixFromVersion(game.Version);
+            string selectedSuffix = ReleaseStream.Value switch
+            {
+                Game.Configuration.ReleaseStream.Nova => @"nova",
+                Game.Configuration.ReleaseStream.Vanilla => @"vanilla",
+                _ => @"torii",
+            };
+
+            // en el stream del propio build, "no update" significa al dia de verdad.
+            if (buildSuffix == null || string.Equals(buildSuffix, selectedSuffix, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (lastMissingStreamNotified == selectedSuffix)
+                return;
+
+            lastMissingStreamNotified = selectedSuffix;
+
+            Schedule(() => notificationOverlay.Post(new SimpleNotification
+            {
+                Text = $"The {selectedSuffix} release stream has no builds published yet, so there's nothing to switch to. You're staying on {buildSuffix} for now.",
+                Icon = FontAwesome.Solid.ExclamationCircle,
+            }));
         }
 
         private static bool velopackManagesThisInstall(IUpdateSource source)
