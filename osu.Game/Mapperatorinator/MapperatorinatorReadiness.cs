@@ -343,9 +343,14 @@ namespace osu.Game.Mapperatorinator
             // el caso de una RTX 50xx con la rueda de cuda 12.6. Se detecta comparando el
             // indice del que salio con el que le corresponde hoy, asi no hay que esperar a
             // que una generacion se caiga para enterarse.
+            //
+            // Se mira la rueda que hay puesta y no solo el indice guardado en la config,
+            // porque ese indice lo escriben las instalaciones nuevas: quien ya lo tenia
+            // instalado de antes no lo tiene, y era justo el que necesitaba el aviso.
             bool staleCuda = installed && hardware.Device == @"cuda"
-                                       && runner.Config.CudaIndex != null
-                                       && runner.Config.CudaIndex != MapperatorinatorRunner.TorchIndexUrl(@"cuda");
+                                       && (runner.CudaBuildTooOld()
+                                           || (runner.Config.CudaIndex != null
+                                               && runner.Config.CudaIndex != MapperatorinatorRunner.TorchIndexUrl(@"cuda")));
 
             bool wrongTorch = installed && (gpuUnusable || staleCuda);
 
