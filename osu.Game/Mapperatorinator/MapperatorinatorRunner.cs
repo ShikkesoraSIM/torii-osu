@@ -2152,6 +2152,13 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             }
         }
 
+        /// <summary>Lo que dice el sistema cuando el problema son los permisos, en cualquier idioma que hable python.</summary>
+        private static bool looksLikeDeniedAccess(string output) =>
+            output.Contains(@"WinError 5", StringComparison.OrdinalIgnoreCase)
+            || output.Contains(@"Access is denied", StringComparison.OrdinalIgnoreCase)
+            || output.Contains(@"Permission denied", StringComparison.OrdinalIgnoreCase)
+            || output.Contains(@"PermissionError", StringComparison.OrdinalIgnoreCase);
+
         /// <summary>El disco donde vive windows.</summary>
         private static bool isSystemDrive(string drive)
         {
@@ -2269,8 +2276,27 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             }
 
             using var process = new Process { StartInfo = psi };
-            process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
-            process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) onLogLine(e.Data); };
+
+            // lo que dijo el paso se guarda para poder explicar el error despues: un
+            // "[WinError 5] Access is denied" pelado no le dice nada a nadie.
+            var said = new List<string>();
+
+            void collect(string? line)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    return;
+
+                lock (said)
+                {
+                    if (said.Count < 200)
+                        said.Add(line);
+                }
+
+                onLogLine(line);
+            }
+
+            process.OutputDataReceived += (_, e) => collect(e.Data);
+            process.ErrorDataReceived += (_, e) => collect(e.Data);
 
             try
             {
@@ -2291,8 +2317,25 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
 
             cancellation.ThrowIfCancellationRequested();
 
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException($"step {Path.GetFileName(exeParts[0])} {string.Join(' ', stepArgs)} failed with exit code {process.ExitCode}.");
+            if (process.ExitCode == 0)
+                return;
+
+            string what = $"step {Path.GetFileName(exeParts[0])} {string.Join(' ', stepArgs)} failed with exit code {process.ExitCode}.";
+
+            string joined;
+
+            lock (said)
+                joined = string.Join(@" ", said);
+
+            if (looksLikeDeniedAccess(joined))
+            {
+                throw new InvalidOperationException(
+                    what + $" Windows denied access to {workDir}. That folder belongs to someone else than the user running Torii: it usually happens when it was created once by something with administrator rights. "
+                         + @"Close Torii, delete that folder, and press Install again: it goes to your user folder now, which never needs administrator rights. "
+                         + @"Opening Torii as administrator would get past this one time, but it leaves the folder owned by the administrator and you'd hit the same wall the next time you open it normally.");
+            }
+
+            throw new InvalidOperationException(what);
         }
 
         /// <summary>
