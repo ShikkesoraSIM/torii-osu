@@ -25,6 +25,10 @@ namespace osu.Game.Online.API.Requests.Responses
 
         [JsonProperty("balance_after")]
         public int BalanceAfter { get; set; }
+
+        /// <summary>Cuando se gano, con zona horaria. Sirve para no festejar lo de ayer.</summary>
+        [JsonProperty("created_at")]
+        public DateTimeOffset CreatedAt { get; set; }
     }
 
     /// <summary>Response of <c>GET /torii/points/feed</c> — recent earnings after a cursor id.</summary>
