@@ -378,6 +378,20 @@ namespace osu.Game.Mapperatorinator
                                 Caption = @"Background image",
                             },
 
+                            // con todo en verde la seccion entera se esconde, y ahi te
+                            // quedas sin device, sin reporte de gpu y sin reinstalar
+                            // pytorch. Este boton es la puerta para volver a entrar.
+                            requirementsToggle = new RoundedButton
+                            {
+                                RelativeSizeAxes = Axes.X,
+                                Height = 30,
+                                Text = @"Requirements and GPU options",
+                                Action = () =>
+                                {
+                                    requirementsExpanded = true;
+                                    applyListVisibility();
+                                },
+                            },
                             requirementsHeading = heading(@"Requirements", 22),
                             requirementsCaption = caption(@"everything generating needs on this machine. sort out anything red, then press Check."),
                             requirementsFlow = new FillFlowContainer
@@ -631,6 +645,11 @@ namespace osu.Game.Mapperatorinator
             static string stat(double? value) => value?.ToString(@"0.#", CultureInfo.InvariantCulture) ?? string.Empty;
         }
 
+        private RoundedButton requirementsToggle = null!;
+
+        /// <summary>Lo pidio a mano con todo en verde: se muestra igual hasta que se vaya.</summary>
+        private bool requirementsExpanded;
+
         private Drawable requirementsHeading = null!;
         private OsuSpriteText requirementsCaption = null!;
         private FillFlowContainer requirementsFlow = null!;
@@ -638,6 +657,9 @@ namespace osu.Game.Mapperatorinator
 
         /// <summary>Whether the last check found everything generation needs.</summary>
         private bool ready;
+
+        /// <summary>No falta nada ni hay nada que mejorar: la lista se puede esconder.</summary>
+        private bool allGood;
         private bool checking;
         private Drawable metadataHeading = null!;
         private Drawable metadataCaption = null!;
@@ -767,11 +789,27 @@ namespace osu.Game.Mapperatorinator
             // ignora la gpu) tiene que quedar a la vista: si no, el aviso dice "mira los
             // requisitos" y no hay requisitos que mirar.
             bool anythingToDo = results.Any(r => r.Actionable);
-            bool showList = !ready || anythingToDo;
+            allGood = ready && !anythingToDo;
 
             requirementsCaption.Text = ready && anythingToDo
                 ? @"generating works, but something here would make it a lot faster."
-                : @"everything generating needs on this machine. sort out anything red, then press Check.";
+                : allGood
+                    ? @"everything's set up. this is also where you change the device or reinstall pytorch."
+                    : @"everything generating needs on this machine. sort out anything red, then press Check.";
+
+            applyListVisibility();
+
+            updateGenerateEnabled();
+
+            detectedDevice = detected;
+            device = effective;
+            updateIdleEta();
+        }
+
+        /// <summary>Si la lista se muestra: cuando falta algo, o cuando la pidieron.</summary>
+        private void applyListVisibility()
+        {
+            bool showList = !allGood || requirementsExpanded;
 
             deviceChoice.Alpha = showList ? 1 : 0;
             customPython.Alpha = showList ? 1 : 0;
@@ -781,11 +819,8 @@ namespace osu.Game.Mapperatorinator
             checkButton.Alpha = showList ? 1 : 0;
             installSelector.Alpha = showList ? 1 : 0;
 
-            updateGenerateEnabled();
-
-            detectedDevice = detected;
-            device = effective;
-            updateIdleEta();
+            // el boton para abrirla solo tiene sentido cuando esta cerrada.
+            requirementsToggle.Alpha = showList ? 0 : 1;
         }
 
         private void startFfmpegInstall()

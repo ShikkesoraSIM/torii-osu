@@ -969,6 +969,95 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
         }
 
         /// <summary>
+        /// La etiqueta de la rueda de torch instalada ("cu126", "rocm7.14.0", "cpu"),
+        /// sacada del nombre de la carpeta dist-info. Se lee del disco y no arrancando
+        /// python a proposito: esto se consulta cada vez que se revisan los requisitos, y
+        /// levantar un interprete para preguntarle la version tarda mas de lo que nadie
+        /// quiere esperar para ver una lista.
+        /// </summary>
+        public string? InstalledTorchTag()
+        {
+            if (string.IsNullOrEmpty(Config.InstallPath))
+                return null;
+
+            try
+            {
+                foreach (string packages in sitePackages())
+                {
+                    foreach (string dir in Directory.EnumerateDirectories(packages, @"torch-*.dist-info"))
+                    {
+                        string name = Path.GetFileName(dir);
+                        int plus = name.IndexOf('+');
+                        int end = name.IndexOf(@".dist-info", StringComparison.Ordinal);
+
+                        // sin "+algo" es una rueda sin etiqueta (la de pypi, que es cpu).
+                        if (plus < 0 || end <= plus)
+                            return string.Empty;
+
+                        return name.Substring(plus + 1, end - plus - 1);
+                    }
+                }
+            }
+            catch
+            {
+                // no poder leerlo no es un problema: quien lo llama trata el null como
+                // "no se sabe" y no dice nada, que es mejor que decir algo equivocado.
+            }
+
+            return null;
+        }
+
+        private IEnumerable<string> sitePackages()
+        {
+            string venv = Path.Combine(Config.InstallPath!, @".venv");
+
+            string windows = Path.Combine(venv, @"Lib", @"site-packages");
+            if (Directory.Exists(windows))
+                yield return windows;
+
+            string lib = Path.Combine(venv, @"lib");
+
+            if (!Directory.Exists(lib))
+                yield break;
+
+            foreach (string python in Directory.EnumerateDirectories(lib, @"python3*"))
+            {
+                string unix = Path.Combine(python, @"site-packages");
+                if (Directory.Exists(unix))
+                    yield return unix;
+            }
+        }
+
+        /// <summary>
+        /// La rueda que hay puesta es de una version de CUDA anterior a la que esta placa
+        /// necesita. Es el caso de una RTX 50xx con una rueda cu126: pytorch la ve, dice
+        /// que hay GPU, y la generacion se muere con cudaErrorNoKernelImageForDevice.
+        /// </summary>
+        public bool CudaBuildTooOld()
+        {
+            if (!InstallLooksValid || InstalledTorchDevice == @"custom")
+                return false;
+
+            int want = cudaNumber(TorchIndexUrl(@"cuda"));
+            int have = cudaNumber(InstalledTorchTag());
+
+            // si no se puede leer alguno de los dos no se inventa nada: mandar a alguien a
+            // bajar varios GB al pedo es peor que no avisarle.
+            return want > 0 && have > 0 && have < want;
+        }
+
+        private static int cudaNumber(string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return 0;
+
+            var m = Regex.Match(text, CUDA_NUMBER);
+            return m.Success ? int.Parse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture) : 0;
+        }
+
+        private const string CUDA_NUMBER = @"cu(\d{3})";
+
+        /// <summary>
         /// Which device pytorch was installed for ("cuda", "rocm", "mps", "cpu"). Null for
         /// installs older than the marker, or when nothing is installed.
         /// </summary>
@@ -1887,8 +1976,8 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
                 || all.Contains(@"not compatible with the current PyTorch installation", StringComparison.OrdinalIgnoreCase))
             {
                 return @"The pytorch that's installed has no kernels for your graphics card, so it can see it but can't run anything on it. "
-                       + @"This is what happens to an RTX 50 series card with a CUDA 12.6 build. Open Mapperatorinator from a map's right-click "
-                       + @"menu and press the button on the Mapperatorinator row: it reinstalls the build that does have them.";
+                       + @"This is what happens to an RTX 50 series card with a CUDA 12.6 build. Open Mapperatorinator (main menu, edit, Mapperatorinator), "
+                       + @"open ""Requirements and GPU options"", and press ""Fix pytorch for this card"" on the Mapperatorinator row.";
             }
 
             if (all.Contains(@"not compiled with CUDA") || all.Contains(@"Torch not compiled"))
