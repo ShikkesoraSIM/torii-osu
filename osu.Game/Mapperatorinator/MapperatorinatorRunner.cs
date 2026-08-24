@@ -906,15 +906,30 @@ print('torii-gpu-ok', torch.cuda.get_device_name(0))";
             string deviceMarker = Path.Combine(checkout, torch_device_marker);
             string? previousDevice = File.Exists(deviceMarker) ? File.ReadAllText(deviceMarker).Trim() : null;
 
-            if (replaceExisting && previousDevice != installDevice)
+            string? index = TorchIndexUrl(installDevice);
+
+            // la rueda que hay puesta vs la que le corresponde a esta placa. Sin esto,
+            // apretar "arreglar pytorch" en una 50xx con una rueda cu126 no hacia NADA:
+            // el device es "cuda" de los dos lados, no se desinstalaba, y pip da por
+            // cumplido un "torch" pelado con cualquier torch que ya este instalado. La
+            // persona veia el cartel de listo y le seguia fallando igual.
+            string wantTag = index == null ? string.Empty : index.Substring(index.LastIndexOf('/') + 1);
+            string? haveTag = InstalledTorchTag();
+
+            bool otherBuild = wantTag.Length > 0
+                              && !string.IsNullOrEmpty(haveTag)
+                              && !haveTag.Equals(wantTag, StringComparison.OrdinalIgnoreCase);
+
+            if (replaceExisting && (previousDevice != installDevice || otherBuild))
             {
-                // pip da por cumplido "torch" aunque sea la rueda de otro device: hay que sacarla.
-                onLogLine(@"pytorch in there was installed for a different device: replacing it...");
+                onLogLine(otherBuild
+                    ? $"pytorch in there is the {haveTag} build and this card needs {wantTag}: replacing it..."
+                    : @"pytorch in there was installed for a different device: replacing it...");
+
                 await runStep(venvPython, new[] { "-m", "pip", "uninstall", "-y", "torch", "torchaudio" }, checkout, onLogLine, cancellation, pipEnv).ConfigureAwait(false);
             }
 
             var torchArgs = new List<string> { "-m", "pip", "install", "torch", "torchaudio" };
-            string? index = TorchIndexUrl(installDevice);
 
             if (index != null)
             {
