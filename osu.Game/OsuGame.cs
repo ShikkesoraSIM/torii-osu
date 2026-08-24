@@ -2110,8 +2110,11 @@ namespace osu.Game
             }
             else if (Toolbar.State.Value == Visibility.Visible)
             {
-                // mientras el cursor siga sobre la banda de la toolbar la dejamos; si no, cuenta regresiva.
-                if (mouseY <= Toolbar.HEIGHT || Toolbar.IsHovered)
+                // mientras el cursor siga sobre la banda de la toolbar la dejamos; si no, cuenta
+                // regresiva. HasOpenPopup cubre lo que IsHovered no ve: el cursor sobre un boton (el
+                // hover se lo queda el boton) o sobre la tarjetita de login que cuelga mas abajo, y
+                // los popups nuestros abiertos, que esconderse los cierra en la cara del usuario.
+                if (mouseY <= Toolbar.HEIGHT || Toolbar.IsHovered || Toolbar.HasOpenPopup)
                     toolbarAutoHideTime = null;
                 else
                 {
