@@ -220,6 +220,19 @@ namespace osu.Game.Screens.Play
         {
             base.LoadComplete();
 
+            // torii: censo de diagnostico del arbol de dibujo (TORII_DRAW_CENSUS=1),
+            // para diffear contra otro build que compone esta misma escena.
+            if (Performance.DrawCensus.Enabled)
+            {
+                Scheduler.AddDelayed(() =>
+                {
+                    Drawable censusRoot = this;
+                    while (censusRoot.Parent != null)
+                        censusRoot = censusRoot.Parent;
+                    Performance.DrawCensus.Dump(censusRoot, @"torii");
+                }, 12000);
+            }
+
             if (!LoadedBeatmapSuccessfully)
                 return;
 
