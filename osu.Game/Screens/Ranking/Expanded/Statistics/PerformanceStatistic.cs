@@ -211,7 +211,7 @@ namespace osu.Game.Screens.Ranking.Expanded.Statistics
         private void setPenaltyTooltip()
         {
             TooltipText = LocalisableString.Interpolate(
-                $"Paused {pauseCount}× during play — pp reduced 7% per pause: {basePerformance}pp → {finalPerformance}pp");
+                $"Paused {pauseCount}x during play. pp reduced 7% per pause: {basePerformance}pp → {finalPerformance}pp");
         }
 
         private LocalisableString penaltyLabel()

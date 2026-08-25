@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using JetBrains.Annotations;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Platform;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -208,6 +209,9 @@ namespace osu.Game.Screens.Play
 
         protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
             => dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+
+        [Resolved]
+        private GameHost gameHost { get; set; } = null!;
 
         protected override void LoadComplete()
         {
@@ -409,6 +413,16 @@ namespace osu.Game.Screens.Play
 
             // bind clock into components that require it
             ((IBindable<bool>)DrawableRuleset.IsPaused).BindTo(GameplayClockContainer.IsPaused);
+
+            // torii: la PAUSA es una ventana segura para reparar la latencia del audio
+            // exclusivo (el saltito del flush no molesta con el juego detenido). Sin esto,
+            // el gate de gameplay dejaba la cola creciendo sin techo durante pausas largas
+            // (reportado: 220ms tras una pausa con hiccups). Al resumir vuelve a apagarse.
+            GameplayClockContainer.IsPaused.BindValueChanged(paused =>
+            {
+                if (gameHost.AudioThread != null)
+                    gameHost.AudioThread.AllowLatencyRepair.Value = paused.NewValue;
+            });
 
             DrawableRuleset.NewResult += r =>
             {
@@ -1197,6 +1211,10 @@ namespace osu.Game.Screens.Play
         public void Resume()
         {
             if (!canResume) return;
+
+            // torii: vaciar la cola del exclusivo AHORA, que el saltito cae durante la
+            // cuenta regresiva del resume y no en el gameplay. Retomas siempre en el piso.
+            gameHost.AudioThread?.FlushExclusiveQueueNow();
 
             IsResuming = true;
             PauseOverlay.Hide();

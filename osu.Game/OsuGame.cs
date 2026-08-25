@@ -1338,6 +1338,17 @@ namespace osu.Game
                 Margin = new MarginPadding(5),
             }, topMostOverlayContent.Add);
 
+            // torii: el badge del flush de audio pre-gameplay vive ACA y no adentro del
+            // PlayerLoader: si el mapa carga rapido, la pantalla se va pero el badge
+            // termina su coreografia igual, arribita del contador de rendimiento.
+            // Cacheado para que PlayerLoader lo dispare por DI.
+            loadComponentSingleFile(new Screens.Play.AudioLatencyFlushIndicator
+            {
+                Anchor = Anchor.BottomRight,
+                Origin = Anchor.BottomRight,
+                Margin = new MarginPadding { Right = 5, Bottom = 40 },
+            }, topMostOverlayContent.Add, true);
+
             // torii: el contador de latencias ocupa la misma esquina que el de fps,
             // porque son uno O el otro: prender cualquiera apaga al otro.
             loadComponentSingleFile(new Graphics.UserInterface.ToriiPerformanceCounter

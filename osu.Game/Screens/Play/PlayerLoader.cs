@@ -156,6 +156,12 @@ namespace osu.Game.Screens.Play
         private bool playerConsumed;
 
         private LogoTrackingContainer content = null!;
+
+        // Torii: el badge global del flush de audio (vive en OsuGame, arriba del
+        // contador de rendimiento) — global para que su coreografia siempre termine
+        // aunque esta pantalla se vaya rapido.
+        [Resolved(canBeNull: true)]
+        private AudioLatencyFlushIndicator? audioFlushBadge { get; set; }
         private IDisposable? logoTracking;
 
         private bool hideOverlays;
@@ -350,6 +356,23 @@ namespace osu.Game.Screens.Play
 
         #region Screen handling
 
+        /// <summary>
+        /// Torii: vacia la cola de audio del modo exclusivo justo antes del gameplay.
+        /// Adentro del mapa la reparacion automatica esta apagada (el saltito del flush
+        /// descoloca), asi que este es el ultimo momento util: si entras con la cola
+        /// inflada te comes esa latencia el mapa entero. El saltito cae aca, en la
+        /// pantalla de carga, donde no molesta. Si de verdad vacio algo, aparece el
+        /// avisito chiquito con la latencia drenando.
+        /// </summary>
+        private void tryFlushAudioLatency(bool showIndicator = true)
+        {
+            host.AudioThread?.FlushExclusiveQueueNow(() => Schedule(() =>
+            {
+                if (showIndicator)
+                    audioFlushBadge?.Show();
+            }));
+        }
+
         public override void OnEntering(ScreenTransitionEvent e)
         {
             base.OnEntering(e);
@@ -367,6 +390,8 @@ namespace osu.Game.Screens.Play
             MetadataInfo.Delay(metadata_delay).FadeIn(500, Easing.OutQuint);
             contentIn(metadata_delay + 250);
 
+            tryFlushAudioLatency();
+
             // after an initial delay, start the debounced load check.
             // this will continue to execute even after resuming back on restart.
             Scheduler.Add(new ScheduledDelegate(pushWhenLoaded, Clock.CurrentTime + PlayerPushDelay, 0));
@@ -378,6 +403,8 @@ namespace osu.Game.Screens.Play
         public override void OnResuming(ScreenTransitionEvent e)
         {
             base.OnResuming(e);
+
+            tryFlushAudioLatency();
 
             Debug.Assert(CurrentPlayer != null);
 
@@ -686,6 +713,12 @@ namespace osu.Game.Screens.Play
 
             scheduledPushPlayer = Scheduler.AddDelayed(() =>
                 {
+                    // Torii: ultimo flush de la cola de audio, silencioso. El de la entrada
+                    // queda temprano: la carga de assets que viene DESPUES re-infla la cola,
+                    // y en el retry eso significaba arrancar el mapa con el buffer alto.
+                    // Aca la carga ya termino (LoadState.Ready) y solo queda el fade.
+                    tryFlushAudioLatency(showIndicator: false);
+
                     // ensure that once we have reached this "point of no return", readyForPush will be false for all future checks (until a new player instance is prepared).
                     Player consumedPlayer = consumePlayer();
 
