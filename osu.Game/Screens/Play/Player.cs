@@ -4,6 +4,7 @@
 #nullable disable
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -30,6 +31,8 @@ using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
 using osu.Game.Rulesets.UI.Scrolling;
@@ -236,9 +239,14 @@ namespace osu.Game.Screens.Play
             DrawableRuleset.SetRecordTarget(Score);
         }
 
+        private bool constantHitsoundVolume;
+
         [BackgroundDependencyLoader(true)]
         private void load(OsuConfigManager config, OsuGameBase game, CancellationToken cancellationToken)
         {
+            // torii: capturado aca porque loadPlayableBeatmap corre adentro de este load.
+            constantHitsoundVolume = config.Get<bool>(OsuSetting.ToriiConstantHitsoundVolume);
+
             var gameplayMods = Mods.Value.Select(m => m.DeepClone()).ToArray();
 
             if (gameplayMods.Any(m => m is UnknownMod))
@@ -625,6 +633,49 @@ namespace osu.Game.Screens.Play
             }
         }
 
+
+        // torii: fuerza los hitsounds de CLICK a volumen 100 (circulos, cabezas de
+        // slider y de hold, spinners). Colas, repeats, ticks y sliding conservan el
+        // volumen del mapa: silenciar el sliderend es una decision musical (tech
+        // maps) y se respeta. El Samples propio del slider NO se toca porque en
+        // lazer ese sample suena en la cola (DrawableSlider usa TailSamples). Los
+        // samples de storyboard no pasan por aca a proposito: son musica del mapa.
+        private static void normalizeSampleVolumes(IEnumerable<HitObject> hitObjects)
+        {
+            foreach (var obj in hitObjects)
+            {
+                // sliders (IHasRepeats) y holds de mania (NodeSamples propio, sin la
+                // interfaz): el fallback por reflexion cubre el segundo caso.
+                var nodes = (obj as IHasRepeats)?.NodeSamples
+                            ?? obj.GetType().GetProperty(@"NodeSamples")?.GetValue(obj) as IList<IList<HitSampleInfo>>;
+
+                if (nodes != null && nodes.Count > 0)
+                {
+                    raiseVolumesInPlace(nodes[0]);
+
+                    // el setter de Samples COPIA a un SamplesBindable propio (HitObject.cs),
+                    // asi que el head nested ya creado no comparte lista con NodeSamples[0]
+                    // y hay que tocarlo directo. El head es el nested que arranca junto con
+                    // el objeto; repeats, ticks y colas arrancan despues y no se tocan.
+                    foreach (var nested in obj.NestedHitObjects)
+                    {
+                        if (Math.Abs(nested.StartTime - obj.StartTime) < 1)
+                            raiseVolumesInPlace(nested.Samples);
+                    }
+
+                    continue;
+                }
+
+                raiseVolumesInPlace(obj.Samples);
+            }
+        }
+
+        private static void raiseVolumesInPlace(IList<HitSampleInfo> samples)
+        {
+            for (int i = 0; i < samples.Count; i++)
+                samples[i] = samples[i].With(newVolume: 100);
+        }
+
         private IBeatmap loadPlayableBeatmap(Mod[] gameplayMods, CancellationToken cancellationToken)
         {
             IBeatmap playable;
@@ -649,6 +700,12 @@ namespace osu.Game.Screens.Play
                     Logger.Log($"The current beatmap is not playable in {ruleset.RulesetInfo.Name}!", level: LogLevel.Important);
                     return null;
                 }
+
+                // torii: hitsounds a volumen constante. Los volumenes de los control
+                // points ya vienen horneados en los samples de cada objeto al decodear,
+                // asi que una sola pasada aca cubre todo lo que suena en gameplay.
+                if (constantHitsoundVolume)
+                    normalizeSampleVolumes(playable.HitObjects);
 
                 if (playable.HitObjects.Count == 0)
                 {
