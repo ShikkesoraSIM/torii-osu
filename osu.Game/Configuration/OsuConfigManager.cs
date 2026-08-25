@@ -345,6 +345,10 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.AlphaPpDevModeEnabled, false);
             SetDefault(OsuSetting.ToriiConfirmDangerousButtonsOnLongAttempts, false);
             SetDefault(OsuSetting.ToriiSkipBreaksEnabled, true);
+
+            // Torii: hitsounds a volumen constante, ignorando los cambios de volumen del
+            // mapa (algunos mapas los silencian por completo y arruinan el reading).
+            SetDefault(OsuSetting.ToriiConstantHitsoundVolume, false);
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
             SetDefault(OsuSetting.EnableOboeAudio, true);
@@ -734,6 +738,7 @@ namespace osu.Game.Configuration
         AlphaPpDevModeEnabled,
         ToriiConfirmDangerousButtonsOnLongAttempts,
         ToriiSkipBreaksEnabled,
+        ToriiConstantHitsoundVolume,
         ToriiSkipBreaksSingleConfirmation,
         ToriiSkipBreaksBriefingSeen,
         EnableOboeAudio,

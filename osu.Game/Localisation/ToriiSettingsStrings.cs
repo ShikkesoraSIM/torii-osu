@@ -73,6 +73,10 @@ namespace osu.Game.Localisation
 
         public static LocalisableString SkipBreaksSingleConfirmationHint => new TranslatableString(getKey(@"skip_breaks_single_confirmation_hint"), @"When on, the mid-map skip button activates on a single press. When off, it asks for a quick second press first so an accidental tap can't pull you out of a break.");
 
+        public static LocalisableString ConstantHitsoundVolume => new TranslatableString(getKey(@"constant_hitsound_volume"), @"Constant hitsound volume");
+
+        public static LocalisableString ConstantHitsoundVolumeHint => new TranslatableString(getKey(@"constant_hitsound_volume_hint"), @"Play click hitsounds (circles, slider and hold heads) at full volume, ignoring the beatmap's volume changes. Slider tails, repeats and ticks keep the map's volume, since silencing those is usually an intentional part of the map. Audio only, scoring is unaffected.");
+
         // ── First-time mid-map skip briefing popup ──
         public static LocalisableString SkipBreakBriefingTitle => new TranslatableString(getKey(@"skip_break_briefing_title"), @"You can skip breaks now");
 

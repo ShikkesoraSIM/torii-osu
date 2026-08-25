@@ -236,6 +236,13 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string MapperatorinatorPresets = "v2026.824.0:mapperatorinator-presets";
 
+        /// <summary>
+        /// Marks the "Constant hitsound volume" toggle in Settings -> Torii ->
+        /// Gameplay. Forces every hitsound to full volume, ignoring beatmap
+        /// volume changes (some maps silence hitsounds entirely).
+        /// </summary>
+        public const string ConstantHitsoundVolume = "v2026.825.2:constant-hitsound-volume";
+
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
@@ -255,6 +262,7 @@ namespace osu.Game.Configuration
             LatencyCounter,
             WasapiExclusive,
             MapperatorinatorPresets,
+            ConstantHitsoundVolume,
         };
 
         /// <summary>

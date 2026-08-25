@@ -37,6 +37,16 @@ namespace osu.Game.Overlays.Settings.Sections.Torii
                 },
                 new SettingsItemV2(new FormCheckBox
                 {
+                    Caption = ToriiSettingsStrings.ConstantHitsoundVolume,
+                    Current = config.GetBindable<bool>(OsuSetting.ToriiConstantHitsoundVolume),
+                    HintText = ToriiSettingsStrings.ConstantHitsoundVolumeHint,
+                    NewFeatureId = NewFeatureRegistry.ConstantHitsoundVolume,
+                })
+                {
+                    Keywords = new[] { @"hitsound", @"hitsounds", @"volume", @"constant", @"quiet", @"silent", @"mcosu", @"torii" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
                     Caption = ToriiSettingsStrings.SkipBreaks,
                     Current = config.GetBindable<bool>(OsuSetting.ToriiSkipBreaksEnabled),
                     HintText = ToriiSettingsStrings.SkipBreaksHint,
