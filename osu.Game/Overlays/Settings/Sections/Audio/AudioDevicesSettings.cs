@@ -195,8 +195,8 @@ namespace osu.Game.Overlays.Settings.Sections.Audio
                     awaitingResult = false;
                     notifications?.Post(new SimpleErrorNotification
                     {
-                        Text = "Exclusive mode didn't work with this audio device, so it stayed off. "
-                               + "Some devices don't support it, and it also fails if another app already grabbed the device.",
+                        Text = "Exclusive mode didn't work, so it stayed off. Usually Windows is blocking it: "
+                               + "enable \"Allow applications to take exclusive control\" in the device's Advanced properties.",
                     });
                 });
             });
