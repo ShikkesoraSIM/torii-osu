@@ -20,10 +20,8 @@ namespace osu.Game.Screens.Select
     /// renderiza su framebuffer pero no se ve en pantalla, asi el wallpaper real queda intacto). Cada panel
     /// saca un <see cref="BufferedContainerView{T}"/> con SynchronisedDrawQuad que muestra la porcion del blur
     /// alineada a su posicion en pantalla. Un solo blur compartido, continuo al scrollear, sin feedback.
-    /// cachedFrameBuffer=true: el contenido solo cambia al cambiar de mapa (y durante el crossfade, que
-    /// invalida el cache solo, frame a frame). Redibujarlo cada frame costaba una pantalla entera de blur
-    /// por frame aunque nada cambiara. El caso "buffer arranca vacio en algunos mapas" que motivo el
-    /// redibujo permanente se cubre con ForceRedraw() en cada cambio de contenido.
+    /// cachedFrameBuffer=false: redibuja cada frame (un blur fullscreen compartido) para que SIEMPRE refleje el
+    /// mapa actual sin depender de invalidaciones (con cache el buffer arrancaba vacio en algunos mapas).
     /// </summary>
     public partial class PanelBackdrop : CompositeDrawable, IPanelBackdrop
     {
@@ -39,7 +37,7 @@ namespace osu.Game.Screens.Select
         {
             RelativeSizeAxes = Axes.Both;
 
-            InternalChild = buffered = new BufferedContainer(cachedFrameBuffer: true)
+            InternalChild = buffered = new BufferedContainer(cachedFrameBuffer: false)
             {
                 RelativeSizeAxes = Axes.Both,
                 BlurSigma = new Vector2(blurSigma),
@@ -82,7 +80,6 @@ namespace osu.Game.Screens.Select
             if (beatmap == null || string.IsNullOrEmpty(beatmap.Metadata?.BackgroundFile))
             {
                 previous?.FadeOut(300, Easing.OutQuint).Expire();
-                buffered.ForceRedraw();
                 return;
             }
 
@@ -102,10 +99,6 @@ namespace osu.Game.Screens.Select
                 spriteContainer.Add(loaded);
                 loaded.FadeIn(300, Easing.OutQuint);
                 previous?.FadeOut(300, Easing.OutQuint).Expire();
-
-                // cubre el caso historico de "buffer vacio": recien agregado el sprite, garantizamos
-                // un redraw aunque ninguna invalidacion haya llegado todavia al buffer cacheado.
-                buffered.ForceRedraw();
             });
         }
 

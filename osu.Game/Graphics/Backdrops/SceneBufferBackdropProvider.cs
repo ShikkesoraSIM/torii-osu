@@ -9,8 +9,8 @@ namespace osu.Game.Graphics.Backdrops
 {
     /// <summary>
     /// Torii DARK GLASS: <see cref="IBackdropProvider"/> respaldado por el <see cref="BufferedContainer"/>
-    /// que envuelve la escena (fondo + pantallas). El capture-buffer compone la escena al FBO y la blitea
-    /// NITIDA a pantalla una sola vez (sin DrawOriginal, sin blur); de esa textura sacamos vistas sincronizadas.
+    /// que envuelve la escena (fondo + pantallas). El capture-buffer dibuja la escena NITIDA en pantalla
+    /// (DrawOriginal=true, sin blur) y ademas guarda su textura, de la que sacamos vistas sincronizadas.
     /// El blur lo aplica cada panel sobre su propia vista (ver GlassBackdrop), asi solo se blurea la
     /// region visible del panel abierto en vez de toda la pantalla.
     /// </summary>
