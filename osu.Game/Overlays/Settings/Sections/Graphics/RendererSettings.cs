@@ -38,12 +38,16 @@ namespace osu.Game.Overlays.Settings.Sections.Graphics
 
             IEnumerable<RendererType> availableRenderers = host.GetPreferredRenderersForCurrentPlatform().Order();
 
-            // Vulkan renderers are pretty broken to the point it may result in a startup crash at worst.
-            // If a user isn't already using it let's hide it until we can fix.
-            if (renderer.Value != RendererType.Deferred_Vulkan)
-                availableRenderers = availableRenderers.Where(t => t != RendererType.Deferred_Vulkan);
-            if (renderer.Value != RendererType.Vulkan)
-                availableRenderers = availableRenderers.Where(t => t != RendererType.Vulkan);
+            // torii: dejamos Vulkan disponible en desktop, donde el framework ya lo ofrece.
+            bool showVulkan = OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
+
+            if (!showVulkan)
+            {
+                if (renderer.Value != RendererType.Deferred_Vulkan)
+                    availableRenderers = availableRenderers.Where(t => t != RendererType.Deferred_Vulkan);
+                if (renderer.Value != RendererType.Vulkan)
+                    availableRenderers = availableRenderers.Where(t => t != RendererType.Vulkan);
+            }
 
             Children = new Drawable[]
             {
