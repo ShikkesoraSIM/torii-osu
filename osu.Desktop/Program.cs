@@ -130,6 +130,162 @@ namespace osu.Desktop
             return null;
         }
 
+        private static FileStream? beginVulkanSessionRecovery(string storageFolder)
+        {
+            string frameworkIni = Path.Combine(storageFolder, "framework.ini");
+            string markerPath = Path.Combine(storageFolder, ".torii-vulkan-session");
+            FileStream? marker = null;
+
+            if (!isVulkanConfigured(frameworkIni))
+            {
+                try
+                {
+                    File.Delete(markerPath);
+                }
+                catch
+                {
+                }
+
+                return null;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(storageFolder);
+
+                // El lock evita que una segunda instancia confunda una sesion activa con un crash.
+                marker = new FileStream(markerPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
+
+                if (marker.Length > 0)
+                {
+                    resetRendererToAutomatic(frameworkIni);
+                    finishVulkanSession(marker);
+                    Logger.Log("[Torii] La sesion Vulkan anterior no cerro bien; renderer reseteado a Automatic.", LoggingTarget.Runtime, LogLevel.Important);
+                    return null;
+                }
+
+                marker.WriteByte(1);
+                marker.Flush(flushToDisk: true);
+                return marker;
+            }
+            catch (IOException)
+            {
+                marker?.Dispose();
+                // Otra instancia con Vulkan ya tiene el marcador abierto.
+                return null;
+            }
+            catch (Exception ex)
+            {
+                marker?.Dispose();
+                Logger.Log($"[Torii] No se pudo preparar la recuperacion de Vulkan: {ex.Message}", LoggingTarget.Runtime, LogLevel.Important);
+                return null;
+            }
+        }
+
+        private static bool isVulkanConfigured(string frameworkIni)
+        {
+            if (!File.Exists(frameworkIni))
+                return false;
+
+            try
+            {
+                foreach (string rawLine in File.ReadAllLines(frameworkIni))
+                {
+                    string line = rawLine.Trim();
+                    int eq = line.IndexOf('=');
+
+                    if (eq <= 0 || !line[..eq].Trim().Equals("Renderer", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string value = line[(eq + 1)..].Trim();
+                    return value.Equals("Vulkan", StringComparison.OrdinalIgnoreCase)
+                           || value.Equals("Deferred_Vulkan", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private static void resetRendererToAutomatic(string frameworkIni)
+        {
+            string[] lines = File.ReadAllLines(frameworkIni);
+            bool found = false;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                int eq = line.IndexOf('=');
+
+                if (eq <= 0 || !line[..eq].Trim().Equals("Renderer", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                lines[i] = "Renderer = Automatic";
+                found = true;
+            }
+
+            if (!found)
+                lines = [.. lines, "Renderer = Automatic"];
+
+            string temporaryPath = $"{frameworkIni}.{Environment.ProcessId}.tmp";
+
+            try
+            {
+                File.WriteAllLines(temporaryPath, lines);
+                File.Move(temporaryPath, frameworkIni, true);
+            }
+            finally
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+
+        private static void finishVulkanSession(FileStream marker)
+        {
+            string markerPath = marker.Name;
+            bool cleared = false;
+
+            try
+            {
+                marker.SetLength(0);
+                marker.Flush(flushToDisk: true);
+                cleared = true;
+            }
+            finally
+            {
+                marker.Dispose();
+            }
+
+            if (!cleared)
+                return;
+
+            try
+            {
+                File.Delete(markerPath);
+            }
+            catch
+            {
+                // Largo cero tambien cuenta como cierre limpio si no se pudo borrar.
+            }
+        }
+
+        private static void finishVulkanSessionIfNeeded(FileStream? marker)
+        {
+            if (marker == null)
+                return;
+
+            try
+            {
+                finishVulkanSession(marker);
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[Torii] No se pudo cerrar el marcador de Vulkan: {ex.Message}", LoggingTarget.Runtime, LogLevel.Important);
+            }
+        }
+
         private static LegacyTcpIpcProvider? legacyIpc;
 
         private static bool isFirstRun;
@@ -232,17 +388,23 @@ namespace osu.Desktop
                 FriendlyGameName = OsuGameBase.GAME_NAME,
             };
 
+            FileStream? vulkanSessionMarker = beginVulkanSessionRecovery(resolveDefaultStorageFolder());
+
             using (DesktopGameHost host = Host.GetSuitableDesktopHost(gameName, hostOptions))
             {
                 if (!host.IsPrimaryInstance)
                 {
                     if (trySendIPCMessage(host, cwd, args))
+                    {
+                        finishVulkanSessionIfNeeded(vulkanSessionMarker);
                         return;
+                    }
 
                     // we want to allow multiple instances to be started when in debug.
                     if (!DebugUtils.IsDebugBuild)
                     {
                         Logger.Log(@"Torii does not support multiple running instances.", LoggingTarget.Runtime, LogLevel.Error);
+                        finishVulkanSessionIfNeeded(vulkanSessionMarker);
                         return;
                     }
                 }
@@ -272,6 +434,8 @@ namespace osu.Desktop
                     });
                 }
             }
+
+            finishVulkanSessionIfNeeded(vulkanSessionMarker);
         }
 
         private static bool trySendIPCMessage(IIpcHost host, string cwd, string[] args)
