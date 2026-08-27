@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -80,7 +80,7 @@ namespace osu.Game.Overlays.Toolbar
         private const float pill_height = 32f;
         private const float pill_corner_radius = 12f;
 
-        public LocalisableString TooltipText => "Torii server pulse — click for live activity";
+        public LocalisableString TooltipText => "Torii server pulse. click for live activity";
 
         [Resolved(canBeNull: true)]
         private ToriiServerPulseProvider? pulse { get; set; }
