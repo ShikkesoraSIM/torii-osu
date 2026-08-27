@@ -138,6 +138,16 @@ namespace osu.Game.Online.Multiplayer
         /// </remarks>
         public virtual Task<string> RankedPlayGetLiveMatches(int poolId) => Task.FromResult(string.Empty);
 
+        /// <summary>
+        /// Cuantas partidas de ranked play hay en curso. Llega pegado al update del
+        /// lobby (cada 5s) y no como stream propio: es un entero y los que lo reciben
+        /// son los mismos que ya reciben el estado del lobby.
+        /// </summary>
+        public event Action<int, int>? RankedPlayLiveMatchCountReceived;
+
+        protected void TriggerRankedPlayLiveMatchCount(int poolId, int count)
+            => RankedPlayLiveMatchCountReceived?.Invoke(poolId, count);
+
         public event Action<int, Vector2>? RankedPlayCursorReceived;
 
         protected void TriggerRankedPlayCursorReceived(int userId, Vector2 normalisedPosition)
