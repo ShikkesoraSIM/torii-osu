@@ -432,6 +432,19 @@ namespace osu.Game.Overlays.Toolbar
             }
         }
 
+        /// <summary>
+        /// Para las test scenes: abrir el panel con partidas inventadas, sin server.
+        /// </summary>
+        public void OpenPopoverForTesting(RankedPlayLiveMatch[]? fakeMatches = null)
+        {
+            if (popover == null || !popover.IsLoaded)
+                return;
+
+            popover.LiveMatchesOverride = fakeMatches;
+            popover.QueueUserIds = lastQueueUserIds;
+            popover.Show();
+        }
+
         protected override bool OnHover(osu.Framework.Input.Events.HoverEvent e)
         {
             // Mismos valores y tiempos que ToolbarPointsButton para que las tres
