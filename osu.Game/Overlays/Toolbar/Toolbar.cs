@@ -98,6 +98,7 @@ namespace osu.Game.Overlays.Toolbar
 
         private ToolbarUserButton userButton;
         private ToriiServerPulseButton pulseButton;
+        private ToolbarRankedPlayButton rankedButton;
         private ToolbarRulesetSelector rulesetSelector;
 
         // Torii custom UI hue (Menu scope): re-tints the toolbar chrome live.
@@ -245,6 +246,8 @@ namespace osu.Game.Overlays.Toolbar
                                             new ToolbarPointsButton(),
                                             new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             pulseButton = new ToriiServerPulseButton(),
+                                            new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
+                                            rankedButton = new ToolbarRankedPlayButton(),
                                             new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             new ToolbarClock(),
                                             new ToolbarNotificationButton(),
