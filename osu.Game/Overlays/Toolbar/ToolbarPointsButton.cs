@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
@@ -42,7 +42,7 @@ namespace osu.Game.Overlays.Toolbar
         private const float pill_height = 32f;
         private const float pill_corner_radius = 12f;
 
-        public LocalisableString TooltipText => "Your Torii points — click for history";
+        public LocalisableString TooltipText => "Your Torii points. click for history";
 
         [Resolved(canBeNull: true)]
         private ToriiCosmeticsManager cosmetics { get; set; }

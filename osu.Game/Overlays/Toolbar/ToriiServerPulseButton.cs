@@ -80,7 +80,7 @@ namespace osu.Game.Overlays.Toolbar
         private const float pill_height = 32f;
         private const float pill_corner_radius = 12f;
 
-        public LocalisableString TooltipText => "Torii server pulse — click for live activity";
+        public LocalisableString TooltipText => "Torii server pulse. click for live activity";
 
         [Resolved(canBeNull: true)]
         private ToriiServerPulseProvider? pulse { get; set; }

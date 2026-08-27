@@ -133,7 +133,7 @@ namespace osu.Game.Online.Multiplayer
         /// Viaja como JSON por un metodo propio del hub y no dentro de
         /// MatchmakingLobbyStatus: esa clase es parte del contrato messagepack del
         /// paquete compartido y tocarla ata cliente y server a la misma version. Por
-        /// nombre de metodo es aditivo — un server viejo simplemente no lo tiene y el
+        /// nombre de metodo es aditivo: un server viejo simplemente no lo tiene y el
         /// cliente se queda sin la lista, que es degradar bien.
         /// </remarks>
         public virtual Task<string> RankedPlayGetLiveMatches(int poolId) => Task.FromResult(string.Empty);
