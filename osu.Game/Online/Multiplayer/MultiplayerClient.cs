@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -121,6 +121,23 @@ namespace osu.Game.Online.Multiplayer
         /// relayeada por el server en las pantallas de ranked play. OJO: llega en un thread de
         /// SignalR — el consumidor debe agendar al update thread.
         /// </summary>
+        /// <summary>
+        /// Pide al server las partidas de ranked play que estan pasando AHORA.
+        /// </summary>
+        /// <remarks>
+        /// Es a pedido y no un broadcast a proposito: el unico que necesita esto es
+        /// alguien que abrio el panel de ranked play, y son un puñado de segundos al
+        /// dia. Mandarselo a todos los conectados todo el tiempo seria hacer trabajar
+        /// al juego de todo el mundo solo porque hay gente jugando.
+        ///
+        /// Viaja como JSON por un metodo propio del hub y no dentro de
+        /// MatchmakingLobbyStatus: esa clase es parte del contrato messagepack del
+        /// paquete compartido y tocarla ata cliente y server a la misma version. Por
+        /// nombre de metodo es aditivo — un server viejo simplemente no lo tiene y el
+        /// cliente se queda sin la lista, que es degradar bien.
+        /// </remarks>
+        public virtual Task<string> RankedPlayGetLiveMatches(int poolId) => Task.FromResult(string.Empty);
+
         public event Action<int, Vector2>? RankedPlayCursorReceived;
 
         protected void TriggerRankedPlayCursorReceived(int userId, Vector2 normalisedPosition)

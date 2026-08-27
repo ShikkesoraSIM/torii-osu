@@ -43,6 +43,62 @@ namespace osu.Game.Overlays.Toolbar
         // torii: cuenta los Ctrl+T; OsuGame sugiere el auto-hide cuando llega a ~30.
         private Bindable<int> toolbarToggleCount = null!;
 
+        private InputManager cachedInputManager;
+
+        /// <summary>
+        /// torii: la toolbar esta en uso de verdad, asi que el auto-hide no tiene que
+        /// arrancar la cuenta regresiva. Cubre dos cosas que el IsHovered pelado no ve:
+        ///
+        /// 1. Un popup NUESTRO abierto que esconderse rompe: la tarjetita de login (la
+        ///    cierra <see cref="PopOut"/>) y el popover del pulse (se desvanece con la
+        ///    barra). Los overlays grandes (chat, settings) viven afuera y esconder la
+        ///    barra no les hace nada, como siempre: a proposito NO traban el auto-hide,
+        ///    porque se abren tambien por tecla y dejarian la barra clavada para siempre.
+        ///
+        /// 2. El cursor sobre cualquier cosa del arbol de la toolbar. IsHovered miente
+        ///    aca: el InputManager marca hovered hasta el primer drawable que handlea
+        ///    OnHover, y los botones lo handlean, asi que con el cursor sobre un boton
+        ///    (o sobre la tarjetita de login, que cuelga mas abajo de la banda) la
+        ///    toolbar misma nunca figura como hovered.
+        /// </summary>
+        public bool HasOpenPopup
+        {
+            get
+            {
+                // antes de cargar no hay arbol de input ni popups que mirar.
+                if (!IsLoaded)
+                    return false;
+
+                if (userButton?.StateContainer?.State.Value == Visibility.Visible)
+                    return true;
+
+                if (pulseButton?.PopoverVisible == true)
+                    return true;
+
+                // Mismo motivo que el pulse: el panel se desvanece junto con la barra,
+                // asi que esconderse mientras esta abierto se lo cierra en la cara al
+                // que lo estaba leyendo.
+                if (rankedButton?.PopoverVisible == true)
+                    return true;
+
+                cachedInputManager ??= GetContainingInputManager();
+
+                if (cachedInputManager == null)
+                    return false;
+
+                foreach (var hovered in cachedInputManager.HoveredDrawables)
+                {
+                    for (Drawable d = hovered; d != null; d = d.Parent)
+                    {
+                        if (d == this)
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
         public Action OnHome;
 
         private ToolbarUserButton userButton;

@@ -70,7 +70,9 @@ namespace osu.Game.Overlays.Toolbar
         private Container countContainer = null!;
         private OsuSpriteText countText = null!;
         private Container liveContainer = null!;
+        private RankedPlayLiveDot liveDot = null!;
         private RankedPlayQueueToast toast = null!;
+        private RankedPlayPopover? popover;
 
         private readonly BindableInt queueCount = new BindableInt();
         private readonly BindableInt liveMatches = new BindableInt();
@@ -84,9 +86,7 @@ namespace osu.Game.Overlays.Toolbar
             Anchor = Anchor.CentreLeft;
             Origin = Anchor.CentreLeft;
 
-            // Apretarla es lo mismo que ir al menu y entrar a ranked play: si ya estas
-            // mirando cuanta gente hay, hacerte buscar el boton seria una burla.
-            Action = () => game?.PresentRankedPlay();
+            Action = togglePopover;
         }
 
         [BackgroundDependencyLoader]
@@ -176,13 +176,18 @@ namespace osu.Game.Overlays.Toolbar
                                     Origin = Anchor.CentreLeft,
                                     RelativeSizeAxes = Axes.Y,
                                     Width = 0,
-                                    Masking = true,
-                                    Child = new RankedPlayLiveDot
+                                    // SIN Masking: el punto tiene un halo que late hasta 2.2x
+                                    // su tamaño, y recortandolo al ancho del contenedor
+                                    // quedaba cuadrado de los costados. Lo que reserva el
+                                    // lugar en la fila es el ancho; que el halo se dibuje
+                                    // afuera no molesta a nadie.
+                                    Child = liveDot = new RankedPlayLiveDot
                                     {
                                         Anchor = Anchor.CentreLeft,
                                         Origin = Anchor.CentreLeft,
                                         Size = new Vector2(7, 7),
-                                        Margin = new MarginPadding { Left = 1 },
+                                        Margin = new MarginPadding { Left = 2 },
+                                        Alpha = 0,
                                     },
                                 },
                             },
@@ -196,13 +201,63 @@ namespace osu.Game.Overlays.Toolbar
                     Anchor = Anchor.BottomCentre,
                     Origin = Anchor.TopCentre,
                     Y = 6,
+                    // La pildora mide por auto-size, asi que TODO lo que cuelgue de
+                    // ella le agranda la caja aunque sea invisible (AlwaysPresent no
+                    // lo saca de la medicion, solo lo mantiene vivo). Sin esto el
+                    // cartelito, que es mas ancho que la pildora, le abria un hueco
+                    // enorme en el toolbar.
+                    BypassAutoSizeAxes = Axes.Both,
                 },
             });
+        }
+
+        /// <summary>Si el panel esta abierto. Lo mira el auto-hide del toolbar.</summary>
+        public bool PopoverVisible => popover?.State.Value == Visibility.Visible;
+
+        private void togglePopover()
+        {
+            // El panel se precarga async, pero NO se actualiza de fondo: construirlo
+            // es barato y una sola vez, mientras que mantenerlo al dia seria hacer
+            // trabajar al juego permanentemente por algo que se mira unos segundos.
+            // Los datos los pide el panel al abrirse (ver RankedPlayPopover).
+            if (popover == null || !popover.IsLoaded)
+                return;
+
+            if (popover.State.Value == Visibility.Visible)
+            {
+                popover.Hide();
+                return;
+            }
+
+            popover.QueueUserIds = lastQueueUserIds;
+            popover.Show();
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            // Precargado fuera del hilo de UI: armarlo en el primer click congelaria
+            // el juego un instante justo cuando el jugador espera respuesta.
+            popover = new RankedPlayPopover
+            {
+                PoolId = pool_id,
+                OnQueueRequested = () =>
+                {
+                    popover?.Hide();
+                    game?.PresentRankedPlay();
+                },
+            };
+
+            LoadComponentAsync(popover, p =>
+            {
+                // Mismo motivo que el cartelito, y peor: el panel mide 320px de ancho
+                // y colgaba de una pildora que mide por auto-size. Ese era el hueco
+                // gigante entre el pulse y el reloj.
+                p.BypassAutoSizeAxes = Axes.Both;
+                AddInternal(p);
+                p.AnchoredAt = this;
+            });
 
             queueCount.BindValueChanged(onQueueCountChanged, true);
             liveMatches.BindValueChanged(onLiveMatchesChanged, true);
@@ -289,10 +344,25 @@ namespace osu.Game.Overlays.Toolbar
             // Cuantas partidas hay exactamente no se dibuja: el punto solo dice "hay
             // algo pasando". El numero vive en el tooltip, que es donde va la
             // curiosidad. Ver RankedPlayLiveDot.
+            // El contenedor reserva el lugar y el punto aparece/desaparece por su
+            // cuenta: como no hay masking, animar el alfa del punto es lo que evita
+            // que se lo vea asomar mientras la pildora se achica.
             bool show = e.NewValue > 0;
-            liveContainer.ResizeWidthTo(show ? 9 : 0, 260, Easing.OutQuint);
-            liveContainer.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
+            liveContainer.ResizeWidthTo(show ? 11 : 0, 260, Easing.OutQuint);
+            liveDot.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
+            liveDot.ScaleTo(show ? 1 : 0.6f, 260, Easing.OutBack);
             updateTooltip();
+        }
+
+        /// <summary>Abre el panel desde una test scene.</summary>
+        public void OpenPopoverForTesting(RankedPlayLiveMatch[]? fakeMatches = null)
+        {
+            if (popover == null || !popover.IsLoaded)
+                return;
+
+            popover.LiveMatchesOverride = fakeMatches;
+            popover.QueueUserIds = lastQueueUserIds;
+            popover.Show();
         }
 
         /// <summary>
