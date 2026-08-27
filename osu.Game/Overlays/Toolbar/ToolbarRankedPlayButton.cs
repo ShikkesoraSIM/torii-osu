@@ -275,6 +275,7 @@ namespace osu.Game.Overlays.Toolbar
             if (multiplayerClient != null)
             {
                 multiplayerClient.MatchmakingLobbyStatusChanged += onLobbyStatus;
+                multiplayerClient.RankedPlayLiveMatchCountReceived += onLiveMatchCount;
 
                 // Atado a IsConnected y no llamado una sola vez: en LoadComplete el hub
                 // casi nunca esta conectado todavia (el toolbar se arma antes que la
@@ -335,6 +336,14 @@ namespace osu.Game.Overlays.Toolbar
                 swords.Clash(Math.Min(1f, 0.4f + joined.Length * 0.3f));
                 toast.AnnounceJoined(joined);
             }
+        }
+
+        private void onLiveMatchCount(int poolId, int count)
+        {
+            if (poolId != pool_id)
+                return;
+
+            liveMatches.Value = count;
         }
 
         private void onQueueCountChanged(ValueChangedEvent<int> e)
@@ -437,7 +446,10 @@ namespace osu.Game.Overlays.Toolbar
         protected override void Dispose(bool isDisposing)
         {
             if (multiplayerClient != null)
+            {
                 multiplayerClient.MatchmakingLobbyStatusChanged -= onLobbyStatus;
+                multiplayerClient.RankedPlayLiveMatchCountReceived -= onLiveMatchCount;
+            }
 
             base.Dispose(isDisposing);
         }

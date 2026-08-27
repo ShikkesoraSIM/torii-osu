@@ -98,6 +98,7 @@ namespace osu.Game.Online.Multiplayer
 
                     // torii GHOST CURSOR: relay por NOMBRE de metodo (no toca los tipos MessagePack
                     // del protocolo) — un server/cliente que no lo conoce simplemente lo ignora.
+                    connection.On<int, int>(@"RankedPlayLiveMatchCount", TriggerRankedPlayLiveMatchCount);
                     connection.On<int, float, float>(@"RankedPlayCursor", (userId, x, y) => TriggerRankedPlayCursorReceived(userId, new Vector2(x, y)));
 
                     // torii DIBUJITO: mismo esquema que el cursor — relay por nombre, arrays de

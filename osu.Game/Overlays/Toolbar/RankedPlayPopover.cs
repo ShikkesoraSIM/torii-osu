@@ -18,6 +18,7 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Screens.OnlinePlay.Matchmaking.Queue;
@@ -382,10 +383,10 @@ namespace osu.Game.Overlays.Toolbar
                 if (token.IsCancellationRequested)
                     return;
 
-                string[] names = await namesTask.ConfigureAwait(false);
+                APIUser[] users = await namesTask.ConfigureAwait(false);
                 RankedPlayLiveMatch[] matches = await matchesTask.ConfigureAwait(false);
 
-                built.Add(new QueueSection(names));
+                built.Add(new QueueSection(users));
 
                 if (matches.Length > 0)
                     built.Add(new LiveMatchesSection(matches));
@@ -406,7 +407,7 @@ namespace osu.Game.Overlays.Toolbar
             });
         }
 
-        private async Task<string[]> resolveQueueNames(CancellationToken token)
+        private async Task<APIUser[]> resolveQueueNames(CancellationToken token)
         {
             if (QueueUserIds.Length == 0 || userLookup == null)
                 return [];
@@ -419,7 +420,7 @@ namespace osu.Game.Overlays.Toolbar
             var users = await userLookup.GetUsersAsync(ids, token).ConfigureAwait(false);
 
             return users?.Where(u => u != null && !string.IsNullOrEmpty(u.Username))
-                        .Select(u => u!.Username)
+                        .Select(u => u!)
                         .ToArray() ?? [];
         }
 

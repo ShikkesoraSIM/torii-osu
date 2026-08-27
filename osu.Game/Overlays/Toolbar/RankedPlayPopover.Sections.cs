@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
@@ -129,11 +130,11 @@ namespace osu.Game.Overlays.Toolbar
         /// <summary>Quien esta esperando.</summary>
         private partial class QueueSection : FillFlowContainer
         {
-            private readonly string[] names;
+            private readonly APIUser[] users;
 
-            public QueueSection(string[] names)
+            public QueueSection(APIUser[] users)
             {
-                this.names = names;
+                this.users = users;
 
                 RelativeSizeAxes = Axes.X;
                 AutoSizeAxes = Axes.Y;
@@ -144,9 +145,9 @@ namespace osu.Game.Overlays.Toolbar
             [BackgroundDependencyLoader]
             private void load()
             {
-                Add(new SectionHeader(names.Length == 1 ? @"1 in queue" : $@"{names.Length} in queue"));
+                Add(new SectionHeader(users.Length == 1 ? @"1 in queue" : $@"{users.Length} in queue"));
 
-                if (names.Length == 0)
+                if (users.Length == 0)
                 {
                     Add(new EmptyNote(@"Nobody waiting yet."));
                     return;
@@ -158,19 +159,30 @@ namespace osu.Game.Overlays.Toolbar
                     AutoSizeAxes = Axes.Y,
                     Direction = FillDirection.Full,
                     Spacing = new Vector2(6, 4),
-                    ChildrenEnumerable = names.Select(n => new NameChip(n)),
+                    ChildrenEnumerable = users.Select(u => new NameChip(u.Username, u.Id)),
                 });
             }
         }
 
-        /// <summary>Un nombre en una capsulita.</summary>
-        private partial class NameChip : CompositeDrawable
+        /// <summary>Un nombre en una capsulita. Se puede clickear para ver el perfil.</summary>
+        private partial class NameChip : OsuClickableContainer
         {
-            public NameChip(string username)
+            [Resolved]
+            private OsuGame? game { get; set; }
+
+            private readonly int userId;
+
+            public NameChip(string username, int userId)
             {
+                this.userId = userId;
+
                 AutoSizeAxes = Axes.Both;
 
-                InternalChild = new Container
+                // Ver quien esta esperando sin poder mirar quien es sirve a medias:
+                // el nombre solo no dice si le podes ganar.
+                Action = () => game?.ShowUser(new APIUser { Id = userId });
+
+                Child = new Container
                 {
                     AutoSizeAxes = Axes.Both,
                     Masking = true,
@@ -324,14 +336,18 @@ namespace osu.Game.Overlays.Toolbar
 
                 InternalChildren = new Drawable[]
                 {
-                    new OsuSpriteText
+                    // TruncatingSpriteText y no OsuSpriteText con Truncate: poner
+                    // Truncate en un OsuSpriteText tira excepcion en el constructor
+                    // ("Use TruncatingSpriteText instead") y se lleva puesto el panel
+                    // entero, que fue exactamente el crash al abrirlo con una partida
+                    // en curso.
+                    new TruncatingSpriteText
                     {
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
                         Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
                         Text = player.Username,
                         Colour = Color4.White.Opacity(0.9f),
-                        Truncate = true,
                         RelativeSizeAxes = Axes.X,
                         Width = 0.42f,
                     },
