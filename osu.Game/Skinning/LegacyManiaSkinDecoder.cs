@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -91,19 +91,19 @@ namespace osu.Game.Skinning
                         break;
 
                     case "HitPosition":
-                        currentConfig.HitPosition = (480 - Math.Clamp(float.Parse(pair.Value, CultureInfo.InvariantCulture), 240, 480)) * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                        currentConfig.HitPosition = (480 - Math.Clamp(float.Parse(pair.Value, CultureInfo.InvariantCulture), 240, 480)) * LegacySkin.POSITION_SCALE_FACTOR;
                         break;
 
                     case "LightPosition":
-                        currentConfig.LightPosition = (480 - float.Parse(pair.Value, CultureInfo.InvariantCulture)) * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                        currentConfig.LightPosition = (480 - float.Parse(pair.Value, CultureInfo.InvariantCulture)) * LegacySkin.POSITION_SCALE_FACTOR;
                         break;
 
                     case "ComboPosition":
-                        currentConfig.ComboPosition = (float.Parse(pair.Value, CultureInfo.InvariantCulture)) * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                        currentConfig.ComboPosition = float.Parse(pair.Value, CultureInfo.InvariantCulture) * LegacySkin.POSITION_SCALE_FACTOR;
                         break;
 
                     case "ScorePosition":
-                        currentConfig.ScorePosition = (float.Parse(pair.Value, CultureInfo.InvariantCulture)) * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                        currentConfig.ScorePosition = float.Parse(pair.Value, CultureInfo.InvariantCulture) * LegacySkin.POSITION_SCALE_FACTOR;
                         break;
 
                     case "JudgementLine":
@@ -128,7 +128,7 @@ namespace osu.Game.Skinning
                         break;
 
                     case "WidthForNoteHeightScale":
-                        currentConfig.WidthForNoteHeightScale = (float.Parse(pair.Value, CultureInfo.InvariantCulture)) * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                        currentConfig.WidthForNoteHeightScale = float.Parse(pair.Value, CultureInfo.InvariantCulture) * LegacySkin.POSITION_SCALE_FACTOR;
                         break;
 
                     case "LightFramePerSecond":
@@ -169,7 +169,7 @@ namespace osu.Game.Skinning
                     parsedValue = 0;
 
                 if (applyScaleFactor)
-                    parsedValue *= LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+                    parsedValue *= LegacySkin.POSITION_SCALE_FACTOR;
 
                 output[i] = parsedValue;
             }
