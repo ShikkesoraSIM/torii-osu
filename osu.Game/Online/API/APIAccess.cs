@@ -6,11 +6,13 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using osu.Framework.Bindables;
 using osu.Framework.Development;
@@ -195,6 +197,7 @@ namespace osu.Game.Online.API
                     {
                         LastLoginError = new CustomRulesetsLoadedException(CustomRulesetGuard.Detected);
                         log.Add($@"{nameof(APIAccess)} refusing to connect: custom rulesets loaded ({string.Join(@", ", CustomRulesetGuard.Detected)})");
+                        reportCustomRulesets();
                     }
 
                     state.Value = APIState.Offline;
@@ -235,6 +238,54 @@ namespace osu.Game.Online.API
                 processQueuedRequests();
                 Thread.Sleep(50);
             }
+        }
+
+        /// <summary>
+        /// Le avisa al server que encontramos rulesets ajenos, justo antes de no conectarnos.
+        /// </summary>
+        /// <remarks>
+        /// Va sin autenticar porque no hay con que: los rulesets se detectan ANTES del login
+        /// y por eso mismo no hay login. Lo unico que se puede mandar es el nombre que se
+        /// estaba por usar.
+        ///
+        /// Es a proposito un aviso y no una barrera. Un cliente parcheado no manda esto, pero
+        /// tampoco pasa el chequeo de hash del server, asi que igual no entra. Lo que esto
+        /// agrega es que el staff se entere de quien lo intento en vez de que el jugador
+        /// simplemente desaparezca.
+        ///
+        /// Se traga cualquier error: si el server no contesta, el jugador ya tiene su
+        /// problema y sumarle un segundo no ayuda a nadie.
+        /// </remarks>
+        private void reportCustomRulesets()
+        {
+            string username = ProvidedUsername;
+            string[] rulesets = CustomRulesetGuard.Detected.ToArray();
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    var req = new OsuWebRequest($@"{Endpoints.APIUrl}/api/private/client/custom-rulesets")
+                    {
+                        Method = HttpMethod.Post,
+                        ContentType = @"application/json",
+                        Timeout = 5000,
+                    };
+
+                    req.AddRaw(JsonConvert.SerializeObject(new
+                    {
+                        username,
+                        rulesets,
+                        client_hash = versionHash,
+                    }));
+
+                    req.Perform();
+                }
+                catch (Exception e)
+                {
+                    log.Add($@"Failed to report custom rulesets: {e.Message}");
+                }
+            });
         }
 
         /// <summary>
