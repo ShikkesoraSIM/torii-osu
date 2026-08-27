@@ -32,9 +32,9 @@ namespace osu.Game.Screens.Menu
             string found = string.Join(@", ", CustomRulesetGuard.Detected.Select(shortName));
 
             BodyText =
-                $"Torii will not connect while you have custom rulesets installed, sorry. A ruleset is code that runs with full access to the game, so there is no way for us to tell a harmless one apart from one that plays for you.\n\n"
+                "You can't connect to Torii with custom rulesets installed, sorry.\n\n"
                 + $"Found: {found}\n\n"
-                + "Delete them from the \"rulesets\" folder inside your Torii folder, then restart the game.";
+                + "Delete them from the \"rulesets\" folder in your Torii folder and restart.";
 
             Buttons = new List<PopupDialogButton>
             {

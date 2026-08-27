@@ -18,6 +18,7 @@ using osu.Framework.Testing;
 using osu.Game.Graphics.Containers;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
+using osu.Game.Online.Matchmaking;
 using osu.Game.Overlays.Toolbar;
 using osu.Game.Rulesets;
 using osuTK;
@@ -230,6 +231,62 @@ namespace osu.Game.Tests.Visual.Menus
             });
             AddAssert("no ruleset toggle buttons hovered", () => !toolbar.ChildrenOfType<ToolbarRulesetTabButton>().Any(button => button.IsHovered));
             AddUntilStep("toolbar gradient visible", () => toolbar.ChildrenOfType<Toolbar.ToolbarBackground>().Single().Children.All(d => d.Alpha > 0));
+        }
+
+        [Test]
+        public void TestRankedPlayPill()
+        {
+            // torii: la pildora de ranked play, en el toolbar de verdad y al lado de sus
+            // hermanas. Aislada no se puede juzgar: lo que importa es si el tamaño y el
+            // aire matchean a los puntos y al pulse.
+            AddStep("cola vacia", () => toolbar.RankedPlayButton?.SetStateForTesting(0, 0));
+            AddStep("3 en cola", () => toolbar.RankedPlayButton?.SetStateForTesting(3, 0));
+            AddStep("12 en cola", () => toolbar.RankedPlayButton?.SetStateForTesting(12, 0));
+            AddStep("cola + partida en curso", () => toolbar.RankedPlayButton?.SetStateForTesting(5, 1));
+            AddStep("entra alguien", () => toolbar.RankedPlayButton?.SetStateForTesting(6, 1, new[] { "Shikkesora" }));
+            AddStep("de vuelta a vacia", () => toolbar.RankedPlayButton?.SetStateForTesting(0, 0));
+        }
+
+        [Test]
+        public void TestRankedPlayPanel()
+        {
+            AddStep("panel con cola vacia", () =>
+            {
+                toolbar.RankedPlayButton?.SetStateForTesting(0, 0);
+                toolbar.RankedPlayButton?.OpenPopoverForTesting();
+            });
+
+            AddStep("panel con partidas en curso", () =>
+            {
+                toolbar.RankedPlayButton?.SetStateForTesting(4, 2);
+                toolbar.RankedPlayButton?.OpenPopoverForTesting(new[]
+                {
+                    new RankedPlayLiveMatch
+                    {
+                        RoomId = 1,
+                        Round = 3,
+                        InGameplay = true,
+                        Beatmap = "Kanon - Nagisa (Aleks719) [Insane]",
+                        Players = new[]
+                        {
+                            new RankedPlayLivePlayer { Username = "Shikkesora", Life = 720_000, Rating = 2072 },
+                            new RankedPlayLivePlayer { Username = "Ayreth", Life = 240_000, Rating = 1840 },
+                        },
+                    },
+                    new RankedPlayLiveMatch
+                    {
+                        RoomId = 2,
+                        Round = 1,
+                        InGameplay = false,
+                        Stage = "Picking a card",
+                        Players = new[]
+                        {
+                            new RankedPlayLivePlayer { Username = "Hek", Life = 1_000_000, Rating = 1500 },
+                            new RankedPlayLivePlayer { Username = "AVeryLongUsernameHere", Life = 950_000, Rating = 1490 },
+                        },
+                    },
+                });
+            });
         }
 
         public partial class TestToolbar : Toolbar

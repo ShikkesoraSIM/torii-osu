@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -52,6 +52,7 @@ using osu.Game.Online;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.Chat;
 using osu.Game.Online.Leaderboards;
+using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Rooms;
 using osu.Game.Overlays;
 using osu.Game.Overlays.BeatmapListing;
@@ -918,6 +919,18 @@ namespace osu.Game
         /// </summary>
         /// <param name="room">The room to join.</param>
         /// <param name="password">The password to join the room, if any is given.</param>
+        /// <summary>
+        /// torii: entra a ranked play desde donde sea. Lo usa la pildora del toolbar.
+        /// </summary>
+        /// <remarks>
+        /// Va por PerformFromScreen y no con un Push directo porque la pildora vive en el
+        /// toolbar, o sea que se puede apretar en medio de un mapa o del editor. Esto se
+        /// encarga de salir de donde estes (pidiendo confirmacion si corresponde) antes de
+        /// empujar la pantalla, que es exactamente lo que hace el boton del menu.
+        /// </remarks>
+        public void PresentRankedPlay() => PerformFromScreen(screen =>
+            screen.Push(new Screens.OnlinePlay.Matchmaking.Intro.ScreenIntro(MatchmakingPoolType.RankedPlay)));
+
         public void PresentMultiplayerMatch(Room room, string password)
         {
             if (room.HasEnded)

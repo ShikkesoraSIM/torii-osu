@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -121,6 +121,37 @@ namespace osu.Game.Online.Multiplayer
         /// relayeada por el server en las pantallas de ranked play. OJO: llega en un thread de
         /// SignalR — el consumidor debe agendar al update thread.
         /// </summary>
+        /// <summary>
+        /// Pide al server las partidas de ranked play que estan pasando AHORA.
+        /// </summary>
+        /// <remarks>
+        /// Es a pedido y no un broadcast a proposito: el unico que necesita esto es
+        /// alguien que abrio el panel de ranked play, y son un puñado de segundos al
+        /// dia. Mandarselo a todos los conectados todo el tiempo seria hacer trabajar
+        /// al juego de todo el mundo solo porque hay gente jugando.
+        ///
+        /// Viaja como JSON por un metodo propio del hub y no dentro de
+        /// MatchmakingLobbyStatus: esa clase es parte del contrato messagepack del
+        /// paquete compartido y tocarla ata cliente y server a la misma version. Por
+        /// nombre de metodo es aditivo — un server viejo simplemente no lo tiene y el
+        /// cliente se queda sin la lista, que es degradar bien.
+        /// </remarks>
+        public virtual Task<string> RankedPlayGetLiveMatches(int poolId) => Task.FromResult(string.Empty);
+
+        /// <summary>
+        /// Cuantas partidas de ranked play hay en curso. Llega pegado al update del
+        /// lobby (cada 5s) y no como stream propio: es un entero y los que lo reciben
+        /// son los mismos que ya reciben el estado del lobby.
+        /// </summary>
+        public event Action<int, int>? RankedPlayLiveMatchCountReceived;
+
+        protected void TriggerRankedPlayLiveMatchCount(int poolId, int count)
+            // Scheduler.Add y no invocar derecho: esto entra por el hilo de SignalR, y de
+            // ahi no se puede tocar la UI. El valor se seteaba igual (el tooltip lo leia
+            // bien) pero el handler que dibuja el punto no llegaba a correr nunca. Es lo
+            // mismo que hace MatchmakingLobbyStatusChanged unas lineas mas abajo.
+            => Scheduler.Add(() => RankedPlayLiveMatchCountReceived?.Invoke(poolId, count));
+
         public event Action<int, Vector2>? RankedPlayCursorReceived;
 
         protected void TriggerRankedPlayCursorReceived(int userId, Vector2 normalisedPosition)

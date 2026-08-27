@@ -76,6 +76,12 @@ namespace osu.Game.Overlays.Toolbar
                 if (pulseButton?.PopoverVisible == true)
                     return true;
 
+                // Mismo motivo que el pulse: el panel se desvanece junto con la barra,
+                // asi que esconderse mientras esta abierto se lo cierra en la cara al
+                // que lo estaba leyendo.
+                if (rankedButton?.PopoverVisible == true)
+                    return true;
+
                 cachedInputManager ??= GetContainingInputManager();
 
                 if (cachedInputManager == null)
@@ -98,6 +104,15 @@ namespace osu.Game.Overlays.Toolbar
 
         private ToolbarUserButton userButton;
         private ToriiServerPulseButton pulseButton;
+        private ToolbarRankedPlayButton rankedButton;
+
+        /// <summary>
+        /// La pildora de ranked play. Expuesta para que la test scene del toolbar pueda
+        /// mostrarla con cola y partida sin necesidad de un server atras: verla al lado
+        /// del pulse y de los puntos es la unica forma de juzgar si el tamaño y el aire
+        /// entre pildoras estan bien.
+        /// </summary>
+        internal ToolbarRankedPlayButton RankedPlayButton => rankedButton;
         private ToolbarRulesetSelector rulesetSelector;
 
         // Torii custom UI hue (Menu scope): re-tints the toolbar chrome live.
@@ -245,6 +260,8 @@ namespace osu.Game.Overlays.Toolbar
                                             new ToolbarPointsButton(),
                                             new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             pulseButton = new ToriiServerPulseButton(),
+                                            new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
+                                            rankedButton = new ToolbarRankedPlayButton(),
                                             new Container { RelativeSizeAxes = Axes.Y, Width = 4 },
                                             new ToolbarClock(),
                                             new ToolbarNotificationButton(),
