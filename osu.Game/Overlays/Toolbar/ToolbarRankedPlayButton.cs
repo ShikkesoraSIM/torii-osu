@@ -55,6 +55,9 @@ namespace osu.Game.Overlays.Toolbar
         private const float pill_height = 32f;
         private const float pill_corner_radius = 12f;
 
+        /// <summary>Aire entre el icono y lo que venga a su derecha.</summary>
+        private const float gap = 7f;
+
         private static readonly Color4 ranked_orange = new Color4(255, 146, 43, 255);
         private static readonly Color4 live_green = new Color4(86, 227, 128, 255);
 
@@ -92,9 +95,11 @@ namespace osu.Game.Overlays.Toolbar
         [BackgroundDependencyLoader]
         private void load()
         {
-            AddRangeInternal(new Drawable[]
-            {
-                pillContainer = new Container
+            // Child y no AddInternal: OsuClickableContainer solo acepta clics que caen
+            // dentro de su Content (lo chequea explicitamente en
+            // ReceivePositionalInputAt), y AddInternal deja el dibujo AFUERA de Content.
+            // Con Content vacio la pildora se veia pero no se podia clickear.
+            Child = pillContainer = new Container
                 {
                     AutoSizeAxes = Axes.X,
                     RelativeSizeAxes = Axes.Y,
@@ -141,7 +146,11 @@ namespace osu.Game.Overlays.Toolbar
                             Origin = Anchor.Centre,
                             AutoSizeAxes = Axes.Both,
                             Direction = FillDirection.Horizontal,
-                            Spacing = new Vector2(7, 0),
+                            // Spacing en 0: con espacio de flow, los dos contenedores de
+                            // ancho 0 (numero y punto) seguian dejando su separacion a la
+                            // derecha del icono y la pildora vacia quedaba descentrada. El
+                            // aire va DENTRO del ancho que se anima, asi desaparece con ellos.
+                            Spacing = new Vector2(0, 0),
                             Padding = new MarginPadding { Horizontal = 10 },
                             Children = new Drawable[]
                             {
@@ -167,6 +176,7 @@ namespace osu.Game.Overlays.Toolbar
                                         Origin = Anchor.CentreLeft,
                                         Font = OsuFont.GetFont(size: 13, weight: FontWeight.SemiBold),
                                         Text = @"0",
+                                        Margin = new MarginPadding { Left = gap },
                                         Colour = Color4.White,
                                     },
                                 },
@@ -186,28 +196,27 @@ namespace osu.Game.Overlays.Toolbar
                                         Anchor = Anchor.CentreLeft,
                                         Origin = Anchor.CentreLeft,
                                         Size = new Vector2(7, 7),
-                                        Margin = new MarginPadding { Left = 2 },
+                                        Margin = new MarginPadding { Left = gap },
                                         Alpha = 0,
                                     },
                                 },
                             },
                         },
                     },
-                },
-                // El cartelito cuelga POR FUERA de la pildora, debajo. Va en el mismo
-                // drawable para que se mueva con el toolbar cuando se esconde.
-                toast = new RankedPlayQueueToast
-                {
-                    Anchor = Anchor.BottomCentre,
-                    Origin = Anchor.TopCentre,
-                    Y = 6,
-                    // La pildora mide por auto-size, asi que TODO lo que cuelgue de
-                    // ella le agranda la caja aunque sea invisible (AlwaysPresent no
-                    // lo saca de la medicion, solo lo mantiene vivo). Sin esto el
-                    // cartelito, que es mas ancho que la pildora, le abria un hueco
-                    // enorme en el toolbar.
-                    BypassAutoSizeAxes = Axes.Both,
-                },
+            };
+
+            // El cartelito va por AddInternal (fuera de Content) a proposito: adentro
+            // agrandaria el area clickeable de la pildora hasta cubrirlo.
+            AddInternal(toast = new RankedPlayQueueToast
+            {
+                Anchor = Anchor.BottomCentre,
+                Origin = Anchor.TopCentre,
+                Y = 6,
+                // La pildora mide por auto-size, asi que TODO lo que cuelgue de ella
+                // le agranda la caja aunque sea invisible (AlwaysPresent no lo saca de
+                // la medicion, solo lo mantiene vivo). Sin esto el cartelito, que es
+                // mas ancho que la pildora, le abria un hueco enorme en el toolbar.
+                BypassAutoSizeAxes = Axes.Both,
             });
         }
 
@@ -308,7 +317,7 @@ namespace osu.Game.Overlays.Toolbar
             // Vacia = angostita y sin numero. El ancho se mide sobre el texto para que
             // "12" ocupe mas que "2" sin hardcodear nada.
             bool show = e.NewValue > 0;
-            countContainer.ResizeWidthTo(show ? countText.DrawWidth : 0, 260, Easing.OutQuint);
+            countContainer.ResizeWidthTo(show ? countText.DrawWidth + gap : 0, 260, Easing.OutQuint);
             countContainer.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
 
             swords.SetTint(show ? ranked_orange : ranked_orange.Opacity(0.55f));
@@ -348,7 +357,7 @@ namespace osu.Game.Overlays.Toolbar
             // cuenta: como no hay masking, animar el alfa del punto es lo que evita
             // que se lo vea asomar mientras la pildora se achica.
             bool show = e.NewValue > 0;
-            liveContainer.ResizeWidthTo(show ? 11 : 0, 260, Easing.OutQuint);
+            liveContainer.ResizeWidthTo(show ? 9 + gap : 0, 260, Easing.OutQuint);
             liveDot.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
             liveDot.ScaleTo(show ? 1 : 0.6f, 260, Easing.OutBack);
             updateTooltip();
@@ -382,15 +391,18 @@ namespace osu.Game.Overlays.Toolbar
 
         protected override bool OnHover(osu.Framework.Input.Events.HoverEvent e)
         {
-            hoverGlow.FadeIn(120, Easing.OutQuint);
-            pillContainer.ScaleTo(1.03f, 180, Easing.OutQuint);
+            // Mismos valores y tiempos que ToolbarPointsButton para que las tres
+            // pildoras se sientan una sola cosa. Se escala THIS y no el contenedor de
+            // adentro, igual que ellas.
+            hoverGlow.FadeTo(0.30f, 200, Easing.OutQuint);
+            this.ScaleTo(1.04f, 200, Easing.OutQuint);
             return base.OnHover(e);
         }
 
         protected override void OnHoverLost(osu.Framework.Input.Events.HoverLostEvent e)
         {
-            hoverGlow.FadeOut(200, Easing.OutQuint);
-            pillContainer.ScaleTo(1f, 220, Easing.OutQuint);
+            hoverGlow.FadeTo(0f, 280, Easing.OutQuint);
+            this.ScaleTo(1f, 280, Easing.OutQuint);
             base.OnHoverLost(e);
         }
 
