@@ -185,14 +185,24 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
-                                    // AutoSize en Y, igual que el contenedor del numero.
-                                    // Con RelativeSizeAxes.Y adentro de un flow que
-                                    // auto-mide, la altura resuelve a 0: el punto quedaba
-                                    // pegado al borde de arriba y la pastilla (que si
-                                    // recorta) se lo comia. Por eso el tooltip decia
+                                    // Altura FIJA y no auto-size: un contenedor que se mide
+                                    // por sus hijos, con el hijo anclado al centro de ese
+                                    // mismo contenedor, es circular y termina midiendo
+                                    // cualquier cosa. Con RelativeSizeAxes.Y (el primer
+                                    // intento) directamente daba 0 y la pastilla, que si
+                                    // recorta, se comia el punto: el tooltip decia
                                     // "1 match ongoing" y no se veia nada.
-                                    AutoSizeAxes = Axes.Y,
+                                    Height = 9,
                                     Width = 0,
+                                    // Siempre presente aunque mida 0 y este transparente:
+                                    // un drawable que no esta presente no actualiza NADA
+                                    // suyo, ni transiciones ni scheduler. Ese era el
+                                    // motivo de que el punto no apareciera nunca: la
+                                    // toolbar se auto-esconde, el subarbol dejaba de
+                                    // actualizarse y el fade de entrada quedaba clavado
+                                    // en el valor inicial.
+                                    AlwaysPresent = true,
+                                    Alpha = 0,
                                     // SIN Masking: el punto tiene un halo que late hasta 2.2x
                                     // su tamaño, y recortandolo al ancho del contenedor
                                     // quedaba cuadrado de los costados. Lo que reserva el
@@ -204,7 +214,6 @@ namespace osu.Game.Overlays.Toolbar
                                         Origin = Anchor.CentreLeft,
                                         Size = new Vector2(7, 7),
                                         Margin = new MarginPadding { Left = gap },
-                                        Alpha = 0,
                                     },
                                 },
                             },
@@ -333,8 +342,6 @@ namespace osu.Game.Overlays.Toolbar
             int[] joined = ids.Except(lastQueueUserIds).ToArray();
             lastQueueUserIds = ids;
 
-            Logger.Log($@"[RankedPlay] lobby status: {ids.Length} in queue", LoggingTarget.Runtime, LogLevel.Verbose);
-
             queueCount.Value = ids.Length;
 
             if (joined.Length > 0)
@@ -397,24 +404,17 @@ namespace osu.Game.Overlays.Toolbar
             // Cuantas partidas hay exactamente no se dibuja: el punto solo dice "hay
             // algo pasando". El numero vive en el tooltip, que es donde va la
             // curiosidad. Ver RankedPlayLiveDot.
-            // El contenedor reserva el lugar y el punto aparece/desaparece por su
-            // cuenta: como no hay masking, animar el alfa del punto es lo que evita
-            // que se lo vea asomar mientras la pildora se achica.
             bool show = e.NewValue > 0;
-            liveContainer.ResizeWidthTo(show ? 9 + gap : 0, 260, Easing.OutQuint);
-            liveDot.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
-            liveDot.ScaleTo(show ? 1 : 0.6f, 260, Easing.OutBack);
-        }
 
-        /// <summary>Abre el panel desde una test scene.</summary>
-        public void OpenPopoverForTesting(RankedPlayLiveMatch[]? fakeMatches = null)
-        {
-            if (popover == null || !popover.IsLoaded)
-                return;
-
-            popover.LiveMatchesOverride = fakeMatches;
-            popover.QueueUserIds = lastQueueUserIds;
-            popover.Show();
+            // Asignado y no animado a proposito. Con ResizeWidthTo/FadeTo el punto no
+            // aparecia NUNCA: la toolbar se auto-esconde, y mientras esta escondida el
+            // subarbol no se actualiza, asi que las transiciones no avanzan y se
+            // quedaban en el valor inicial (ancho 0, alfa 0) para siempre. Medido: el
+            // handler corria con show=true y 1,2s despues el contenedor seguia en 0.
+            // Una transicion sirve para adornar algo que igual pasa, no para decidir si
+            // pasa.
+            liveContainer.Width = show ? 9 + gap : 0;
+            liveContainer.Alpha = show ? 1 : 0;
         }
 
         /// <summary>

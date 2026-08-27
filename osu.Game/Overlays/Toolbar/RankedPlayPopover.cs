@@ -18,6 +18,10 @@ using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
+using osu.Framework.Bindables;
+using osu.Game.Online.API;
+using osu.Game.Online.API.Requests;
+using osu.Game.Rulesets;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Multiplayer;
@@ -73,6 +77,12 @@ namespace osu.Game.Overlays.Toolbar
 
         [Resolved]
         private QueueController? queue { get; set; }
+
+        [Resolved]
+        private IAPIProvider? api { get; set; }
+
+        [Resolved]
+        private IBindable<RulesetInfo>? ruleset { get; set; }
 
         private Container body = null!;
         private FillFlowContainer content = null!;
@@ -386,7 +396,14 @@ namespace osu.Game.Overlays.Toolbar
                 APIUser[] users = await namesTask.ConfigureAwait(false);
                 RankedPlayLiveMatch[] matches = await matchesTask.ConfigureAwait(false);
 
-                built.Add(new QueueSection(users));
+                // El star rating de todos juntos, despues de saber quienes son. Es un
+                // pedido mas, pero es EL dato que decide si entrar: ver "7.5" al lado de
+                // un nombre te dice si podes con eso, el nombre solo no.
+                GetComfortPicksBulkResponse? picks = users.Length > 0
+                    ? await fetchComfortPicks(users.Select(u => u.Id).ToArray(), token).ConfigureAwait(false)
+                    : null;
+
+                built.Add(new QueueSection(users, picks));
 
                 if (matches.Length > 0)
                 {
@@ -417,6 +434,30 @@ namespace osu.Game.Overlays.Toolbar
         /// <summary>
         /// Completa los nombres de los jugadores de las partidas en curso.
         /// </summary>
+        private Task<GetComfortPicksBulkResponse?> fetchComfortPicks(int[] userIds, CancellationToken token)
+        {
+            var tcs = new TaskCompletionSource<GetComfortPicksBulkResponse?>();
+
+            if (api == null)
+            {
+                tcs.SetResult(null);
+                return tcs.Task;
+            }
+
+            var req = new GetComfortPicksBulkRequest(userIds, ruleset?.Value.OnlineID ?? 0);
+
+            // Si falla se sigue sin estrellas: el panel vale igual con los nombres solos,
+            // y no vale la pena mostrar un error por un adorno.
+            req.Success += r => tcs.TrySetResult(r);
+            req.Failure += _ => tcs.TrySetResult(null);
+
+            token.Register(() => tcs.TrySetResult(null));
+
+            api.Queue(req);
+
+            return tcs.Task;
+        }
+
         private async Task resolveMatchNames(RankedPlayLiveMatch[] matches, CancellationToken token)
         {
             if (userLookup == null)
