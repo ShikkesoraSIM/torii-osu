@@ -389,7 +389,14 @@ namespace osu.Game.Overlays.Toolbar
                 built.Add(new QueueSection(users));
 
                 if (matches.Length > 0)
+                {
+                    // El server manda los nombres vacios cuando no tiene el APIUser
+                    // hidratado en la sala. Se resuelven aca, contra el mismo cache que
+                    // ya se uso para la cola: es el lugar donde ese dato vive de verdad.
+                    await resolveMatchNames(matches, token).ConfigureAwait(false);
+
                     built.Add(new LiveMatchesSection(matches));
+                }
             }
             catch (Exception e)
             {
@@ -405,6 +412,44 @@ namespace osu.Game.Overlays.Toolbar
 
                 sections.ChildrenEnumerable = built;
             });
+        }
+
+        /// <summary>
+        /// Completa los nombres de los jugadores de las partidas en curso.
+        /// </summary>
+        private async Task resolveMatchNames(RankedPlayLiveMatch[] matches, CancellationToken token)
+        {
+            if (userLookup == null)
+                return;
+
+            int[] faltantes = matches.SelectMany(m => m.Players)
+                                     .Where(p => string.IsNullOrEmpty(p.Username))
+                                     .Select(p => p.UserId)
+                                     .Distinct()
+                                     .ToArray();
+
+            if (faltantes.Length == 0)
+                return;
+
+            try
+            {
+                var resueltos = await userLookup.GetUsersAsync(faltantes, token).ConfigureAwait(false);
+
+                var porId = (resueltos ?? [])
+                            .Where(u => u != null)
+                            .ToDictionary(u => u!.Id, u => u!.Username);
+
+                foreach (var p in matches.SelectMany(m => m.Players))
+                {
+                    if (string.IsNullOrEmpty(p.Username) && porId.TryGetValue(p.UserId, out string? nombre))
+                        p.Username = nombre;
+                }
+            }
+            catch (Exception)
+            {
+                // Sin nombre se muestra la barra de vida igual. Inventar un "User 96"
+                // seria peor: parece un nombre y no lo es.
+            }
         }
 
         private async Task<APIUser[]> resolveQueueNames(CancellationToken token)
