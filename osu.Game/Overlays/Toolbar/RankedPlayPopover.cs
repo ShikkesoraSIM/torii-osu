@@ -277,11 +277,37 @@ namespace osu.Game.Overlays.Toolbar
             // Colgado debajo del boton, centrado en el. Se recalcula cada frame porque
             // el toolbar se mueve (se esconde y vuelve) y el ancho de la pildora cambia
             // cuando entra gente a la cola.
-            if (AnchoredAt != null)
+            if (AnchoredAt == null || Parent == null)
+                return;
+
+            var anchorRect = AnchoredAt.ScreenSpaceDrawQuad;
+            Vector2 localTopCentre = Parent.ToLocalSpace(new Vector2(
+                anchorRect.BottomLeft.X + anchorRect.Width / 2f,
+                anchorRect.BottomLeft.Y));
+
+            // El centro se corre lo que haga falta para que el panel entre ENTERO en
+            // la ventana. La pildora vive pegada al borde derecho, asi que centrado en
+            // ella el panel nacia cortado y no habia forma de verlo completo.
+            float x = localTopCentre.X;
+
+            var inputManager = GetContainingInputManager();
+
+            if (inputManager != null)
             {
-                var pos = Parent!.ToLocalSpace(AnchoredAt.ScreenSpaceDrawQuad.BottomLeft);
-                Position = new Vector2(pos.X + AnchoredAt.DrawWidth / 2, pos.Y + 6);
+                var windowQuad = inputManager.ScreenSpaceDrawQuad;
+                float halfWidth = DrawWidth / 2f;
+                const float window_margin = 10;
+
+                // los bordes de la ventana, traidos al mismo espacio en el que se
+                // expresa nuestra Position (el del padre).
+                float rightEdge = Parent.ToLocalSpace(new Vector2(windowQuad.TopRight.X, anchorRect.BottomLeft.Y)).X;
+                float leftEdge = Parent.ToLocalSpace(new Vector2(windowQuad.TopLeft.X, anchorRect.BottomLeft.Y)).X;
+
+                x = Math.Min(x, rightEdge - halfWidth - window_margin);
+                x = Math.Max(x, leftEdge + halfWidth + window_margin);
             }
+
+            Position = new Vector2(x, localTopCentre.Y + 6);
         }
 
         private OutsideClickCatcher? outsideClickCatcher;
