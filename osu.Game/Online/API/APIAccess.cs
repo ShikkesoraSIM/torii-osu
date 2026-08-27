@@ -25,6 +25,7 @@ using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Chat;
 using osu.Game.Online.Notifications.WebSocket;
+using osu.Game.Rulesets;
 
 namespace osu.Game.Online.API
 {
@@ -181,6 +182,24 @@ namespace osu.Game.Online.API
                     // This could probably be replaced with a ping-style request if we want to avoid the reconnection overheads.
                     log.Add($@"{nameof(APIAccess)} is in a failing state, waiting a bit before we try again...");
                     Thread.Sleep(5000);
+                }
+
+                // torii: con un ruleset ajeno cargado no se conecta y punto. Un ruleset es
+                // codigo con permisos totales dentro del juego, o sea relax o aim assist sin
+                // tocar nada mas. Se corta aca arriba, antes de mandar credenciales a ningun
+                // lado, y con la misma forma que el caso de "no hay login" para que el bucle
+                // no quede girando caliente. Ver CustomRulesetGuard.
+                if (CustomRulesetGuard.Any)
+                {
+                    if (LastLoginError == null)
+                    {
+                        LastLoginError = new CustomRulesetsLoadedException(CustomRulesetGuard.Detected);
+                        log.Add($@"{nameof(APIAccess)} refusing to connect: custom rulesets loaded ({string.Join(@", ", CustomRulesetGuard.Detected)})");
+                    }
+
+                    state.Value = APIState.Offline;
+                    Thread.Sleep(1000);
+                    continue;
                 }
 
                 // Ensure that we have valid credentials.

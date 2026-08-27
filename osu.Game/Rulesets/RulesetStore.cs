@@ -46,6 +46,12 @@ namespace osu.Game.Rulesets
             RulesetStorage = storage?.GetStorageForDirectory(@"rulesets");
             if (RulesetStorage != null)
                 loadUserRulesets(RulesetStorage);
+
+            // torii: anotar cuales de los que quedaron cargados no son nuestros. Se hace al
+            // final y sobre LoadedAssemblies (no sobre UserRulesetAssemblies) porque un dll
+            // dejado al lado del ejecutable, en vez de en "rulesets", tambien se carga y no
+            // cuenta como "de usuario". Ver CustomRulesetGuard.
+            CustomRulesetGuard.Record(LoadedAssemblies.Keys);
         }
 
         /// <summary>
