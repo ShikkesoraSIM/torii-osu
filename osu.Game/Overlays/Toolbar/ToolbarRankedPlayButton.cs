@@ -12,7 +12,9 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
@@ -43,7 +45,7 @@ namespace osu.Game.Overlays.Toolbar
     /// une sola al conectarse: es solo una suscripcion, no te mete en la cola ni te muestra
     /// como disponible.
     /// </remarks>
-    public partial class ToolbarRankedPlayButton : OsuClickableContainer
+    public partial class ToolbarRankedPlayButton : OsuClickableContainer, IHasTooltip
     {
         /// <summary>
         /// El pool del que se miran las estadisticas. Hoy solo hay uno activo (osu! standard).
@@ -68,7 +70,6 @@ namespace osu.Game.Overlays.Toolbar
         private Container countContainer = null!;
         private OsuSpriteText countText = null!;
         private Container liveContainer = null!;
-        private OsuSpriteText liveText = null!;
         private RankedPlayQueueToast toast = null!;
 
         private readonly BindableInt queueCount = new BindableInt();
@@ -148,7 +149,7 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
-                                    Size = new Vector2(23, 23),
+                                    Size = new Vector2(22, 22),
                                 },
                                 // Los dos de abajo viven siempre pero arrancan en ancho 0.
                                 // Animar el ancho (y no aparecer/desaparecer) es lo que hace
@@ -173,16 +174,15 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
-                                    AutoSizeAxes = Axes.Y,
+                                    RelativeSizeAxes = Axes.Y,
                                     Width = 0,
                                     Masking = true,
-                                    Child = liveText = new OsuSpriteText
+                                    Child = new RankedPlayLiveDot
                                     {
                                         Anchor = Anchor.CentreLeft,
                                         Origin = Anchor.CentreLeft,
-                                        Font = OsuFont.GetFont(size: 13, weight: FontWeight.Bold),
-                                        Text = @"1 vs",
-                                        Colour = live_green,
+                                        Size = new Vector2(7, 7),
+                                        Margin = new MarginPadding { Left = 1 },
                                     },
                                 },
                             },
@@ -257,15 +257,42 @@ namespace osu.Game.Overlays.Toolbar
             countContainer.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
 
             swords.SetTint(show ? ranked_orange : ranked_orange.Opacity(0.55f));
+            updateTooltip();
+        }
+
+        public LocalisableString TooltipText { get; private set; } = @"Ranked play";
+
+        /// <summary>
+        /// Lo que la pildora NO dibuja. El numero de la cola se ve y el punto verde
+        /// avisa que hay partida; aca se aclara que es cada cosa y cuantas partidas hay.
+        /// </summary>
+        private void updateTooltip()
+        {
+            int q = queueCount.Value;
+            int m = liveMatches.Value;
+
+            string queuePart = q == 0 ? @"Nobody in queue"
+                : q == 1 ? @"1 player in queue"
+                : $@"{q} players in queue";
+
+            if (m == 0)
+            {
+                TooltipText = queuePart;
+                return;
+            }
+
+            TooltipText = $"{queuePart}  ·  {(m == 1 ? "1 match ongoing" : $"{m} matches ongoing")}";
         }
 
         private void onLiveMatchesChanged(ValueChangedEvent<int> e)
         {
-            liveText.Text = e.NewValue == 1 ? @"1 vs" : $@"{e.NewValue} vs";
-
+            // Cuantas partidas hay exactamente no se dibuja: el punto solo dice "hay
+            // algo pasando". El numero vive en el tooltip, que es donde va la
+            // curiosidad. Ver RankedPlayLiveDot.
             bool show = e.NewValue > 0;
-            liveContainer.ResizeWidthTo(show ? liveText.DrawWidth : 0, 260, Easing.OutQuint);
+            liveContainer.ResizeWidthTo(show ? 9 : 0, 260, Easing.OutQuint);
             liveContainer.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
+            updateTooltip();
         }
 
         /// <summary>
