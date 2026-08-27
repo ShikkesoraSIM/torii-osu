@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
+using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -131,10 +132,12 @@ namespace osu.Game.Overlays.Toolbar
         private partial class QueueSection : FillFlowContainer
         {
             private readonly APIUser[] users;
+            private readonly GetComfortPicksBulkResponse? picks;
 
-            public QueueSection(APIUser[] users)
+            public QueueSection(APIUser[] users, GetComfortPicksBulkResponse? picks)
             {
                 this.users = users;
+                this.picks = picks;
 
                 RelativeSizeAxes = Axes.X;
                 AutoSizeAxes = Axes.Y;
@@ -159,7 +162,7 @@ namespace osu.Game.Overlays.Toolbar
                     AutoSizeAxes = Axes.Y,
                     Direction = FillDirection.Full,
                     Spacing = new Vector2(6, 4),
-                    ChildrenEnumerable = users.Select(u => new NameChip(u.Username, u.Id)),
+                    ChildrenEnumerable = users.Select(u => new NameChip(u.Username, u.Id, picks?.For(u.Id))),
                 });
             }
         }
@@ -172,7 +175,7 @@ namespace osu.Game.Overlays.Toolbar
 
             private readonly int userId;
 
-            public NameChip(string username, int userId)
+            public NameChip(string username, int userId, float? starRating)
             {
                 this.userId = userId;
 
@@ -181,6 +184,50 @@ namespace osu.Game.Overlays.Toolbar
                 // Ver quien esta esperando sin poder mirar quien es sirve a medias:
                 // el nombre solo no dice si le podes ganar.
                 Action = () => game?.ShowUser(new APIUser { Id = userId });
+
+                var contenido = new FillFlowContainer
+                {
+                    AutoSizeAxes = Axes.Both,
+                    Direction = FillDirection.Horizontal,
+                    Spacing = new Vector2(5, 0),
+                    Margin = new MarginPadding { Horizontal = 8, Vertical = 4 },
+                    Children = new Drawable[]
+                    {
+                        new OsuSpriteText
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
+                            Text = username,
+                            Colour = Color4.White.Opacity(0.9f),
+                        },
+                    },
+                };
+
+                // La dificultad que eligio, en la misma capsula que el nombre. Es el dato
+                // que decide si entrar: "7.5" se lee de un vistazo y ocupa menos que un
+                // numero de mmr. Quien todavia no eligio va sin nada, en vez de con un
+                // cero que se leeria como una eleccion.
+                if (starRating is float sr)
+                {
+                    contenido.Add(new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Size = new Vector2(9),
+                        Icon = FontAwesome.Solid.Star,
+                        Colour = new Color4(255, 204, 34, 255),
+                    });
+
+                    contenido.Add(new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Font = OsuFont.GetFont(size: 12, weight: FontWeight.Bold),
+                        Text = sr.ToString(@"0.0"),
+                        Colour = new Color4(255, 204, 34, 255),
+                    });
+                }
 
                 Child = new Container
                 {
@@ -195,13 +242,7 @@ namespace osu.Game.Overlays.Toolbar
                             RelativeSizeAxes = Axes.Both,
                             Colour = Color4.White.Opacity(0.08f),
                         },
-                        new OsuSpriteText
-                        {
-                            Margin = new MarginPadding { Horizontal = 8, Vertical = 4 },
-                            Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                            Text = username,
-                            Colour = Color4.White.Opacity(0.9f),
-                        },
+                        contenido,
                     },
                 };
             }

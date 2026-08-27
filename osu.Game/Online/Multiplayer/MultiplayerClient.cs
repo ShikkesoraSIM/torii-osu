@@ -146,7 +146,11 @@ namespace osu.Game.Online.Multiplayer
         public event Action<int, int>? RankedPlayLiveMatchCountReceived;
 
         protected void TriggerRankedPlayLiveMatchCount(int poolId, int count)
-            => RankedPlayLiveMatchCountReceived?.Invoke(poolId, count);
+            // Scheduler.Add y no invocar derecho: esto entra por el hilo de SignalR, y de
+            // ahi no se puede tocar la UI. El valor se seteaba igual (el tooltip lo leia
+            // bien) pero el handler que dibuja el punto no llegaba a correr nunca. Es lo
+            // mismo que hace MatchmakingLobbyStatusChanged unas lineas mas abajo.
+            => Scheduler.Add(() => RankedPlayLiveMatchCountReceived?.Invoke(poolId, count));
 
         public event Action<int, Vector2>? RankedPlayCursorReceived;
 
