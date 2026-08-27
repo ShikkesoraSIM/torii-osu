@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -273,7 +273,17 @@ namespace osu.Game.Screens.Menu
 
             if (storage is OsuStorage osuStorage && osuStorage.Error != OsuStorageError.None)
                 dialogOverlay?.Push(new StorageErrorDialog(osuStorage, osuStorage.Error));
+
+            // torii: se avisa una sola vez por sesion, al llegar al menu. Aca y no en el
+            // arranque porque antes del intro no hay overlay de dialogos donde empujarlo.
+            if (CustomRulesetGuard.Any && !customRulesetsWarned)
+            {
+                customRulesetsWarned = true;
+                dialogOverlay?.Push(new CustomRulesetsBlockedDialog());
+            }
         }
+
+        private static bool customRulesetsWarned;
 
         [CanBeNull]
         private ScheduledDelegate mobileDisclaimerSchedule;
