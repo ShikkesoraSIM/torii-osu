@@ -232,6 +232,20 @@ namespace osu.Game.Tests.Visual.Menus
             AddUntilStep("toolbar gradient visible", () => toolbar.ChildrenOfType<Toolbar.ToolbarBackground>().Single().Children.All(d => d.Alpha > 0));
         }
 
+        [Test]
+        public void TestRankedPlayPill()
+        {
+            // torii: la pildora de ranked play, en el toolbar de verdad y al lado de sus
+            // hermanas. Aislada no se puede juzgar: lo que importa es si el tamaño y el
+            // aire matchean a los puntos y al pulse.
+            AddStep("cola vacia", () => toolbar.RankedPlayButton?.SetStateForTesting(0, 0));
+            AddStep("3 en cola", () => toolbar.RankedPlayButton?.SetStateForTesting(3, 0));
+            AddStep("12 en cola", () => toolbar.RankedPlayButton?.SetStateForTesting(12, 0));
+            AddStep("cola + partida en curso", () => toolbar.RankedPlayButton?.SetStateForTesting(5, 1));
+            AddStep("entra alguien", () => toolbar.RankedPlayButton?.SetStateForTesting(6, 1, new[] { "Shikkesora" }));
+            AddStep("de vuelta a vacia", () => toolbar.RankedPlayButton?.SetStateForTesting(0, 0));
+        }
+
         public partial class TestToolbar : Toolbar
         {
             public new Bindable<OverlayActivation> OverlayActivationMode => base.OverlayActivationMode as Bindable<OverlayActivation>;

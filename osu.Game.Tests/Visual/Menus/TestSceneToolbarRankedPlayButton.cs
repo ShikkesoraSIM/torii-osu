@@ -23,6 +23,7 @@ namespace osu.Game.Tests.Visual.Menus
     public partial class TestSceneToolbarRankedPlayButton : OsuTestScene
     {
         private ToolbarRankedPlayButton button = null!;
+        private Container scaler = null!;
 
         [SetUp]
         public void SetUp() => Schedule(() =>
@@ -35,11 +36,15 @@ namespace osu.Game.Tests.Visual.Menus
                     RelativeSizeAxes = Axes.Both,
                     Colour = new Color4(20, 20, 24, 255),
                 },
-                new Container
+                // Ampliada. A tamaño real (32px de alto) en una pantalla grande es
+                // un poroto y no se puede juzgar nada; el paso "tamaño real" de
+                // abajo la devuelve a 1x para ver como se ve de verdad.
+                scaler = new Container
                 {
                     Anchor = Anchor.Centre,
                     Origin = Anchor.Centre,
                     AutoSizeAxes = Axes.Both,
+                    Scale = new Vector2(4),
                     Child = button = new ToolbarRankedPlayButton
                     {
                         Anchor = Anchor.Centre,
@@ -48,6 +53,16 @@ namespace osu.Game.Tests.Visual.Menus
                 },
             };
         });
+
+        [Test]
+        public void TestZoom()
+        {
+            AddStep("1x (tamaño real en el toolbar)", () => scaler.ScaleTo(1, 300, Easing.OutQuint));
+            AddStep("2x", () => scaler.ScaleTo(2, 300, Easing.OutQuint));
+            AddStep("4x", () => scaler.ScaleTo(4, 300, Easing.OutQuint));
+            AddStep("8x (mirar el icono de cerca)", () => scaler.ScaleTo(8, 300, Easing.OutQuint));
+            AddStep("con cola, para ver el ancho", () => button.SetStateForTesting(7, 1));
+        }
 
         [Test]
         public void TestStates()
