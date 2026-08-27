@@ -141,14 +141,14 @@ namespace osu.Game.Overlays.Toolbar
                             AutoSizeAxes = Axes.Both,
                             Direction = FillDirection.Horizontal,
                             Spacing = new Vector2(7, 0),
-                            Padding = new MarginPadding { Horizontal = 11 },
+                            Padding = new MarginPadding { Horizontal = 10 },
                             Children = new Drawable[]
                             {
                                 swords = new RankedPlayCrossedSwords
                                 {
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
-                                    Size = new Vector2(19, 19),
+                                    Size = new Vector2(23, 23),
                                 },
                                 // Los dos de abajo viven siempre pero arrancan en ancho 0.
                                 // Animar el ancho (y no aparecer/desaparecer) es lo que hace

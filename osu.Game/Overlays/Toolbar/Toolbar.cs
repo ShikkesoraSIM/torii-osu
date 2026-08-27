@@ -48,6 +48,14 @@ namespace osu.Game.Overlays.Toolbar
         private ToolbarUserButton userButton;
         private ToriiServerPulseButton pulseButton;
         private ToolbarRankedPlayButton rankedButton;
+
+        /// <summary>
+        /// La pildora de ranked play. Expuesta para que la test scene del toolbar pueda
+        /// mostrarla con cola y partida sin necesidad de un server atras: verla al lado
+        /// del pulse y de los puntos es la unica forma de juzgar si el tamaño y el aire
+        /// entre pildoras estan bien.
+        /// </summary>
+        internal ToolbarRankedPlayButton RankedPlayButton => rankedButton;
         private ToolbarRulesetSelector rulesetSelector;
 
         // Torii custom UI hue (Menu scope): re-tints the toolbar chrome live.
