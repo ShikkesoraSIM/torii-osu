@@ -69,6 +69,24 @@ namespace osu.Game.Overlays.Toolbar
         }
 
         /// <summary>
+        /// No se puede encolar ahora (ya estas jugando, o ya estas buscando). Se dice
+        /// POR QUE en el propio boton: un boton gris sin explicacion se lee como roto.
+        /// </summary>
+        public void SetUnavailable(string reason)
+        {
+            Enabled.Value = false;
+            label.Text = reason;
+            this.FadeTo(0.55f, 150, Easing.OutQuint);
+        }
+
+        public void SetAvailable()
+        {
+            Enabled.Value = true;
+            label.Text = @"Queue";
+            this.FadeTo(1f, 150, Easing.OutQuint);
+        }
+
+        /// <summary>
         /// Mientras pide el pool y encola. Sin esto el boton se ve inerte medio segundo
         /// y el reflejo es apretarlo de nuevo, que encolaria dos veces.
         /// </summary>

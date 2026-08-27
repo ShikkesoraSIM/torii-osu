@@ -77,8 +77,25 @@ namespace osu.Game.Overlays.Toolbar
             }
 
             public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
-                => popover.State.Value == Visibility.Visible
-                   && !popover.ScreenSpaceDrawQuad.Contains(screenSpacePos);
+            {
+                if (popover.State.Value != Visibility.Visible)
+                    return false;
+
+                // Los clics de adentro caen al panel normal.
+                if (popover.ScreenSpaceDrawQuad.Contains(screenSpacePos))
+                    return false;
+
+                // CLAVE: tampoco cazar el clic en la pildora que abrio el panel. Si no,
+                // apretarla estando abierto hacia: el cazador cierra en mouse-down, el
+                // clic sigue hasta la pildora, y esta ve el panel cerrado y lo abre de
+                // nuevo. O sea que clickear el boton nunca lo cerraba, siempre parecia
+                // reabrirse. Excluyendola, el clic llega con el panel todavia visible y
+                // el toggle lo cierra como corresponde.
+                if (popover.AnchoredAt?.ScreenSpaceDrawQuad.Contains(screenSpacePos) == true)
+                    return false;
+
+                return true;
+            }
 
             protected override bool OnMouseDown(MouseDownEvent e)
             {
