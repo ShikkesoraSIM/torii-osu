@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -18,7 +18,7 @@ namespace osu.Game.Online.Matchmaking
     /// <see cref="MatchmakingLobbyStatus"/>, a proposito: esa clase es parte del
     /// contrato messagepack del paquete compartido, y agregarle una Key obliga a
     /// republicar el paquete y a que cliente y server queden atados a la misma
-    /// version. Por nombre de metodo el agregado es aditivo — un cliente viejo
+    /// version. Por nombre de metodo el agregado es aditivo: un cliente viejo
     /// simplemente no escucha ese metodo. Es el mismo camino que uso el ghost
     /// cursor por la misma razon.
     /// </remarks>
