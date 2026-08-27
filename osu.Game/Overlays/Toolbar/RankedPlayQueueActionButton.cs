@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using osu.Framework.Allocation;
@@ -29,6 +29,7 @@ namespace osu.Game.Overlays.Toolbar
 
         private Box background = null!;
         private Box hoverGlow = null!;
+        private OsuSpriteText label = null!;
 
         [BackgroundDependencyLoader]
         private void load()
@@ -53,7 +54,7 @@ namespace osu.Game.Overlays.Toolbar
                         Blending = BlendingParameters.Additive,
                         Alpha = 0,
                     },
-                    new OsuSpriteText
+                    label = new OsuSpriteText
                     {
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
@@ -65,6 +66,17 @@ namespace osu.Game.Overlays.Toolbar
                     },
                 },
             };
+        }
+
+        /// <summary>
+        /// Mientras pide el pool y encola. Sin esto el boton se ve inerte medio segundo
+        /// y el reflejo es apretarlo de nuevo, que encolaria dos veces.
+        /// </summary>
+        public void SetBusy(bool busy)
+        {
+            Enabled.Value = !busy;
+            label.Text = busy ? @"Queueing..." : @"Queue";
+            this.FadeTo(busy ? 0.7f : 1f, 150, Easing.OutQuint);
         }
 
         protected override bool OnHover(HoverEvent e)

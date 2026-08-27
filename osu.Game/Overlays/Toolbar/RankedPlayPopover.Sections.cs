@@ -1,6 +1,7 @@
 ﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
@@ -8,10 +9,12 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Input.Events;
 using osu.Framework.Utils;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.Matchmaking;
 using osuTK;
 using osuTK.Graphics;
@@ -20,6 +23,70 @@ namespace osu.Game.Overlays.Toolbar
 {
     public partial class RankedPlayPopover
     {
+        /// <summary>
+        /// La fila de "cargando". Compacta a proposito: ocupa una linea, no un bloque.
+        /// </summary>
+        /// <remarks>
+        /// Va DENTRO del flow de contenido y no como spinner encima porque el panel
+        /// mide por auto-size: un spinner grande lo hace abrir alto y desinflarse de
+        /// golpe cuando no encuentra nada, que se lee como si algo hubiera fallado. Con
+        /// una linea, el panel abre chiquito y solo crece si hay algo que mostrar.
+        /// </remarks>
+        private partial class LoadingRow : CompositeDrawable
+        {
+            public LoadingRow()
+            {
+                RelativeSizeAxes = Axes.X;
+                Height = 22;
+
+                InternalChild = new LoadingSpinner
+                {
+                    Anchor = Anchor.CentreLeft,
+                    Origin = Anchor.CentreLeft,
+                    Size = new Vector2(14),
+                    State = { Value = Visibility.Visible },
+                };
+            }
+        }
+
+        /// <summary>
+        /// Acepta clics SOLO fuera del panel, para cerrarlo.
+        /// </summary>
+        /// <remarks>
+        /// Vive como hermano del panel y se dibuja detras. El truco esta en
+        /// ReceivePositionalInputAt: devuelve true unicamente si el punto cae afuera,
+        /// asi los clics de adentro lo atraviesan y llegan al panel normal.
+        ///
+        /// OnMouseDown devuelve false a proposito: el clic sigue viaje a lo que haya
+        /// debajo, asi cerrar el panel y apretar otra cosa es un solo gesto. Es lo que
+        /// hace el resto de lazer y lo que la gente espera.
+        /// </remarks>
+        private partial class OutsideClickCatcher : Drawable
+        {
+            private readonly RankedPlayPopover popover;
+            private readonly Action onOutsideClick;
+
+            public OutsideClickCatcher(RankedPlayPopover popover, Action onOutsideClick)
+            {
+                this.popover = popover;
+                this.onOutsideClick = onOutsideClick;
+
+                // Su propia caja mide cero; el hit-test se hace contra coordenadas de
+                // pantalla, asi que hace falta estar presente igual.
+                AlwaysPresent = true;
+            }
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
+                => popover.State.Value == Visibility.Visible
+                   && !popover.ScreenSpaceDrawQuad.Contains(screenSpacePos);
+
+            protected override bool OnMouseDown(MouseDownEvent e)
+            {
+                onOutsideClick();
+                return false;
+            }
+        }
+
         /// <summary>Titulito de seccion, en mayusculas chiquitas.</summary>
         private partial class SectionHeader : OsuSpriteText
         {
