@@ -2,11 +2,12 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.Textures;
 using osuTK;
 using osuTK.Graphics;
 
@@ -16,41 +17,35 @@ namespace osu.Game.Overlays.Toolbar
     /// Dos espaditas cruzadas. El icono de ranked play en el toolbar.
     /// </summary>
     /// <remarks>
-    /// Dibujado a mano y no un SpriteIcon porque FontAwesome free no tiene espadas
-    /// cruzadas: lo mas cercano es Khanda, que es un simbolo religioso sij y no viene
-    /// al caso. Dibujarlo ademas deja animar cada hoja por separado, que es lo que
-    /// hace el "choque".
+    /// Es un ASSET (<c>Textures/Torii/ranked-sword</c>), no un dibujo armado con
+    /// primitivas del framework. El primer intento fue dibujarlo con cajas y
+    /// triangulos y no daba: a 19px las diagonales de las hojas quedan escalonadas
+    /// y el conjunto se ve como una mancha. Un png con antialiasing de verdad,
+    /// generado en alta y bajado, se lee bien desde 19px.
     ///
-    /// Sigue el estilo de icono de juego: HOJA ANCHA que se afina hasta la punta y
-    /// MANGO de otro color. Las dos cosas importan y por razones distintas. La hoja
-    /// ancha es lo que hace que se lea como espada a 18px — con hojas finitas quedan
-    /// dos palitos cruzados sin importar cuanto detalle les pongas. Y el mango de otro
-    /// color es lo que separa "arriba" de "abajo": en un solo tono la silueta es una X
-    /// simetrica y el ojo no sabe donde esta la punta.
+    /// Lo que se carga es UNA espada suelta y el componente pone dos rotadas. Podria
+    /// ser un solo png con las dos ya cruzadas, pero entonces el choque solo podria
+    /// mover el conjunto entero; teniendolas separadas cada hoja se anima sola, que
+    /// es lo que hace que el golpe se sienta.
     ///
-    /// El naranja de la pildora se usa para el MANGO y la hoja va casi blanca. Sale
-    /// gratis (es el color que ya teniamos) y de paso la hoja gana el contraste que
-    /// necesita contra el fondo oscuro.
+    /// El png viene sin recortar, en el mismo lienzo cuadrado con el que se genero:
+    /// asi rotarlo sobre su centro reproduce exactamente el cruce del diseño. Si se
+    /// recorta al contenido, el pivote se corre y las dos espadas dejan de cruzarse
+    /// donde corresponde.
     ///
-    /// OJO: las posiciones van con RelativePositionAxes. Con tamaños relativos y
-    /// posiciones absolutas (que fue el primer intento) los Y se interpretan como
-    /// PIXELES, todo se amontona en el centro y queda una manchita.
+    /// Para regenerarlo esta el script en scratchpad (make_swords.py). Los colores
+    /// (hoja plateada, mango dorado, gema verde) van horneados en el archivo.
     /// </remarks>
     public partial class RankedPlayCrossedSwords : CompositeDrawable
     {
-        private static readonly Color4 blade_colour = new Color4(236, 240, 246, 255);
-        private static readonly Color4 blade_shade = new Color4(176, 184, 198, 255);
-
         /// <summary>Angulo de cada hoja respecto de la vertical.</summary>
-        private const float rest_angle = 38f;
+        private const float rest_angle = 42f;
 
-        private Container leftSword = null!;
-        private Container rightSword = null!;
+        private Sprite leftSword = null!;
+        private Sprite rightSword = null!;
         private Circle clashFlash = null!;
 
-        private readonly List<Drawable> hilts = new List<Drawable>();
-
-        private Color4 tint = Color4.White;
+        private float dim = 1f;
 
         public RankedPlayCrossedSwords()
         {
@@ -59,8 +54,10 @@ namespace osu.Game.Overlays.Toolbar
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(TextureStore textures)
         {
+            var texture = textures.Get(@"Torii/ranked-sword");
+
             InternalChildren = new Drawable[]
             {
                 clashFlash = new Circle
@@ -73,109 +70,35 @@ namespace osu.Game.Overlays.Toolbar
                     Blending = BlendingParameters.Additive,
                     Alpha = 0,
                 },
-                leftSword = createSword(-rest_angle),
-                rightSword = createSword(rest_angle),
+                leftSword = createSword(texture, -rest_angle),
+                rightSword = createSword(texture, rest_angle),
             };
         }
 
-        /// <param name="rotation">Angulo de la hoja. Las dos se cruzan arriba del centro.</param>
-        private Container createSword(float rotation)
+        private static Sprite createSword(Texture? texture, float rotation) => new Sprite
         {
-            // El mango se guarda aparte para poder pintarlo distinto de la hoja.
-            var guard = new Box
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                RelativeSizeAxes = Axes.Both,
-                RelativePositionAxes = Axes.Both,
-                Size = new Vector2(0.52f, 0.14f),
-                Y = 0.10f,
-            };
-
-            var grip = new Box
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.TopCentre,
-                RelativeSizeAxes = Axes.Both,
-                RelativePositionAxes = Axes.Both,
-                Size = new Vector2(0.15f, 0.22f),
-                Y = 0.14f,
-            };
-
-            var pommel = new Circle
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                RelativeSizeAxes = Axes.Both,
-                RelativePositionAxes = Axes.Both,
-                Size = new Vector2(0.22f, 0.16f),
-                Y = 0.40f,
-            };
-
-            hilts.Add(guard);
-            hilts.Add(grip);
-            hilts.Add(pommel);
-
-            return new Container
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                RelativeSizeAxes = Axes.Both,
-                Rotation = rotation,
-                Children = new Drawable[]
-                {
-                    // La hoja entera es UN triangulo estirado: asi el afinado sale del
-                    // shape y no de pegar un cuadrado con una punta encima, que a este
-                    // tamaño se nota como un escaloncito.
-                    new Triangle
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.BottomCentre,
-                        RelativeSizeAxes = Axes.Both,
-                        RelativePositionAxes = Axes.Both,
-                        Size = new Vector2(0.34f, 0.74f),
-                        Y = 0.06f,
-                        Colour = blade_colour,
-                    },
-                    // Filo: una franja mas oscura sobre la mitad izquierda de la hoja.
-                    // Es el unico "sombreado" que entra a 18px y alcanza para que la
-                    // hoja no se vea como una mancha plana.
-                    new Triangle
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.BottomCentre,
-                        RelativeSizeAxes = Axes.Both,
-                        RelativePositionAxes = Axes.Both,
-                        Size = new Vector2(0.15f, 0.68f),
-                        X = -0.05f,
-                        Y = 0.06f,
-                        Colour = blade_shade,
-                    },
-                    guard,
-                    grip,
-                    pommel,
-                },
-            };
-        }
+            Anchor = Anchor.Centre,
+            Origin = Anchor.Centre,
+            RelativeSizeAxes = Axes.Both,
+            FillMode = FillMode.Fit,
+            Texture = texture,
+            Rotation = rotation,
+        };
 
         /// <summary>
-        /// Pinta el mango. La hoja se queda plateada; del color pasado se usa el alfa
-        /// para atenuar el icono entero (asi el estado "cola vacia" se ve apagado).
+        /// Los colores van horneados en el asset, asi que de lo que se pasa solo se
+        /// usa el ALFA, para atenuar el icono cuando la cola esta vacia.
         /// </summary>
         public void SetTint(Color4 colour, double duration = 200)
         {
-            tint = colour;
-
-            foreach (var hilt in hilts)
-                hilt.FadeColour(new Color4(colour.R, colour.G, colour.B, 1f), duration, Easing.OutQuint);
-
-            this.FadeTo(colour.A, duration, Easing.OutQuint);
+            dim = colour.A;
+            this.FadeTo(dim, duration, Easing.OutQuint);
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
-            SetTint(tint, 0);
+            Alpha = dim;
             startAmbientSway();
         }
 
@@ -188,13 +111,13 @@ namespace osu.Game.Overlays.Toolbar
             leftSword.ClearTransforms(targetMember: nameof(Rotation));
             rightSword.ClearTransforms(targetMember: nameof(Rotation));
 
-            leftSword.RotateTo(-rest_angle - 3f, 1500, Easing.InOutSine)
-                     .Then().RotateTo(-rest_angle + 3f, 1500, Easing.InOutSine)
+            leftSword.RotateTo(-rest_angle - 2.5f, 1500, Easing.InOutSine)
+                     .Then().RotateTo(-rest_angle + 2.5f, 1500, Easing.InOutSine)
                      .Loop();
 
             // La otra va en contrafase, asi el cruce respira en vez de girar entero.
-            rightSword.RotateTo(rest_angle - 3f, 1500, Easing.InOutSine)
-                      .Then().RotateTo(rest_angle + 3f, 1500, Easing.InOutSine)
+            rightSword.RotateTo(rest_angle - 2.5f, 1500, Easing.InOutSine)
+                      .Then().RotateTo(rest_angle + 2.5f, 1500, Easing.InOutSine)
                       .Loop();
         }
 
@@ -211,7 +134,7 @@ namespace osu.Game.Overlays.Toolbar
             leftSword.ClearTransforms(targetMember: nameof(Rotation));
             rightSword.ClearTransforms(targetMember: nameof(Rotation));
 
-            float swing = 13f * strength;
+            float swing = 12f * strength;
 
             leftSword.RotateTo(-rest_angle + swing, 70, Easing.OutQuint)
                      .Then().RotateTo(-rest_angle, 420, Easing.OutElasticHalf);
