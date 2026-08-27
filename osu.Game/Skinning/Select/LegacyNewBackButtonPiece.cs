@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 // constants matched to the current revision of ppy/osu#37676 (the upstream legacy footer PR).
 
@@ -31,12 +31,12 @@ namespace osu.Game.Skinning.Select
         private OsuSpriteText text = null!;
         private Sprite rightLayer = null!;
 
-        private const float back_text_size = 15 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
-        private const float vertical_offset = 22 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR;
+        private const float back_text_size = 15 * LegacySkin.POSITION_SCALE_FACTOR;
+        private const float vertical_offset = 22 * LegacySkin.POSITION_SCALE_FACTOR;
 
         // 0.775x is an arbitrary adjustment to better match visually.
         // on testing with stable this factor is only relevant to fontawesome icon sizes.
-        private const float back_icon_size = 18 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR * 0.775f;
+        private const float back_icon_size = 18 * LegacySkin.POSITION_SCALE_FACTOR * 0.775f;
 
         [BackgroundDependencyLoader]
         private void load(SkinManager skins)
@@ -120,11 +120,11 @@ namespace osu.Game.Skinning.Select
 
         private const float centre_offset = 2.4f;
 
-        private const float left_layer_idle = 22 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR + 2; // +2 to better match stable
-        private const float left_layer_active = 40 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR + 3; // +3 to better match stable
+        private const float left_layer_idle = 22 * LegacySkin.POSITION_SCALE_FACTOR + 2; // +2 to better match stable
+        private const float left_layer_active = 40 * LegacySkin.POSITION_SCALE_FACTOR + 3; // +3 to better match stable
 
-        private const float right_layer_idle = 60 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR + 5; // +5 to better match stable
-        private const float right_layer_active = 86 * LegacyManiaSkinConfiguration.POSITION_SCALE_FACTOR + 7; // +7 to better match stable
+        private const float right_layer_idle = 60 * LegacySkin.POSITION_SCALE_FACTOR + 5; // +5 to better match stable
+        private const float right_layer_active = 86 * LegacySkin.POSITION_SCALE_FACTOR + 7; // +7 to better match stable
 
         private const float back_text_width = 45; // determined via draw visualizer
 
