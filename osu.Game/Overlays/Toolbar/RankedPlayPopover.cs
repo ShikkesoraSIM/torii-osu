@@ -20,6 +20,7 @@ using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Multiplayer;
+using osu.Game.Screens.OnlinePlay.Matchmaking.Queue;
 using osuTK;
 using osuTK.Graphics;
 
@@ -69,10 +70,13 @@ namespace osu.Game.Overlays.Toolbar
         [Resolved]
         private UserLookupCache? userLookup { get; set; }
 
+        [Resolved]
+        private QueueController? queue { get; set; }
+
         private Container body = null!;
         private FillFlowContainer content = null!;
-        private LoadingSpinner spinner = null!;
         private FillFlowContainer sections = null!;
+        private RankedPlayQueueActionButton queueButton = null!;
 
         private CancellationTokenSource? loadCancellation;
 
@@ -129,38 +133,90 @@ namespace osu.Game.Overlays.Toolbar
                                 Text = @"Ranked play",
                                 Colour = Color4.White,
                             },
-                            new RankedPlayQueueActionButton
+                            queueButton = new RankedPlayQueueActionButton
                             {
                                 RelativeSizeAxes = Axes.X,
                                 Height = 36,
-                                Action = () => OnQueueRequested?.Invoke(),
+                                Action = beginQueueing,
                             },
-                            // El bloque que cambia. Arranca vacio y se llena al abrir.
-                            new Container
+                            // El bloque que cambia. La carga se dibuja DENTRO de este
+                            // flow (y no como un spinner encima) para que el panel abra
+                            // chiquito y crezca solo cuando hay algo que mostrar. Con el
+                            // spinner reservando altura, abria grande y se desinflaba de
+                            // golpe al no encontrar nada, que se ve como un error.
+                            sections = new FillFlowContainer
                             {
                                 RelativeSizeAxes = Axes.X,
                                 AutoSizeAxes = Axes.Y,
-                                Children = new Drawable[]
-                                {
-                                    sections = new FillFlowContainer
-                                    {
-                                        RelativeSizeAxes = Axes.X,
-                                        AutoSizeAxes = Axes.Y,
-                                        Direction = FillDirection.Vertical,
-                                        Spacing = new Vector2(0, 12),
-                                    },
-                                    spinner = new LoadingSpinner(true)
-                                    {
-                                        Anchor = Anchor.TopCentre,
-                                        Origin = Anchor.TopCentre,
-                                        Margin = new MarginPadding { Vertical = 20 },
-                                    },
-                                },
+                                Direction = FillDirection.Vertical,
+                                Spacing = new Vector2(0, 12),
                             },
                         },
                     },
                 },
             };
+        }
+
+        /// <summary>
+        /// Encola de una, sin pasar por la pantalla de ranked play.
+        /// </summary>
+        /// <remarks>
+        /// Es el punto entero del boton: mandarte a la pantalla para que ahi apretes
+        /// OTRO boton no es un atajo, es un desvio. QueueController esta cacheado a
+        /// nivel juego (OsuGame lo carga como componente unico), asi que se puede
+        /// llamar desde el toolbar igual que lo llama la pantalla.
+        ///
+        /// El pool hay que pedirlo: el id se sabe, pero JoinQueue toma el objeto. Se
+        /// hace al apretar y no al abrir el panel, para no pedir nada de gusto si el
+        /// que abrio solo queria mirar quien habia.
+        /// </remarks>
+        private void beginQueueing()
+        {
+            if (queue == null || multiplayerClient == null)
+            {
+                // Sin con que encolar, al menos llevarlo a donde puede hacerlo a mano.
+                OnQueueRequested?.Invoke();
+                return;
+            }
+
+            queueButton.SetBusy(true);
+            joinQueueAsync();
+        }
+
+        private async void joinQueueAsync()
+        {
+            try
+            {
+                var pools = await multiplayerClient!.GetMatchmakingPoolsOfType(MatchmakingPoolType.RankedPlay).ConfigureAwait(false);
+                var pool = pools.FirstOrDefault(p => p.Id == PoolId) ?? pools.FirstOrDefault();
+
+                if (pool == null)
+                    throw new InvalidOperationException(@"no ranked play pools available");
+
+                queue!.JoinQueue(pool);
+
+                Schedule(() =>
+                {
+                    queueButton.SetBusy(false);
+                    Hide();
+
+                    // Se lo lleva a la pantalla DESPUES de encolar: ya esta buscando, y
+                    // ahi es donde va a ver el progreso y donde lo agarra el match.
+                    OnQueueRequested?.Invoke();
+                });
+            }
+            catch (Exception e)
+            {
+                Logger.Log($@"[RankedPlay] could not queue from toolbar: {e.Message}", LoggingTarget.Runtime, LogLevel.Verbose);
+
+                // Si no se pudo encolar de atajo, se cae al camino largo en vez de no
+                // hacer nada: el jugador queria jugar, no queria un error.
+                Schedule(() =>
+                {
+                    queueButton.SetBusy(false);
+                    OnQueueRequested?.Invoke();
+                });
+            }
         }
 
         protected override void Update()
@@ -177,8 +233,21 @@ namespace osu.Game.Overlays.Toolbar
             }
         }
 
+        private OutsideClickCatcher? outsideClickCatcher;
+
         protected override void PopIn()
         {
+            // Cazador de clics de afuera: hermano del panel, dibujado detras, que solo
+            // acepta input FUERA del panel. Los clics de adentro lo atraviesan y llegan
+            // normal. Deja pasar el clic a lo que haya debajo, asi cerrar el panel y
+            // apretar otra cosa es un solo gesto, como el resto de lazer.
+            if (outsideClickCatcher == null)
+                AddInternal(outsideClickCatcher = new OutsideClickCatcher(this, () =>
+                {
+                    if (State.Value == Visibility.Visible)
+                        Hide();
+                }) { Depth = 1 });
+
             this.FadeIn(150, Easing.OutQuint);
             body.MoveToY(-8).MoveToY(0, 300, Easing.OutQuint);
             body.ScaleTo(0.96f).ScaleTo(1f, 300, Easing.OutQuint);
@@ -203,8 +272,7 @@ namespace osu.Game.Overlays.Toolbar
             loadCancellation?.Cancel();
             loadCancellation = new CancellationTokenSource();
 
-            sections.Clear();
-            spinner.Show();
+            sections.Child = new LoadingRow();
 
             loadEverything(loadCancellation.Token);
         }
@@ -245,7 +313,6 @@ namespace osu.Game.Overlays.Toolbar
                 if (token.IsCancellationRequested)
                     return;
 
-                spinner.Hide();
                 sections.ChildrenEnumerable = built;
             });
         }
@@ -282,7 +349,21 @@ namespace osu.Game.Overlays.Toolbar
             if (multiplayerClient == null)
                 return [];
 
-            string json = await multiplayerClient.RankedPlayGetLiveMatches(PoolId).ConfigureAwait(false);
+            string json;
+
+            try
+            {
+                json = await multiplayerClient.RankedPlayGetLiveMatches(PoolId).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Un server que no conoce el metodo tira excepcion, y eso NO es un
+                // error que el jugador tenga que ver: significa "no puedo listar
+                // partidas", que se muestra igual que "no hay partidas". Antes esto
+                // subia hasta el catch de arriba y pintaba "Could not load right now"
+                // cuando en realidad no pasaba nada malo.
+                return [];
+            }
 
             if (token.IsCancellationRequested || string.IsNullOrEmpty(json))
                 return [];
