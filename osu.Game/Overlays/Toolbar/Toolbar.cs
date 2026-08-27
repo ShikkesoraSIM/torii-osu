@@ -13,6 +13,7 @@ using osuTK;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets;
 using osu.Framework.Input.Bindings;

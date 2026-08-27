@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -337,6 +337,9 @@ namespace osu.Game.Overlays.Toolbar
             this.ScaleTo(1f, 280, Easing.OutQuint);
             base.OnHoverLost(e);
         }
+
+        /// <summary>Si el popover esta abierto ahora mismo. Lo mira el auto-hide del toolbar.</summary>
+        public bool PopoverVisible => popover?.State.Value == Visibility.Visible;
 
         private void togglePopover()
         {
