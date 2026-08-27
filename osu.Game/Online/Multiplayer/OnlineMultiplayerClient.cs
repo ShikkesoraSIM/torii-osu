@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -117,6 +117,19 @@ namespace osu.Game.Online.Multiplayer
 
                 IsConnected.BindTo(connector.IsConnected);
             }
+        }
+
+        public override Task<string> RankedPlayGetLiveMatches(int poolId)
+        {
+            var conn = connection;
+
+            // Sin conexion se devuelve vacio en vez de tirar: el panel muestra
+            // "no hay partidas" y listo. Que no se pueda listar no es un error
+            // que el jugador tenga que ver.
+            if (!IsConnected.Value || conn == null)
+                return Task.FromResult(string.Empty);
+
+            return conn.InvokeAsync<string>(@"RankedPlayGetLiveMatches", poolId);
         }
 
         public override Task SendRankedPlayCursor(Vector2 normalisedPosition)

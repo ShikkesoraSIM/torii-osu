@@ -76,6 +76,12 @@ namespace osu.Game.Overlays.Toolbar
                 if (pulseButton?.PopoverVisible == true)
                     return true;
 
+                // Mismo motivo que el pulse: el panel se desvanece junto con la barra,
+                // asi que esconderse mientras esta abierto se lo cierra en la cara al
+                // que lo estaba leyendo.
+                if (rankedButton?.PopoverVisible == true)
+                    return true;
+
                 cachedInputManager ??= GetContainingInputManager();
 
                 if (cachedInputManager == null)
