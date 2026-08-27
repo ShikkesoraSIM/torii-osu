@@ -34,8 +34,8 @@ namespace osu.Game.Overlays.Toolbar
     /// No escucha eventos, no pide datos, no resuelve nombres, no baja avatares. Todo
     /// eso arranca al abrirlo y se corta al cerrarlo.
     ///
-    /// La tentacion es la contraria — mantenerlo actualizado de fondo para que abra
-    /// instantaneo — y es justo lo que no hay que hacer: significa que el juego de
+    /// La tentacion es la contraria, mantenerlo actualizado de fondo para que abra
+    /// instantaneo, y es justo lo que no hay que hacer: significa que el juego de
     /// TODOS trabaja permanentemente solo porque hay gente jugando ranked, cuando el
     /// panel se abre unos segundos al dia. Se prefiere una pantallita de carga de
     /// medio segundo antes que un impuesto constante sobre el update thread.
@@ -176,6 +176,7 @@ namespace osu.Game.Overlays.Toolbar
             {
                 // Sin con que encolar, al menos llevarlo a donde puede hacerlo a mano.
                 OnQueueRequested?.Invoke();
+                Hide();
                 return;
             }
 
@@ -200,20 +201,22 @@ namespace osu.Game.Overlays.Toolbar
                     queueButton.SetBusy(false);
                     Hide();
 
-                    // Se lo lleva a la pantalla DESPUES de encolar: ya esta buscando, y
-                    // ahi es donde va a ver el progreso y donde lo agarra el match.
-                    OnQueueRequested?.Invoke();
+                    // NO se navega a ningun lado. El punto del atajo es encolar desde
+                    // song select o desde la mitad de un mapa y seguir jugando.
+                    // QueueController vive a nivel juego y ya maneja la cola en segundo
+                    // plano: cuando aparece el match te mete en la sala solo.
                 });
             }
             catch (Exception e)
             {
                 Logger.Log($@"[RankedPlay] could not queue from toolbar: {e.Message}", LoggingTarget.Runtime, LogLevel.Verbose);
 
-                // Si no se pudo encolar de atajo, se cae al camino largo en vez de no
-                // hacer nada: el jugador queria jugar, no queria un error.
+                // Si no se pudo encolar de atajo, recien ahi se cae al camino largo:
+                // el jugador queria jugar, no queria un error.
                 Schedule(() =>
                 {
                     queueButton.SetBusy(false);
+                    Hide();
                     OnQueueRequested?.Invoke();
                 });
             }
@@ -305,7 +308,7 @@ namespace osu.Game.Overlays.Toolbar
             {
                 Logger.Log($@"[RankedPlay] popover load failed: {e.Message}", LoggingTarget.Runtime, LogLevel.Verbose);
                 built.Clear();
-                built.Add(new EmptyNote(@"Could not load right now."));
+                built.Add(new EmptyNote(@"Couldn't load."));
             }
 
             Schedule(() =>

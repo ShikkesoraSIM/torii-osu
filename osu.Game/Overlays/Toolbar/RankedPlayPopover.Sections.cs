@@ -131,9 +131,7 @@ namespace osu.Game.Overlays.Toolbar
 
                 if (names.Length == 0)
                 {
-                    // Se dice que se puede hacer algo al respecto, no solo que no hay
-                    // nadie: "nobody" a secas invita a cerrar el panel.
-                    Add(new EmptyNote(@"Nobody waiting. Be the first — others will see you."));
+                    Add(new EmptyNote(@"Nobody waiting yet."));
                     return;
                 }
 
