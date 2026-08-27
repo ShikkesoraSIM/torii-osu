@@ -77,6 +77,7 @@ namespace osu.Game.Overlays.Toolbar
         private FillFlowContainer content = null!;
         private FillFlowContainer sections = null!;
         private RankedPlayQueueActionButton queueButton = null!;
+        private RankedPlayStopQueueButton stopButton = null!;
 
         private CancellationTokenSource? loadCancellation;
 
@@ -133,11 +134,39 @@ namespace osu.Game.Overlays.Toolbar
                                 Text = @"Ranked play",
                                 Colour = Color4.White,
                             },
-                            queueButton = new RankedPlayQueueActionButton
+                            // Buscando, el boton grande se achica y al lado aparece el
+                            // de cancelar. Mientras estas en la cola, la accion util ya
+                            // no es entrar sino salir: dejar un boton gigante e inerte
+                            // ocupando el lugar del que si sirve esta al reves.
+                            new GridContainer
                             {
                                 RelativeSizeAxes = Axes.X,
-                                Height = 36,
-                                Action = beginQueueing,
+                                AutoSizeAxes = Axes.Y,
+                                ColumnDimensions = new[]
+                                {
+                                    new Dimension(),
+                                    new Dimension(GridSizeMode.AutoSize),
+                                },
+                                RowDimensions = new[] { new Dimension(GridSizeMode.AutoSize) },
+                                Content = new[]
+                                {
+                                    new Drawable[]
+                                    {
+                                        queueButton = new RankedPlayQueueActionButton
+                                        {
+                                            RelativeSizeAxes = Axes.X,
+                                            Height = 36,
+                                            Action = beginQueueing,
+                                        },
+                                        stopButton = new RankedPlayStopQueueButton
+                                        {
+                                            Height = 36,
+                                            Width = 0,
+                                            Alpha = 0,
+                                            Action = stopQueueing,
+                                        },
+                                    },
+                                },
                             },
                             // El bloque que cambia. La carga se dibuja DENTRO de este
                             // flow (y no como un spinner encima) para que el panel abra
@@ -172,6 +201,14 @@ namespace osu.Game.Overlays.Toolbar
         /// </remarks>
         private void beginQueueing()
         {
+            // Se re-chequea al apretar y no solo al abrir: entre una cosa y la otra te
+            // puede haber entrado un match.
+            if (multiplayerClient?.Room != null || queue?.CurrentState.Value == ScreenQueue.MatchmakingScreenState.Queueing)
+            {
+                updateQueueButtonState();
+                return;
+            }
+
             if (queue == null || multiplayerClient == null)
             {
                 // Sin con que encolar, al menos llevarlo a donde puede hacerlo a mano.
@@ -238,8 +275,57 @@ namespace osu.Game.Overlays.Toolbar
 
         private OutsideClickCatcher? outsideClickCatcher;
 
+        /// <summary>
+        /// Deja el boton de Queue como corresponda para el estado en que estas.
+        /// </summary>
+        /// <remarks>
+        /// Estando ya en una partida el boton seguia encolando: te metia de vuelta en la
+        /// cola mientras jugabas, y al terminar quedabas listado como "en cola" sin
+        /// haberlo pedido. Un boton que no se puede usar tiene que verse asi, no
+        /// aceptar el clic y hacer algo que nadie quiso.
+        /// </remarks>
+        private void updateQueueButtonState()
+        {
+            bool inRoom = multiplayerClient?.Room != null;
+            bool searching = queue?.CurrentState.Value == ScreenQueue.MatchmakingScreenState.Queueing;
+
+            if (inRoom)
+            {
+                queueButton.SetUnavailable(@"You're in a match");
+                showStop(false);
+            }
+            else if (searching)
+            {
+                queueButton.SetUnavailable(@"Searching...");
+                showStop(true);
+            }
+            else
+            {
+                queueButton.SetAvailable();
+                showStop(false);
+            }
+        }
+
+        private void showStop(bool show)
+        {
+            stopButton.ResizeWidthTo(show ? 44 : 0, 250, Easing.OutQuint);
+            stopButton.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
+        }
+
+        private void stopQueueing()
+        {
+            queue?.LeaveQueue();
+
+            // El estado del server tarda un toque en volver, asi que se refleja de una:
+            // apretar y que no pase nada visible hace dudar de si el clic entro.
+            queueButton.SetAvailable();
+            showStop(false);
+        }
+
         protected override void PopIn()
         {
+            updateQueueButtonState();
+
             // Cazador de clics de afuera: hermano del panel, dibujado detras, que solo
             // acepta input FUERA del panel. Los clics de adentro lo atraviesan y llegan
             // normal. Deja pasar el clic a lo que haya debajo, asi cerrar el panel y

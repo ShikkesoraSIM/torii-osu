@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Logging;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -272,9 +273,28 @@ namespace osu.Game.Overlays.Toolbar
             liveMatches.BindValueChanged(onLiveMatchesChanged, true);
 
             if (multiplayerClient != null)
+            {
                 multiplayerClient.MatchmakingLobbyStatusChanged += onLobbyStatus;
 
-            joinLobby();
+                // Atado a IsConnected y no llamado una sola vez: en LoadComplete el hub
+                // casi nunca esta conectado todavia (el toolbar se arma antes que la
+                // conexion), asi que el join se perdia y la pildora se quedaba en cero
+                // para siempre. Ademas asi se vuelve a unir sola despues de una
+                // reconexion, donde el server ya nos saco del grupo.
+                multiplayerClient.IsConnected.BindValueChanged(c =>
+                {
+                    if (c.NewValue)
+                        joinLobby();
+                    else
+                    {
+                        // Sin conexion no se sabe nada, y dejar el ultimo numero puesto
+                        // seria mentir. Se vuelve al estado vacio.
+                        lastQueueUserIds = [];
+                        queueCount.Value = 0;
+                        liveMatches.Value = 0;
+                    }
+                }, true);
+            }
         }
 
         /// <summary>
@@ -288,7 +308,12 @@ namespace osu.Game.Overlays.Toolbar
             // Si falla no pasa nada: la pildora se queda en cero, que es como se veia
             // antes de existir. No vale la pena molestar al jugador por esto.
             multiplayerClient.MatchmakingJoinLobbyWithParams(new MatchmakingJoinLobbyRequest { PoolId = pool_id })
-                             .ContinueWith(_ => { }, TaskContinuationOptions.OnlyOnFaulted);
+                             .ContinueWith(t =>
+                             {
+                                 Logger.Log(t.IsFaulted
+                                     ? $@"[RankedPlay] lobby join failed: {t.Exception?.GetBaseException().Message}"
+                                     : @"[RankedPlay] joined matchmaking lobby", LoggingTarget.Runtime, LogLevel.Verbose);
+                             }, TaskScheduler.Default);
         }
 
         private void onLobbyStatus(MatchmakingLobbyStatus status)
@@ -300,6 +325,8 @@ namespace osu.Game.Overlays.Toolbar
             // el que entro igual merece su cartelito.
             int[] joined = ids.Except(lastQueueUserIds).ToArray();
             lastQueueUserIds = ids;
+
+            Logger.Log($@"[RankedPlay] lobby status: {ids.Length} in queue", LoggingTarget.Runtime, LogLevel.Verbose);
 
             queueCount.Value = ids.Length;
 
@@ -321,16 +348,21 @@ namespace osu.Game.Overlays.Toolbar
             countContainer.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
 
             swords.SetTint(show ? ranked_orange : ranked_orange.Opacity(0.55f));
-            updateTooltip();
         }
 
-        public LocalisableString TooltipText { get; private set; } = @"Ranked play";
+        /// <summary>
+        /// Se calcula al leerlo y no se guarda en un campo: el tooltip lee esto UNA vez
+        /// cuando aparece, asi que un valor cacheado se queda con el numero de hace un
+        /// rato. Paso: la pildora decia 0 y el tooltip seguia diciendo "1 player in
+        /// queue".
+        /// </summary>
+        public LocalisableString TooltipText => describeState();
 
         /// <summary>
         /// Lo que la pildora NO dibuja. El numero de la cola se ve y el punto verde
         /// avisa que hay partida; aca se aclara que es cada cosa y cuantas partidas hay.
         /// </summary>
-        private void updateTooltip()
+        private LocalisableString describeState()
         {
             int q = queueCount.Value;
             int m = liveMatches.Value;
@@ -340,12 +372,9 @@ namespace osu.Game.Overlays.Toolbar
                 : $@"{q} players in queue";
 
             if (m == 0)
-            {
-                TooltipText = queuePart;
-                return;
-            }
+                return queuePart;
 
-            TooltipText = $"{queuePart}  ·  {(m == 1 ? "1 match ongoing" : $"{m} matches ongoing")}";
+            return $"{queuePart}  ·  {(m == 1 ? "1 match ongoing" : $"{m} matches ongoing")}";
         }
 
         private void onLiveMatchesChanged(ValueChangedEvent<int> e)
@@ -360,7 +389,6 @@ namespace osu.Game.Overlays.Toolbar
             liveContainer.ResizeWidthTo(show ? 9 + gap : 0, 260, Easing.OutQuint);
             liveDot.FadeTo(show ? 1 : 0, 200, Easing.OutQuint);
             liveDot.ScaleTo(show ? 1 : 0.6f, 260, Easing.OutBack);
-            updateTooltip();
         }
 
         /// <summary>Abre el panel desde una test scene.</summary>
