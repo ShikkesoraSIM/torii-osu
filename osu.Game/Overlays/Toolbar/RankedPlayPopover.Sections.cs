@@ -346,7 +346,9 @@ namespace osu.Game.Overlays.Toolbar
                         Anchor = Anchor.CentreLeft,
                         Origin = Anchor.CentreLeft,
                         Font = OsuFont.GetFont(size: 12, weight: FontWeight.SemiBold),
-                        Text = player.Username,
+                        // Si no se pudo resolver, el id crudo es mas honesto que un
+                        // nombre inventado: se ve que es un id y no confunde.
+                        Text = string.IsNullOrEmpty(player.Username) ? $"#{player.UserId}" : player.Username,
                         Colour = Color4.White.Opacity(0.9f),
                         RelativeSizeAxes = Axes.X,
                         Width = 0.42f,

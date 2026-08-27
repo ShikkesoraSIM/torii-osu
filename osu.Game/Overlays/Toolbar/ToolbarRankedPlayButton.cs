@@ -185,7 +185,13 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.CentreLeft,
                                     Origin = Anchor.CentreLeft,
-                                    RelativeSizeAxes = Axes.Y,
+                                    // AutoSize en Y, igual que el contenedor del numero.
+                                    // Con RelativeSizeAxes.Y adentro de un flow que
+                                    // auto-mide, la altura resuelve a 0: el punto quedaba
+                                    // pegado al borde de arriba y la pastilla (que si
+                                    // recorta) se lo comia. Por eso el tooltip decia
+                                    // "1 match ongoing" y no se veia nada.
+                                    AutoSizeAxes = Axes.Y,
                                     Width = 0,
                                     // SIN Masking: el punto tiene un halo que late hasta 2.2x
                                     // su tamaño, y recortandolo al ancho del contenedor
