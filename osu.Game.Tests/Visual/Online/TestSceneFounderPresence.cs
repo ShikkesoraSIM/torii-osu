@@ -10,6 +10,7 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Metadata;
 using osu.Game.Overlays;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Osu;
 using osu.Game.Screens.Play;
 using osu.Game.Tests.Beatmaps;
 using osu.Game.Tests.Visual.Metadata;
@@ -98,7 +99,7 @@ namespace osu.Game.Tests.Visual.Online
             AddStep("los demas, conectados", () =>
             {
                 presence(101, UserStatus.Online, new UserActivity.ChoosingBeatmap());
-                presence(102, UserStatus.Online, new UserActivity.InSoloGame(new TestBeatmap(new RulesetInfo { OnlineID = 0 }).BeatmapInfo, new RulesetInfo { OnlineID = 0 }));
+                presence(102, UserStatus.Online, playing());
                 presence(103, UserStatus.Online, null);
             });
         }
@@ -119,7 +120,7 @@ namespace osu.Game.Tests.Visual.Online
             // Con actividad de verdad el estado divino se apaga solo: sin esto el arcoiris
             // seria permanente y ya no diria nada.
             AddStep("fundador jugando de verdad", () => presence(founder_user_id, UserStatus.Online,
-                new UserActivity.InSoloGame(new TestBeatmap(new RulesetInfo { OnlineID = 0 }).BeatmapInfo, new RulesetInfo { OnlineID = 0 })));
+                playing()));
 
             AddStep("fundador eligiendo mapa", () => presence(founder_user_id, UserStatus.Online, new UserActivity.ChoosingBeatmap()));
 
@@ -133,6 +134,20 @@ namespace osu.Game.Tests.Visual.Online
             // decir "Online" y quedarse verde. Si el arcoiris aparece aca, la condicion se
             // escribio sobre "sin actividad" y no sobre "es el fundador".
             AddStep("otro usuario, presente y sin actividad", () => presence(103, UserStatus.Online, null));
+        }
+
+        /// <summary>
+        /// Una actividad "jugando" de verdad.
+        /// </summary>
+        /// <remarks>
+        /// Con un <see cref="RulesetInfo"/> armado a mano (solo OnlineID) esto explota:
+        /// el constructor de InGame instancia el ruleset para resolver el titulo, y un
+        /// info pelado no tiene con que instanciarlo. Hay que partir de un ruleset real.
+        /// </remarks>
+        private static UserActivity playing()
+        {
+            var ruleset = new OsuRuleset().RulesetInfo;
+            return new UserActivity.InSoloGame(new TestBeatmap(ruleset).BeatmapInfo, ruleset);
         }
 
         private void presence(int userId, UserStatus status, UserActivity? activity)
