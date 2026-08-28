@@ -6,6 +6,12 @@ using osu.Framework.Allocation;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
+using osu.Game.Overlays.Dashboard.Friends;
+using osu.Game.Overlays.Dashboard.CurrentlyOnline;
+using osu.Game.Overlays.Dashboard;
+using osu.Game.Configuration;
+using osu.Framework.Testing;
+using System.Linq;
 using osu.Game.Tests.Resources;
 
 namespace osu.Game.Tests.Visual.Online
@@ -60,5 +66,31 @@ namespace osu.Game.Tests.Visual.Online
         {
             AddStep("Hide", overlay.Hide);
         }
+
+        /// <summary>
+        /// Torii: el dashboard abre siempre en "currently online" y ordenado por rank.
+        /// </summary>
+        /// <remarks>
+        /// El caso que importa es el segundo: cerrar, y al volver a abrir tiene que estar
+        /// de nuevo en online. Sin eso el arreglo seria "la primera vez si", que es
+        /// justamente lo que se sentia mal.
+        /// </remarks>
+        [Test]
+        public void TestAlwaysOpensOnCurrentlyOnlineSortedByRank()
+        {
+            AddStep("abrir", overlay.Show);
+            AddUntilStep("abre en currently online", () => overlay.ChildrenOfType<CurrentlyOnlineDisplay>().Any());
+            AddAssert("ordenado por rank", () => config.Get<UserSortCriteria>(OsuSetting.DashboardSortMode) == UserSortCriteria.Rank);
+
+            AddStep("irse a amigos", () => overlay.ChildrenOfType<TabControlOverlayHeader<DashboardOverlayTabs>>().Single().Current.Value = DashboardOverlayTabs.Friends);
+            AddUntilStep("quedo en amigos", () => overlay.ChildrenOfType<FriendDisplay>().Any());
+
+            AddStep("cerrar", overlay.Hide);
+            AddStep("abrir de nuevo", overlay.Show);
+            AddUntilStep("volvio a currently online", () => overlay.ChildrenOfType<CurrentlyOnlineDisplay>().Any());
+        }
+
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
     }
 }
