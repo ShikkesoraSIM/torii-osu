@@ -59,10 +59,14 @@ namespace osu.Game.Tests.Visual.Online
                     {
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
-                        AutoSizeAxes = Axes.Both,
+                        // Ancho fijo y alto automatico: con FillDirection.Full el ancho es
+                        // justamente lo que decide cuando cortar la fila, asi que no puede
+                        // salir de medir a los hijos. Auto-size en los dos ejes ademas tira
+                        // excepcion apenas le asignas Width.
+                        AutoSizeAxes = Axes.Y,
+                        Width = 900,
                         Direction = FillDirection.Full,
                         Spacing = new Vector2(10),
-                        Width = 900,
                         Children = new Drawable[]
                         {
                             panelFor(founder_user_id, @"Shikkesora"),
