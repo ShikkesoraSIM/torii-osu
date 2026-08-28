@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -213,6 +213,23 @@ namespace osu.Game.Overlays.Dashboard.CurrentlyOnline
                 SortCriteria.BindValueChanged(_ => InvalidateLayout(), true);
             }
 
+            /// <summary>
+            /// Torii: el fundador queda primero de todo, con cualquier orden.
+            /// </summary>
+            /// <remarks>
+            /// Se antepone al criterio en vez de tocar cada rama del switch: asi el dia
+            /// que se agregue un orden nuevo sigue valiendo solo, y cada criterio queda
+            /// intacto como desempate (los ThenBy de abajo son exactamente los OrderBy
+            /// que habia, corridos un lugar).
+            ///
+            /// Ordenar por un bool descendente pone los true adelante, que aca es
+            /// exactamente uno.
+            /// </remarks>
+            private const int founder_user_id = 3;
+
+            private static IOrderedEnumerable<OnlineUserPanel> pinned(IEnumerable<OnlineUserPanel> panels)
+                => panels.OrderByDescending(panel => panel.User.OnlineID == founder_user_id);
+
             public override IEnumerable<Drawable> FlowingChildren
             {
                 get
@@ -224,16 +241,16 @@ namespace osu.Game.Overlays.Dashboard.CurrentlyOnline
                         default:
                         case UserSortCriteria.LastVisit:
                             // Todo: Last visit time is not currently updated according to realtime user presence.
-                            return panels.OrderByDescending(panel => panel.User.LastVisit)
-                                         .ThenBy(panel => panel.User.Rank?.Rank != null)
-                                         .ThenBy(panel => panel.User.Rank?.Rank ?? 0);
+                            return pinned(panels).ThenByDescending(panel => panel.User.LastVisit)
+                                                 .ThenBy(panel => panel.User.Rank?.Rank != null)
+                                                 .ThenBy(panel => panel.User.Rank?.Rank ?? 0);
 
                         case UserSortCriteria.Rank:
                             // Todo: Rank is not currently displayed in the panels. Additionally the sort mode kind of breaks if you change ruleset with this overlay open.
-                            return panels.OrderByDescending(panel => panel.User.Rank?.Rank != null).ThenBy(panel => panel.User.Rank?.Rank ?? 0);
+                            return pinned(panels).ThenByDescending(panel => panel.User.Rank?.Rank != null).ThenBy(panel => panel.User.Rank?.Rank ?? 0);
 
                         case UserSortCriteria.Username:
-                            return panels.OrderBy(panel => panel.User.Username);
+                            return pinned(panels).ThenBy(panel => panel.User.Username);
                     }
                 }
             }
