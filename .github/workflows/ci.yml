@@ -15,7 +15,7 @@ env:
   # graphics backend that ships with the framework via nuget.org — no extra
   # fork to clone/pack, so restore resolves everything straight from nuget.org.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: 'c514c66b31fd16303f6d40935c651638ac65e50b'
+  FRAMEWORK_REF: '2147d90dd014a980e1cd9aa2cd8c7202cbc9a524'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: 'b29fe943447ae2032e5886e555ea176f9fe06a36'
 
