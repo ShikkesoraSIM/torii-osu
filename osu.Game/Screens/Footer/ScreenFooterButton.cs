@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -94,11 +94,21 @@ namespace osu.Game.Screens.Footer
         protected Container TextContainer;
         private readonly Box bar;
 
-        // torii DARK GLASS: el fondo del boton es un Box plano normalmente, o un GlassBackdrop (blur de
-        // la escena detras) con el tema glass. glassBackgroundBox != null solo en ese caso, para rutear
-        // el color de estado al tinte en vez de a .Colour.
+        // torii DARK GLASS: el fondo del boton es un Box. Con el tema glass va TRANSLUCIDO
+        // en vez de opaco, y el frost lo aporta la barra del footer, que esta justo detras
+        // y ya es un GlassBackdrop.
+        //
+        // Antes cada boton armaba su PROPIO GlassBackdrop, o sea su framebuffer y sus dos
+        // pasadas de blur en cada cuadro (van con cachedFrameBuffer: false), para desenfocar
+        // pixeles que en su mayor parte ya venian desenfocados por el footer. Son tres
+        // botones en song select, tres blurs por cuadro, para que se vea practicamente
+        // igual que dejando pasar el frost de abajo.
+        //
+        // Sobresalen ~25px por encima de la barra (75 de alto contra 50 del footer), asi
+        // que en esa franja se ve escena cruda a traves del tinte en vez de frost. Es la
+        // unica diferencia real y a 60% de opacidad no se distingue.
         private readonly Drawable backgroundBox;
-        private readonly GlassBackdrop? glassBackgroundBox;
+        private readonly bool glassTint;
         private readonly Box glowBox;
         private readonly Box flashLayer;
 
@@ -110,11 +120,10 @@ namespace osu.Game.Screens.Footer
 
             Size = new Vector2(BUTTON_WIDTH, HEIGHT);
 
-            // torii dark glass: fondo del boton como vidrio con el tema activo
-            if (OsuColour.IsGlassTheme)
-                backgroundBox = glassBackgroundBox = new GlassBackdrop { RelativeSizeAxes = Axes.Both };
-            else
-                backgroundBox = new Box { RelativeSizeAxes = Axes.Both };
+            // torii dark glass: mismo Box en los dos casos; lo que cambia es si va
+            // translucido (deja pasar el frost del footer) u opaco.
+            glassTint = OsuColour.IsGlassTheme;
+            backgroundBox = new Box { RelativeSizeAxes = Axes.Both };
 
             Children = new Drawable[]
             {
@@ -253,11 +262,9 @@ namespace osu.Game.Screens.Footer
             else if (IsHovered)
                 backgroundColour = backgroundColour.Lighten(0.2f);
 
-            // torii dark glass: rutear el color de estado al tinte del vidrio (no a .Colour, que tintaria el blur)
-            if (glassBackgroundBox != null)
-                glassBackgroundBox.TintColour = backgroundColour.Opacity(0.6f);
-            else
-                backgroundBox.FadeColour(backgroundColour, 150, Easing.OutQuint);
+            // Con glass el fondo va al 60% igual que iba el tinte del vidrio, asi el frost
+            // del footer sigue leyendose a traves del boton. Sin glass, opaco como siempre.
+            backgroundBox.FadeColour(glassTint ? backgroundColour.Opacity(0.82f) : backgroundColour, 150, Easing.OutQuint);
 
             if (!Enabled.Value)
                 textColour = textColour.Opacity(0.6f);
