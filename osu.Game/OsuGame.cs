@@ -221,6 +221,22 @@ namespace osu.Game
 
         protected Container ScreenOffsetContainer { get; private set; }
 
+        /// <summary>
+        /// Se come el alto de la toolbar cuando la barra empuja la pantalla en vez de flotar.
+        /// </summary>
+        /// <remarks>
+        /// Antes ese inset vivia en <see cref="ScreenOffsetContainer"/>, o sea AFUERA del
+        /// buffer de escena. Un BufferedContainer solo puede contener lo que cae adentro suyo,
+        /// asi que el buffer arrancaba 40px abajo y la franja de la toolbar no existia en el:
+        /// el frost de la barra sampleaba un area vacia y salia negra, hicieramos lo que
+        /// hicieramos con el fondo (estirarlo o zoomearlo daba igual, el recorte es del
+        /// buffer, no del fondo).
+        ///
+        /// Poniendo el inset ADENTRO, el buffer queda a pantalla completa y el contenido
+        /// conserva exactamente el mismo inset que antes.
+        /// </remarks>
+        private Container screenInsetContainer;
+
         private Container overlayOffsetContainer;
 
         private OnScreenDisplay onScreenDisplay;
@@ -337,8 +353,17 @@ namespace osu.Game
 
         IBindable<OverlayActivation> IOverlayManager.OverlayActivationMode => OverlayActivationMode;
 
-        private void updateBlockingOverlayFade() =>
-            ScreenContainer.FadeColour(visibleBlockingOverlays.Any() ? OsuColour.Gray(0.5f) : Color4.White, 500, Easing.OutQuint);
+        private void updateBlockingOverlayFade()
+        {
+            bool dim = visibleBlockingOverlays.Any();
+
+            ScreenContainer.FadeColour(dim ? OsuColour.Gray(0.5f) : Color4.White, 500, Easing.OutQuint);
+
+            // La toolbar vive en topMostOverlayContent, hermana del ScreenOffsetContainer, asi que
+            // el fade de arriba no la alcanza nunca: el Colour se hereda para abajo, no de costado.
+            // Quedaba brillante encima de una pantalla apagada.
+            Toolbar?.DimForOverlay(dim);
+        }
 
         IDisposable IOverlayManager.RegisterBlockingOverlay(OverlayContainer overlayContainer)
         {
@@ -1371,7 +1396,14 @@ namespace osu.Game
                     RelativeSizeAxes = Axes.Both,
                     // Torii DARK GLASS: with the glass theme active (and Potato Mode off), capture the whole
                     // scene (background + screens) into a buffer so glass panels can blur what's behind them.
-                    Child = wrapSceneCaptureIfGlass(ScreenContainer),
+                    //
+                    // El buffer va POR AFUERA del inset de la toolbar (ver screenInsetContainer)
+                    // para que cubra la pantalla entera, franja de la barra incluida.
+                    Child = wrapSceneCaptureIfGlass(screenInsetContainer = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Child = ScreenContainer,
+                    }),
                 },
                 overlayOffsetContainer = new Container
                 {
@@ -2115,7 +2147,16 @@ namespace osu.Game
             // o esconderla no cambia el alto de la pantalla y NO relayoutea el carousel (sino, al
             // esconderse, te tiraba el scroll de vuelta a la cancion seleccionada). de paso la
             // song-select queda siempre full 16:9 con auto-hide.
-            ScreenOffsetContainer.Padding = new MarginPadding { Top = autoHideToolbar?.Value == true ? 0 : toolbarOffset };
+            float screenTopInset = autoHideToolbar?.Value == true ? 0 : toolbarOffset;
+
+            // Adentro del buffer de escena, no afuera: si no, el buffer arranca debajo de la
+            // barra y su franja no existe para nadie.
+            screenInsetContainer.Padding = new MarginPadding { Top = screenTopInset };
+
+            // Y el inset se lo devolvemos al FONDO nada mas. El contenido conserva su lugar
+            // (no se tapa nada) pero detras de la barra vuelve a haber juego dibujado, que es
+            // lo que el frost necesita para existir.
+            ScreenStack.BackgroundTopExtension = screenTopInset;
             overlayOffsetContainer.Padding = new MarginPadding { Top = toolbarOffset };
 
             float horizontalOffset = 0f;
