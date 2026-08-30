@@ -73,7 +73,10 @@ namespace osu.Game.Performance
                 // mismo, contarlo aca inventa culpables. Solo las hojas que dibujan.
                 bool dibuja = d is not CompositeDrawable || d is BufferedContainer;
 
-                if (dibuja && alfaEfectivo < 0.01f && area > 250_000)
+                // Sin umbral de area: lo chico no cuesta pixeles pero SI cuesta draw
+                // calls. 140 textos invisibles no se notan en fill rate y son 140 cambios
+                // de textura, que es justo lo que separa 28 draw calls de 222.
+                if (dibuja && alfaEfectivo < 0.01f)
                 {
                     var cadena = new List<string>();
                     for (var p = d.Parent; p != null && cadena.Count < 4; p = p.Parent)
@@ -130,6 +133,11 @@ namespace osu.Game.Performance
                 else
                 {
                     w.WriteLine($"# !! {invisibles.Count} cosas se DIBUJAN sin verse (alfa efectivo 0), {invisibles.Sum(x => x.area) / 1_000_000:0.00} Mpx por cuadro tirados");
+                    w.WriteLine("# el conteo importa tanto como los Mpx: cada una puede costar un cambio de textura, o sea un draw call.");
+
+                    foreach (var g in invisibles.GroupBy(x => x.path.Split(" > ")[0]).OrderByDescending(g => g.Count()).Take(12))
+                        w.WriteLine($"#   {g.Count(),5} bajo {g.Key}");
+                    
                     w.WriteLine("# suele ser AlwaysPresent en un overlay cerrado: mantiene el Scheduler vivo, pero tambien el dibujo.");
 
                     foreach (var d in invisibles.OrderByDescending(x => x.area).Take(20))
