@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -79,7 +79,12 @@ namespace osu.Game.Screens.Select
 
                 InternalChildren = new Drawable[]
                 {
-                    new WedgeBackground { Glass = true }, // torii dark glass
+                    // Sin Glass a proposito. Este wedge esta ANIDADO adentro del de
+                    // titulo (ver BeatmapTitleWedge), asi que bluerea exactamente los
+                    // mismos pixeles que el padre ya blureo: era un blur entero por
+                    // cuadro para desenfocar algo que ya estaba desenfocado. El fondo
+                    // plano encima del frost del padre se ve igual.
+                    new WedgeBackground(),
                     new FillFlowContainer
                     {
                         RelativeSizeAxes = Axes.X,
