@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -268,13 +268,33 @@ namespace osu.Game.Screens.Select
                                     {
                                         new[]
                                         {
+                                            // torii: recorta lo que las wedges se salen por arriba y por
+                                            // izquierda. El Padding negativo de abajo las corre
+                                            // CORNER_RADIUS_HIDE_OFFSET hacia afuera para que las esquinas
+                                            // redondeadas queden fuera de la vista, y eso funcionaba porque
+                                            // caia fuera de la pantalla.
+                                            //
+                                            // Con la toolbar empujando la pantalla (auto-hide apagado) ya no
+                                            // cae afuera: cae DEBAJO de la barra. Vos no lo ves, pero el
+                                            // frost de la toolbar samplea la escena entera y ahi si aparece,
+                                            // como un bloque mas claro en la mitad izquierda de la barra.
+                                            //
+                                            // El masking corta recto en el borde del area de contenido, que
+                                            // esconde las esquinas igual de bien (un corte recto no tiene
+                                            // esquina que mostrar) y de paso no dibuja nada arriba del
+                                            // recorte. Va POR AFUERA del Shear a proposito: adentro, el
+                                            // recorte saldria cizallado en diagonal.
                                             new Container
                                             {
+                                                RelativeSizeAxes = Axes.Both,
+                                                Masking = true,
+                                                Depth = float.MinValue,
+                                                Child = new Container
+                                                {
                                                 RelativeSizeAxes = Axes.Both,
                                                 // Ensure the left components are on top of the carousel both visually (although they should never overlay)
                                                 // but more importantly, for input purposes to allow the scroll-to-selection logic to override carousel's
                                                 // screen-wide scroll handling.
-                                                Depth = float.MinValue,
                                                 Shear = OsuGame.SHEAR,
                                                 Padding = new MarginPadding
                                                 {
@@ -314,6 +334,7 @@ namespace osu.Game.Screens.Select
                                                         },
                                                     },
                                                 }
+                                                },
                                             },
                                             Empty(),
                                             new Container
