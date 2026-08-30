@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -44,6 +44,9 @@ namespace osu.Game.Overlays.ToriiBriefing
         protected override string PopInSampleName => @"UI/overlay-big-pop-in";
         protected override string PopOutSampleName => @"UI/overlay-big-pop-out";
 
+        /// <summary>Lo que se dibuja. Ver el comentario del constructor.</summary>
+        private Container visualContent = null!;
+
         public DifficultyRecalcOverlay()
         {
             RelativeSizeAxes = Axes.Both;
@@ -56,11 +59,26 @@ namespace osu.Game.Overlays.ToriiBriefing
         [BackgroundDependencyLoader]
         private void load()
         {
+            // Todo lo visual cuelga de este contenedor, que SI deja de estar presente
+            // cuando esta escondido, asi el subarbol se poda y no se dibuja. El overlay
+            // sigue presente por el AlwaysPresent de arriba, que es lo que necesita para
+            // que su Scheduler corra el trigger diferido.
+            //
+            // Sin esta separacion, el AlwaysPresent mantenia dibujando el scrim de
+            // pantalla completa TODO el tiempo: un drawable presente en alfa 0 igual
+            // manda su geometria a la GPU. Medido con el censo en el menu principal,
+            // este overlay cerrado pintaba 3,5 Mpx por cuadro sin que nadie lo viera.
+            //
             // solo el scrim al inicio; el panel se arma cuando sabemos cuantos mapas hay.
-            InternalChild = new Box
+            InternalChild = visualContent = new Container
             {
                 RelativeSizeAxes = Axes.Both,
-                Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.6f), Color4.Black.Opacity(0.72f)),
+                Alpha = 0,
+                Child = new Box
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.6f), Color4.Black.Opacity(0.72f)),
+                },
             };
         }
 
@@ -109,7 +127,7 @@ namespace osu.Game.Overlays.ToriiBriefing
 
         private void buildPanel(int count)
         {
-            AddInternal(panelContainer = new Container
+            visualContent.Add(panelContainer = new Container
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
@@ -197,6 +215,7 @@ namespace osu.Game.Overlays.ToriiBriefing
         protected override void PopIn()
         {
             wasShown = true;
+            visualContent.Alpha = 1;
             this.FadeIn(300, Easing.OutQuint);
             panelContainer?.ScaleTo(0.9f).ScaleTo(1f, 500, Easing.OutQuint);
         }
@@ -213,6 +232,9 @@ namespace osu.Game.Overlays.ToriiBriefing
 
             this.FadeOut(200, Easing.OutQuint);
             panelContainer?.ScaleTo(0.92f, 200, Easing.OutQuint);
+
+            // despues del fade, no antes: apagarlo de una se comeria la animacion de salida.
+            visualContent.Delay(200).FadeOut();
         }
 
         /// <summary>boton de un modo: titulo + subtitulo (ETA), con una barra de acento a la izquierda.</summary>
