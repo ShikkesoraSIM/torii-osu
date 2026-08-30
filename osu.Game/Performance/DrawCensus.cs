@@ -176,7 +176,33 @@ namespace osu.Game.Performance
                 }
             }
 
-            Logger.Log($"[DrawCensus] dump escrito en {path}", level: LogLevel.Important);
+            // Debug y NO Important: Important genera una NOTIFICACION en pantalla, y cada
+            // toast son ~80 drawables que quedan en el historial del overlay. Con el censo
+            // corriendo cada 8s, el propio instrumento hacia crecer lo que estaba midiendo
+            // (676 -> 1065 drawables en un minuto, parado en el menu sin tocar nada).
+            // Y las estadisticas globales registradas. El censo mostro que los
+            // StatisticsItem del propio overlay de Global Statistics crecen ~10 por
+            // segundo: si el que crece es el registro, alguien esta pidiendo una
+            // estadistica con un nombre distinto cada vez. Esta lista lo nombra.
+            try
+            {
+                var stats = osu.Framework.Statistics.GlobalStatistics.GetStatistics().ToList();
+                string statsPath = Path.Combine(Path.GetTempPath(), $"draw-census-stats-{label}-{DateTime.Now:HHmmss}.txt");
+
+                using (var w = new StreamWriter(statsPath))
+                {
+                    w.WriteLine($"# {stats.Count} estadisticas globales registradas");
+
+                    foreach (var g in stats.GroupBy(x => x.Group).OrderByDescending(g => g.Count()))
+                        w.WriteLine($"{g.Count(),6}  {g.Key}");
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Log($"[DrawCensus] no pude leer las estadisticas globales: {e.Message}", level: LogLevel.Debug);
+            }
+
+            Logger.Log($"[DrawCensus] dump escrito en {path}", level: LogLevel.Debug);
         }
     }
 }

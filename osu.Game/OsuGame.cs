@@ -1256,7 +1256,10 @@ namespace osu.Game
                         root = root.Parent;
 
                     Performance.DrawCensus.Dump(root, ScreenStack?.CurrentScreen?.GetType().Name ?? @"desconocida");
-                }, 8000, true);
+                    // 20s y no 8: apenas arranca el juego todavia estan el briefing, la
+                    // toolbar entrando y los toasts de arranque. Medir ahi mide el arranque,
+                    // no el menu en reposo.
+                }, 20000, true);
             }
 
             base.LoadComplete();
