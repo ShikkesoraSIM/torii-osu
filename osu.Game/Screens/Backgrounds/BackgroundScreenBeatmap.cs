@@ -1,8 +1,9 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
 
+using osu.Framework.Graphics.Sprites;
 using System;
 using System.Threading;
 using osu.Framework.Allocation;
@@ -26,6 +27,13 @@ namespace osu.Game.Screens.Backgrounds
         public const float USER_BLUR_FACTOR = 25;
 
         protected Background Background;
+
+        /// <summary>
+        /// El sprite del wallpaper, tal cual quedo despues del Fill, la escala de
+        /// <see cref="Update"/> y el parallax. Lo usa el frost de los paneles del carousel para
+        /// copiarle la geometria exacta en vez de calcular la suya (ver PanelBackdrop).
+        /// </summary>
+        public Sprite BackgroundSprite => Background?.Sprite;
 
         private WorkingBeatmap beatmap;
 
