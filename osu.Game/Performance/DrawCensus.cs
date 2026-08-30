@@ -23,6 +23,37 @@ namespace osu.Game.Performance
     {
         public static bool Enabled => Environment.GetEnvironmentVariable("TORII_DRAW_CENSUS") == "1";
 
+        private static readonly Dictionary<Type, bool> dibuja_cache = new Dictionary<Type, bool>();
+
+        /// <summary>
+        /// Si este drawable produce geometria de verdad.
+        /// </summary>
+        /// <remarks>
+        /// Un tipo dibuja si override CreateDrawNode. Con el filtro anterior ("no ser
+        /// CompositeDrawable") se colaban cosas que son pura logica y no pintan nada,
+        /// como GameIdleTracker o MouseInputDetector, y salian arriba de todo con 3,5 Mpx
+        /// cada una inventando culpables. Una lista de sospechosos con falsos positivos
+        /// es peor que no tenerla: manda a arreglar lo que no estaba roto.
+        /// </remarks>
+        private static bool dibujaDeVerdad(Drawable d)
+        {
+            var t = d.GetType();
+
+            if (dibuja_cache.TryGetValue(t, out bool cached))
+                return cached;
+
+            var m = t.GetMethod("CreateDrawNode", System.Reflection.BindingFlags.Instance
+                                                  | System.Reflection.BindingFlags.NonPublic
+                                                  | System.Reflection.BindingFlags.Public);
+
+            bool result = m != null
+                          && m.DeclaringType != typeof(Drawable)
+                          && m.DeclaringType != typeof(CompositeDrawable);
+
+            dibuja_cache[t] = result;
+            return result;
+        }
+
         public static void Dump(Drawable root, string label)
         {
             var groups = new Dictionary<string, (int count, double area)>();
@@ -71,7 +102,7 @@ namespace osu.Game.Performance
 
                 // Mismo filtro que la lista de arriba: un Container no pinta nada por si
                 // mismo, contarlo aca inventa culpables. Solo las hojas que dibujan.
-                bool dibuja = d is not CompositeDrawable || d is BufferedContainer;
+                bool dibuja = dibujaDeVerdad(d);
 
                 // Sin umbral de area: lo chico no cuesta pixeles pero SI cuesta draw
                 // calls. 140 textos invisibles no se notan en fill rate y son 140 cambios
@@ -91,7 +122,7 @@ namespace osu.Game.Performance
 
                 // Solo las hojas que de verdad mandan pixeles. Un Container no dibuja
                 // nada por si mismo: contarlo hincha el total con area que nadie pinta.
-                if (d is not CompositeDrawable || d is osu.Framework.Graphics.Containers.BufferedContainer)
+                if (dibuja)
                 {
                     var chain = new List<string>();
                     for (var p = d.Parent; p != null && chain.Count < 4; p = p.Parent)
