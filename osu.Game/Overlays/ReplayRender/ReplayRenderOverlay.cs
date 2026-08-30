@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 #nullable disable
@@ -85,6 +85,13 @@ namespace osu.Game.Overlays.ReplayRender
 
         private static readonly Regex progress_percent = new Regex(@"(\d{1,3})\s*%", RegexOptions.Compiled);
 
+        /// <summary>
+        /// Todo lo que se dibuja. Separado del overlay a proposito: ver el comentario en
+        /// el load. El overlay tiene que seguir presente para que su Scheduler corra; lo
+        /// que NO tiene que seguir es dibujandose.
+        /// </summary>
+        private Container visualContent = null!;
+
         public ReplayRenderOverlay()
         {
             RelativeSizeAxes = Axes.Both;
@@ -134,7 +141,23 @@ namespace osu.Game.Overlays.ReplayRender
 
             FillFlowContainer content;
 
-            Children = new Drawable[]
+            // El AlwaysPresent de arriba mantiene vivo al overlay para que su Scheduler
+            // siga corriendo escondido, pero de paso mantenia DIBUJANDO todo lo de
+            // adentro: un drawable presente en alfa 0 igual manda su geometria a la GPU.
+            // Medido con el censo en el menu principal: este overlay cerrado pintaba
+            // 3,5 Mpx del scrim + 1,2 Mpx del panel, todos los cuadros, sin que nadie lo
+            // viera.
+            //
+            // Ahora lo visual cuelga de este contenedor, que SI deja de estar presente
+            // cuando esta escondido: el subarbol entero se poda y no se dibuja nada. El
+            // overlay sigue presente, asi que el poll de 5s no se congela.
+            InternalChild = visualContent = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Alpha = 0,
+            };
+
+            visualContent.Children = new Drawable[]
             {
                 new Box
                 {
@@ -587,6 +610,10 @@ namespace osu.Game.Overlays.ReplayRender
 
             // entrada solo fade + slide: el SCALE lo maneja el fit-scale del wrapper
             // (en Update), asi no pelean por la propiedad Scale.
+            // el contenido se prende de una: es el que decide si se dibuja o no, asi que
+            // si entrara con fade, el primer cuadro del panel llegaria tarde.
+            visualContent.Alpha = 1;
+
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
             panel.MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
         }
@@ -597,6 +624,10 @@ namespace osu.Game.Overlays.ReplayRender
 
             this.FadeOut(BriefingTheme.DismissDuration, Easing.OutQuint);
             panel.MoveToY(10, BriefingTheme.DismissDuration, Easing.OutQuint);
+
+            // recien cuando termino de irse: apagarlo antes se comeria la animacion de
+            // salida, porque el contenido dejaria de dibujarse a mitad del fade.
+            visualContent.Delay(BriefingTheme.DismissDuration).FadeOut();
         }
 
         /// <summary>boton circular de cerrar (X) en la esquina del panel.</summary>

@@ -1243,6 +1243,22 @@ namespace osu.Game
 
         protected override void LoadComplete()
         {
+            // Torii: con TORII_DRAW_CENSUS=1 el censo se vuelca solo cada 8 segundos,
+            // etiquetado con la pantalla en la que estas. Antes solo se dumpeaba desde
+            // gameplay, que es justo donde NO estaba el problema: el gap de pixeles
+            // contra lazer aparece en el menu y en song select.
+            if (Performance.DrawCensus.Enabled)
+            {
+                Scheduler.AddDelayed(() =>
+                {
+                    Drawable root = this;
+                    while (root.Parent != null)
+                        root = root.Parent;
+
+                    Performance.DrawCensus.Dump(root, ScreenStack?.CurrentScreen?.GetType().Name ?? @"desconocida");
+                }, 8000, true);
+            }
+
             base.LoadComplete();
 
             cascadeCustomUiHue();
