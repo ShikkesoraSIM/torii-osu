@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -37,8 +37,11 @@ namespace osu.Game.Overlays.Toolbar
             {
                 RelativeSizeAxes = Axes.Y,
                 AutoSizeAxes = Axes.X,
-                Padding = new MarginPadding { Horizontal = 10 },
-                Spacing = new Vector2(10),
+                // torii: mas juntos con glass. Los valores de upstream estan pensados para la
+                // toolbar vieja, que era una franja plana; adentro de una pastilla se ven
+                // desparramados y estiran el boton de usuario mas de lo que hace falta.
+                Padding = new MarginPadding { Horizontal = OsuColour.IsGlassTheme ? 6 : 10 },
+                Spacing = new Vector2(OsuColour.IsGlassTheme ? 5 : 10),
                 Direction = FillDirection.Horizontal,
                 Children = new[]
                 {
@@ -147,6 +150,11 @@ namespace osu.Game.Overlays.Toolbar
                             ValuePrefix = mainValuePrefix,
                             Anchor = Anchor.CentreRight,
                             Origin = Anchor.CentreRight,
+                            // Default (16) contra los 12 de la linea de abajo deja el numero
+                            // gigante al lado de su propio delta. 14 mantiene la jerarquia sin
+                            // que domine la pastilla.
+                            Font = OsuFont.Default.With(
+                                size: OsuColour.IsGlassTheme ? 14 : (float?)null, fixedWidth: true),
                         },
                         new Container
                         {
@@ -159,14 +167,16 @@ namespace osu.Game.Overlays.Toolbar
                                 {
                                     Anchor = Anchor.CentreRight,
                                     Origin = Anchor.CentreRight,
-                                    Font = OsuFont.Default.With(size: 12, fixedWidth: true, weight: FontWeight.SemiBold),
+                                    Font = OsuFont.Default.With(
+                                        size: OsuColour.IsGlassTheme ? 10 : 12, fixedWidth: true, weight: FontWeight.SemiBold),
                                     AlwaysPresent = true,
                                 },
                                 titleText = new OsuSpriteText
                                 {
                                     Anchor = Anchor.CentreRight,
                                     Origin = Anchor.CentreRight,
-                                    Font = OsuFont.Default.With(size: 12, weight: FontWeight.SemiBold),
+                                    Font = OsuFont.Default.With(
+                                        size: OsuColour.IsGlassTheme ? 10 : 12, weight: FontWeight.SemiBold),
                                     Text = title,
                                     AlwaysPresent = true,
                                 }

@@ -43,6 +43,13 @@ namespace osu.Game.Overlays.Toolbar
         // from inside the container.
         private UserAuraContainer usernameAura = null!;
 
+        /// <summary>
+        /// Aire entre la foto y el borde de la pastilla del boton. Tambien es lo que se le
+        /// resta al radio de la pastilla para que la esquina de la foto quede CONCENTRICA
+        /// con ella y no con un radio cualquiera.
+        /// </summary>
+        private const float avatar_inset = 2;
+
         public ToolbarUserButton()
         {
             ButtonContent.AutoSizeAxes = Axes.X;
@@ -66,16 +73,34 @@ namespace osu.Game.Overlays.Toolbar
                 new Container
                 {
                     Masking = true,
-                    CornerRadius = 4,
-                    Size = new Vector2(32),
+                    // Con glass la foto se ENCAJA en la pastilla en vez de flotar encima.
+                    //
+                    // Venia con 32 de lado adentro de una pastilla que mide 30
+                    // (Toolbar.HEIGHT menos el padding de arriba y abajo del boton), o sea que
+                    // se salia un pixel por lado. Sumado a la sombra propia, leia como una foto
+                    // apoyada arriba del boton y no como parte de el.
+                    //
+                    // Ahora ocupa el alto de la pastilla menos avatar_inset por lado, y el radio
+                    // sale del radio de la pastilla menos ese mismo inset, que es la cuenta que
+                    // deja las dos esquinas concentricas. La sombra se va: era justamente lo que
+                    // le daba el aspecto de estar flotando.
+                    CornerRadius = OsuColour.IsGlassTheme
+                        ? CHIP_CORNER_RADIUS - avatar_inset
+                        : 4,
+                    CornerExponent = OsuColour.IsGlassTheme ? 3f : 2f,
+                    Size = new Vector2(OsuColour.IsGlassTheme
+                        ? Toolbar.HEIGHT - 2 * PADDING - 2 * avatar_inset
+                        : 32),
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
-                    EdgeEffect = new EdgeEffectParameters
-                    {
-                        Type = EdgeEffectType.Shadow,
-                        Radius = 4,
-                        Colour = Color4.Black.Opacity(0.1f),
-                    },
+                    EdgeEffect = OsuColour.IsGlassTheme
+                        ? default
+                        : new EdgeEffectParameters
+                        {
+                            Type = EdgeEffectType.Shadow,
+                            Radius = 4,
+                            Colour = Color4.Black.Opacity(0.1f),
+                        },
                     Children = new Drawable[]
                     {
                         avatar = new UpdateableAvatar(isInteractive: false)
@@ -106,6 +131,23 @@ namespace osu.Game.Overlays.Toolbar
                     Alpha = 0,
                 }
             });
+
+            if (OsuColour.IsGlassTheme)
+            {
+                // El Flow de ToolbarButton reserva medio Toolbar.HEIGHT (20px) de cada lado,
+                // que para un boton de icono suelto esta bien pero aca deja la foto colgada
+                // con un vacio enorme a su derecha. A la derecha alcanza con el mismo aire que
+                // tiene arriba y abajo, asi la foto queda a la misma distancia de los tres
+                // bordes. La izquierda queda como estaba, que es donde arranca el nombre.
+                Flow.Padding = new MarginPadding
+                {
+                    // La izquierda tampoco necesita los 20px heredados: son para centrar un
+                    // icono suelto, y aca lo que arranca es texto. 10 le deja aire al nombre
+                    // sin que la pastilla quede medio vacia con nombres largos.
+                    Left = 10,
+                    Right = avatar_inset,
+                };
+            }
 
             apiState = api.State.GetBoundCopy();
             apiState.BindValueChanged(onlineStateChanged, true);

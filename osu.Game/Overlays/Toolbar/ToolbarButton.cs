@@ -6,6 +6,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -23,7 +24,15 @@ namespace osu.Game.Overlays.Toolbar
 {
     public abstract partial class ToolbarButton : OsuClickableContainer, IKeyBindingHandler<GlobalAction>
     {
-        public const float PADDING = 3;
+        // 3 -> 5 con glass: mas aire ENTRE pastillas, que es lo que hace que se lean
+        // como botones sueltos y no como una tira de bloques pegados.
+        public static readonly float PADDING = OsuColour.IsGlassTheme ? 5 : 3;
+
+        /// <summary>
+        /// Radio de la pastilla del boton. Publico porque el boton de usuario lo necesita para
+        /// que la esquina de la foto de perfil quede concentrica con la del boton.
+        /// </summary>
+        public static readonly float CHIP_CORNER_RADIUS = OsuColour.IsGlassTheme ? 10 : 6;
 
         protected GlobalAction? Hotkey { get; set; }
 
@@ -80,10 +89,41 @@ namespace osu.Game.Overlays.Toolbar
                         {
                             RelativeSizeAxes = Axes.Both,
                             Masking = true,
-                            CornerRadius = 6,
+                            // Mismo vocabulario que los paneles del carousel (ver Panel.cs):
+                            // radio grande con glass, borde fino y sombra corta. El
+                            // CornerExponent 3 es lo que hace la esquina squircle en vez de
+                            // un cuarto de circulo, que es la diferencia entre que se lea
+                            // Apple o se lea Android.
+                            CornerRadius = CHIP_CORNER_RADIUS,
                             CornerExponent = 3f,
+                            BorderThickness = OsuColour.IsGlassTheme ? 1 : 0,
+                            BorderColour = Color4.White.Opacity(0.18f),
+                            EdgeEffect = OsuColour.IsGlassTheme
+                                ? new EdgeEffectParameters
+                                {
+                                    Type = EdgeEffectType.Shadow,
+                                    Colour = Color4.Black.Opacity(0.25f),
+                                    Radius = 4,
+                                    Offset = new Vector2(0, 1),
+                                    Hollow = true,
+                                }
+                                : default,
                             Children = new Drawable[]
                             {
+                                // Relleno permanente, no solo al hover: sin esto el boton es
+                                // un icono flotando y no una pastilla.
+                                //
+                                // Va OSCURO y no blanco a proposito. La barra quedo casi
+                                // transparente, asi que el contraste tiene que salir de aca:
+                                // un chip oscuro se recorta contra el fondo del juego, que
+                                // casi siempre es mas claro que el. Y cuando el fondo tambien
+                                // es oscuro, lo que define el borde del boton es el
+                                // BorderColour blanco de arriba, no el relleno.
+                                new Box
+                                {
+                                    RelativeSizeAxes = Axes.Both,
+                                    Colour = Color4.Black.Opacity(OsuColour.IsGlassTheme ? 0.45f : 0f),
+                                },
                                 HoverBackground = new Box
                                 {
                                     RelativeSizeAxes = Axes.Both,
@@ -213,6 +253,19 @@ namespace osu.Game.Overlays.Toolbar
         public OpaqueBackground()
         {
             RelativeSizeAxes = Axes.Both;
+
+            // Con el tema glass esto queda VACIO a proposito.
+            //
+            // Lo usa el selector de rulesets, y tal cual venia es un Box gris OPACO con
+            // Triangles v1 animados encima. Arriba de una barra que ahora es frost
+            // transparente, eso es un parche gris con triangulos moviendose en el medio: es
+            // exactamente lo que rompia la barra. Sin el, el selector deja ver el frost como
+            // cualquier otro tramo.
+            //
+            // De paso nos saca de encima las particulas de los Triangles, que se reanimaban
+            // en cada cuadro con la barra SIEMPRE en pantalla.
+            if (OsuColour.IsGlassTheme)
+                return;
 
             Children = new Drawable[]
             {
