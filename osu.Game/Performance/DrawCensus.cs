@@ -59,6 +59,7 @@ namespace osu.Game.Performance
             var groups = new Dictionary<string, (int count, double area)>();
             var individuals = new List<(double area, string path)>();
             var invisibles = new List<(double area, string path)>();
+            var fuentes = new Dictionary<string, int>();
 
             int total = 0;
             double totalArea = 0;
@@ -107,6 +108,16 @@ namespace osu.Game.Performance
                 // Sin umbral de area: lo chico no cuesta pixeles pero SI cuesta draw
                 // calls. 140 textos invisibles no se notan en fill rate y son 140 cambios
                 // de textura, que es justo lo que separa 28 draw calls de 222.
+                // Que fuente usa cada texto. Es lo que decide si el texto batchea: los
+                // glifos salen del atlas de su fuente, y cada atlas es una textura
+                // distinta. Si una escena alterna entre familias o pesos, el lote se corta
+                // en cada salto, y cada corte es un draw call.
+                if (d is osu.Framework.Graphics.Sprites.SpriteText texto)
+                {
+                    string f = texto.Font.FontName ?? "(default)";
+                    fuentes[f] = fuentes.GetValueOrDefault(f) + 1;
+                }
+
                 if (dibuja && alfaEfectivo < 0.01f)
                 {
                     var cadena = new List<string>();
@@ -140,6 +151,23 @@ namespace osu.Game.Performance
             using (var w = new StreamWriter(path))
             {
                 w.WriteLine($"# draw census '{label}' - {total} drawables presentes, area total {totalArea / 1_000_000:0.00} Mpx");
+
+                // Los numeros de dibujo, al archivo. Hasta ahora habia que abrir el overlay
+                // de Global Statistics para leerlos, y ese overlay son ~300 textos que
+                // TAMBIEN se dibujan: cuanto muestra depende de en que seccion este
+                // scrolleado, asi que el mismo build medido dos veces daba 90 y 180. El
+                // instrumento estaba adentro de la medicion.
+                w.WriteLine();
+                w.WriteLine("# numeros de dibujo (leelos con el overlay CERRADO):");
+
+                foreach (var st in osu.Framework.Statistics.GlobalStatistics.GetStatistics()
+                                                          .Where(x => x.Group == "Draw")
+                                                          .OrderBy(x => x.Name))
+                {
+                    w.WriteLine($"{st.DisplayValue,14}  {st.Name}");
+                }
+
+                w.WriteLine();
                 w.WriteLine($"# {"TIPO",-46} {"COUNT",6} {"AREA Mpx",10}");
 
                 foreach (var kv in groups.OrderByDescending(kv => kv.Value.area))
@@ -156,6 +184,12 @@ namespace osu.Game.Performance
 
                 foreach (var d in individuals.OrderByDescending(x => x.area).Take(30))
                     w.WriteLine($"{d.area / 1_000_000,12:0.000}  {d.path}");
+
+                w.WriteLine();
+                w.WriteLine($"# fuentes en uso ({fuentes.Count} distintas). cada una es un atlas, o sea una textura:");
+
+                foreach (var f in fuentes.OrderByDescending(x => x.Value))
+                    w.WriteLine($"{f.Value,8}  {f.Key}");
 
                 w.WriteLine();
 
@@ -187,6 +221,7 @@ namespace osu.Game.Performance
             try
             {
                 var stats = osu.Framework.Statistics.GlobalStatistics.GetStatistics().ToList();
+
                 string statsPath = Path.Combine(Path.GetTempPath(), $"draw-census-stats-{label}-{DateTime.Now:HHmmss}.txt");
 
                 using (var w = new StreamWriter(statsPath))
