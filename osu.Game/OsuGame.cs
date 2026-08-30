@@ -1241,26 +1241,56 @@ namespace osu.Game
             }), true);
         }
 
-        protected override void LoadComplete()
+        /// <summary>
+        /// Torii: con TORII_DRAW_CENSUS=1, Ctrl+Shift+F11 vuelca el censo del arbol de
+        /// dibujo en ese instante.
+        /// </summary>
+        /// <remarks>
+        /// A pedido y no por temporizador. Un volcado cada N segundos siempre termina
+        /// midiendo el arranque (el briefing, la toolbar entrando, los toasts) o algo que
+        /// se abrio solo, y despues uno compara dos escenas que no eran la misma. Asi el
+        /// que mira la pantalla decide cuando esta limpia, que es la unica forma de que
+        /// dos clientes distintos se comparen en el mismo estado.
+        /// </remarks>
+        protected override bool OnKeyDown(KeyDownEvent e)
         {
-            // Torii: con TORII_DRAW_CENSUS=1 el censo se vuelca solo cada 8 segundos,
-            // etiquetado con la pantalla en la que estas. Antes solo se dumpeaba desde
-            // gameplay, que es justo donde NO estaba el problema: el gap de pixeles
-            // contra lazer aparece en el menu y en song select.
-            if (Performance.DrawCensus.Enabled)
+            if (Performance.DrawCensus.Enabled
+                && e.Key == osuTK.Input.Key.F11
+                && e.ControlPressed
+                && e.ShiftPressed)
             {
+                Drawable root = this;
+                while (root.Parent != null)
+                    root = root.Parent;
+
+                string pantalla = ScreenStack?.CurrentScreen?.GetType().Name ?? @"desconocida";
+                Performance.DrawCensus.Dump(root, "torii-" + pantalla);
+
+                // Y la secuencia de cortes de lote de UN cuadro. Se arranca ahora y se
+                // vuelca en el proximo Update, que es justo un cuadro de dibujo en el
+                // medio: grabar mas seria repetir el mismo patron N veces sin agregar
+                // informacion.
+                osu.Framework.Graphics.Rendering.TextureBindTrace.Start();
+
+                // 300ms y no un solo cuadro: entre prender y volcar en el siguiente Update
+                // puede no haber pasado ningun dibujo (los hilos van sueltos) y el volcado
+                // sale vacio, que es lo que paso en el primer intento.
                 Scheduler.AddDelayed(() =>
                 {
-                    Drawable root = this;
-                    while (root.Parent != null)
-                        root = root.Parent;
+                    string ruta = osu.Framework.Graphics.Rendering.TextureBindTrace.Dump("torii-" + pantalla);
 
-                    Performance.DrawCensus.Dump(root, ScreenStack?.CurrentScreen?.GetType().Name ?? @"desconocida");
-                    // 20s y no 8: apenas arranca el juego todavia estan el briefing, la
-                    // toolbar entrando y los toasts de arranque. Medir ahi mide el arranque,
-                    // no el menu en reposo.
-                }, 20000, true);
+                    if (ruta != null)
+                        Logger.Log($@"[TextureTrace] {ruta}", LoggingTarget.Runtime, LogLevel.Debug);
+                }, 300);
+
+                return true;
             }
+
+            return base.OnKeyDown(e);
+        }
+
+        protected override void LoadComplete()
+        {
 
             base.LoadComplete();
 
