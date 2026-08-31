@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System.Collections.Generic;
@@ -243,6 +243,12 @@ namespace osu.Game.Configuration
         /// </summary>
         public const string ConstantHitsoundVolume = "v2026.825.2:constant-hitsound-volume";
 
+        /// <summary>
+        /// Marca el slider de periodo del dispositivo en Ajustes -> Mantenimiento,
+        /// que solo aparece con el modo exclusivo prendido.
+        /// </summary>
+        public const string ExclusiveAudioPeriod = "v2026.831.0:exclusive-audio-period";
+
         private static readonly HashSet<string> known_ids = new HashSet<string>
         {
             UITheme,
@@ -263,6 +269,7 @@ namespace osu.Game.Configuration
             WasapiExclusive,
             MapperatorinatorPresets,
             ConstantHitsoundVolume,
+            ExclusiveAudioPeriod,
         };
 
         /// <summary>

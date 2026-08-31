@@ -23,7 +23,7 @@ env:
   # ships with the framework via nuget.org — no extra fork to clone/pack,
   # so restore resolves everything straight from nuget.org.
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
-  FRAMEWORK_REF: '2f21ffefe730235ca4c874af243f2193b383d6b9'
+  FRAMEWORK_REF: 'b348d5cff4d04006a858af7c45331225a588a56a'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
   RESOURCES_REF: 'b29fe943447ae2032e5886e555ea176f9fe06a36'
 

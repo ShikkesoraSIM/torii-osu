@@ -1,8 +1,9 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
 using Newtonsoft.Json;
+using osu.Game.Online.API;
 
 namespace osu.Game.Online.API.Requests.Responses
 {
@@ -26,9 +27,18 @@ namespace osu.Game.Online.API.Requests.Responses
         [JsonProperty("balance_after")]
         public int BalanceAfter { get; set; }
 
-        /// <summary>Cuando se gano, con zona horaria. Sirve para no festejar lo de ayer.</summary>
+        /// <summary>El texto crudo del server, sin parsear.</summary>
+        /// <remarks>
+        /// Se guarda como string y se parsea en <see cref="CreatedAt"/> para poder
+        /// decidir nosotros que pasa cuando NO viene la zona. Si se deserializara
+        /// directo a DateTimeOffset, un timestamp pelado se tomaria como hora local
+        /// y quedaria corrido por el huso de cada persona (ver ToriiTime).
+        /// </remarks>
         [JsonProperty("created_at")]
-        public DateTimeOffset CreatedAt { get; set; }
+        public string CreatedAtRaw { get; set; }
+
+        /// <summary>Cuando se gano. Sirve para no festejar lo de ayer.</summary>
+        public DateTimeOffset CreatedAt => ToriiTime.ParseAssumingUtc(CreatedAtRaw);
     }
 
     /// <summary>Response of <c>GET /torii/points/feed</c> — recent earnings after a cursor id.</summary>
