@@ -21,6 +21,7 @@ using osu.Game.Overlays;
 using osu.Game.Overlays.Dashboard.Friends;
 using osu.Game.Overlays.Mods.Input;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Overlays.Settings.Sections.Maintenance;
 using osu.Game.Screens.Edit.Compose.Components;
 using osu.Game.Screens.OnlinePlay.Lounge.Components;
 using osu.Game.Screens.Select;
@@ -349,6 +350,8 @@ namespace osu.Game.Configuration
             // Torii: hitsounds a volumen constante, ignorando los cambios de volumen del
             // mapa (algunos mapas los silencian por completo y arruinan el reading).
             SetDefault(OsuSetting.ToriiConstantHitsoundVolume, false);
+            // Automatic = que decida el dispositivo, que es lo que se hacia siempre.
+            SetDefault(OsuSetting.ToriiExclusiveAudioPeriod, ExclusiveAudioPeriod.Automatic);
             SetDefault(OsuSetting.ToriiSkipBreaksSingleConfirmation, false);
             SetDefault(OsuSetting.ToriiSkipBreaksBriefingSeen, false);
             SetDefault(OsuSetting.EnableOboeAudio, true);
@@ -739,6 +742,7 @@ namespace osu.Game.Configuration
         ToriiConfirmDangerousButtonsOnLongAttempts,
         ToriiSkipBreaksEnabled,
         ToriiConstantHitsoundVolume,
+        ToriiExclusiveAudioPeriod,
         ToriiSkipBreaksSingleConfirmation,
         ToriiSkipBreaksBriefingSeen,
         EnableOboeAudio,
