@@ -404,9 +404,6 @@ namespace osu.Game.Online.Server
                 // uno en vuelo, ese mismo ciclo se reagenda solo a la cadencia
                 // idle. Rearmamos unicamente si no quedo nada pendiente, que
                 // seria la unica forma de matar el loop.
-                bool pollPending = activeRequest != null
-                                   || (scheduledPoll != null && !scheduledPoll.Completed && !scheduledPoll.Cancelled);
-
                 if (!pollPending)
                     rearmPollIfPollable();
             }
@@ -439,14 +436,36 @@ namespace osu.Game.Online.Server
 
         private void rearmPollIfPollable()
         {
-            cancelInFlight();
-            if (!IsPollable) return;
+            if (!IsPollable)
+            {
+                cancelInFlight();
+                return;
+            }
+
+            // Si ya hay un ciclo andando, se lo deja: ese mismo se reagenda solo al
+            // terminar. Rearmar igual mandaba el pedido DOS VECES.
+            //
+            // IsPollable depende de varias cosas que cambian EN CADENA al salir de un
+            // mapa: primero localPlayingState deja de ser Playing, y despues se cierra
+            // la ventana de asentamiento. Cada cambio llamaba aca, y cada llamada
+            // cancelaba y reagendaba. El problema es que cancelar NO alcanza: la
+            // peticion anterior ya salio y el servidor la contesta igual, asi que se
+            // veian dos server-pulse seguidos de 11 KB cada uno.
+            //
+            // Es el mismo razonamiento que ya usa SetPopoverOpen al cerrar; lo unico
+            // que faltaba era aplicarlo tambien de este lado.
+            if (pollPending)
+                return;
 
             // Schedule the first poll one tick out so we don't block
             // LoadComplete or the API state-change handler. Subsequent
             // polls schedule themselves from the request callbacks.
             scheduledPoll = Scheduler.AddDelayed(poll, 100);
         }
+
+        /// <summary>Si hay un pedido en vuelo o uno ya agendado que todavia no salio.</summary>
+        private bool pollPending => activeRequest != null
+                                    || (scheduledPoll != null && !scheduledPoll.Completed && !scheduledPoll.Cancelled);
 
         private void triggerImmediatePoll()
         {
