@@ -73,7 +73,19 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
             lastDuelUser = null;
             lastDuelPool = null;
 
-            client.MatchmakingJoinQueue(pool.Id).FireAndForget();
+            // torii: el rechazo del servidor se MUESTRA. Antes era FireAndForget pelado:
+            // si el server decia que no (por ejemplo "elegi tu star rating primero"), el
+            // motivo se perdia y el jugador se quedaba mirando un boton que no hacia
+            // nada. Un "no" sin motivo se lee como un bug.
+            // El estado no se toca: lo mueve a Queueing el evento MatchmakingQueueJoined,
+            // que con un rechazo nunca llega. Pisarlo aca seria arreglar algo que no se
+            // rompio, con el riesgo de sacar al jugador de un estado que si era valido.
+            client.MatchmakingJoinQueue(pool.Id).FireAndForget(onError: ex => Schedule(() =>
+                notifications?.Post(new SimpleErrorNotification
+                {
+                    Icon = FontAwesome.Solid.Star,
+                    Text = ex.Message,
+                })));
         }
 
         /// <summary>

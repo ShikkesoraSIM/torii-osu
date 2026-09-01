@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -314,10 +314,29 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 
         private void onStageChanged(RankedPlayStage stage)
         {
-            if (stage is RankedPlayStage.GameplayWarmup or RankedPlayStage.Gameplay)
+            bool jugando = stage is RankedPlayStage.GameplayWarmup or RankedPlayStage.Gameplay;
+
+            if (jugando)
                 backgroundMusic.Stop();
             else
                 backgroundMusic.Play();
+
+            // torii GHOST CURSOR: apagarlo tambien por FASE, no solo cuando otra pantalla
+            // se pone encima.
+            //
+            // OnSuspending cubre el gameplay de verdad, que se pushea al stack. Pero el
+            // warmup es una SUB-pantalla (ShowScreen, no Push), asi que ahi no se suspende
+            // nada: el fantasma seguia vivo y sonaban los choques de cursores mientras la
+            // gente se preparaba para jugar.
+            //
+            // Lo mismo el dibujito: la fase de gameplay no es momento de garabatear.
+            ghostCursors.Active = !jugando;
+            drawingLayer.Active = !jugando;
+
+            if (jugando)
+                ghostCursors.FadeOut(200, Easing.OutQuint);
+            else
+                ghostCursors.FadeIn(300, Easing.OutQuint);
 
             if (stage is RankedPlayStage.RoundWarmup && matchInfo.CurrentRound == 1)
                 chat.State.Value = Visibility.Hidden;

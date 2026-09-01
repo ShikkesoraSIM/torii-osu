@@ -39,7 +39,7 @@ namespace osu.Game.Screens.OnlinePlay
         protected readonly Bindable<PlaylistItem?> PlaylistItem = new Bindable<PlaylistItem?>();
 
         [Resolved]
-        private RealmAccess realm { get; set; } = null!;
+        protected RealmAccess Realm { get; private set; } = null!;
 
         [Resolved]
         private BeatmapLookupCache beatmapLookupCache { get; set; } = null!;
@@ -108,7 +108,7 @@ namespace osu.Game.Screens.OnlinePlay
             AddInternal(downloadTracker);
 
             // handles changes to hash that didn't occur from the import process (ie. a user editing the beatmap in the editor, somehow).
-            realmSubscription = realm.RegisterForNotifications(_ => queryBeatmap(), (_, changes) =>
+            realmSubscription = Realm.RegisterForNotifications(_ => queryBeatmap(), (_, changes) =>
             {
                 if (changes == null)
                     return;
@@ -152,10 +152,22 @@ namespace osu.Game.Screens.OnlinePlay
                 }
             }
 
-            IQueryable<BeatmapInfo> queryBeatmap() =>
-                realm.Realm.All<BeatmapInfo>()
-                     .ForOnlineId(beatmap.OnlineID);
+            IQueryable<BeatmapInfo> queryBeatmap() => QueryUsableCopies(beatmap);
         }
+
+        /// <summary>
+        /// Las copias locales que cuentan como "el mapa que pide la sala".
+        /// </summary>
+        /// <param name="onlineBeatmap">El mapa tal como lo acaba de describir el servidor.</param>
+        /// <remarks>
+        /// Por defecto exige que el md5 del archivo local coincida con la foto del md5
+        /// online que quedo guardada al importarlo, que es lo que impide jugar una
+        /// version editada. Un tracker puede afinar ese criterio: ver
+        /// <see cref="osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.RankedPlayBeatmapAvailabilityTracker"/>.
+        /// </remarks>
+        protected virtual IQueryable<BeatmapInfo> QueryUsableCopies(APIBeatmap onlineBeatmap) =>
+            Realm.Realm.All<BeatmapInfo>()
+                 .ForOnlineId(onlineBeatmap.OnlineID);
 
         protected override void Dispose(bool isDisposing)
         {

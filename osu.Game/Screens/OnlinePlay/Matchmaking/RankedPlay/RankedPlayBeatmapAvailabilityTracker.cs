@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System.Linq;
 using System.Threading;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -13,6 +14,7 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Online.Rooms;
+using Realms;
 
 namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 {
@@ -40,6 +42,45 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             var dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
             dependencies.CacheAs(beatmapDownloader = new BeatmapModelDownloader(parent.Get<BeatmapManager>(), parent.Get<IAPIProvider>()));
             return dependencies;
+        }
+
+        /// <summary>
+        /// Acepta la copia local tambien cuando el md5 guardado quedo viejo.
+        /// </summary>
+        /// <remarks>
+        /// El chequeo de arriba compara el archivo local contra <c>OnlineMD5Hash</c>, que
+        /// es una FOTO del hash tomada cuando el mapa se importo. Si esa foto quedo vieja
+        /// (el mapa se actualizo despues) o nunca se lleno (el server no tenia el
+        /// checksum), el mapa figura como faltante aunque este perfecto.
+        ///
+        /// En una sala eso no es un cartel molesto y nada mas: la etapa espera a que
+        /// todos tengan el mapa, y como nadie lo va a "conseguir" nunca, los dos se comen
+        /// el reloj entero mirando la pantalla y encima se llevan el castigo por no haber
+        /// cargado. Es exactamente el sintoma de "dice missing beatmap y lo tengo".
+        ///
+        /// Aca se compara contra el md5 que el servidor acaba de mandar en ESTA respuesta,
+        /// que es el dato fresco, y se sigue aceptando el camino de siempre. La proteccion
+        /// contra jugar un mapa editado se mantiene: si el server dice un hash y el archivo
+        /// local dice otro, no pasa. Lo unico que cambia es que un hash que el server no
+        /// conoce deja de contar como "no lo tenes".
+        /// </remarks>
+        protected override IQueryable<BeatmapInfo> QueryUsableCopies(APIBeatmap onlineBeatmap)
+        {
+            var locales = Realm.Realm.All<BeatmapInfo>()
+                               .NotDeleted()
+                               .Filter($@"{nameof(BeatmapInfo.OnlineID)} == $0", onlineBeatmap.OnlineID);
+
+            string hashDelServer = onlineBeatmap.MD5Hash;
+
+            // Sin hash del lado del server no hay contra que verificar. Antes esto
+            // significaba "nadie tiene el mapa"; ahora significa "no puedo verificar",
+            // que es lo que realmente pasa.
+            if (string.IsNullOrEmpty(hashDelServer))
+                return locales;
+
+            return locales.Filter(
+                $@"{nameof(BeatmapInfo.MD5Hash)} == $0 OR {nameof(BeatmapInfo.MD5Hash)} == {nameof(BeatmapInfo.OnlineMD5Hash)}",
+                hashDelServer);
         }
 
         protected override void LoadComplete()

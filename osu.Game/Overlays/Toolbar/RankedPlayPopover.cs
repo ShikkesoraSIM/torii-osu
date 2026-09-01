@@ -26,6 +26,7 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Online.Matchmaking;
 using osu.Game.Online.Multiplayer;
 using osu.Game.Screens.OnlinePlay.Matchmaking.Queue;
+using osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay;
 using osuTK;
 using osuTK.Graphics;
 
@@ -83,6 +84,9 @@ namespace osu.Game.Overlays.Toolbar
 
         [Resolved]
         private IBindable<RulesetInfo>? ruleset { get; set; }
+
+        [Resolved]
+        private ComfortPickGateOverlay? comfortGate { get; set; }
 
         private Container body = null!;
         private FillFlowContainer content = null!;
@@ -224,6 +228,29 @@ namespace osu.Game.Overlays.Toolbar
             {
                 // Sin con que encolar, al menos llevarlo a donde puede hacerlo a mano.
                 OnQueueRequested?.Invoke();
+                Hide();
+                return;
+            }
+
+            // torii: sin star rating elegido no se encola. El picker vivia solo adentro
+            // de la pantalla de ranked play y este atajo lo salteaba, asi que se podia
+            // entrar a la cola sin haber elegido nunca la dificultad: el emparejamiento
+            // quedaba a cargo del elo solo, que es como termina alguien de 5.4 contra
+            // alguien de 7.5.
+            //
+            // EnsurePicked pregunta una vez por sesion y sigue derecho si ya elegiste,
+            // asi el caso normal no ve ninguna ventana ni paga ningun parpadeo. El
+            // busy se prende del otro lado del porton: si el gate se abre, el panel se
+            // esconde, y un boton en "cargando" abajo de una ventana modal es un boton
+            // trabado esperando a alguien que se fue a hacer otra cosa.
+            if (comfortGate != null)
+            {
+                comfortGate.EnsurePicked(ruleset?.Value.OnlineID ?? 0, () =>
+                {
+                    queueButton.SetBusy(true);
+                    joinQueueAsync();
+                });
+
                 Hide();
                 return;
             }

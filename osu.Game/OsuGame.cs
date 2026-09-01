@@ -1626,6 +1626,10 @@ namespace osu.Game
             // para que el polling del render sobreviva a salir de la pantalla (y cero riesgo de
             // async-after-disposal contra drawables de screen).
             loadComponentSingleFile(new osu.Game.Overlays.ReplayRender.ReplayRenderOverlay(), topMostOverlayContent.Add, true);
+            // torii: el porton del star rating de ranked play. Vive a nivel juego porque
+            // la cola se puede tirar desde el toolbar, o sea desde cualquier pantalla.
+            // Cerrado no cuesta nada: no usa AlwaysPresent y arma el picker al abrirse.
+            loadComponentSingleFile(new osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay.ComfortPickGateOverlay(), topMostOverlayContent.Add, true);
             // torii: notas de score. el store batchea los lookups de los iconitos del leaderboard
             // (una request por tanda) y cachea; el overlay es el panel de escribir la nota.
             loadComponentSingleFile(new osu.Game.Online.ScoreNotes.ScoreNoteStore(), Add, true);
