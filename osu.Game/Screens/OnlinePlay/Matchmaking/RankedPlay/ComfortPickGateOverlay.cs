@@ -32,19 +32,25 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
     /// solo del elo, y asi termina alguien de 5.4 jugando contra alguien de 7.5.
     /// </para>
     /// <para>
-    /// PERFORMANCE: esto NO usa <c>AlwaysPresent</c>, y es a proposito. Un
-    /// <see cref="OverlayContainer"/> escondido queda en alpha 0, o sea no presente, y
-    /// el framework poda el subarbol entero: ni se dibuja ni corre su Update. Cerrado
-    /// cuesta exactamente cero, que es lo que tiene que costar algo que se abre unos
-    /// segundos y una sola vez por season.
+    /// PERFORMANCE: <c>AlwaysPresent</c> va en el OVERLAY, y todo lo visual cuelga de
+    /// <see cref="visualContent"/>, que NO lo tiene. Asi el overlay sigue vivo mientras
+    /// esta cerrado (su Update corre, o sea su Scheduler tambien) pero el subarbol que
+    /// se dibuja queda en alpha 0, no presente, y el framework lo poda entero. Cerrado
+    /// no se dibuja un solo pixel.
     /// </para>
     /// <para>
-    /// Se puede permitir ese lujo justamente porque no tiene nada corriendo de fondo: no
-    /// hay polling ni temporizadores, y el contenido se ARMA al abrir y se tira al
-    /// cerrar. Un overlay que si necesita seguir vivo mientras esta escondido (el de
-    /// render de replays, por ejemplo, que sigue un trabajo en el servidor) tiene que
-    /// usar el otro patron: <c>AlwaysPresent</c> en el overlay y lo visual colgando de un
-    /// contenedor aparte.
+    /// La primera version NO tenia AlwaysPresent, razonando que sin nada corriendo de
+    /// fondo un overlay escondido puede podarse completo. Estaba mal, y de la peor
+    /// manera: <see cref="EnsurePicked"/> consulta al servidor ESTANDO CERRADO y
+    /// procesa la respuesta con <c>Schedule</c>. Sin AlwaysPresent ese Schedule no corre
+    /// nunca, porque el Scheduler se procesa en el Update de un drawable presente. El
+    /// sintoma no era un error: era el boton de queue sin hacer absolutamente nada, sin
+    /// excepcion en ningun lado y sin que el pedido llegara al servidor.
+    /// </para>
+    /// <para>
+    /// Regla: si un overlay hace CUALQUIER cosa mientras esta escondido (una consulta,
+    /// un temporizador, seguir un trabajo del servidor), necesita AlwaysPresent + el
+    /// contenido aparte. Es el mismo patron que usa el overlay de render de replays.
     /// </para>
     /// </remarks>
     public partial class ComfortPickGateOverlay : OverlayContainer
@@ -52,6 +58,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         [Resolved]
         private IAPIProvider api { get; set; } = null!;
 
+        private Container visualContent = null!;
         private Container panel = null!;
         private Container slot = null!;
 
@@ -63,11 +70,17 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         public ComfortPickGateOverlay()
         {
             RelativeSizeAxes = Axes.Both;
+
+            // Ver la nota de arriba: esto tiene que seguir updateandose cerrado porque
+            // EnsurePicked consulta al servidor sin abrir nada. Lo que no se dibuja es
+            // visualContent, que si se poda.
+            AlwaysPresent = true;
         }
 
-        // El scrim solo muerde clicks cuando esta abierto. Escondido el overlay no es
-        // presente, asi que en la practica no le llega input igual; queda explicito para
-        // que siga siendo cierto si alguien le agrega AlwaysPresent mas adelante.
+        // El scrim solo muerde clicks cuando esta abierto. Con AlwaysPresent esto pasa de
+        // ser una formalidad a ser IMPRESCINDIBLE: el overlay ocupa la pantalla entera y
+        // sigue presente aunque no se vea, asi que sin este gate se comeria todos los
+        // clicks del juego mientras esta cerrado.
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => State.Value == Visibility.Visible;
         protected override bool OnClick(ClickEvent e) => State.Value == Visibility.Visible;
         protected override bool OnMouseDown(MouseDownEvent e) => State.Value == Visibility.Visible;
@@ -75,7 +88,15 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         [BackgroundDependencyLoader]
         private void load()
         {
-            Children = new Drawable[]
+            // Todo lo visual adentro de este contenedor, que arranca en alpha 0 y por lo
+            // tanto no esta presente: el overlay sigue vivo, el dibujo no.
+            InternalChild = visualContent = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                Alpha = 0,
+            };
+
+            visualContent.Children = new Drawable[]
             {
                 new Box
                 {
@@ -231,6 +252,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 
         protected override void PopIn()
         {
+            // El contenido se prende de una: es el que decide si se dibuja o no, asi que
+            // si entrara con fade el primer cuadro del panel llegaria tarde. El fade lo
+            // hace el overlay.
+            visualContent.Alpha = 1;
+
             this.FadeIn(BriefingTheme.HoverDuration, Easing.OutQuint);
             panel.MoveToY(20).MoveToY(0, BriefingTheme.EntranceDuration, Easing.OutQuint);
         }
@@ -239,14 +265,16 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         {
             this.FadeOut(BriefingTheme.HoverDuration, Easing.OutQuint);
 
-            // OJO: aca NO va un Scheduler.AddDelayed para tirar el picker al terminar el
-            // fade. El Scheduler de un drawable se procesa en su Update, y un overlay en
-            // alpha 0 deja de ser presente, asi que el framework poda el subarbol y ese
-            // Update nunca llega: la tarea quedaria encolada para siempre.
-            //
-            // El picker se reemplaza en Open(), que es donde importa que sea nuevo. Lo
-            // que queda colgando mientras esto esta cerrado no se dibuja ni se updatea
-            // (por lo mismo que rompe al Scheduler), asi que no cuesta ni un frame.
+            // Al terminar el fade se apaga el contenido, que es lo que lo saca del arbol
+            // de dibujo. Con AlwaysPresent en el overlay este Schedule SI corre.
+            Scheduler.AddDelayed(() =>
+            {
+                if (State.Value == Visibility.Hidden)
+                {
+                    visualContent.Alpha = 0;
+                    slot.Clear();
+                }
+            }, BriefingTheme.HoverDuration);
         }
     }
 }

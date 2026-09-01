@@ -33,6 +33,28 @@ namespace osu.Game.Online
         private bool started;
 
         /// <summary>
+        /// torii: cada cuanto se revisa que la conexion siga viva de verdad.
+        /// </summary>
+        /// <remarks>
+        /// La reconexion depende del evento Closed, y ese evento NO SIEMPRE LLEGA. Se vio
+        /// en produccion: al reiniciar el servidor, los hubs con trafico (metadata,
+        /// spectator) detectaron el corte y volvieron en segundos, pero el de multijugador
+        /// -que no manda ni recibe nada mientras no estas en una sala- se quedo con el
+        /// socket muerto y NUNCA se entero. El connector seguia diciendo "conectado" y
+        /// cualquier llamada moria con "Cannot access a disposed object".
+        ///
+        /// Lo peor era el sintoma: el juego se veia perfecto (chat, presencia, todo), pero
+        /// no se podia entrar a una partida hasta reiniciarlo, y el unico aviso era un
+        /// volcado de excepcion de .NET.
+        ///
+        /// Esto lo cierra preguntando. Es una comparacion de un enum en memoria cada 10
+        /// segundos: no hay red, no hay dibujo, no hay asignaciones.
+        /// </remarks>
+        internal TimeSpan HealthCheckInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+        private CancellationTokenSource? healthCheckCancelSource;
+
+        /// <summary>
         /// How much to delay before attempting to connect again, in milliseconds.
         /// Subject to exponential back-off.
         /// </summary>
@@ -58,6 +80,54 @@ namespace osu.Game.Online
 
             apiState.BindValueChanged(_ => Task.Run(connectIfPossible), true);
             started = true;
+
+            healthCheckCancelSource = new CancellationTokenSource();
+            _ = runHealthCheckLoop(healthCheckCancelSource.Token);
+        }
+
+        /// <summary>
+        /// Revisa cada tanto que la conexion que creemos tener siga viva, y la levanta si no.
+        /// </summary>
+        /// <remarks>
+        /// Solo actua cuando el connector se cree conectado Y la conexion de abajo dice que
+        /// no lo esta. Ese desacuerdo es exactamente el agujero que tapa: si los dos dicen
+        /// desconectado, el camino normal de reconexion ya esta trabajando y meterse seria
+        /// pelearle.
+        /// </remarks>
+        private async Task runHealthCheckLoop(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(HealthCheckInterval, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                try
+                {
+                    if (apiState.Value != APIState.Online)
+                        continue;
+
+                    PersistentEndpointClient? current = CurrentConnection;
+
+                    if (!isConnected.Value || current == null || current.IsAlive)
+                        continue;
+
+                    Logger.Log($"{ClientName} connection went stale without notice, reconnecting...", LoggingTarget.Network);
+
+                    await Reconnect().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    // Un latido que falla no puede tumbar el lazo: si se corta, se pierde
+                    // para siempre la unica red de seguridad que tenemos aca.
+                    Logger.Log($"{ClientName} health check failed: {e.Message}", LoggingTarget.Network);
+                }
+            }
         }
 
         public Task Reconnect()
@@ -228,6 +298,10 @@ namespace osu.Game.Online
 
         public void Dispose()
         {
+            healthCheckCancelSource?.Cancel();
+            healthCheckCancelSource?.Dispose();
+            healthCheckCancelSource = null;
+
             Dispose(true);
             GC.SuppressFinalize(this);
         }

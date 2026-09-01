@@ -1,6 +1,7 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
@@ -84,8 +85,26 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Queue
                 notifications?.Post(new SimpleErrorNotification
                 {
                     Icon = FontAwesome.Solid.Star,
-                    Text = ex.Message,
+                    Text = describirFallo(ex),
                 })));
+        }
+
+        /// <summary>
+        /// El motivo por el que no se pudo encolar, en un idioma que le sirva al jugador.
+        /// </summary>
+        /// <remarks>
+        /// Los rechazos del servidor ya vienen redactados ("You need to set your Star
+        /// Rating first") y se muestran tal cual. Lo que no se puede mostrar crudo es una
+        /// falla de conexion: "Cannot access a disposed object. Object name:
+        /// Microsoft.AspNetCore.SignalR.Client.HubConnection" no le dice NADA a nadie, y
+        /// es justo el caso en el que el jugador necesita entender que hacer.
+        /// </remarks>
+        private static string describirFallo(Exception ex)
+        {
+            if (ex is ObjectDisposedException || ex is InvalidOperationException)
+                return "Lost connection to the match server. Reconnecting — try again in a moment.";
+
+            return ex.Message;
         }
 
         /// <summary>

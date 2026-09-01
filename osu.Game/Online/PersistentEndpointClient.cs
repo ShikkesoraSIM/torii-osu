@@ -26,6 +26,17 @@ namespace osu.Game.Online
         /// <param name="cancellationToken">A cancellation token to stop processing messages.</param>
         public abstract Task ConnectAsync(CancellationToken cancellationToken);
 
+        /// <summary>
+        /// torii: si la conexion de abajo sigue realmente viva.
+        /// </summary>
+        /// <remarks>
+        /// El connector se entera de que una conexion murio por el evento <see cref="Closed"/>,
+        /// y ese evento no siempre llega: un hub sin trafico puede quedarse con el socket
+        /// muerto y nadie avisa. Esto permite PREGUNTAR en vez de esperar que avisen.
+        /// Por defecto true, para que un cliente que no sepa responder no se reconecte solo.
+        /// </remarks>
+        public virtual bool IsAlive => true;
+
         public virtual ValueTask DisposeAsync()
         {
             Closed = null;
