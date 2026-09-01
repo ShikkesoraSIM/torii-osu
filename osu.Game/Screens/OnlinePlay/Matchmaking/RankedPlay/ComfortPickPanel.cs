@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Drawables;
 using osu.Game.Graphics;
+using osu.Framework.Graphics.Sprites;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -58,9 +59,13 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
         private OsuSpriteText subtitleText = null!;
         private bool submitting;
 
-        public ComfortPickPanel(int rulesetId)
+        /// <summary>Piso ya consultado por quien nos abrio, para no volver a pedirlo.</summary>
+        private readonly APIComfortPickFloor? pisoYaSabido;
+
+        public ComfortPickPanel(int rulesetId, APIComfortPickFloor? pisoYaSabido = null)
         {
             this.rulesetId = rulesetId;
+            this.pisoYaSabido = pisoYaSabido;
         }
 
         [BackgroundDependencyLoader]
@@ -86,6 +91,15 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 
         private void fetchFloor()
         {
+            // Si quien nos abrio ya lo consulto, se usa eso: es el mismo dato y ahorra
+            // una espera entera con el jugador mirando el spinner.
+            if (pisoYaSabido != null && !yaUseElPisoDeAfuera)
+            {
+                yaUseElPisoDeAfuera = true;
+                onFloor(pisoYaSabido);
+                return;
+            }
+
             var req = new GetComfortPickFloorRequest(rulesetId);
             req.Success += response => Schedule(() => onFloor(response));
             req.Failure += _ => Schedule(() =>
@@ -93,8 +107,16 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                 // sin backend / error: no bloqueamos la cola (mejor dejar jugar que trabar todo).
                 OnReady?.Invoke();
             });
-            api.Queue(req);
+            // Fuera de la cola general: la dispara el jugador y le bloquea la pantalla.
+            // Ver la nota en ComfortPickGateOverlay.EnsurePicked.
+            api.PerformAsync(req);
         }
+
+        /// <summary>
+        /// Para que un re-fetch (tras un rechazo del server) SI vaya a la red en vez de
+        /// repetir el piso viejo, que es justo el que el server acaba de rechazar.
+        /// </summary>
+        private bool yaUseElPisoDeAfuera;
 
         private void onFloor(APIComfortPickFloor response)
         {
@@ -196,22 +218,11 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                                 Height = 18,
                                 Children = new Drawable[]
                                 {
-                                    new OsuSpriteText
-                                    {
-                                        Anchor = Anchor.CentreLeft,
-                                        Origin = Anchor.CentreLeft,
-                                        Text = $"floor {floor:0.#}★",
-                                        Font = OsuFont.Torus.With(size: 12, weight: FontWeight.SemiBold),
-                                        Colour = new Color4(0.6f, 0.6f, 0.66f, 1f),
-                                    },
-                                    new OsuSpriteText
-                                    {
-                                        Anchor = Anchor.CentreRight,
-                                        Origin = Anchor.CentreRight,
-                                        Text = $"{max:0.#}★",
-                                        Font = OsuFont.Torus.With(size: 12, weight: FontWeight.SemiBold),
-                                        Colour = new Color4(0.6f, 0.6f, 0.66f, 1f),
-                                    },
+                                    // La estrella va como ICONO y no como el caracter
+                                    // "★": Torus no tiene ese glifo, asi que salia el
+                                    // cuadradito de "falta la letra" al lado del numero.
+                                    etiquetaConEstrella($"floor {floor:0.#}", Anchor.CentreLeft),
+                                    etiquetaConEstrella($"{max:0.#}", Anchor.CentreRight),
                                 }
                             },
                             subtitleText = new OsuSpriteText
@@ -239,6 +250,52 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             };
 
             pick.BindValueChanged(v => onValueChanged(v.NewValue), true);
+        }
+
+        /// <summary>
+        /// Un numero con la estrella dibujada al lado, en vez del caracter ★.
+        /// </summary>
+        /// <remarks>
+        /// Torus (y las demas fuentes del juego) no traen U+2605, asi que escribirlo
+        /// literal muestra un tofu. El resto del juego resuelve esto igual: ver
+        /// <see cref="osu.Game.Beatmaps.Drawables.StarRatingDisplay"/>.
+        ///
+        /// El flow es horizontal, asi que los dos hijos comparten el anclaje en Y
+        /// (CentreLeft los dos). Mezclarlos tira una excepcion en el primer layout.
+        /// </remarks>
+        private static Drawable etiquetaConEstrella(string texto, Anchor anclaje)
+        {
+            var tinte = new Color4(0.6f, 0.6f, 0.66f, 1f);
+
+            return new FillFlowContainer
+            {
+                Anchor = anclaje,
+                Origin = anclaje,
+                AutoSizeAxes = Axes.Both,
+                Direction = FillDirection.Horizontal,
+                Spacing = new Vector2(3, 0),
+                Children = new Drawable[]
+                {
+                    new OsuSpriteText
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Text = texto,
+                        Font = OsuFont.Torus.With(size: 12, weight: FontWeight.SemiBold),
+                        Colour = tinte,
+                    },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Icon = FontAwesome.Solid.Star,
+                        // Un poco mas chico que el texto: a igual tamanio la estrella
+                        // pesa mas que los digitos y se come el renglon.
+                        Size = new Vector2(9),
+                        Colour = tinte,
+                    },
+                },
+            };
         }
 
         private void onValueChanged(double value)

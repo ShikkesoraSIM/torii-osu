@@ -14,6 +14,7 @@ using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
+using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.ToriiBriefing;
 using osuTK;
 using osuTK.Graphics;
@@ -205,18 +206,29 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                     return;
                 }
 
-                open(rulesetId, onPicked);
+                // La respuesta se le PASA al picker en vez de que la pida de nuevo: es
+                // exactamente el mismo dato, y pedirlo dos veces le suma otro turno de
+                // cola a algo que el jugador esta esperando mirando la pantalla.
+                open(rulesetId, onPicked, response);
             });
 
             // Si no se pudo averiguar, se abre el gate igual: el picker vuelve a
             // consultar por su cuenta y ahi se resuelve. Dejar pasar ante la duda seria
             // el agujero que estamos tapando.
-            req.Failure += _ => Schedule(() => open(rulesetId, onPicked));
+            req.Failure += _ => Schedule(() => open(rulesetId, onPicked, null));
 
-            api.Queue(req);
+            // PerformAsync y no Queue: la cola de APIAccess corre de a UNA request, asi
+            // que encolar esto lo pone atras de todo lo que haya pendiente. Se vio en un
+            // login real: server-pulse se colgo 9 segundos y esta consulta -que tarda
+            // menos de uno- quedo esperando su turno con el jugador mirando un spinner.
+            //
+            // Va por afuera porque la disparo el jugador y le bloquea la pantalla. Lo que
+            // corre de fondo (presencia, chat, actualizaciones) sigue en la cola, que es
+            // para lo que esta.
+            api.PerformAsync(req);
         }
 
-        private void open(int rulesetId, Action onPicked)
+        private void open(int rulesetId, Action onPicked, APIComfortPickFloor? pisoYaSabido)
         {
             this.onPicked = () =>
             {
@@ -224,7 +236,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                 onPicked();
             };
 
-            slot.Child = new ComfortPickPanel(rulesetId)
+            slot.Child = new ComfortPickPanel(rulesetId, pisoYaSabido)
             {
                 // ComfortPickPanel resuelve solo el caso de "ya elegiste esta season":
                 // dispara OnReady sin llegar a dibujar el picker. Por eso este gate no
