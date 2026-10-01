@@ -279,7 +279,8 @@ namespace osu.Game.Cosmetics.Definitions
                 float angle = i * 360f / teeth;
                 c.Add(new Box
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * 0.22f, size * 0.34f),
                     Rotation = angle,
                     Position = offsetForAngle(angle, size * 0.42f),
@@ -289,16 +290,21 @@ namespace osu.Game.Cosmetics.Definitions
 
             c.Add(new Circle
             {
-                Anchor = Anchor.Centre, Origin = Anchor.Centre,
-                Size = new Vector2(size * 0.74f), Colour = colour,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Size = new Vector2(size * 0.74f),
+                Colour = colour,
             });
 
             // The hole is painted in the aura's usual background colour instead of masked out: a masking
             // CircularContainer costs an extra draw call per particle, and these spawn by the dozen.
             c.Add(new Circle
             {
-                Anchor = Anchor.Centre, Origin = Anchor.Centre,
-                Size = new Vector2(size * 0.26f), Colour = Color4.Black, Alpha = 0.55f,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Size = new Vector2(size * 0.26f),
+                Colour = Color4.Black,
+                Alpha = 0.55f,
             });
 
             return c;
@@ -358,8 +364,10 @@ namespace osu.Game.Cosmetics.Definitions
 
             c.Add(new Box
             {
-                Anchor = Anchor.Centre, Origin = Anchor.Centre,
-                Size = new Vector2(size * 0.07f, size * 1.1f), Colour = colour,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Size = new Vector2(size * 0.07f, size * 1.1f),
+                Colour = colour,
             });
 
             const int barbs = 5;
@@ -372,15 +380,21 @@ namespace osu.Game.Cosmetics.Definitions
                 // One pair per barb, one on each side, leaning toward the tip.
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(w, size * 0.2f),
-                    Position = new Vector2(-w * 0.5f, y), Rotation = -28f, Colour = colour,
+                    Position = new Vector2(-w * 0.5f, y),
+                    Rotation = -28f,
+                    Colour = colour,
                 });
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(w, size * 0.2f),
-                    Position = new Vector2(w * 0.5f, y), Rotation = 28f, Colour = colour,
+                    Position = new Vector2(w * 0.5f, y),
+                    Rotation = 28f,
+                    Colour = colour,
                 });
             }
 
@@ -418,16 +432,21 @@ namespace osu.Game.Cosmetics.Definitions
                 float angle = i * 360f / points;
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * waist, size),
-                    Rotation = angle, Colour = colour,
+                    Rotation = angle,
+                    Colour = colour,
                 });
             }
 
             c.Add(new Circle
             {
-                Anchor = Anchor.Centre, Origin = Anchor.Centre,
-                Size = new Vector2(size * 0.26f), Colour = Color4.White, Alpha = 0.8f,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                Size = new Vector2(size * 0.26f),
+                Colour = Color4.White,
+                Alpha = 0.8f,
             });
 
             return c;
@@ -443,7 +462,8 @@ namespace osu.Game.Cosmetics.Definitions
                 float angle = i * 360f / sides;
                 c.Add(new Triangle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * 0.62f, size * 0.56f),
                     Rotation = angle + 180f,
                     Position = offsetForAngle(angle, size * 0.26f),
@@ -463,25 +483,32 @@ namespace osu.Game.Cosmetics.Definitions
             {
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * 0.52f, size * 0.44f),
                     Position = new Vector2(side * size * 0.28f, -size * 0.16f),
-                    Rotation = side * 18f, Colour = colour,
+                    Rotation = side * 18f,
+                    Colour = colour,
                 });
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * 0.38f, size * 0.32f),
                     Position = new Vector2(side * size * 0.24f, size * 0.18f),
-                    Rotation = -side * 14f, Colour = colour, Alpha = 0.85f,
+                    Rotation = -side * 14f,
+                    Colour = colour,
+                    Alpha = 0.85f,
                 });
             }
 
             c.Add(new Circle
             {
-                Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
                 Size = new Vector2(size * 0.1f, size * 0.62f),
-                Colour = Color4.White, Alpha = 0.5f,
+                Colour = Color4.White,
+                Alpha = 0.5f,
             });
 
             return c;
@@ -590,7 +617,8 @@ namespace osu.Game.Cosmetics.Definitions
                 float angle = -70f + t * 140f;
                 c.Add(new Circle
                 {
-                    Anchor = Anchor.Centre, Origin = Anchor.Centre,
+                    Anchor = Anchor.Centre,
+                    Origin = Anchor.Centre,
                     Size = new Vector2(size * 0.16f),
                     Position = offsetForAngle(angle, size * 0.46f),
                     Colour = colour,
