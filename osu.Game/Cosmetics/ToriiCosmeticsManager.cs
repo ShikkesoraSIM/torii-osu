@@ -410,6 +410,7 @@ namespace osu.Game.Cosmetics
         {
             (CosmeticRarity.Common, 2),
             (CosmeticRarity.Rare, 1),
+            (CosmeticRarity.Epic, 1),
         };
 
         private static int dailySeed() => (int)(DateTime.UtcNow.Date.Ticks / TimeSpan.TicksPerDay);
@@ -441,10 +442,39 @@ namespace osu.Game.Cosmetics
                     continue;
 
                 var rng = new Random(seed ^ ((int)rarity * 7919));
-                result.AddRange(items.OrderBy(_ => rng.Next()).Take(count));
+                result.AddRange(pickWeighted(items, idOf, count, rng));
             }
 
             return result;
+        }
+
+        /// <summary>Weighted sampling without replacement. An item with <see cref="CosmeticRarities.RotationWeight"/>
+        /// 0.35 enters the rotation about a third as often as a normal one of its rarity, without leaving the store.
+        /// Deterministic: same seed, same pick on every client.</summary>
+        private static IEnumerable<T> pickWeighted<T>(List<T> items, Func<T, string> idOf, int count, Random rng)
+        {
+            var remaining = new List<T>(items);
+
+            for (int n = 0; n < count && remaining.Count > 0; n++)
+            {
+                double total = remaining.Sum(x => CosmeticRarities.RotationWeight(idOf(x)));
+                double r = rng.NextDouble() * total;
+                int chosen = remaining.Count - 1;
+
+                for (int i = 0; i < remaining.Count; i++)
+                {
+                    r -= CosmeticRarities.RotationWeight(idOf(remaining[i]));
+
+                    if (r <= 0)
+                    {
+                        chosen = i;
+                        break;
+                    }
+                }
+
+                yield return remaining[chosen];
+                remaining.RemoveAt(chosen);
+            }
         }
 
         /// <summary>Seconds until the daily store rotates (next UTC midnight).</summary>

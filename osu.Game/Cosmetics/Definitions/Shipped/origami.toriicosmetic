@@ -1,0 +1,191 @@
+{
+  "SchemaVersion": 1,
+  "Id": "origami",
+  "Name": "Origami",
+  "Type": "Aura",
+  "Tier": "Special",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 230.0,
+    "SpawnJitterMs": 140.0,
+    "MaxAlive": 12,
+    "Glow": {
+      "Colour": "#F2A9C4",
+      "MinAlpha": 0.35,
+      "MaxAlpha": 0.85,
+      "BlurSigma": 6.0,
+      "PulseMs": 1600.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 4.0,
+        "Shape": "box",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          6.0,
+          11.0
+        ],
+        "Aspect": [
+          0.75,
+          1.0
+        ],
+        "Blend": "normal",
+        "InitialRotation": [
+          0.0,
+          360.0
+        ],
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#F7C9DA",
+          "#F2A9C4",
+          "#FCEBD2",
+          "#A9CFF2"
+        ],
+        "ColourPick": "random",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          -0.35,
+          0.05
+        ],
+        "Zones": null,
+        "Motion": "fall",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          0.28,
+          0.5
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          1900.0,
+          2800.0
+        ],
+        "Anim": {
+          "FadeInMs": 140.0,
+          "PeakAlpha": [
+            0.55,
+            0.85
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 360.0,
+          "ScaleIn": {
+            "From": 0.5,
+            "To": 1.0,
+            "Ms": 300.0,
+            "Easing": "OutQuad"
+          },
+          "RotateOverLife": [
+            -140.0,
+            140.0
+          ],
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": [
+            {
+              "Channel": "moveOffset",
+              "Target": "whole",
+              "Amount": 6.0,
+              "Ms": 1100.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        }
+      },
+      {
+        "Weight": 1.5,
+        "Shape": "box",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          3.0,
+          5.0
+        ],
+        "Aspect": null,
+        "Blend": "normal",
+        "InitialRotation": [
+          0.0,
+          360.0
+        ],
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#FFFFFF"
+        ],
+        "ColourPick": "fixed",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          -0.2,
+          0.1
+        ],
+        "Zones": null,
+        "Motion": "fall",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          0.35,
+          0.6
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          900.0,
+          1400.0
+        ],
+        "Anim": {
+          "FadeInMs": 140.0,
+          "PeakAlpha": [
+            0.3,
+            0.5
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 360.0,
+          "ScaleIn": null,
+          "RotateOverLife": [
+            -90.0,
+            90.0
+          ],
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": null
+        }
+      }
+    ],
+    "Background": null,
+    "LeadingOrnament": null,
+    "TrailingOrnament": null
+  },
+  "ExposedParams": []
+}

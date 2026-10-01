@@ -1,0 +1,173 @@
+{
+  "SchemaVersion": 1,
+  "Id": "mycelium",
+  "Name": "Mycelium",
+  "Type": "Aura",
+  "Tier": "Special",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 290.0,
+    "SpawnJitterMs": 190.0,
+    "MaxAlive": 12,
+    "Glow": {
+      "Colour": "#6BFFB0",
+      "MinAlpha": 0.2,
+      "MaxAlpha": 0.5,
+      "BlurSigma": 9.0,
+      "PulseMs": 3000.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 4.0,
+        "Shape": "circle",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          2.5,
+          5.0
+        ],
+        "Aspect": null,
+        "Blend": "additive",
+        "InitialRotation": null,
+        "Halo": {
+          "Scale": 2.6,
+          "Alpha": 0.28
+        },
+        "Layers": null,
+        "Palette": [
+          "#B8FFDA",
+          "#6BFFB0",
+          "#2FBF7F"
+        ],
+        "ColourPick": "random",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          0.2,
+          0.9
+        ],
+        "Zones": null,
+        "Motion": "zigzag",
+        "DriftX": [
+          -0.14,
+          0.14
+        ],
+        "DriftY": [
+          -0.16,
+          -0.06
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          3000.0,
+          4200.0
+        ],
+        "Anim": {
+          "FadeInMs": 800.0,
+          "PeakAlpha": [
+            0.35,
+            0.65
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 1100.0,
+          "ScaleIn": null,
+          "RotateOverLife": null,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": null
+        }
+      },
+      {
+        "Weight": 1.2,
+        "Shape": "mushroom",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          7.0,
+          12.0
+        ],
+        "Aspect": null,
+        "Blend": "additive",
+        "InitialRotation": null,
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#6BFFB0"
+        ],
+        "ColourPick": "fixed",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          0.2,
+          0.9
+        ],
+        "Zones": null,
+        "Motion": "spiral",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          -0.6,
+          -0.3
+        ],
+        "OrbitRadius": [
+          0.06,
+          0.14
+        ],
+        "OrbitTurns": 0.8,
+        "LifetimeMs": [
+          2600.0,
+          3600.0
+        ],
+        "Anim": {
+          "FadeInMs": 900.0,
+          "PeakAlpha": [
+            0.18,
+            0.34
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 1000.0,
+          "ScaleIn": null,
+          "RotateOverLife": null,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": [
+            {
+              "Channel": "scale",
+              "Target": "inner",
+              "Amount": 0.25,
+              "Ms": 1800.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        }
+      }
+    ],
+    "Background": null,
+    "LeadingOrnament": null,
+    "TrailingOrnament": null
+  },
+  "ExposedParams": []
+}

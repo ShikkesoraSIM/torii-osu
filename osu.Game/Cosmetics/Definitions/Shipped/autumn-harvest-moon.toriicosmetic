@@ -1,0 +1,212 @@
+{
+  "SchemaVersion": 1,
+  "Id": "autumn-harvest-moon",
+  "Name": "Harvest Moon",
+  "Type": "Aura",
+  "Tier": "Premium",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 300,
+    "SpawnJitterMs": 200,
+    "MaxAlive": 12,
+    "Glow": {
+      "Colour": "#F2B134",
+      "MinAlpha": 0.25,
+      "MaxAlpha": 0.6,
+      "BlurSigma": 9.0,
+      "PulseMs": 3000.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 3,
+        "Shape": "circle",
+        "Icon": null,
+        "SizePx": [
+          2,
+          4
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#F2B134",
+          "#F5E9D8"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.25,
+          0.95
+        ],
+        "Motion": "rise",
+        "DriftX": [
+          -0.06,
+          0.06
+        ],
+        "DriftY": [
+          -0.28,
+          -0.1
+        ],
+        "LifetimeMs": [
+          2400,
+          3400
+        ],
+        "Anim": {
+          "FadeInMs": 400,
+          "PeakAlpha": [
+            0.3,
+            0.55
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 700,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Halo": {
+          "Scale": 2.5,
+          "Alpha": 0.3
+        }
+      },
+      {
+        "Weight": 1.5,
+        "Shape": "taperline",
+        "Icon": null,
+        "SizePx": [
+          18,
+          34
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#8FA3B8"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          -0.1,
+          0.9
+        ],
+        "SpawnY": [
+          0.55,
+          1.0
+        ],
+        "Motion": "drift",
+        "DriftX": [
+          0.15,
+          0.3
+        ],
+        "DriftY": [
+          -0.02,
+          0.02
+        ],
+        "LifetimeMs": [
+          3000,
+          4200
+        ],
+        "Anim": {
+          "FadeInMs": 900,
+          "PeakAlpha": [
+            0.12,
+            0.24
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 1100,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Aspect": [
+          1.0,
+          0.12
+        ]
+      },
+      {
+        "Weight": 1,
+        "Shape": "star4",
+        "Icon": null,
+        "SizePx": [
+          3,
+          5
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#F5E9D8"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.0,
+          0.5
+        ],
+        "Motion": "fixed",
+        "DriftX": [
+          0,
+          0
+        ],
+        "DriftY": [
+          0,
+          0
+        ],
+        "LifetimeMs": [
+          1200,
+          2000
+        ],
+        "Anim": {
+          "FadeInMs": 300,
+          "PeakAlpha": [
+            0.3,
+            0.6
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 500,
+          "RotateOverLifeEasing": "InOutSine",
+          "ScaleKeyframes": [
+            {
+              "Mul": 1.0,
+              "Ms": 300.0,
+              "Easing": "OutQuad"
+            },
+            {
+              "Mul": 0.4,
+              "Ms": 500.0,
+              "Easing": "InOutSine"
+            },
+            {
+              "Mul": 1.0,
+              "Ms": 500.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        }
+      }
+    ],
+    "LeadingOrnament": {
+      "BaseSizePx": 16,
+      "Layers": [
+        {
+          "Kind": "iconGlyph",
+          "Icon": "moon",
+          "SizeRatio": 1.0,
+          "Colour": "#F2B134",
+          "Alpha": 0.95,
+          "Blend": "normal"
+        },
+        {
+          "Kind": "fillCircle",
+          "SizeRatio": 1.9,
+          "Colour": "#F2B134",
+          "Alpha": 0.14,
+          "Blend": "additive"
+        }
+      ],
+      "Breath": {
+        "MinAlpha": 0.7,
+        "MaxAlpha": 1.0,
+        "HalfPeriodMs": 1800.0,
+        "Easing": "InOutSine"
+      }
+    }
+  },
+  "ExposedParams": []
+}

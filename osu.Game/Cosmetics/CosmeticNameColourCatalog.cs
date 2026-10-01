@@ -39,6 +39,18 @@ namespace osu.Game.Cosmetics
             gradient("name-tide", "Tide", 800, new Color4(70, 200, 255, 255), new Color4(110, 100, 245, 255)),
             gradient("name-forest", "Forest", 800, new Color4(150, 230, 90, 255), new Color4(40, 175, 150, 255)),
             gradient("name-berry", "Berry", 800, new Color4(255, 110, 200, 255), new Color4(150, 90, 240, 255)),
+            // autumn 2026 (candidates)
+            solid("name-maple", "Maple", 200, new Color4(214, 72, 54, 255)),
+            solid("name-amber", "Amber", 200, new Color4(242, 177, 52, 255)),
+            solid("name-moss", "Moss", 200, new Color4(140, 156, 78, 255)),
+            gradient("name-harvest", "Harvest", 800, new Color4(242, 177, 52, 255), new Color4(200, 58, 42, 255)),
+            gradient("name-dusk", "Dusk", 800, new Color4(160, 180, 205, 255), new Color4(140, 70, 105, 255)),
+            gradient("name-ember", "Ember", 800, new Color4(255, 200, 100, 255), new Color4(190, 50, 35, 255)),
+            gradient("name-cider", "Cider", 800, new Color4(245, 233, 216, 255), new Color4(196, 108, 60, 255)),
+            gradient("name-twilight", "Twilight", 800, new Color4(242, 177, 52, 255), new Color4(120, 52, 86, 255)),
+            // Pulse: the name breathes between the two colours.
+            pulse("name-candlelight", "Candlelight", 1500, new Color4(255, 196, 100, 255), new Color4(196, 108, 60, 255)),
+            pulse("name-smoulder", "Smoulder", 1500, new Color4(255, 130, 50, 255), new Color4(150, 28, 20, 255)),
         };
 
         private const string group_prefix = "name-group-";
@@ -150,5 +162,9 @@ namespace osu.Game.Cosmetics
 
         private static CosmeticNameColour gradient(string id, string name, int price, Color4 a, Color4 b)
             => new CosmeticNameColour(id, name, CosmeticTier.Special, price, NameColourStyle.Gradient, a, b);
+
+        // Pulse style (existed in the runtime, never sold). Premium.
+        private static CosmeticNameColour pulse(string id, string name, int price, Color4 a, Color4 b)
+            => new CosmeticNameColour(id, name, CosmeticTier.Premium, price, NameColourStyle.Pulse, a, b);
     }
 }

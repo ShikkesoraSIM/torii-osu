@@ -93,7 +93,20 @@ namespace osu.Game.Overlays.Cosmetics
             // If a top play got soft-capped today, say so (the server only paid the
             // pp bonus on it, not the full rank reward).
             if (lines.Any(l => l.Reason == "top_play" && parseTagInt(l.Ref, "capped:") == 1))
-                content.Add(capNote());
+                content.Add(note("Daily top-play limit reached: pp bonus only"));
+
+            // Server multipliers on the top play (alt: not your main mode, rx: relax/autopilot),
+            // so a tiny award for a new best doesn't look like a bug.
+            foreach (var l in lines.Where(l => l.Reason == "top_play"))
+            {
+                int alt = parseTagInt(l.Ref, "alt:");
+                if (alt > 0)
+                    content.Add(note($"Not your main mode: top play paid at {alt}%"));
+
+                int rx = parseTagInt(l.Ref, "rx:");
+                if (rx > 0)
+                    content.Add(note($"Relax / Autopilot: top play paid at {rx}%"));
+            }
 
             if (balanceAfter > 0)
                 content.Add(balanceFooter());
@@ -252,9 +265,9 @@ namespace osu.Game.Overlays.Cosmetics
         // torii: hijo directo del flow Vertical de arriba (Children = content.ToArray()); tiene que
         // compartir el anchor Y (Top) con sus hermanos (header/breakdownRow/balanceFooter son Container
         // sin anchor explicito = TopLeft), sino la FillFlowContainer crashea (mismatch en el eje cruzado).
-        private Drawable capNote() => new OsuSpriteText
+        private Drawable note(string text) => new OsuSpriteText
         {
-            Text = "Daily top-play limit reached — pp bonus only",
+            Text = text,
             Font = OsuFont.Torus.With(size: BriefingTheme.TypeCaption, italics: true),
             Colour = BriefingTheme.AccentAmber.Opacity(0.85f),
             Margin = new MarginPadding { Top = 2 },

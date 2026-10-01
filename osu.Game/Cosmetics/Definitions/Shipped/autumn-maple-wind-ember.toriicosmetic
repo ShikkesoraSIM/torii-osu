@@ -1,0 +1,234 @@
+{
+  "SchemaVersion": 1,
+  "Id": "autumn-maple-wind-ember",
+  "Name": "Maple Wind · Ember Wind",
+  "Type": "Aura",
+  "Tier": "Premium",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 170,
+    "SpawnJitterMs": 120,
+    "MaxAlive": 18,
+    "Glow": {
+      "Colour": "#FF7828",
+      "MinAlpha": 0.5,
+      "MaxAlpha": 0.95,
+      "BlurSigma": 9.0,
+      "PulseMs": 900.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 2.5,
+        "Shape": null,
+        "Icon": "leaf",
+        "SizePx": [
+          8,
+          14
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#E07A2F",
+          "#F2B134",
+          "#FF7828"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          -0.3,
+          0.05
+        ],
+        "SpawnY": [
+          0.05,
+          0.95
+        ],
+        "Motion": "zigzag",
+        "DriftX": [
+          0.95,
+          1.35
+        ],
+        "DriftY": [
+          -0.12,
+          0.08
+        ],
+        "LifetimeMs": [
+          1700,
+          2500
+        ],
+        "Anim": {
+          "FadeInMs": 120,
+          "PeakAlpha": [
+            0.6,
+            0.95
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 320,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateOverLife": [
+            220.0,
+            460.0
+          ]
+        },
+        "InitialRotation": [
+          0,
+          360
+        ],
+        "OrbitRadius": [
+          0.06,
+          0.14
+        ],
+        "OrbitTurns": 2.0
+      },
+      {
+        "Weight": 2.5,
+        "Shape": "circle",
+        "Icon": null,
+        "SizePx": [
+          2,
+          4
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFBE5A",
+          "#FF7828",
+          "#A01E14"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          -0.25,
+          0.1
+        ],
+        "SpawnY": [
+          0.3,
+          1.0
+        ],
+        "Motion": "drift",
+        "DriftX": [
+          0.9,
+          1.3
+        ],
+        "DriftY": [
+          -0.25,
+          -0.05
+        ],
+        "LifetimeMs": [
+          700,
+          1100
+        ],
+        "Anim": {
+          "FadeInMs": 60,
+          "PeakAlpha": [
+            0.6,
+            0.95
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 240,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Halo": {
+          "Scale": 2.6,
+          "Alpha": 0.4
+        }
+      },
+      {
+        "Weight": 1,
+        "Shape": "taperline",
+        "Icon": null,
+        "SizePx": [
+          8,
+          14
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFBE5A"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          -0.2,
+          0.3
+        ],
+        "SpawnY": [
+          0.2,
+          0.9
+        ],
+        "Motion": "drift",
+        "DriftX": [
+          1.0,
+          1.4
+        ],
+        "DriftY": [
+          -0.1,
+          0.0
+        ],
+        "LifetimeMs": [
+          350,
+          550
+        ],
+        "Anim": {
+          "FadeInMs": 40,
+          "PeakAlpha": [
+            0.5,
+            0.9
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 160,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Aspect": [
+          1.0,
+          0.1
+        ]
+      },
+      {
+        "Weight": 1.5,
+        "Shape": "taperline",
+        "Icon": null,
+        "SizePx": [
+          16,
+          30
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFE2A8"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          -0.25,
+          0.35
+        ],
+        "SpawnY": [
+          0.1,
+          0.9
+        ],
+        "Motion": "drift",
+        "DriftX": [
+          0.8,
+          1.2
+        ],
+        "DriftY": [
+          -0.03,
+          0.03
+        ],
+        "LifetimeMs": [
+          500,
+          800
+        ],
+        "Anim": {
+          "FadeInMs": 80,
+          "PeakAlpha": [
+            0.18,
+            0.35
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 220,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Aspect": [
+          1.0,
+          0.07
+        ]
+      }
+    ]
+  },
+  "ExposedParams": []
+}

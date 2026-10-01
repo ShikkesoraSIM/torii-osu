@@ -33,6 +33,15 @@ namespace osu.Game.Cosmetics
         private static readonly Color4[] sakura = { new Color4(255, 200, 222, 255), new Color4(255, 158, 195, 255), new Color4(232, 110, 170, 255) };
         private static readonly Color4[] flame = { new Color4(255, 235, 120, 255), new Color4(255, 150, 40, 255), new Color4(230, 60, 30, 255) };
         private static readonly Color4[] notes = { new Color4(120, 200, 255, 255), new Color4(255, 170, 90, 255), new Color4(180, 140, 255, 255) };
+        // autumn 2026: leaves (maple, orange, amber, ochre, chestnut), embers and mist.
+        private static readonly Color4[] autumn_leaves =
+        {
+            new Color4(200, 58, 42, 255), new Color4(224, 122, 47, 255), new Color4(242, 177, 52, 255),
+            new Color4(201, 150, 58, 255), new Color4(122, 74, 43, 255),
+        };
+        private static readonly Color4[] embers = { new Color4(255, 190, 90, 255), new Color4(255, 120, 40, 255), new Color4(200, 58, 42, 255) };
+        private static readonly Color4 fog = new Color4(143, 163, 184, 200);
+        private static readonly Color4 lantern = new Color4(255, 190, 90, 255);
 
         /// <summary>Gold five-point star.</summary>
         public static Drawable Star(int index) => new SpriteIcon
@@ -319,5 +328,77 @@ namespace osu.Game.Cosmetics
             Rotation = 45,
             Colour = galaxy_palette[index % galaxy_palette.Length],
         };
+
+        // ───────────────── autumn 2026 ─────────────────
+
+        /// <summary>Autumn leaf: same shape as <see cref="Leaf"/> but each in its own colour and pre-rotated,
+        /// so a leaf fall doesn't look like copies of one sprite.</summary>
+        public static Drawable AutumnLeaf(int index) => new SpriteIcon
+        {
+            Origin = Anchor.Centre,
+            Icon = FontAwesome.Solid.Leaf,
+            Size = new Vector2(12),
+            Colour = autumn_leaves[index % autumn_leaves.Length],
+            Rotation = index * 53 % 360,
+        };
+
+        /// <summary>Acorn: chestnut body, darker cap, stem on top.</summary>
+        public static Drawable Acorn(int index) => new Container
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(8, 11),
+            Rotation = index * 31 % 40 - 20,
+            Children = new Drawable[]
+            {
+                new Circle { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Size = new Vector2(8, 9), Colour = new Color4(160, 104, 60, 255) },
+                new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Size = new Vector2(9, 3.5f), Colour = new Color4(96, 58, 34, 255) },
+                new Box { Anchor = Anchor.TopCentre, Origin = Anchor.BottomCentre, Size = new Vector2(2, 2.5f), Colour = new Color4(96, 58, 34, 255) },
+            },
+        };
+
+        /// <summary>Pumpkin: orange oval with a darker middle segment and a green stem.</summary>
+        public static Drawable Pumpkin(int index) => new Container
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(12, 10),
+            Children = new Drawable[]
+            {
+                new Circle { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Size = new Vector2(12, 9), Colour = new Color4(232, 118, 40, 255) },
+                new Circle { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Size = new Vector2(5, 9), Colour = new Color4(205, 95, 30, 255) },
+                new Box { Anchor = Anchor.TopCentre, Origin = Anchor.BottomCentre, Size = new Vector2(2.2f, 3), Y = 1.5f, Colour = new Color4(107, 122, 64, 255) },
+            },
+        };
+
+        /// <summary>Ember: hot dot, varied size and colour (yellow, orange, red).</summary>
+        public static Drawable Ember(int index) => new Circle
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(4 + index % 3),
+            Colour = embers[index % embers.Length],
+        };
+
+        /// <summary>Raindrop: tall thin streak, blue-grey, slightly tilted.</summary>
+        public static Drawable Raindrop(int index) => new Circle
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(2.4f, 14),
+            Colour = new Color4(200, 218, 236, 235),
+            Rotation = 9,
+        };
+
+        /// <summary>Paper lantern: warm body with plum top and bottom and the flame in the middle.</summary>
+        public static Drawable Lantern(int index) => new Container
+        {
+            Origin = Anchor.Centre,
+            Size = new Vector2(9, 13),
+            Children = new Drawable[]
+            {
+                new Circle { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(9, 11), Colour = index % 2 == 0 ? lantern : new Color4(255, 150, 70, 255) },
+                new Box { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Size = new Vector2(5, 1.6f), Colour = new Color4(110, 46, 74, 255) },
+                new Box { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Size = new Vector2(5, 1.6f), Colour = new Color4(110, 46, 74, 255) },
+                new Circle { Anchor = Anchor.Centre, Origin = Anchor.Centre, Size = new Vector2(3.5f, 5), Colour = new Color4(255, 240, 200, 255) },
+            },
+        };
+
     }
 }

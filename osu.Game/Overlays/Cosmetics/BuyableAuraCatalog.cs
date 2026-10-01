@@ -23,14 +23,18 @@ namespace osu.Game.Overlays.Cosmetics
     {
         public class Entry
         {
+            public string Id { get; }
+
+            /// <summary>Null when the shipped definition failed to load; the store skips those.</summary>
             public AuraPreset Preset { get; }
+
             public int Price { get; }
             public CosmeticTier Tier { get; }
-            public string Id => Preset.AuraId;
 
-            public Entry(AuraPreset preset, int price, CosmeticTier tier)
+            public Entry(string id, int price, CosmeticTier tier)
             {
-                Preset = preset;
+                Id = id;
+                Preset = AuraRegistry.GetById(id);
                 Price = price;
                 Tier = tier;
             }
@@ -38,11 +42,14 @@ namespace osu.Game.Overlays.Cosmetics
 
         public static readonly IReadOnlyList<Entry> All = new[]
         {
-            // For now the store sells only the Summer aura. Stardust stays
-            // registered as a preset (previewable in the inventory gallery) but
-            // is not on sale yet. Summer is also earned via its event group;
-            // buying it is just an alternative path to the same aura.
-            new Entry(AuraRegistry.GetById(SummerAuraPreset.ID), 3000, CosmeticTier.Premium),
+            // Summer is also earned via its event group; buying it is just an alternative path.
+            new Entry(SummerAuraPreset.ID, 3000, CosmeticTier.Premium),
+            // autumn 2026
+            new Entry("autumn-leaffall", 2500, CosmeticTier.Special),
+            new Entry("autumn-leaffall-gust", 2500, CosmeticTier.Special),
+            new Entry("autumn-leaffall-dusk", 2500, CosmeticTier.Special),
+            new Entry("autumn-maple-wind", 4500, CosmeticTier.Premium),
+            new Entry(StardustAuraPreset.ID, 10000, CosmeticTier.Premium),
         };
 
         public static Entry GetById(string id) => All.FirstOrDefault(e => e.Id == id);

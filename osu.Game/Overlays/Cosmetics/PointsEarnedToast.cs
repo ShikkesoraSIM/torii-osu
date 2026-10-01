@@ -233,7 +233,7 @@ namespace osu.Game.Overlays.Cosmetics
             if (string.IsNullOrEmpty(reasonRef) || !reasonRef.Contains("b:", StringComparison.Ordinal))
                 return null;
 
-            int b = 0, v = 0, pp = 0;
+            int b = 0, v = 0, pp = 0, alt = 0, rx = 0;
             foreach (string part in reasonRef.Split('|'))
             {
                 string[] kv = part.Split(':');
@@ -245,6 +245,8 @@ namespace osu.Game.Overlays.Cosmetics
                     case "b": b = val; break;
                     case "v": v = val; break;
                     case "pp": pp = val; break;
+                    case "alt": alt = val; break;
+                    case "rx": rx = val; break;
                 }
             }
 
@@ -254,6 +256,8 @@ namespace osu.Game.Overlays.Cosmetics
             var lines = new List<string> { $"{b}  base" };
             if (v > 0) lines.Add($"+{v}  veteran bonus");
             if (pp > 0) lines.Add($"+{pp}  pp gained");
+            if (alt > 0) lines.Add($"{alt}%  not your main mode");
+            if (rx > 0) lines.Add($"{rx}%  relax / autopilot");
             return lines;
         }
     }

@@ -1,0 +1,180 @@
+{
+  "SchemaVersion": 1,
+  "Id": "ink-wash",
+  "Name": "Ink Wash",
+  "Type": "Aura",
+  "Tier": "Special",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 300.0,
+    "SpawnJitterMs": 200.0,
+    "MaxAlive": 9,
+    "Glow": {
+      "Colour": "#6E6E80",
+      "MinAlpha": 0.12,
+      "MaxAlpha": 0.3,
+      "BlurSigma": 8.0,
+      "PulseMs": 2600.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 3.0,
+        "Shape": "circle",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          9.0,
+          16.0
+        ],
+        "Aspect": null,
+        "Blend": "normal",
+        "InitialRotation": null,
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#2B2B33",
+          "#4A4A57"
+        ],
+        "ColourPick": "random",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          0.2,
+          0.9
+        ],
+        "Zones": null,
+        "Motion": "rise",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          -0.16,
+          -0.05
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          2400.0,
+          3400.0
+        ],
+        "Anim": {
+          "FadeInMs": 600.0,
+          "PeakAlpha": [
+            0.25,
+            0.45
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 900.0,
+          "ScaleIn": {
+            "From": 0.4,
+            "To": 1.0,
+            "Ms": 700.0,
+            "Easing": "OutQuad"
+          },
+          "RotateOverLife": null,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": [
+            {
+              "Channel": "scale",
+              "Target": "whole",
+              "Amount": 0.12,
+              "Ms": 1600.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        }
+      },
+      {
+        "Weight": 1.5,
+        "Shape": "taperline",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          8.0,
+          15.0
+        ],
+        "Aspect": [
+          0.16,
+          1.0
+        ],
+        "Blend": "normal",
+        "InitialRotation": [
+          -20.0,
+          20.0
+        ],
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#1A1A20"
+        ],
+        "ColourPick": "fixed",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          -0.2,
+          0.1
+        ],
+        "Zones": null,
+        "Motion": "fall",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          0.18,
+          0.32
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          1600.0,
+          2400.0
+        ],
+        "Anim": {
+          "FadeInMs": 420.0,
+          "PeakAlpha": [
+            0.2,
+            0.38
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 360.0,
+          "ScaleIn": null,
+          "RotateOverLife": null,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": null
+        }
+      }
+    ],
+    "Background": null,
+    "LeadingOrnament": null,
+    "TrailingOrnament": null
+  },
+  "ExposedParams": []
+}

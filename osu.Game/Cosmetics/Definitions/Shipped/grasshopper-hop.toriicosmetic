@@ -1,0 +1,290 @@
+{
+  "SchemaVersion": 1,
+  "Id": "grasshopper-hop",
+  "Name": "Young Grasshopper",
+  "Type": "Aura",
+  "Tier": "Basic",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 430.0,
+    "SpawnJitterMs": 250.0,
+    "MaxAlive": 8,
+    "Glow": {
+      "Colour": "#7BD64B",
+      "MinAlpha": 0.18,
+      "MaxAlpha": 0.42,
+      "BlurSigma": 6.0,
+      "PulseMs": 2600.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 2.0,
+        "Shape": "circle",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          3.5,
+          5.0
+        ],
+        "Aspect": null,
+        "Blend": "normal",
+        "InitialRotation": null,
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#8FE05C",
+          "#6BC23E"
+        ],
+        "ColourPick": "random",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.05,
+          0.95
+        ],
+        "SpawnY": [
+          0.72,
+          0.95
+        ],
+        "Zones": null,
+        "Motion": "pendulum",
+        "DriftX": [
+          -0.05,
+          0.05
+        ],
+        "DriftY": [
+          -0.05,
+          0.02
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          1700.0,
+          2300.0
+        ],
+        "Anim": {
+          "FadeInMs": 140.0,
+          "PeakAlpha": [
+            0.5,
+            0.8
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 420.0,
+          "ScaleIn": {
+            "From": 0.3,
+            "To": 1.0,
+            "Ms": 180.0,
+            "Easing": "OutBack"
+          },
+          "RotateOverLife": null,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": [
+            {
+              "Mul": 1.0,
+              "Ms": 480.0,
+              "Easing": "InOutSine"
+            },
+            {
+              "Mul": 0.82,
+              "Ms": 90.0,
+              "Easing": "OutQuad"
+            },
+            {
+              "Mul": 1.0,
+              "Ms": 220.0,
+              "Easing": "OutBack"
+            },
+            {
+              "Mul": 1.0,
+              "Ms": 500.0,
+              "Easing": "InOutSine"
+            }
+          ],
+          "Loops": [
+            {
+              "Channel": "moveOffset",
+              "Target": "whole",
+              "Amount": 6.0,
+              "Ms": 560.0,
+              "Easing": "OutQuad"
+            }
+          ]
+        }
+      },
+      {
+        "Weight": 0.8,
+        "Shape": "circle",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          11.0,
+          15.0
+        ],
+        "Aspect": null,
+        "Blend": "normal",
+        "InitialRotation": null,
+        "Halo": null,
+        "Layers": [
+          {
+            "Shape": null,
+            "Icon": "yin-yang",
+            "SizeRatio": 1.0,
+            "Aspect": null,
+            "ColourRef": -1,
+            "Alpha": 1.0,
+            "Blend": "normal",
+            "Offset": null
+          }
+        ],
+        "Palette": [
+          "#DFF5D2"
+        ],
+        "ColourPick": "fixed",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.42,
+          0.58
+        ],
+        "SpawnY": [
+          0.3,
+          0.55
+        ],
+        "Zones": null,
+        "Motion": "fixed",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          -0.6,
+          -0.3
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          3000.0,
+          4000.0
+        ],
+        "Anim": {
+          "FadeInMs": 900.0,
+          "PeakAlpha": [
+            0.14,
+            0.26
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 1100.0,
+          "ScaleIn": null,
+          "RotateOverLife": [
+            38.0,
+            38.0
+          ],
+          "RotateOverLifeEasing": "None",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": null
+        }
+      },
+      {
+        "Weight": 1.4,
+        "Shape": "blade",
+        "CustomImage": null,
+        "Icon": null,
+        "Text": null,
+        "FontWeight": "Bold",
+        "SizePx": [
+          5.0,
+          9.0
+        ],
+        "Aspect": null,
+        "Blend": "normal",
+        "InitialRotation": [
+          0.0,
+          360.0
+        ],
+        "Halo": null,
+        "Layers": null,
+        "Palette": [
+          "#5FAE36",
+          "#7BD64B"
+        ],
+        "ColourPick": "random",
+        "ColourWeights": null,
+        "SpawnX": [
+          0.0,
+          1.0
+        ],
+        "SpawnY": [
+          -0.2,
+          0.05
+        ],
+        "Zones": null,
+        "Motion": "fall",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          0.16,
+          0.3
+        ],
+        "OrbitRadius": [
+          0.1,
+          0.2
+        ],
+        "OrbitTurns": 1.0,
+        "LifetimeMs": [
+          1800.0,
+          2500.0
+        ],
+        "Anim": {
+          "FadeInMs": 140.0,
+          "PeakAlpha": [
+            0.3,
+            0.5
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 360.0,
+          "ScaleIn": null,
+          "RotateOverLife": [
+            -70.0,
+            70.0
+          ],
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateToAbsolute": null,
+          "Resize": null,
+          "FadeKeyframes": null,
+          "ScaleKeyframes": null,
+          "Loops": [
+            {
+              "Channel": "moveOffset",
+              "Target": "whole",
+              "Amount": 4.0,
+              "Ms": 950.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        }
+      }
+    ],
+    "Background": null,
+    "LeadingOrnament": null,
+    "TrailingOrnament": null
+  },
+  "ExposedParams": []
+}
