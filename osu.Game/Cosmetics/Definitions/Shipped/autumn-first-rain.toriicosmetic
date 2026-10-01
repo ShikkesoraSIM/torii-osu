@@ -1,0 +1,175 @@
+{
+  "SchemaVersion": 1,
+  "Id": "autumn-first-rain",
+  "Name": "First Rain",
+  "Type": "Aura",
+  "Tier": "Special",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 150,
+    "SpawnJitterMs": 100,
+    "MaxAlive": 18,
+    "Glow": {
+      "Colour": "#8FA3B8",
+      "MinAlpha": 0.2,
+      "MaxAlpha": 0.5,
+      "BlurSigma": 8.0,
+      "PulseMs": 2600.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 4,
+        "Shape": "droplet",
+        "Icon": null,
+        "SizePx": [
+          5,
+          9
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#8FA3B8",
+          "#B8C8D8"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          -0.35,
+          0.0
+        ],
+        "Motion": "fall",
+        "DriftX": [
+          -0.06,
+          -0.02
+        ],
+        "DriftY": [
+          0.55,
+          0.85
+        ],
+        "LifetimeMs": [
+          700,
+          1100
+        ],
+        "Anim": {
+          "FadeInMs": 80,
+          "PeakAlpha": [
+            0.5,
+            0.8
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 220,
+          "RotateOverLifeEasing": "InOutSine"
+        }
+      },
+      {
+        "Weight": 2,
+        "Shape": "ring",
+        "Icon": null,
+        "SizePx": [
+          5,
+          9
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#8FA3B8"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.88,
+          1.0
+        ],
+        "Motion": "ripple",
+        "DriftX": [
+          0,
+          0
+        ],
+        "DriftY": [
+          0,
+          0
+        ],
+        "LifetimeMs": [
+          900,
+          1300
+        ],
+        "Anim": {
+          "FadeInMs": 60,
+          "PeakAlpha": [
+            0.3,
+            0.5
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 500,
+          "RotateOverLifeEasing": "InOutSine",
+          "Resize": {
+            "Factor": 2.4,
+            "Ms": 1000.0,
+            "Easing": "OutQuint"
+          }
+        }
+      },
+      {
+        "Weight": 1,
+        "Shape": null,
+        "Icon": "leaf",
+        "SizePx": [
+          8,
+          12
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#7A4A2B",
+          "#788440"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          -0.3,
+          0.0
+        ],
+        "Motion": "fall",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          0.2,
+          0.32
+        ],
+        "LifetimeMs": [
+          2400,
+          3200
+        ],
+        "Anim": {
+          "FadeInMs": 200,
+          "PeakAlpha": [
+            0.5,
+            0.75
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 400,
+          "RotateOverLifeEasing": "InOutSine",
+          "RotateOverLife": [
+            -60.0,
+            60.0
+          ]
+        },
+        "InitialRotation": [
+          0,
+          360
+        ]
+      }
+    ]
+  },
+  "ExposedParams": []
+}

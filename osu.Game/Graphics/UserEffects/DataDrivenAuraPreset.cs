@@ -63,7 +63,7 @@ namespace osu.Game.Graphics.UserEffects
             parent.Add(AuraParticleBuilder.Build(spec, parentSize, scale, rng));
         }
 
-        public override Drawable? CreateBackground() => buildOrnament(data.Background);
+        public override Drawable? CreateBackground() => buildOrnament(data.Background, stretch: true);
         public override Drawable? CreateLeadingOrnament() => buildOrnament(data.LeadingOrnament);
         public override Drawable? CreateTrailingOrnament() => buildOrnament(data.TrailingOrnament);
 
@@ -107,12 +107,12 @@ namespace osu.Game.Graphics.UserEffects
             return items[items.Count - 1];
         }
 
-        private Drawable? buildOrnament(OrnamentSpec ornament)
+        private Drawable? buildOrnament(OrnamentSpec ornament, bool stretch = false)
         {
             if (ornament?.Layers == null || ornament.Layers.Count == 0)
                 return null;
 
-            return new OrnamentDrawable(ornament);
+            return new OrnamentDrawable(ornament, stretch);
         }
 
         /// <summary>Un sello/ornamento: stack de capas concéntricas + respiración opcional.</summary>
@@ -120,12 +120,19 @@ namespace osu.Game.Graphics.UserEffects
         {
             private readonly OrnamentSpec spec;
 
-            public OrnamentDrawable(OrnamentSpec spec)
+            /// <param name="stretch">true for the Background: ParticleAuraEmitter gives it RelativeSizeAxes.Both
+            /// to cover the whole aura area, which can't coexist with AutoSizeAxes on the same axes. The content
+            /// stays centred inside anyway.</param>
+            public OrnamentDrawable(OrnamentSpec spec, bool stretch = false)
             {
                 this.spec = spec;
-                Origin = Anchor.Centre;
-                Anchor = Anchor.Centre;
-                AutoSizeAxes = Axes.Both;
+                // CentreLeft like the hardcoded ornaments (the founder's HeraldicCrest): UserAuraContainer puts
+                // ornament and name in a horizontal FillFlowContainer, which requires the same X anchor on every
+                // child, and Centre against the name's TopLeft threw.
+                Origin = Anchor.CentreLeft;
+                Anchor = Anchor.CentreLeft;
+                if (!stretch)
+                    AutoSizeAxes = Axes.Both;
             }
 
             [BackgroundDependencyLoader]

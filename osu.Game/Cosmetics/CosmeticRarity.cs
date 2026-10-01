@@ -83,6 +83,27 @@ namespace osu.Game.Cosmetics
 
             // ── Name colours (only two visual variants today) ───────────────
             // Common: flat solids.
+            // ── autumn 2026 (candidates) ──
+            ["trail-maple"] = CosmeticRarity.Common,
+            ["trail-amber"] = CosmeticRarity.Common,
+            ["trail-copper"] = CosmeticRarity.Common,
+            ["trail-moss"] = CosmeticRarity.Common,
+            ["trail-mist"] = CosmeticRarity.Common,
+            ["trail-harvest"] = CosmeticRarity.Uncommon,
+            ["trail-cider"] = CosmeticRarity.Uncommon,
+            ["trail-dusk-fog"] = CosmeticRarity.Uncommon,
+            ["trail-acorns"] = CosmeticRarity.Uncommon,
+            ["trail-autumn-rain"] = CosmeticRarity.Uncommon,
+            ["trail-leaf-fall"] = CosmeticRarity.Rare,
+            ["trail-pumpkin-patch"] = CosmeticRarity.Rare,
+            ["trail-cinnamon"] = CosmeticRarity.Rare,
+            ["trail-first-frost"] = CosmeticRarity.Rare,
+            ["trail-lanterns"] = CosmeticRarity.Rare,
+            ["trail-ember-rise"] = CosmeticRarity.Epic,
+            ["trail-golden-hour"] = CosmeticRarity.Epic,
+            ["trail-bonfire"] = CosmeticRarity.Epic,
+            ["trail-maple-storm"] = CosmeticRarity.Legendary,
+            ["trail-harvest-moon"] = CosmeticRarity.Legendary,
             ["name-crimson"] = CosmeticRarity.Common,
             ["name-ocean"] = CosmeticRarity.Common,
             ["name-mint"] = CosmeticRarity.Common,
@@ -94,7 +115,29 @@ namespace osu.Game.Cosmetics
             ["name-tide"] = CosmeticRarity.Rare,
             ["name-forest"] = CosmeticRarity.Rare,
             ["name-berry"] = CosmeticRarity.Rare,
+            // ── autumn 2026 (candidates) ──
+            ["name-maple"] = CosmeticRarity.Common,
+            ["name-amber"] = CosmeticRarity.Common,
+            ["name-moss"] = CosmeticRarity.Common,
+            ["name-harvest"] = CosmeticRarity.Rare,
+            ["name-dusk"] = CosmeticRarity.Rare,
+            ["name-ember"] = CosmeticRarity.Rare,
+            ["name-cider"] = CosmeticRarity.Rare,
+            ["name-twilight"] = CosmeticRarity.Rare,
+            ["name-candlelight"] = CosmeticRarity.Epic,
+            ["name-smoulder"] = CosmeticRarity.Epic,
         };
+
+        /// <summary>Relative weight in the daily store rotation (1 = normal): keeps an item on sale but shown
+        /// less often, without touching its rarity.</summary>
+        private static readonly Dictionary<string, double> rotation_weights = new Dictionary<string, double>
+        {
+            // autumn 2026: stays in the store but shows up less.
+            ["trail-rainbow-engined"] = 0.35,
+        };
+
+        public static double RotationWeight(string id) =>
+            id != null && rotation_weights.TryGetValue(id, out double w) ? w : 1.0;
 
         public static CosmeticRarity Of(string id) =>
             id != null && map.TryGetValue(id, out var r) ? r : CosmeticRarity.Common;

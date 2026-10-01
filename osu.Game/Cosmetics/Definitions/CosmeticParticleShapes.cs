@@ -35,6 +35,13 @@ namespace osu.Game.Cosmetics.Definitions
             ["sun"] = CosmeticParticles.Sun,
             ["fire"] = CosmeticParticles.Fire,
             ["gem"] = CosmeticParticles.Gem,
+            // autumn 2026
+            ["autumn-leaf"] = CosmeticParticles.AutumnLeaf,
+            ["acorn"] = CosmeticParticles.Acorn,
+            ["pumpkin"] = CosmeticParticles.Pumpkin,
+            ["ember"] = CosmeticParticles.Ember,
+            ["raindrop"] = CosmeticParticles.Raindrop,
+            ["lantern"] = CosmeticParticles.Lantern,
             ["leaf"] = CosmeticParticles.Leaf,
             ["cloud"] = CosmeticParticles.Cloud,
             ["sunburst"] = CosmeticParticles.Sunburst,

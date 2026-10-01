@@ -256,7 +256,7 @@ namespace osu.Game.Overlays.Cosmetics
                                     {
                                         new OsuSpriteText
                                         {
-                                            Text = prettyReason(t.Reason),
+                                            Text = titleFor(t),
                                             Font = OsuFont.GetFont(size: BriefingTheme.TypeBody, weight: FontWeight.SemiBold),
                                         },
                                         new OsuSpriteText
@@ -367,6 +367,40 @@ namespace osu.Game.Overlays.Cosmetics
 
             // A full page back means there may be more; a short page means we hit the end.
             loadMore.Alpha = rows.Length >= page_size ? 1 : 0;
+        }
+
+        /// <summary>Top play rows carry the rank and, when the server paid less, the percentage and why.</summary>
+        private static string titleFor(APIPointTransaction t)
+        {
+            string title = prettyReason(t.Reason);
+
+            if (t.Reason != "top_play" || string.IsNullOrEmpty(t.Ref))
+                return title;
+
+            int rank = parseTag(t.Ref, "rank:");
+            if (rank > 0)
+                title += $" #{rank}";
+
+            int alt = parseTag(t.Ref, "alt:");
+            if (alt > 0)
+                title += $" · {alt}% not main mode";
+
+            int rx = parseTag(t.Ref, "rx:");
+            if (rx > 0)
+                title += $" · {rx}% relax";
+
+            return title;
+        }
+
+        private static int parseTag(string reasonRef, string tag)
+        {
+            foreach (string part in reasonRef.Split('|'))
+            {
+                if (part.StartsWith(tag, StringComparison.Ordinal) && int.TryParse(part.Substring(tag.Length), out int v))
+                    return v;
+            }
+
+            return 0;
         }
 
         private static string prettyReason(string reason)

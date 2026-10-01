@@ -1,0 +1,195 @@
+{
+  "SchemaVersion": 1,
+  "Id": "autumn-lantern-festival",
+  "Name": "Lantern Festival",
+  "Type": "Aura",
+  "Tier": "Premium",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 320,
+    "SpawnJitterMs": 220,
+    "MaxAlive": 11,
+    "Glow": {
+      "Colour": "#FF9E3D",
+      "MinAlpha": 0.3,
+      "MaxAlpha": 0.65,
+      "BlurSigma": 7.0,
+      "PulseMs": 2200.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 2,
+        "Shape": "box",
+        "Icon": null,
+        "SizePx": [
+          9,
+          13
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#FFBE5A",
+          "#FF9E3D",
+          "#6E2E4A",
+          "#FFF0C8"
+        ],
+        "ColourPick": "bylayer",
+        "SpawnX": [
+          0.05,
+          0.95
+        ],
+        "SpawnY": [
+          0.4,
+          1.05
+        ],
+        "Motion": "pendulum",
+        "DriftX": [
+          -0.04,
+          0.04
+        ],
+        "DriftY": [
+          -0.32,
+          -0.16
+        ],
+        "LifetimeMs": [
+          3000,
+          4200
+        ],
+        "Anim": {
+          "FadeInMs": 500,
+          "PeakAlpha": [
+            0.65,
+            0.95
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 800,
+          "RotateOverLifeEasing": "InOutSine",
+          "Loops": [
+            {
+              "Channel": "moveOffset",
+              "Target": "whole",
+              "Amount": 4.0,
+              "Ms": 1600.0,
+              "Easing": "InOutSine"
+            }
+          ]
+        },
+        "Aspect": [
+          0.72,
+          1.0
+        ],
+        "OrbitRadius": [
+          0.025,
+          0.05
+        ],
+        "OrbitTurns": 1.5,
+        "Layers": [
+          {
+            "Shape": "box",
+            "SizeRatio": 1.0,
+            "Aspect": [
+              0.72,
+              1.0
+            ],
+            "ColourRef": 0,
+            "Alpha": 1.0,
+            "Blend": "normal"
+          },
+          {
+            "Shape": "box",
+            "SizeRatio": 1.0,
+            "Aspect": [
+              0.5,
+              0.12
+            ],
+            "ColourRef": 2,
+            "Alpha": 1.0,
+            "Blend": "normal",
+            "Offset": [
+              0.0,
+              -0.44
+            ]
+          },
+          {
+            "Shape": "box",
+            "SizeRatio": 1.0,
+            "Aspect": [
+              0.5,
+              0.12
+            ],
+            "ColourRef": 2,
+            "Alpha": 1.0,
+            "Blend": "normal",
+            "Offset": [
+              0.0,
+              0.44
+            ]
+          },
+          {
+            "Shape": "circle",
+            "SizeRatio": 0.38,
+            "Aspect": [
+              0.7,
+              1.0
+            ],
+            "ColourRef": 3,
+            "Alpha": 0.95,
+            "Blend": "additive"
+          }
+        ]
+      },
+      {
+        "Weight": 2,
+        "Shape": "circle",
+        "Icon": null,
+        "SizePx": [
+          2,
+          3.5
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFBE5A",
+          "#F5E9D8"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.2,
+          0.95
+        ],
+        "Motion": "rise",
+        "DriftX": [
+          -0.08,
+          0.08
+        ],
+        "DriftY": [
+          -0.3,
+          -0.12
+        ],
+        "LifetimeMs": [
+          1600,
+          2400
+        ],
+        "Anim": {
+          "FadeInMs": 200,
+          "PeakAlpha": [
+            0.25,
+            0.5
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 500,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Halo": {
+          "Scale": 2.6,
+          "Alpha": 0.3
+        }
+      }
+    ]
+  },
+  "ExposedParams": []
+}

@@ -1,0 +1,182 @@
+{
+  "SchemaVersion": 1,
+  "Id": "autumn-bonfire",
+  "Name": "Bonfire",
+  "Type": "Aura",
+  "Tier": "Premium",
+  "Price": 0,
+  "AuraKind": "Particles",
+  "settings": {
+    "SpawnIntervalMs": 170,
+    "SpawnJitterMs": 110,
+    "MaxAlive": 16,
+    "Glow": {
+      "Colour": "#FF7828",
+      "MinAlpha": 0.4,
+      "MaxAlpha": 0.9,
+      "BlurSigma": 7.0,
+      "PulseMs": 900.0,
+      "Pulsate": true
+    },
+    "Particles": [
+      {
+        "Weight": 3,
+        "Shape": "circle",
+        "Icon": null,
+        "SizePx": [
+          2,
+          4
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFBE5A",
+          "#FF7828",
+          "#A01E14"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.75,
+          1.0
+        ],
+        "Motion": "burst",
+        "DriftX": [
+          -0.35,
+          0.35
+        ],
+        "DriftY": [
+          -0.9,
+          -0.45
+        ],
+        "LifetimeMs": [
+          600,
+          1000
+        ],
+        "Anim": {
+          "FadeInMs": 80,
+          "PeakAlpha": [
+            0.6,
+            0.95
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 260,
+          "RotateOverLifeEasing": "InOutSine"
+        },
+        "Halo": {
+          "Scale": 2.4,
+          "Alpha": 0.35
+        }
+      },
+      {
+        "Weight": 2.5,
+        "Shape": "taperline",
+        "Icon": null,
+        "SizePx": [
+          6,
+          12
+        ],
+        "Blend": "additive",
+        "Palette": [
+          "#FFD166",
+          "#FF7828"
+        ],
+        "ColourPick": "random",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.7,
+          1.0
+        ],
+        "Motion": "rise",
+        "DriftX": [
+          -0.1,
+          0.1
+        ],
+        "DriftY": [
+          -0.5,
+          -0.25
+        ],
+        "LifetimeMs": [
+          500,
+          800
+        ],
+        "Anim": {
+          "FadeInMs": 100,
+          "PeakAlpha": [
+            0.55,
+            0.9
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 260,
+          "RotateOverLifeEasing": "InOutSine",
+          "ScaleIn": {
+            "From": 0.4,
+            "To": 1.0,
+            "Ms": 260.0,
+            "Easing": "OutQuad"
+          }
+        },
+        "Aspect": [
+          0.3,
+          1.0
+        ]
+      },
+      {
+        "Weight": 1.5,
+        "Shape": "circle",
+        "Icon": null,
+        "SizePx": [
+          8,
+          14
+        ],
+        "Blend": "normal",
+        "Palette": [
+          "#5A5A66"
+        ],
+        "ColourPick": "fixed",
+        "SpawnX": [
+          0,
+          1
+        ],
+        "SpawnY": [
+          0.1,
+          0.5
+        ],
+        "Motion": "rise",
+        "DriftX": [
+          -0.08,
+          0.08
+        ],
+        "DriftY": [
+          -0.35,
+          -0.15
+        ],
+        "LifetimeMs": [
+          1800,
+          2600
+        ],
+        "Anim": {
+          "FadeInMs": 500,
+          "PeakAlpha": [
+            0.12,
+            0.25
+          ],
+          "FadeInEasing": "OutQuad",
+          "FadeOutMs": 900,
+          "RotateOverLifeEasing": "InOutSine",
+          "Resize": {
+            "Factor": 1.8,
+            "Ms": 2000.0,
+            "Easing": "OutCubic"
+          }
+        }
+      }
+    ]
+  },
+  "ExposedParams": []
+}
