@@ -215,6 +215,9 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
         cmdline-tools-version: 8512546
+        # the default also asks for 'tools', which google removed from the sdk repo (2026-10) and
+        # makes sdkmanager exit 1. the runner image already has platforms and build-tools.
+        packages: platform-tools
 
     - name: Accept Android SDK licenses (Android only)
       if: matrix.runtime == 'android'
