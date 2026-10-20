@@ -1,12 +1,14 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Screens.Select;
+using osu.Game.Tests.Beatmaps;
 
 namespace osu.Game.Tests.Visual.SongSelect
 {
@@ -59,6 +61,38 @@ namespace osu.Game.Tests.Visual.SongSelect
             AddStep("hook filter event", () => filterControl.CriteriaChanged += _ => filterCount++);
 
             AddStep("change rate", () => doubleTime.SpeedChange.Value = 1.8);
+            AddUntilStep("filtered once", () => filterCount, () => Is.EqualTo(1));
+        }
+
+        [TestCaseSource(typeof(TestSceneBeatmapDifficultyCache), nameof(TestSceneBeatmapDifficultyCache.DIFFICULTY_MODS_WITHOUT_DIFFICULTY_INTERFACES))]
+        public void TestDifficultyModToggleRefilters(Mod sourceMod)
+        {
+            var mod = sourceMod.DeepClone();
+            int filterCount = 0;
+
+            AddUntilStep("wait for load", () => filterControl.IsLoaded);
+            AddStep("filter by star rating", () => filterControl.Search("stars>1"));
+            AddStep("hook filter event", () => filterControl.CriteriaChanged += _ => filterCount++);
+
+            AddStep($"select {mod.Acronym}", () => SelectedMods.Value = new[] { mod });
+            AddUntilStep("filtered once", () => filterCount, () => Is.EqualTo(1));
+
+            AddStep($"deselect {mod.Acronym}", () => SelectedMods.Value = Array.Empty<Mod>());
+            AddUntilStep("filtered twice", () => filterCount, () => Is.EqualTo(2));
+        }
+
+        [Test]
+        public void TestMagnetisedStrengthChangeRefilters()
+        {
+            var magnetised = new OsuModMagnetised();
+            int filterCount = 0;
+
+            AddUntilStep("wait for load", () => filterControl.IsLoaded);
+            AddStep("filter by star rating", () => filterControl.Search("stars>1"));
+            AddStep("select magnetised", () => SelectedMods.Value = new Mod[] { magnetised });
+            AddStep("hook filter event", () => filterControl.CriteriaChanged += _ => filterCount++);
+
+            AddStep("change attraction strength", () => magnetised.AttractionStrength.Value = 0.8f);
             AddUntilStep("filtered once", () => filterCount, () => Is.EqualTo(1));
         }
 

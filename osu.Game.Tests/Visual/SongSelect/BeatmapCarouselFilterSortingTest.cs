@@ -16,6 +16,7 @@ using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Rulesets.Taiko;
 using osu.Game.Screens.Select;
 using osu.Game.Screens.Select.Filter;
+using osu.Game.Tests.Beatmaps;
 using osu.Game.Tests.Resources;
 
 namespace osu.Game.Tests.Visual.SongSelect
@@ -345,6 +346,31 @@ namespace osu.Game.Tests.Visual.SongSelect
             var mods = new[] { new OsuModDoubleTime() };
 
             // Under approximation alone, setA (≈ 5.34) would sort before setB (≈ 6.85).
+            // Only setA is pre-populated in the cache, with an exact value of 8.0, so it should sort after setB.
+            var cache = new TestBeatmapDifficultyCache
+            {
+                PresetDifficulty = _ => new StarDifficulty(8.0, 0)
+            };
+
+            await cache.GetDifficultyAsync(setA.Beatmaps[0], null, mods);
+
+            var results = (await runSorting(SortMode.Difficulty, new List<BeatmapSetInfo> { setA, setB }, mods, cache)).ToList();
+            Assert.That(results[0], Is.EqualTo(setB.Beatmaps[0]));
+            Assert.That(results[1], Is.EqualTo(setA.Beatmaps[0]));
+        }
+
+        [TestCaseSource(typeof(TestSceneBeatmapDifficultyCache), nameof(TestSceneBeatmapDifficultyCache.DIFFICULTY_MODS_WITHOUT_DIFFICULTY_INTERFACES))]
+        public async Task TestSortByDifficultyUsesExactCachedValueForMod(Mod mod)
+        {
+            var setA = TestResources.CreateTestBeatmapSetInfo(1);
+            setA.Beatmaps[0].StarRating = 4.0;
+
+            var setB = TestResources.CreateTestBeatmapSetInfo(1);
+            setB.Beatmaps[0].StarRating = 5.0;
+
+            var mods = new[] { mod };
+
+            // Without a cached value setA sorts before setB, as the approximation keeps the base star rating for this mod.
             // Only setA is pre-populated in the cache, with an exact value of 8.0, so it should sort after setB.
             var cache = new TestBeatmapDifficultyCache
             {

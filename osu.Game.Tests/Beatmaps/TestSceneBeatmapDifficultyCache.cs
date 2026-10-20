@@ -277,6 +277,53 @@ namespace osu.Game.Tests.Beatmaps
             Assert.That(testCache.GetEffectiveStarRating(bInfo, null, dtMods), Is.EqualTo(7.2));
         }
 
+        /// <summary>
+        /// Mods which change star rating in the difficulty calculator without applying to difficulty settings or rate.
+        /// </summary>
+        public static readonly object[] DIFFICULTY_MODS_WITHOUT_DIFFICULTY_INTERFACES =
+        {
+            new OsuModRelax(),
+            new OsuModTouchDevice(),
+            new OsuModAutopilot(),
+            new OsuModMagnetised(),
+            new OsuModFreezeFrame(),
+        };
+
+        private static readonly object[] non_difficulty_mods =
+        {
+            new OsuModNoFail(),
+            new OsuModSuddenDeath(),
+            new OsuModPerfect(),
+            new OsuModSpunOut(),
+            new OsuModClassic(),
+            new OsuModStrictTracking(),
+            new OsuModAutoplay(),
+            new OsuModBlinds(),
+            new OsuModTraceable(),
+        };
+
+        [TestCaseSource(nameof(DIFFICULTY_MODS_WITHOUT_DIFFICULTY_INTERFACES))]
+        public void TestModAffectsDifficulty(Mod mod)
+            => Assert.That(StarRatingApproximator.ModAffectsDifficulty(mod), Is.True);
+
+        [TestCaseSource(nameof(non_difficulty_mods))]
+        public void TestModDoesNotAffectDifficulty(Mod mod)
+            => Assert.That(StarRatingApproximator.ModAffectsDifficulty(mod), Is.False);
+
+        [TestCaseSource(nameof(DIFFICULTY_MODS_WITHOUT_DIFFICULTY_INTERFACES))]
+        public void TestGetEffectiveStarRatingUsesCachedValue(Mod mod)
+        {
+            var testCache = new TestBeatmapDifficultyCache();
+            var bInfo = new BeatmapInfo { ID = Guid.NewGuid(), StarRating = 4.0, Ruleset = new RulesetInfo { OnlineID = 0 } };
+            var mods = new[] { mod };
+
+            testCache.ComputeDifficulty = _ => new StarDifficulty(6.0, 0);
+            testCache.GetDifficultyAsync(bInfo, null, mods).GetResultSafely();
+
+            Assert.That(testCache.GetEffectiveStarRating(bInfo, null, mods), Is.EqualTo(6.0));
+            Assert.That(testCache.CreateEffectiveStarRatingLookup(null, mods).GetEffectiveStarRating(bInfo), Is.EqualTo(6.0));
+        }
+
         [Test]
         public void TestKeyFromOrderedModsEqualsStandardKey()
         {

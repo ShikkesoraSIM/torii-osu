@@ -21,7 +21,8 @@ namespace osu.Game.Beatmaps
         /// Determines whether a given mod alters beatmap difficulty / star rating.
         /// </summary>
         public static bool ModAffectsDifficulty(Mod mod) =>
-            mod is IApplicableToDifficulty || mod is IApplicableToRate || mod is ModFlashlight || mod is ModHidden;
+            mod is IApplicableToDifficulty || mod is IApplicableToRate || mod is ModFlashlight || mod is ModHidden
+            || mod is ModRelax || mod is ModTouchDevice || mod is IAffectsDifficulty;
 
         /// <summary>
         /// Computes a fast O(1) approximation of star rating when difficulty-altering mods are applied
