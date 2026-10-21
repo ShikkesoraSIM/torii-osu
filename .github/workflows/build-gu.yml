@@ -46,6 +46,7 @@ jobs:
       id: version
       shell: bash
       run: |
+        ANDROID_VERSION_CODE=$(python3 .github/scripts/android_release.py version-code "$GITHUB_RUN_NUMBER")
         if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
           git fetch --tags --force
           LAST_TAG=$(git tag -l 'v*' --sort=-creatordate | head -n1)
@@ -61,9 +62,6 @@ jobs:
             echo "semver=$SEMVER" >> $GITHUB_OUTPUT
             echo "assemblyVersion=$NUMERIC" >> $GITHUB_OUTPUT
             echo "fileVersion=$NUMERIC" >> $GITHUB_OUTPUT
-            # Compute Android VersionCode from numeric version components.
-            VERSION_NUMBERS=$(echo "$SEMVER" | sed 's/-.*$//' | tr -d '.')
-            ANDROID_VERSION_CODE="$VERSION_NUMBERS"
             echo "androidVersionCode=$ANDROID_VERSION_CODE" >> $GITHUB_OUTPUT
             echo "Computed version from latest tag (workflow_run): $VERSION (android: $ANDROID_VERSION_CODE)"
             exit 0
@@ -97,10 +95,6 @@ jobs:
         echo "assemblyVersion=$NUMERIC" >> $GITHUB_OUTPUT
         echo "fileVersion=$NUMERIC" >> $GITHUB_OUTPUT
         
-        # Compute Android VersionCode (must be an integer).
-        # e.g. v2025.815.5-lazer -> 2025.815.5 -> 20258155
-        VERSION_NUMBERS=$(echo "$SEMVER" | sed 's/-.*$//' | tr -d '.')
-        ANDROID_VERSION_CODE="$VERSION_NUMBERS"
         echo "androidVersionCode=$ANDROID_VERSION_CODE" >> $GITHUB_OUTPUT
         
         echo "Computed version: $VERSION (semver: $SEMVER, assembly/file: $NUMERIC, android: $ANDROID_VERSION_CODE)"
@@ -754,16 +748,13 @@ jobs:
       if: matrix.runtime == 'android'
       shell: bash
       run: |
-        VERSION="${{ needs.version.outputs.version }}"
-        # Mirror OsuGameBase: $"{Version}-{RuntimeInfo.OS}".ComputeMD5Hash() where
-        # RuntimeInfo.OS.ToString() yields "Android" for the android runtime.
-        STRING_TO_HASH="${VERSION}-Android"
-        HASH=$(printf '%s' "$STRING_TO_HASH" | md5sum | cut -d' ' -f1 | tr '[:upper:]' '[:lower:]')
+        VERSION="${{ needs.version.outputs.semver }}"
+        HASH=$(python3 .github/scripts/android_release.py version-hash "$VERSION")
 
         mkdir -p hash-output
         printf '{"hash":"%s","os":"%s","runtime":"%s"}' "$HASH" "Android" "android" \
           > "hash-output/hash-android.json"
-        echo "Hash for android (string '${STRING_TO_HASH}'): $HASH"
+        echo "Hash for android (ApplicationDisplayVersion '${VERSION}'): $HASH"
 
     - name: Upload hash artifact
       uses: actions/upload-artifact@v4

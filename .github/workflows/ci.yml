@@ -27,6 +27,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test Android release metadata
+        run: python3 -m unittest discover -s .github/scripts -p 'test_android_release.py' -v
+
       - name: Checkout framework dependency
         uses: actions/checkout@v4
         with:
