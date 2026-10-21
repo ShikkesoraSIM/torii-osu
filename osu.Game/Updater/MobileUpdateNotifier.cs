@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
@@ -34,7 +35,7 @@ namespace osu.Game.Updater
         [BackgroundDependencyLoader]
         private void load(OsuGameBase game)
         {
-            version = game.Version.Split('-').First();
+            version = game.Version;
             stream = Enum.TryParse(game.Version.Split('-').Last(), true, out ReleaseStream s) ? s : Configuration.ReleaseStream.Torii;
         }
 
@@ -42,20 +43,33 @@ namespace osu.Game.Updater
         {
             try
             {
-                bool includePrerelease = stream == Configuration.ReleaseStream.Nova;
+                string? assetExtension = RuntimeInfo.OS switch
+                {
+                    RuntimeInfo.Platform.Android => ".apk",
+                    RuntimeInfo.Platform.iOS => ".ipa",
+                    _ => null,
+                };
+                if (assetExtension == null)
+                    return false;
 
-                OsuJsonWebRequest<GitHubRelease[]> releasesRequest = new OsuJsonWebRequest<GitHubRelease[]>("https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=10&page=1");
-                await releasesRequest.PerformAsync(cancellationToken).ConfigureAwait(false);
+                var releases = new List<GitHubRelease>();
+                for (int page = 1; page <= 5; page++)
+                {
+                    var request = new OsuJsonWebRequest<GitHubRelease[]>($"https://api.github.com/repos/ShikkesoraSIM/torii-osu/releases?per_page=100&page={page}");
+                    await request.PerformAsync(cancellationToken).ConfigureAwait(false);
+                    releases.AddRange(request.ResponseObject);
+                    if (request.ResponseObject.Length < 100)
+                        break;
+                }
 
-                GitHubRelease[] releases = releasesRequest.ResponseObject;
-                GitHubRelease? latest = releases.OrderByDescending(r => r.PublishedAt).FirstOrDefault(r => includePrerelease || !r.Prerelease);
+                GitHubRelease? latest = FindUpdate(releases, version, stream, assetExtension);
 
                 if (latest == null)
                     return false;
 
-                string latestTagName = latest.TagName.Split('-').First();
+                string latestTagName = latest.TagName.TrimStart('v');
 
-                if (latestTagName != version && tryGetBestUrl(latest, out string? url))
+                if (tryGetBestUrl(latest, out string? url))
                 {
                     Notifications.Post(new UpdateAvailableNotification(cancellationToken)
                     {
@@ -79,6 +93,26 @@ namespace osu.Game.Updater
 
             return false;
         }
+
+        internal static GitHubRelease? FindUpdate(IEnumerable<GitHubRelease> releases, string currentVersion, ReleaseStream stream, string assetExtension)
+        {
+            if (!tryParseVersion(currentVersion, out Version? current))
+                return null;
+
+            string suffix = $"-{stream.ToString().ToLowerInvariant()}";
+            return releases.Where(release => release.TagName?.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) == true
+                                             && (stream != Configuration.ReleaseStream.Torii || !release.Prerelease)
+                                             && !string.IsNullOrEmpty(release.HtmlUrl)
+                                             && release.Assets?.Any(asset => asset.Name?.EndsWith(assetExtension, StringComparison.OrdinalIgnoreCase) == true) == true)
+                           .Select(release => (Release: release, Version: tryParseVersion(release.TagName, out Version? parsed) ? parsed : null))
+                           .Where(candidate => candidate.Version > current)
+                           .OrderByDescending(candidate => candidate.Version)
+                           .Select(candidate => candidate.Release)
+                           .FirstOrDefault();
+        }
+
+        private static bool tryParseVersion(string version, [NotNullWhen(true)] out Version? parsed)
+            => Version.TryParse(version.TrimStart('v').Split('-').First(), out parsed);
 
         private bool tryGetBestUrl(GitHubRelease release, [NotNullWhen(true)] out string? url)
         {
