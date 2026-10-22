@@ -2,9 +2,15 @@ name: Satori .NET 11
 
 on:
   workflow_call:
+    inputs:
+      prebuilt_run_id:
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   runtime:
@@ -50,12 +56,34 @@ jobs:
           path: satori-payload
           key: satori11-${{ matrix.os }}-${{ matrix.rid }}-${{ steps.pin.outputs.commit }}-${{ hashFiles('.github/satori-net11.json', '.github/workflows/satori-net11.yml', '.github/scripts/satori_runtime.py') }}
 
+      - name: Download previously validated runtime
+        id: prebuilt
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.prebuilt_run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: satori-net11-${{ matrix.rid }}
+          path: satori-payload
+          run-id: ${{ inputs.prebuilt_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Select and verify runtime payload
+        id: payload
+        shell: bash
+        run: |
+          if [[ '${{ steps.cache.outputs.cache-hit }}' == 'true' || '${{ steps.prebuilt.outcome }}' == 'success' ]]; then
+            python3 .github/scripts/satori_runtime.py verify ${{ matrix.rid }} satori-payload
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Allow long source paths (Windows)
-        if: runner.os == 'Windows' && steps.cache.outputs.cache-hit != 'true'
+        if: runner.os == 'Windows' && steps.payload.outputs.build == 'true'
         run: git config --global core.longpaths true
 
       - name: Checkout Satori
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.payload.outputs.build == 'true'
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.pin.outputs.repository }}
@@ -63,7 +91,7 @@ jobs:
           path: satori-source
 
       - name: Use the release SDK for runtime tooling
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.payload.outputs.build == 'true'
         shell: pwsh
         env:
           SDK_VERSION: ${{ steps.pin.outputs.sdk }}
@@ -76,18 +104,18 @@ jobs:
           "DOTNET_INSTALL_DIR=$env:DOTNET_ROOT" >> $env:GITHUB_ENV
 
       - name: Linux build dependencies
-        if: runner.os == 'Linux' && steps.cache.outputs.cache-hit != 'true'
+        if: runner.os == 'Linux' && steps.payload.outputs.build == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang llvm lld build-essential libicu-dev libkrb5-dev liblttng-ust-dev libssl-dev ninja-build python3
           cmake --version
 
       - name: macOS build dependencies
-        if: runner.os == 'macOS' && steps.cache.outputs.cache-hit != 'true'
+        if: runner.os == 'macOS' && steps.payload.outputs.build == 'true'
         run: brew install cmake ninja icu4c pkg-config
 
       - name: Build runtime (Windows)
-        if: runner.os == 'Windows' && steps.cache.outputs.cache-hit != 'true'
+        if: runner.os == 'Windows' && steps.payload.outputs.build == 'true'
         shell: cmd
         working-directory: satori-source
         env:
@@ -95,14 +123,14 @@ jobs:
         run: build.cmd clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest=
 
       - name: Build runtime (Unix)
-        if: runner.os != 'Windows' && steps.cache.outputs.cache-hit != 'true'
+        if: runner.os != 'Windows' && steps.payload.outputs.build == 'true'
         working-directory: satori-source
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: '3'
         run: ./build.sh clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest=
 
       - name: Collect runtime and provenance
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.payload.outputs.build == 'true'
         shell: bash
         run: python3 .github/scripts/satori_runtime.py pack ${{ matrix.rid }} satori-source --output satori-payload
 

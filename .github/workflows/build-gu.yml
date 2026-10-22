@@ -34,6 +34,11 @@ env:
 jobs:
   satori:
     uses: ./.github/workflows/satori-net11.yml
+    permissions:
+      contents: read
+      actions: read
+    with:
+      prebuilt_run_id: '39718998287'
 
   version:
     name: Compute version

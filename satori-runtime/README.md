@@ -15,6 +15,12 @@ The older `net10/` archives are retained for .NET 10 builds. Never mix them with
 the net11 runtime. A plain `dotnet publish` produces stock CoreCLR; the overlay
 must happen after publishing and before packaging or signing.
 
+`prebuilt_run_id` in `build-gu.yml` reuses the verified runtime artifacts from
+the initial source build across branches and tags. Every file and source pin is
+checked again, and the native probe still runs. Expired artifacts fall back to
+a source build; integrity or pin mismatches fail. Clear this input when changing
+the runtime source or SDK pin, then set it to the newly validated build run.
+
 A manual `build-gu.yml` dispatch defaults to build-only. Set `publish_release`
 only for a release; `-nova` tag pushes still use the normal release flow.
 This change does not change application identity, storage, IPC or update feeds.
