@@ -771,10 +771,9 @@ jobs:
           # terminal help to get it running.
           mkdir -p Releases
           ZIP_NAME="Torii-macOS-Intel.zip"
-          MIN_OS="10.15"
+          MIN_OS="14.0"
           if [[ "${{ matrix.runtime }}" == "osx-arm64" ]]; then
             ZIP_NAME="Torii-macOS-AppleSilicon.zip"
-            MIN_OS="11.0"
           fi
 
           STAGE="bundle-${{ matrix.runtime }}"
@@ -1117,6 +1116,11 @@ jobs:
     permissions:
       contents: write
     steps:
+    - name: Checkout release notes
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+
     - name: Check Nova release stream
       env:
         VERSION: ${{ needs.version.outputs.version }}
