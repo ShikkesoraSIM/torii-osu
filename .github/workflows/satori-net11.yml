@@ -50,6 +50,10 @@ jobs:
           path: satori-payload
           key: satori11-${{ matrix.os }}-${{ matrix.rid }}-${{ steps.pin.outputs.commit }}-${{ hashFiles('.github/satori-net11.json', '.github/workflows/satori-net11.yml', '.github/scripts/satori_runtime.py') }}
 
+      - name: Allow long source paths (Windows)
+        if: runner.os == 'Windows' && steps.cache.outputs.cache-hit != 'true'
+        run: git config --global core.longpaths true
+
       - name: Checkout Satori
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
