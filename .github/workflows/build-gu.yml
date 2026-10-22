@@ -500,6 +500,7 @@ jobs:
             PATCH_DIR="$(mktemp -d)"
             echo "Patching APK native libs from $BIONIC_LIBS_SRC into $PATCH_DIR"
             ( cd "$PATCH_DIR" && unzip -q "$GITHUB_WORKSPACE/$APK_FILE" )
+            chmod -R u+rwX "$PATCH_DIR"
             mkdir -p "$PATCH_DIR/lib/arm64-v8a"
             for so in "$BIONIC_LIBS_SRC"/*.so; do
               name=$(basename "$so")
