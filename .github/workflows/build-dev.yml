@@ -7,10 +7,7 @@ on:
     branches: [ develop ]
 
 env:
-  # Documented for reference; real install uses both 8.x and 10.x in
-  # the Setup .NET step (global.json pins 10.0.100 since the .NET 10
-  # + CoreCLR Android migration).
-  DOTNET_VERSION: '10.0.x'
+  DOTNET_VERSION: '11.0.100-rc.2.26504.105'
   FRAMEWORK_REPOSITORY: 'ShikkesoraSIM/torii-framework'
   FRAMEWORK_REF: '25e68d530f7116437c4cfaf127169ac4d6619927'
   RESOURCES_REPOSITORY: 'ShikkesoraSIM/torii-resources'
@@ -55,6 +52,7 @@ jobs:
         dotnet-version: |
           8.0.x
           10.0.x
+          11.0.100-rc.2.26504.105
 
     - name: Cache NuGet packages
       uses: actions/cache@v4

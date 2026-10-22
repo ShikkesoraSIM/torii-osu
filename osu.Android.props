@@ -3,7 +3,7 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)..\toriirefresh-framework\osu.Framework.Android\osu.Framework.Android.csproj" />
   </ItemGroup>
   <PropertyGroup>
-    <SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <!-- arm64-only: slimmer APK, avoids multi-arch install failures; arm64 covers ~99% of phones. -->
     <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
@@ -11,12 +11,8 @@
     <!-- NullabilityInfoContextSupport is disabled by default for Android -->
     <NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
-    <!-- Can be removed in .NET 11 (CoreCLR is the default) -->
     <UseMonoRuntime>false</UseMonoRuntime>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <!-- CoreCLR on Android is an experimental feature in .NET 10.
-         This suppression can be removed after .NET 11, as the use of CoreCLR becomes the default in .NET 11 and above. -->
-    <NoWarn>$(NoWarn);XA1040</NoWarn>
   </PropertyGroup>
   <PropertyGroup>
     <!-- Fody does not handle Android build well, and warns when unchanged.

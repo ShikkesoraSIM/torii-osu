@@ -12,6 +12,10 @@ on:
         description: 'Release version (e.g., 1.0.0)'
         required: false
         default: '1.0.0-dev'
+      publish_release:
+        description: 'Publish after all platforms pass'
+        type: boolean
+        default: false
   release:
     types: [ published ]
 
@@ -28,6 +32,9 @@ env:
   RESOURCES_REF: '2a516e45ba416dbd2cf8b821661909109f738b34'
 
 jobs:
+  satori:
+    uses: ./.github/workflows/satori-net11.yml
+
   version:
     name: Compute version
     runs-on: ubuntu-latest
@@ -101,7 +108,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.runtime }} on ${{ matrix.os }}
-    needs: version
+    needs: [version, satori]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     # Prevent concurrent builds from interfering with each other's NuGet operations
@@ -187,30 +194,30 @@ jobs:
         mv toriirefresh-resources ../toriirefresh-resources
 
     - name: Setup .NET
-      # Install both .NET 10 (required by global.json + net10.0-android
-      # + CoreCLR runtime) and .NET 8 (kept around so any tooling that
-      # still hard-codes 8.x — e.g. legacy MSBuild tasks during the
-      # transition — keeps working).
+      # 8 y 10 quedan para las tools y dependencias que todavia los usan.
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
           8.0.x
           10.0.x
+          11.0.100-rc.2.26504.105
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
 
     - name: Setup Java for Android (Android only)
       if: matrix.runtime == 'android'
       uses: actions/setup-java@v4
       with:
         distribution: 'microsoft'
-        java-version: '17'
+        java-version: '21'
 
     - name: Setup Android SDK (Android only)
       if: matrix.runtime == 'android'
       uses: android-actions/setup-android@v3
       with:
-        cmdline-tools-version: 8512546
-        # the default also asks for 'tools', which google removed from the sdk repo (2026-10) and
-        # makes sdkmanager exit 1. the runner image already has platforms and build-tools.
+        # 'tools' ya no existe en el repo de Google.
         packages: platform-tools
 
     - name: Accept Android SDK licenses (Android only)
@@ -223,7 +230,7 @@ jobs:
       if: matrix.runtime == 'android'
       shell: bash
       run: |
-        dotnet workload install android --version 10.0.402
+        dotnet workload install android --version 11.0.100-rc.2.26509.2
         dotnet workload list
         echo "Android SDK Root: $ANDROID_SDK_ROOT"
         echo "Java Home: $JAVA_HOME"
@@ -332,6 +339,16 @@ jobs:
             --no-cache \
             --force
         fi
+
+    - name: Install Android SDK dependencies (Android only)
+      if: matrix.runtime == 'android'
+      shell: bash
+      run: |
+        dotnet build osu.Android/osu.Android.csproj --no-restore \
+          -t:InstallAndroidDependencies -f net11.0-android \
+          -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT" \
+          -p:JavaSdkDirectory="$JAVA_HOME" \
+          -p:AcceptAndroidSdkLicenses=true
 
     - name: Setup Android signing (Android only)
       if: matrix.runtime == 'android'
@@ -590,46 +607,18 @@ jobs:
             -p:InformationalVersion=${{ needs.version.outputs.version }}
         fi
 
-    - name: Attach Satori GC (net10 desktop)
-      # Overlay the Satori low-pause GC runtime onto the published self-contained
-      # build, replacing the stock coreclr / clrjit / System.Private.CoreLib with
-      # Satori's. Satori is what collapses the song-select GC pauses (gen2 281 -> 16
-      # on net10 in an A/B allocation test), the same win osu ships on net8.
-      #
-      # net10 Satori has NO public release (only expiring CI artifacts from
-      # ppy/Satori's 10.0-based branch), so the runtime files are vendored in-repo
-      # under satori-runtime/net10/<rid>.zip and just unzipped in place here - no
-      # download, no auth, no expiry. Built from ppy/Satori 10.0-based run
-      # 27126600038 (.NET 10.0.4 coreclr; patch-compatible with the net10.0.x BCL
-      # the SDK publishes). Same overlay shape osu-deploy uses for net8.
+    - name: Download Satori 11
+      if: matrix.runtime != 'android'
+      uses: actions/download-artifact@v4
+      with:
+        name: satori-net11-${{ matrix.runtime }}
+        path: satori-payload
+
+    - name: Attach and verify Satori 11
       if: matrix.runtime != 'android'
       shell: bash
       run: |
-        RID="${{ matrix.runtime }}"
-        PUBLISH_DIR="publish/$RID"
-        ZIP="satori-runtime/net10/$RID.zip"
-
-        if [[ ! -f "$ZIP" ]]; then
-          echo "No vendored Satori for runtime '$RID' - leaving stock GC in place."
-          exit 0
-        fi
-
-        # Satori here is net10-only; never overlay it onto a non-net10 build.
-        RCFG=$(ls "$PUBLISH_DIR"/*.runtimeconfig.json 2>/dev/null | head -1)
-        if [[ -n "$RCFG" ]] && ! grep -q 'net10' "$RCFG"; then
-          echo "Publish output is not net10 - skipping net10 Satori overlay."
-          exit 0
-        fi
-
-        # Overwrite the stock runtime files in place (coreclr/clrjit are named
-        # .dll on Windows, .so on Linux, .dylib on macOS; System.Private.CoreLib
-        # is .dll everywhere). -j flattens, -o overwrites.
-        unzip -o -j "$ZIP" -d "$PUBLISH_DIR" || { echo "::error::Failed to extract vendored Satori for ${RID}"; exit 1; }
-
-        test -f "$PUBLISH_DIR/System.Private.CoreLib.dll" || { echo "::error::Satori overlay missing System.Private.CoreLib.dll for ${RID}"; exit 1; }
-        ls "$PUBLISH_DIR"/*coreclr* >/dev/null 2>&1 || { echo "::error::Satori overlay missing coreclr for ${RID}"; exit 1; }
-        echo "Vendored net10 Satori overlaid into ${PUBLISH_DIR}."
-        ls -la "$PUBLISH_DIR"/System.Private.CoreLib.dll "$PUBLISH_DIR"/*coreclr* "$PUBLISH_DIR"/*clrjit* 2>/dev/null || true
+        python3 .github/scripts/satori_runtime.py overlay "${{ matrix.runtime }}" satori-payload --output "publish/${{ matrix.runtime }}"
 
     - name: Resolve desktop executable name
       if: matrix.runtime != 'android'
@@ -1095,6 +1084,7 @@ jobs:
         dotnet-version: |
           8.0.x
           10.0.x
+          11.0.100-rc.2.26504.105
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -1121,16 +1111,25 @@ jobs:
     # - tag push (v*)
     # - release event
     # - workflow_dispatch
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
     needs: [build, version]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+    - name: Check Nova release stream
+      env:
+        VERSION: ${{ needs.version.outputs.version }}
+      run: |
+        if [[ "$VERSION" != *-nova ]]; then
+          echo "::error::This runtime migration is Nova-only."
+          exit 1
+        fi
+
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: '*'
+        pattern: 'torii-*-${{ needs.version.outputs.version }}'
         merge-multiple: true
         path: artifacts
 
@@ -1288,11 +1287,11 @@ jobs:
 
         ### Installation Notes
         1. Download the installer or portable archive for your platform.
-        2. Desktop builds use their own isolated data directory, separate from any other client.
+        2. Existing Nova profiles, beatmaps, skins and settings are preserved.
         3. First launch may take longer due to initial setup.
 
         ### Upgrading from a previous Torii build
-        This release changes the application identity, so it installs alongside your old copy instead of updating it. Install it, check everything works, then uninstall the old one. Your beatmaps, skins, scores and settings are untouched: they live in a separate folder that both builds share.
+        Update normally from the Nova stream. The application identity and data directory are unchanged. Runtime files are bundled; installing .NET separately is not required.
 
         ### Platform Notes
         - **macOS:** if needed, allow the app in System Settings because it is not notarized.
@@ -1305,7 +1304,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Create or update GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.version.outputs.version }}
         target_commitish: ${{ github.sha }}
