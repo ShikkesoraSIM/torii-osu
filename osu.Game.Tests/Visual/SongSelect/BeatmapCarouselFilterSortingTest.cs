@@ -239,7 +239,7 @@ namespace osu.Game.Tests.Visual.SongSelect
             Assert.That(nomodResults[0], Is.EqualTo(setA.Beatmaps[0]));
             Assert.That(nomodResults[1], Is.EqualTo(setB.Beatmaps[0]));
 
-            // DoubleTime scales both up (setA ≈ 5.34, setB ≈ 6.85) and preserves ascending order.
+            // DoubleTime scales both up (setA ≈ 5.71, setB ≈ 7.32) and preserves ascending order.
             var dtResults = (await runSorting(SortMode.Difficulty, new List<BeatmapSetInfo> { setB, setA }, new[] { new OsuModDoubleTime() })).ToList();
             Assert.That(dtResults[0], Is.EqualTo(setA.Beatmaps[0]));
             Assert.That(dtResults[1], Is.EqualTo(setB.Beatmaps[0]));
@@ -261,7 +261,7 @@ namespace osu.Game.Tests.Visual.SongSelect
             Assert.That(nomodResults[0], Is.EqualTo(setA.Beatmaps[0]));
             Assert.That(nomodResults[1], Is.EqualTo(setB.Beatmaps[0]));
 
-            // Easy raises high-AR maps relative to low-AR maps: setA ≈ 5.08, setB ≈ 4.42, so the order flips.
+            // Easy raises high-AR maps relative to low-AR maps: setA ≈ 5.31, setB ≈ 4.84, so the order flips.
             var ezResults = (await runSorting(SortMode.Difficulty, new List<BeatmapSetInfo> { setA, setB }, new[] { new OsuModEasy() })).ToList();
             Assert.That(ezResults[0], Is.EqualTo(setB.Beatmaps[0]));
             Assert.That(ezResults[1], Is.EqualTo(setA.Beatmaps[0]));
@@ -271,7 +271,7 @@ namespace osu.Game.Tests.Visual.SongSelect
         public async Task TestSortByDifficultyCompoundMods()
         {
             // DT + HR: HR scales with circle size, so a slightly easier high-CS map overtakes a low-CS map.
-            // setA: 4.9 base, CS 9 ≈ 7.56; setB: 5.0 base, CS 2 ≈ 7.46.
+            // setA: 4.9 base, CS 9 ≈ 8.96; setB: 5.0 base, CS 2 ≈ 7.48.
             var setA = TestResources.CreateTestBeatmapSetInfo(1);
             setA.Beatmaps[0].StarRating = 4.9;
             setA.Beatmaps[0].Difficulty.CircleSize = 9;
@@ -286,7 +286,7 @@ namespace osu.Game.Tests.Visual.SongSelect
             Assert.That(resultsDtHr[1], Is.EqualTo(setA.Beatmaps[0]));
 
             // EZ + HT: EZ keeps more difficulty on high-AR maps, so a high-AR map overtakes a harder low-AR map.
-            // setC: 4.0 base, AR 10 ≈ 3.22; setD: 4.5 base, AR 5 ≈ 3.10.
+            // setC: 4.0 base, AR 10 ≈ 3.75; setD: 4.5 base, AR 5 ≈ 3.37.
             var setC = TestResources.CreateTestBeatmapSetInfo(1);
             setC.Beatmaps[0].StarRating = 4.0;
             setC.Beatmaps[0].Difficulty.ApproachRate = 10;
@@ -345,7 +345,7 @@ namespace osu.Game.Tests.Visual.SongSelect
 
             var mods = new[] { new OsuModDoubleTime() };
 
-            // Under approximation alone, setA (≈ 5.34) would sort before setB (≈ 6.85).
+            // Under approximation alone, setA (≈ 5.71) would sort before setB (≈ 7.32).
             // Only setA is pre-populated in the cache, with an exact value of 8.0, so it should sort after setB.
             var cache = new TestBeatmapDifficultyCache
             {

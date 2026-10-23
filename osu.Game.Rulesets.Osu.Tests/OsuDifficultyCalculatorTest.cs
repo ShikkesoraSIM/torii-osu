@@ -6,6 +6,7 @@ using System.Linq;
 using NUnit.Framework;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Osu.Difficulty;
 using osu.Game.Rulesets.Osu.Mods;
 using osu.Game.Tests.Beatmaps;
@@ -68,6 +69,25 @@ namespace osu.Game.Rulesets.Osu.Tests
             Assert.That(timedAttributes[70000].StarRating, Is.EqualTo(6.5240609777925842).Within(CHECK_PRECISION));
             Assert.That(timedAttributes[74600].MaxCombo, Is.EqualTo(195));
             Assert.That(timedAttributes[74600].StarRating, Is.EqualTo(6.5240617806983261).Within(CHECK_PRECISION));
+        }
+
+        [Test]
+        public void TestAutopilotApproximationTail()
+        {
+            // diffcalc-test is aim-heavy (aim is about 0.58 of its star rating). Autopilot removes aim from the calculation, and the star rating
+            // approximation can't see the aim/speed split, so it over-estimates maps like this one. This keeps the error within the range measured
+            // on held-out real beatmaps (-2.34★ to +3.14★), without asserting that the approximation is accurate here.
+            var beatmap = GetBeatmap("diffcalc-test");
+            var calculator = CreateDifficultyCalculator(beatmap);
+            var mods = new Mod[] { new OsuModAutopilot() };
+
+            var beatmapInfo = beatmap.Beatmap.BeatmapInfo;
+            beatmapInfo.StarRating = calculator.Calculate().StarRating;
+
+            double exact = calculator.Calculate(mods).StarRating;
+            double approximate = StarRatingApproximator.Approximate(beatmapInfo, CreateRuleset().RulesetInfo, mods);
+
+            Assert.That(approximate - exact, Is.InRange(-2.34, 3.14));
         }
 
         [TestCase(239, "diffcalc-test")]
