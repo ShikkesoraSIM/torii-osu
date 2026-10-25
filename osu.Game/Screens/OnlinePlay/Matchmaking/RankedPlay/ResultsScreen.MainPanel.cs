@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
@@ -36,12 +35,10 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             public required ScoreInfo OpponentScore { get; init; }
             public required RankedPlayDamageInfo PlayerDamageInfo { get; init; }
             public required RankedPlayDamageInfo OpponentDamageInfo { get; init; }
+            public required int RoundNumber { get; init; }
 
             public required APIBeatmap Beatmap { get; init; }
             public required Mod[] Mods { get; init; }
-
-            [Resolved]
-            private RankedPlayMatchInfo matchInfo { get; set; } = null!;
 
             [Resolved]
             private OsuColour colours { get; set; } = null!;
@@ -97,10 +94,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
             private void load(AudioManager audio)
             {
                 // this works under the assumption that only one player can receive damage each round
-                losingDamageInfo = matchInfo.RoomState.Users
-                                            .Select(it => it.Value.DamageInfo)
-                                            .OfType<RankedPlayDamageInfo>()
-                                            .MaxBy(it => it.Damage)!;
+                losingDamageInfo = PlayerDamageInfo.Damage >= OpponentDamageInfo.Damage ? PlayerDamageInfo : OpponentDamageInfo;
 
                 AddInternal(new Container
                 {
@@ -155,7 +149,7 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                             Padding = new MarginPadding { Bottom = 30 },
                             Child = roundNumber = new OsuSpriteText
                             {
-                                Text = $"Round {matchInfo.CurrentRound}",
+                                Text = $"Round {RoundNumber}",
                                 Anchor = Anchor.Centre,
                                 Origin = Anchor.Centre,
                                 Font = OsuFont.GetFont(size: 36, weight: FontWeight.Bold, typeface: Typeface.TorusAlternate),
@@ -337,20 +331,20 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                 {
                     Children = new Drawable[]
                     {
-                        resultsAppearSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/results-appear")),
-                        dmgFlySample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/dmg-fly")),
-                        dmgHitSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/dmg-hit")),
-                        damageMultiplierSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier")),
-                        damageMultiplierUpSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier-up")),
-                        damageMultiplierDownSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier-down")),
-                        hpDownSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/hp-down")),
-                        playerAppearSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/players-appear")),
-                        pseudoScoreCounterSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/pseudo-score-counter")),
-                        scoreTickSample = new DrawableSample(audio.Samples.Get(@"Multiplayer/Matchmaking/Ranked/Results/score-tick")),
-                        gradePassSample = new DrawableSample(audio.Samples.Get(@"Results/rank-impact-pass")),
-                        gradePassSsSample = new DrawableSample(audio.Samples.Get(@"Results/rank-impact-pass-ss")),
-                        gradeFailSample = new DrawableSample(audio.Samples.Get(@"Results/rank-impact-fail")),
-                        gradeFailDSample = new DrawableSample(audio.Samples.Get(@"Results/rank-impact-fail-d")),
+                        resultsAppearSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/results-appear"),
+                        dmgFlySample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/dmg-fly"),
+                        dmgHitSample = LoadResultSample(audio.Samples, DAMAGE_HIT_SAMPLE, DAMAGE_HIT_FALLBACK_SAMPLE),
+                        damageMultiplierSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier"),
+                        damageMultiplierUpSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier-up"),
+                        damageMultiplierDownSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/dmg-multiplier-down"),
+                        hpDownSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/hp-down"),
+                        playerAppearSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/players-appear"),
+                        pseudoScoreCounterSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/pseudo-score-counter"),
+                        scoreTickSample = LoadResultSample(audio.Samples, @"Multiplayer/Matchmaking/Ranked/Results/score-tick"),
+                        gradePassSample = LoadResultSample(audio.Samples, @"Results/rank-impact-pass"),
+                        gradePassSsSample = LoadResultSample(audio.Samples, @"Results/rank-impact-pass-ss"),
+                        gradeFailSample = LoadResultSample(audio.Samples, @"Results/rank-impact-fail"),
+                        gradeFailDSample = LoadResultSample(audio.Samples, @"Results/rank-impact-fail-d"),
                     }
                 });
             }

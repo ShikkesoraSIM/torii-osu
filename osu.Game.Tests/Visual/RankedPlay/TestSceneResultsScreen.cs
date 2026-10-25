@@ -7,6 +7,7 @@ using System.Linq;
 using NUnit.Framework;
 using osu.Framework.Extensions;
 using osu.Framework.Screens;
+using osu.Framework.Testing;
 using osu.Framework.Utils;
 using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
@@ -73,6 +74,7 @@ namespace osu.Game.Tests.Visual.RankedPlay
                     }
                 }
             }).WaitSafely());
+            waitForResults();
         }
 
         [Test]
@@ -116,6 +118,7 @@ namespace osu.Game.Tests.Visual.RankedPlay
                     }
                 }
             }).WaitSafely());
+            waitForResults();
         }
 
         [Test]
@@ -154,6 +157,64 @@ namespace osu.Game.Tests.Visual.RankedPlay
                     };
                 }
             }).WaitSafely());
+            waitForResults();
+        }
+
+        [Test]
+        public void TestLeavingResultsCancelsScoreLookup()
+        {
+            IndexPlaylistScoresRequest? pendingRequest = null;
+            delayScoreResponse(request => pendingRequest = request);
+
+            AddStep("enter results", () => MultiplayerClient.RankedPlayChangeStage(RankedPlayStage.Results, state =>
+            {
+                foreach (var user in state.Users.Values)
+                    user.DamageInfo = new RankedPlayDamageInfo { OldLife = user.Life, NewLife = user.Life };
+            }).WaitSafely());
+
+            AddUntilStep("score request started", () => pendingRequest != null);
+            AddStep("leave results", () => screen.ActiveSubScreen!.OnExiting(null));
+            AddAssert("score request cancelled", () => pendingRequest!.CompletionState, () => Is.EqualTo(APIRequestCompletionState.Failed));
+        }
+
+        [Test]
+        public void TestScoreLookupKeepsRoundDamage()
+        {
+            IndexPlaylistScoresRequest? pendingRequest = null;
+            delayScoreResponse(request => pendingRequest = request);
+
+            AddStep("enter results", () => MultiplayerClient.RankedPlayChangeStage(RankedPlayStage.Results, state =>
+            {
+                foreach (var user in state.Users.Values)
+                    user.DamageInfo = new RankedPlayDamageInfo { OldLife = user.Life, NewLife = user.Life };
+            }).WaitSafely());
+
+            AddUntilStep("score request started", () => pendingRequest != null);
+            AddStep("clear damage in newer state", () => MultiplayerClient.RankedPlayChangeUserState(API.LocalUser.Value.OnlineID, user => user.DamageInfo = null).WaitSafely());
+            AddUntilStep("newer state received", () => ((RankedPlayRoomState)MultiplayerClient.ClientRoom!.MatchState!).Users[API.LocalUser.Value.OnlineID].DamageInfo == null);
+            AddStep("complete score lookup", () => pendingRequest!.TriggerSuccess(new IndexedMultiplayerScores()));
+            waitForResults();
+        }
+
+        private void waitForResults() => AddUntilStep("both results panels loaded", () => screen.ActiveSubScreen.ChildrenOfType<ResultsScreen.ScoreDetails>().Count() == 2);
+
+        private void delayScoreResponse(Action<IndexPlaylistScoresRequest> onRequest)
+        {
+            AddStep("delay score response", () =>
+            {
+                var api = (DummyAPIAccess)API;
+                var defaultHandler = api.HandleRequest;
+                api.HandleRequest = request =>
+                {
+                    if (request is IndexPlaylistScoresRequest index)
+                    {
+                        onRequest(index);
+                        return true;
+                    }
+
+                    return defaultHandler?.Invoke(request) ?? false;
+                };
+            });
         }
 
         [Test]
@@ -230,6 +291,7 @@ namespace osu.Game.Tests.Visual.RankedPlay
                     }
                 }
             }).WaitSafely());
+            waitForResults();
         }
 
         [Test]
@@ -268,6 +330,7 @@ namespace osu.Game.Tests.Visual.RankedPlay
                     }
                 }
             }).WaitSafely());
+            waitForResults();
         }
 
         private void setupRequestHandler()

@@ -60,6 +60,8 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 
         private LoadingSpinner loadingSpinner = null!;
         private MainPanel? mainPanel;
+        private IndexPlaylistScoresRequest? scoreRequest;
+        private bool exited;
 
         [BackgroundDependencyLoader]
         private void load()
@@ -92,43 +94,57 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                 if (client.Room == null)
                     return;
 
-                TaskCompletionSource<List<MultiplayerScore>> scoreLookup = new TaskCompletionSource<List<MultiplayerScore>>();
+                // la sala puede avanzar mientras esperamos los scores.
+                var roomState = matchInfo.RoomState;
+                var beatmapInfo = globalBeatmap.Value.BeatmapInfo;
+                var ruleset = globalRuleset.Value;
+                var mods = globalMods.Value.ToArray();
+                int localUserId = api.LocalUser.Value.OnlineID;
+                int opponentId = roomState.Users.Keys.Single(it => it != localUserId);
+                var playerDamageInfo = roomState.Users[localUserId].DamageInfo!;
+                var opponentDamageInfo = roomState.Users[opponentId].DamageInfo!;
+                int roundNumber = roomState.CurrentRound;
 
-                var request = new IndexPlaylistScoresRequest(client.Room.RoomID, client.Room.Settings.PlaylistItemId);
+                TaskCompletionSource<List<MultiplayerScore>> scoreLookup = new TaskCompletionSource<List<MultiplayerScore>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                request.Success += req => scoreLookup.SetResult(req.Scores);
-                request.Failure += scoreLookup.SetException;
+                var request = scoreRequest = new IndexPlaylistScoresRequest(client.Room.RoomID, client.Room.Settings.PlaylistItemId);
+
+                request.Success += req => scoreLookup.TrySetResult(req.Scores);
+                request.Failure += error => scoreLookup.TrySetException(error);
 
                 api.Queue(request);
 
                 List<MultiplayerScore> apiScores = await scoreLookup.Task.ConfigureAwait(false);
 
-                ScoreInfo[] scores = apiScores.Select(s => s.CreateScoreInfo(scoreManager, rulesets, globalBeatmap.Value.BeatmapInfo)).ToArray();
+                if (exited)
+                    return;
+
+                ScoreInfo[] scores = apiScores.Select(s => s.CreateScoreInfo(scoreManager, rulesets, beatmapInfo)).ToArray();
 
                 Debug.Assert(scores.Length <= 2);
-
-                int localUserId = api.LocalUser.Value.OnlineID;
-                int opponentId = matchInfo.RoomState.Users.Keys.Single(it => it != localUserId);
 
                 ScoreInfo playerScore = scores.SingleOrDefault(s => s.UserID == localUserId) ?? new ScoreInfo
                 {
                     Rank = ScoreRank.F,
-                    Ruleset = globalRuleset.Value,
+                    Ruleset = ruleset,
                     User = new APIUser { Id = localUserId }
                 };
 
                 ScoreInfo opponentScore = scores.SingleOrDefault(s => s.UserID == opponentId) ?? new ScoreInfo
                 {
                     Rank = ScoreRank.F,
-                    Ruleset = globalRuleset.Value,
+                    Ruleset = ruleset,
                     User = new APIUser { Id = opponentId }
                 };
 
                 // Should complete instantaneously due to prior lookups.
-                APIBeatmap beatmap = (await beatmapLookupCache.GetBeatmapAsync(globalBeatmap.Value.BeatmapInfo.OnlineID).ConfigureAwait(false))!;
+                APIBeatmap beatmap = (await beatmapLookupCache.GetBeatmapAsync(beatmapInfo.OnlineID).ConfigureAwait(false))!;
 
                 Schedule(() =>
                 {
+                    if (exited)
+                        return;
+
                     LoadComponentAsync(new MainPanel
                     {
                         RelativeSizeAxes = Axes.Both,
@@ -136,16 +152,26 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
                         Margin = new MarginPadding { Top = 45 },
                         PlayerScore = playerScore,
                         OpponentScore = opponentScore,
-                        PlayerDamageInfo = matchInfo.RoomState.Users[localUserId].DamageInfo!,
-                        OpponentDamageInfo = matchInfo.RoomState.Users[opponentId].DamageInfo!,
+                        PlayerDamageInfo = playerDamageInfo,
+                        OpponentDamageInfo = opponentDamageInfo,
+                        RoundNumber = roundNumber,
                         Beatmap = beatmap,
-                        Mods = globalMods.Value.ToArray(),
+                        Mods = mods,
                     }, loaded =>
                     {
+                        if (exited)
+                        {
+                            loaded.Dispose();
+                            return;
+                        }
+
                         AddInternal(loaded);
                         mainPanel = loaded;
                     });
                 });
+            }
+            catch (OperationCanceledException) when (exited)
+            {
             }
             catch (Exception e)
             {
@@ -160,8 +186,21 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.RankedPlay
 
         public override void OnExiting(RankedPlaySubScreen? next)
         {
+            cancelScoreLookup();
             mainPanel?.StopAllSamples();
             base.OnExiting(next);
+        }
+
+        private void cancelScoreLookup()
+        {
+            exited = true;
+            scoreRequest?.Cancel();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            cancelScoreLookup();
+            base.Dispose(isDisposing);
         }
     }
 }
