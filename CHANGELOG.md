@@ -2,6 +2,13 @@
 
 ## Latest
 
+- Fixed ranked play results not showing the two scores, ranks and HP damage.
+- Fixed the renamed damage sound and kept compatibility with older resources.
+- Fixed late score requests trying to load results after leaving the round.
+- Includes the merged fixes for modded star rating estimates in song select.
+
+## Previous Nova Runtime Update
+
 - Nova now runs on .NET 11 RC2. Desktop builds include Satori 11, built from a
   pinned source commit and checked for the correct architecture and file hashes.
 - Windows, Linux and macOS include x64 and ARM64 builds. Android stays on CoreCLR
