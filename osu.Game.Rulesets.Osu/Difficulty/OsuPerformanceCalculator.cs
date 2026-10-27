@@ -53,6 +53,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
         private double okHitWindow;
         private double mehHitWindow;
 
+        private double circleSize;
         private double overallDifficulty;
         private double approachRate;
         private double drainRate;
@@ -99,6 +100,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             okHitWindow = hitWindows.WindowFor(HitResult.Ok) / clockRate;
             mehHitWindow = hitWindows.WindowFor(HitResult.Meh) / clockRate;
 
+            circleSize = difficulty.CircleSize;
             approachRate = OsuDifficultyCalculator.CalculateRateAdjustedApproachRate(difficulty.ApproachRate, clockRate);
             overallDifficulty = OsuDifficultyCalculator.CalculateRateAdjustedOverallDifficulty(difficulty.OverallDifficulty, clockRate);
             drainRate = difficulty.DrainRate;
@@ -227,6 +229,29 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             }
 
             aimValue *= accuracy;
+
+            if (score.Mods.Any(h => h is OsuModRelax))
+            {
+                double safeOD = Math.Max(0.0, overallDifficulty);
+                double safeCS = Math.Max(0.0, circleSize);
+
+                // 1. Base low-OD leniency factor:
+                // At OD < 8.0, the hit window is wider than standard (up to 160ms at OD 0),
+                // allowing players to hit fast jumps with much less timing precision.
+                double odDeficitBase = Math.Clamp((8.0 - safeOD) / 8.0, 0.0, 1.0);
+                double baseOdFactor = 1.0 - 0.25 * Math.Pow(odDeficitBase, 1.5);
+
+                // 2. High CS + Low OD Synergy (Small Circle Swipe Exploit):
+                // In Relax, the auto-clicker triggers as long as the cursor intersects the circle during the hit window.
+                // When circles are small (CS > 4.0) and the window is large (OD < 8.5), players can swipe straight through
+                // without having to stop or snap, turning tiny circles into large effective hit targets.
+                double csScale = Math.Clamp((safeCS - 4.0) / 3.0, 0.0, 1.0);
+                double odScale = Math.Clamp((8.5 - safeOD) / 8.5, 0.0, 1.0);
+                double swipeIntensity = csScale * odScale;
+                double swipeFactor = 1.0 - 0.55 * Math.Pow(swipeIntensity, 1.3);
+
+                aimValue *= baseOdFactor * swipeFactor;
+            }
 
             return aimValue;
         }
