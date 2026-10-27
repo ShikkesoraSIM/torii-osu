@@ -235,16 +235,11 @@ namespace osu.Game.Rulesets.Osu.Difficulty
                 double safeOD = Math.Max(0.0, overallDifficulty);
                 double safeCS = Math.Max(0.0, circleSize);
 
-                // 1. Base low-OD leniency factor:
-                // At OD < 8.0, the hit window is wider than standard (up to 160ms at OD 0),
-                // allowing players to hit fast jumps with much less timing precision.
+                // usa od con rate; tambien alcanza od bajo nativo y ez, no solo da.
                 double odDeficitBase = Math.Clamp((8.0 - safeOD) / 8.0, 0.0, 1.0);
                 double baseOdFactor = 1.0 - 0.25 * Math.Pow(odDeficitBase, 1.5);
 
-                // 2. High CS + Low OD Synergy (Small Circle Swipe Exploit):
-                // In Relax, the auto-clicker triggers as long as the cursor intersects the circle during the hit window.
-                // When circles are small (CS > 4.0) and the window is large (OD < 8.5), players can swipe straight through
-                // without having to stop or snap, turning tiny circles into large effective hit targets.
+                // aproxima el efecto de cs alto con od bajo; no analiza el movimiento del cursor.
                 double csScale = Math.Clamp((safeCS - 4.0) / 3.0, 0.0, 1.0);
                 double odScale = Math.Clamp((8.5 - safeOD) / 8.5, 0.0, 1.0);
                 double swipeIntensity = csScale * odScale;
