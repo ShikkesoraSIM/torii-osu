@@ -314,9 +314,18 @@ namespace osu.Game.Rulesets.Osu.Edit
                 if (b.IsSelected)
                     continue;
 
-                var snapPositions = b.ScreenSpaceSnapPoints;
+                Vector2[] snapPositions;
 
-                if (!snapPositions.Any())
+                try
+                {
+                    snapPositions = b.ScreenSpaceSnapPoints;
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (snapPositions == null || !snapPositions.Any())
                     continue;
 
                 var closestSnapPosition = snapPositions.MinBy(p => Vector2.Distance(p, screenSpacePosition));

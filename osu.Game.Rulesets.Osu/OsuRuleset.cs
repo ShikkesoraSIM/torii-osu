@@ -206,6 +206,7 @@ namespace osu.Game.Rulesets.Osu
                         new OsuModTargetPractice(),
                         new OsuModDifficultyAdjust(),
                         new OsuModClassic(),
+                        new ModScoreV2(),
                         new OsuModRandom(),
                         new OsuModMirror(),
                         new MultiMod(new OsuModAlternate(), new OsuModSingleTap())
@@ -247,7 +248,6 @@ namespace osu.Game.Rulesets.Osu
                     return new Mod[]
                     {
                         new OsuModTouchDevice(),
-                        new ModScoreV2(),
                     };
 
                 default:

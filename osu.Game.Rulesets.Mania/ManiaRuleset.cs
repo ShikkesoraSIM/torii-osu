@@ -267,6 +267,7 @@ namespace osu.Game.Rulesets.Mania
                         new ManiaModMirror(),
                         new ManiaModDifficultyAdjust(),
                         new ManiaModClassic(),
+                        new ManiaModScoreV2(),
                         new ManiaModInvert(),
                         new ManiaModConstantSpeed(),
                         new ManiaModHoldOff(),
@@ -300,10 +301,7 @@ namespace osu.Game.Rulesets.Mania
                     };
 
                 case ModType.System:
-                    return new Mod[]
-                    {
-                        new ManiaModScoreV2(),
-                    };
+                    return Array.Empty<Mod>();
 
                 default:
                     return Array.Empty<Mod>();

@@ -177,6 +177,7 @@ namespace osu.Game.Rulesets.Taiko
                         new TaikoModRandom(),
                         new TaikoModDifficultyAdjust(),
                         new TaikoModClassic(),
+                        new ModScoreV2(),
                         new TaikoModSwap(),
                         new TaikoModSingleTap(),
                         new TaikoModConstantSpeed(),
@@ -199,10 +200,7 @@ namespace osu.Game.Rulesets.Taiko
                     };
 
                 case ModType.System:
-                    return new Mod[]
-                    {
-                        new ModScoreV2(),
-                    };
+                    return Array.Empty<Mod>();
 
                 default:
                     return Array.Empty<Mod>();

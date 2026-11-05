@@ -155,6 +155,7 @@ namespace osu.Game.Rulesets.Catch
                     {
                         new CatchModDifficultyAdjust(),
                         new CatchModClassic(),
+                        new ModScoreV2(),
                         new CatchModMirror(),
                     };
 
@@ -178,10 +179,7 @@ namespace osu.Game.Rulesets.Catch
                     };
 
                 case ModType.System:
-                    return new Mod[]
-                    {
-                        new ModScoreV2(),
-                    };
+                    return Array.Empty<Mod>();
 
                 default:
                     return Array.Empty<Mod>();

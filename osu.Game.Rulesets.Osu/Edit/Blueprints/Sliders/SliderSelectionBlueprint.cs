@@ -32,7 +32,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
 {
     public partial class SliderSelectionBlueprint : OsuSelectionBlueprint<Slider>
     {
-        protected new DrawableSlider DrawableObject => (DrawableSlider)base.DrawableObject;
+        protected new DrawableSlider? DrawableObject => base.DrawableObject as DrawableSlider;
 
         protected SliderBodyPiece BodyPiece { get; private set; } = null!;
         protected SliderCircleOverlay HeadOverlay { get; private set; } = null!;
@@ -61,6 +61,9 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
         {
             get
             {
+                if (BodyPiece == null || HeadOverlay == null || TailOverlay == null)
+                    return DrawableObject?.ScreenSpaceDrawQuad ?? new Quad();
+
                 var result = BodyPiece.ScreenSpaceDrawQuad.AABBFloat;
 
                 result = RectangleF.Union(result, HeadOverlay.VisibleQuad);
@@ -129,7 +132,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
             showHitMarkers.BindValueChanged(_ =>
             {
                 if (!showHitMarkers.Value)
-                    DrawableObject.RestoreHitAnimations();
+                    DrawableObject?.RestoreHitAnimations();
             });
         }
 
@@ -153,10 +156,10 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
             base.Update();
 
             if (IsSelected)
-                BodyPiece.UpdateFrom(HitObject);
+                BodyPiece?.UpdateFrom(HitObject);
 
             if (showHitMarkers.Value)
-                DrawableObject.SuppressHitAnimations();
+                DrawableObject?.SuppressHitAnimations();
         }
 
         protected override bool OnHover(HoverEvent e)
@@ -185,7 +188,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
                 endControlPointPlacement();
 
             updateVisualDefinition();
-            BodyPiece.RecyclePath();
+            BodyPiece?.RecyclePath();
         }
 
         private void updateVisualDefinition()
@@ -623,26 +626,36 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
         };
 
         // Always refer to the drawable object's slider body so subsequent movement deltas are calculated with updated positions.
-        public override Vector2 ScreenSpaceSelectionPoint => DrawableObject.SliderBody?.ToScreenSpace(DrawableObject.SliderBody.PathOffset)
-                                                             ?? BodyPiece.ToScreenSpace(BodyPiece.PathStartLocation);
+        public override Vector2 ScreenSpaceSelectionPoint => DrawableObject?.SliderBody?.ToScreenSpace(DrawableObject.SliderBody.PathOffset)
+                                                             ?? BodyPiece?.ToScreenSpace(BodyPiece.PathStartLocation)
+                                                             ?? (HitObject != null ? ToScreenSpace(HitObject.StackedPosition) : Vector2.Zero);
 
         protected override Vector2[] ScreenSpaceAdditionalNodes => getScreenSpaceControlPointNodes().Prepend(
-            DrawableObject.SliderBody?.ToScreenSpace(DrawableObject.SliderBody.PathEndOffset) ?? BodyPiece.ToScreenSpace(BodyPiece.PathEndLocation)
+            DrawableObject?.SliderBody?.ToScreenSpace(DrawableObject.SliderBody.PathEndOffset)
+            ?? BodyPiece?.ToScreenSpace(BodyPiece.PathEndLocation)
+            ?? (HitObject != null ? ToScreenSpace(HitObject.StackedEndPosition) : Vector2.Zero)
         ).ToArray();
 
         private IEnumerable<Vector2> getScreenSpaceControlPointNodes()
         {
             // Returns the positions of control points that produce visible kinks on the slider's path
             // This excludes inherited control points from Bezier, B-Spline, Perfect, and Catmull curves
-            if (DrawableObject.SliderBody == null)
+            var sliderBody = DrawableObject?.SliderBody;
+            if (sliderBody == null)
+                yield break;
+
+            var controlPoints = HitObject?.Path?.ControlPoints;
+            if (controlPoints == null || controlPoints.Count <= 1)
                 yield break;
 
             PathType? currentPathType = null;
 
             // Skip the last control point because its always either not on the slider path or exactly on the slider end
-            for (int i = 0; i < DrawableObject.HitObject.Path.ControlPoints.Count - 1; i++)
+            for (int i = 0; i < controlPoints.Count - 1; i++)
             {
-                var controlPoint = DrawableObject.HitObject.Path.ControlPoints[i];
+                var controlPoint = controlPoints[i];
+                if (controlPoint == null)
+                    continue;
 
                 if (controlPoint.Type is not null)
                     currentPathType = controlPoint.Type;
@@ -654,14 +667,14 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.Sliders
                 if (controlPoint.Type is null && currentPathType != PathType.LINEAR)
                     continue;
 
-                var screenSpacePosition = DrawableObject.SliderBody.ToScreenSpace(DrawableObject.SliderBody.PathOffset + controlPoint.Position);
+                var screenSpacePosition = sliderBody.ToScreenSpace(sliderBody.PathOffset + controlPoint.Position);
                 yield return screenSpacePosition;
             }
         }
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
-            if (BodyPiece.ReceivePositionalInputAt(screenSpacePos) && (IsSelected || DrawableObject.Body.Alpha > 0 || DrawableObject.HeadCircle.Alpha > 0))
+            if (BodyPiece?.ReceivePositionalInputAt(screenSpacePos) == true && (IsSelected || DrawableObject?.Body.Alpha > 0 || DrawableObject?.HeadCircle.Alpha > 0))
                 return true;
 
             if (ControlPointVisualiser == null)

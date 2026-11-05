@@ -158,7 +158,7 @@ namespace osu.Game.Tests.Visual.SongSelect
                 MaxCombo = 244,
                 TotalScore = 1707827,
                 Ruleset = new OsuRuleset().RulesetInfo,
-                Mods = new Mod[] { new OsuModHidden(), new ModScoreV2(), },
+                Mods = new Mod[] { new OsuModHidden(), new ModNoMod(), },
                 User = new APIUser
                 {
                     Id = 6602580,
@@ -178,7 +178,7 @@ namespace osu.Game.Tests.Visual.SongSelect
                 InputManager.Click(MouseButton.Left);
             });
             AddAssert("received HD", () => this.ChildrenOfType<BeatmapLeaderboardScore>().Last().SelectedMods.Value.Any(m => m is OsuModHidden));
-            AddAssert("did not receive SV2", () => !this.ChildrenOfType<BeatmapLeaderboardScore>().Last().SelectedMods.Value.Any(m => m is ModScoreV2));
+            AddAssert("did not receive NM", () => !this.ChildrenOfType<BeatmapLeaderboardScore>().Last().SelectedMods.Value.Any(m => m is ModNoMod));
         }
 
         [Test]
