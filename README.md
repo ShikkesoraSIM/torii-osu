@@ -224,42 +224,55 @@ This release changes the application identity, so it installs alongside an older
 
 ## Building from source
 
-This repository is a fork of [`ppy/osu`](https://github.com/ppy/osu). You need three sibling checkouts to build:
+This repository is a fork of [`ppy/osu`](https://github.com/ppy/osu). You need three sibling checkouts to build, and the two dependencies **must use these folder names** — `osu.Game.csproj` references them as projects at `../toriirefresh-framework` and `../toriirefresh-resources`:
 
 ```
 parent-dir/
-├── torii-osu          # this repository
-├── torii-framework    # https://github.com/ShikkesoraSIM/torii-framework  (osu-framework fork)
-└── torii-veldrid      # https://github.com/ShikkesoraSIM/torii-veldrid    (Veldrid fork)
+├── torii-osu                # this repository
+├── toriirefresh-framework   # https://github.com/ShikkesoraSIM/torii-framework  (osu-framework fork)
+└── toriirefresh-resources   # https://github.com/ShikkesoraSIM/torii-resources  (osu-resources fork)
 ```
 
-`torii-resources` (a fork of `osu-resources`) is pulled as a NuGet package — you don't need a local checkout unless you're modifying resources.
+No Veldrid fork is needed any more — the graphics backend comes from nuget.org through the framework.
 
 ### Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download) for stable builds (Nova builds bump to .NET 10 — see [the Nova section](#torii-nova-experimental-stream) — and require both 8 and 10 installed)
-- An IDE that supports C# 12+ — [Visual Studio 2022 17.8+](https://visualstudio.microsoft.com/), [JetBrains Rider](https://www.jetbrains.com/rider/), or [VS Code](https://code.visualstudio.com/) with the C# Dev Kit
-- Windows is the primary supported dev platform. Linux + macOS builds work via the same `dotnet` CLI but get less day-to-day testing.
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) for `master` (stable). Nova needs the exact [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0) `11.0.100-rc.2.26504.105` — see [Building Nova](#building-nova).
+- An IDE with .NET 10 support — [JetBrains Rider](https://www.jetbrains.com/rider/), [Visual Studio 2026](https://visualstudio.microsoft.com/), or [VS Code](https://code.visualstudio.com/) with the C# Dev Kit. The `dotnet` CLI alone is enough to build.
+- Windows, Linux and macOS are all built by CI on every release. Windows builds on a Windows runner; macOS is cross-compiled from Linux, not built on a Mac.
 
 ### Quick start
 
 ```shell
-git clone https://github.com/ShikkesoraSIM/torii-framework.git
-git clone https://github.com/ShikkesoraSIM/torii-veldrid.git
 git clone https://github.com/ShikkesoraSIM/torii-osu.git
+git clone https://github.com/ShikkesoraSIM/torii-framework.git toriirefresh-framework
+git clone https://github.com/ShikkesoraSIM/torii-resources.git toriirefresh-resources
 
-cd torii-veldrid
-dotnet pack src/Veldrid/Veldrid.csproj -c Release -o bin/Packages/Release
-dotnet pack src/Veldrid.MetalBindings/Veldrid.MetalBindings.csproj -c Release -o bin/Packages/Release
-dotnet pack src/Veldrid.OpenGLBindings/Veldrid.OpenGLBindings.csproj -c Release -o bin/Packages/Release
+git -C toriirefresh-framework checkout <FRAMEWORK_REF>
+git -C toriirefresh-resources checkout <RESOURCES_REF>
 
-cd ../torii-osu
+cd torii-osu
 dotnet run --project osu.Desktop -c Debug
 ```
 
-The first run takes a few minutes (restore + initial build). Subsequent runs are fast.
+`<FRAMEWORK_REF>` and `<RESOURCES_REF>` are the commit pins near the top of [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — CI and release builds use exactly these, and the dependencies' default branches may be ahead. If the build fails with hundreds of `CS0234 'Framework' does not exist in the namespace 'osu'` errors, the dependency folders are missing or misnamed.
 
-To build the Nova experimental tree, check out the `nova` branch in `torii-osu` (and use the framework + veldrid commit hashes that branch's `build-gu.yml` env declares — those are pinned per-release).
+The first run takes a few minutes (restore + initial build). Subsequent runs are fast. Debug builds keep their data in a separate `osu-development` folder, so they never touch an installed Torii.
+
+To make a self-contained install instead, publish for your platform (`win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64` or `osx-arm64`) and run `torii.exe` / `./torii` from the output folder:
+
+```shell
+dotnet publish osu.Desktop/osu.Desktop.csproj -c Release -r win-x64 --self-contained -o publish/win-x64
+```
+
+> [!WARNING]
+> Release builds share the installed game's data folder (`osu-torii`: `%APPDATA%` on Windows, `~/.local/share` on Linux, `~/Library/Application Support` on macOS). A newer build may migrate the database so an older build can't open it — back the folder up first, or test with a Debug build.
+
+Official releases also overlay the Satori GC for smoother frame pacing. It's optional; to match a release, extract `satori-runtime/net10/<rid>.zip` over the publish folder (e.g. `unzip -o -j satori-runtime/net10/linux-x64.zip -d publish/linux-x64`).
+
+### Building Nova
+
+Check out the `nova` branch in `torii-osu`, re-check the two pins in that branch's `ci.yml`, and build the same way. Nova targets `net11.0` and its `global.json` pins SDK `11.0.100-rc.2.26504.105` with roll-forward disabled, so that exact SDK must be installed. On Windows and macOS use the installer from the [.NET 11 download page](https://dotnet.microsoft.com/download/dotnet/11.0); Linux distro repos don't package .NET previews, so extract the Linux tarball from that page to a folder and run that folder's `dotnet` (e.g. `~/dotnet-11/dotnet run --project osu.Desktop -c Debug`) — this leaves your system .NET untouched. Skip the Satori step: `satori-runtime/net10/` is .NET 10 only, and Nova releases build their own in CI.
 
 ---
 
@@ -267,7 +280,7 @@ To build the Nova experimental tree, check out the `nova` branch in `torii-osu` 
 
 Contributions are welcome, but **please direct general osu! improvements at [upstream](https://github.com/ppy/osu) instead.** Anything that isn't Torii-specific (rulesets, beatmap features, mod logic, core gameplay) lands upstream first; Torii merges upstream regularly. Submitting it here means it only ever ships to Torii users, which isn't what most contributors want.
 
-**Torii-specific work is welcome here**: Torii settings, the briefing overlay, the aura system, performance telemetry, server integration tweaks. Nova-specific (D3D12, .NET 10, Deferred-default) PRs target the `nova` branch.
+**Torii-specific work is welcome here**: Torii settings, the briefing overlay, the aura system, performance telemetry, server integration tweaks. Nova-specific (D3D12, .NET 11, Deferred-default) PRs target the `nova` branch.
 
 Before opening a PR:
 
