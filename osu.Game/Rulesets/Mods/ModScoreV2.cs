@@ -1,25 +1,27 @@
 // Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
+using System;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
 
 namespace osu.Game.Rulesets.Mods
 {
-    /// <remarks>
-    /// This mod is used strictly to mark osu!stable scores set with the "Score V2" mod active.
-    /// It should not be used in any real capacity going forward.
-    /// </remarks>
     public class ModScoreV2 : Mod
     {
         public override string Name => "Score V2";
         public override string Acronym => @"SV2";
         public override IconUsage? Icon => OsuIcon.ModScoreV2;
-        public override ModType Type => ModType.System;
-        public override LocalisableString Description => "Score set on earlier client versions with the V2 scoring algorithm active.";
-        public override bool UserPlayable => false;
-        public override bool ValidForMultiplayer => false;
-        public override bool ValidForMultiplayerAsFreeMod => false;
+        public override ModType Type => ModType.Conversion;
+        public override LocalisableString Description => "Play with the Score V2 scoring algorithm.";
+        public override double ScoreMultiplier => 1;
+        public override bool UserPlayable => true;
+        public override bool ValidForMultiplayer => true;
+        public override bool ValidForMultiplayerAsFreeMod => true;
+        public override bool HasImplementation => true;
+        public sealed override bool Ranked => true;
+        public sealed override bool ValidForFreestyleAsRequiredMod => true;
+        public override Type[] IncompatibleMods => new[] { typeof(ModClassic) };
     }
 }

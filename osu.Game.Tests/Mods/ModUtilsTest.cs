@@ -173,8 +173,20 @@ namespace osu.Game.Tests.Mods
             // system mod not applicable in lazer.
             new object[]
             {
+                new Mod[] { new OsuModHidden(), new ModNoMod() },
+                new[] { typeof(ModNoMod) }
+            },
+            // score v2 is incompatible with classic mod.
+            new object[]
+            {
+                new Mod[] { new ModScoreV2(), new OsuModClassic() },
+                new[] { typeof(ModScoreV2), typeof(OsuModClassic) }
+            },
+            // score v2 is valid with compatible mods.
+            new object[]
+            {
                 new Mod[] { new OsuModHidden(), new ModScoreV2() },
-                new[] { typeof(ModScoreV2) }
+                Array.Empty<Type>()
             },
             // multi mod.
             new object[]

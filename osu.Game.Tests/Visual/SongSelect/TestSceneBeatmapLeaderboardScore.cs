@@ -177,7 +177,7 @@ namespace osu.Game.Tests.Visual.SongSelect
                     MaxCombo = 244,
                     TotalScore = RNG.Next(1_800_000, 2_000_000),
                     MaximumStatistics = { { HitResult.Great, 3000 } },
-                    Mods = new Mod[] { new OsuModHidden(), new ModScoreV2(), },
+                    Mods = new Mod[] { new OsuModHidden(), new ModNoMod(), },
                     Ruleset = new OsuRuleset().RulesetInfo,
                     User = new APIUser
                     {
@@ -208,7 +208,7 @@ namespace osu.Game.Tests.Visual.SongSelect
                 InputManager.Click(MouseButton.Left);
             });
             AddAssert("mods received HD", () => score.SelectedMods.Value.Any(m => m is OsuModHidden));
-            AddAssert("mods did not receive SV2", () => !score.SelectedMods.Value.Any(m => m is ModScoreV2));
+            AddAssert("mods did not receive NM", () => !score.SelectedMods.Value.Any(m => m is ModNoMod));
         }
 
         public override void SetUpSteps()

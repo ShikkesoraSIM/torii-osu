@@ -15,7 +15,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.HitCircles
 {
     public partial class HitCircleSelectionBlueprint : OsuSelectionBlueprint<HitCircle>
     {
-        protected new DrawableHitCircle DrawableObject => (DrawableHitCircle)base.DrawableObject;
+        protected new DrawableHitCircle? DrawableObject => base.DrawableObject as DrawableHitCircle;
 
         protected readonly HitCirclePiece CirclePiece;
         private readonly HitCircleOverlapMarker marker;
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.HitCircles
             showHitMarkers.BindValueChanged(_ =>
             {
                 if (!showHitMarkers.Value)
-                    DrawableObject.RestoreHitAnimations();
+                    DrawableObject?.RestoreHitAnimations();
             });
         }
 
@@ -56,10 +56,10 @@ namespace osu.Game.Rulesets.Osu.Edit.Blueprints.HitCircles
             marker.UpdateFrom(HitObject);
 
             if (showHitMarkers.Value)
-                DrawableObject.SuppressHitAnimations();
+                DrawableObject?.SuppressHitAnimations();
         }
 
-        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => DrawableObject.HitArea.ReceivePositionalInputAt(screenSpacePos);
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => DrawableObject?.HitArea.ReceivePositionalInputAt(screenSpacePos) ?? CirclePiece.ReceivePositionalInputAt(screenSpacePos);
 
         public override Quad SelectionQuad => CirclePiece.ScreenSpaceDrawQuad;
     }
