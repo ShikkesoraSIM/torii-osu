@@ -116,7 +116,7 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: '4'
           NUGET_AUDIT_MODE: off
           DOTNET_NUGET_AUDIT: 'false'
-        run: build.cmd clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest= /p:NuGetAudit=false /p:NoWarn="NU1901;NU1902;NU1903;NU1904"
+        run: build.cmd clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest= /p:NuGetAudit=false
 
       - name: Build runtime (Unix)
         if: runner.os != 'Windows' && steps.payload.outputs.build == 'true'
@@ -125,7 +125,7 @@ jobs:
           CMAKE_BUILD_PARALLEL_LEVEL: '3'
           NUGET_AUDIT_MODE: off
           DOTNET_NUGET_AUDIT: 'false'
-        run: ./build.sh clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest= /p:NuGetAudit=false /p:NoWarn="NU1901;NU1902;NU1903;NU1904"
+        run: ./build.sh clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest= /p:NuGetAudit=false
 
       - name: Collect runtime and provenance
         if: steps.payload.outputs.build == 'true'
