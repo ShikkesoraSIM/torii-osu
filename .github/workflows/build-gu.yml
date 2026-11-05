@@ -38,7 +38,7 @@ jobs:
       contents: read
       actions: read
     with:
-      prebuilt_run_id: '39718998287'
+      prebuilt_run_id: ''
 
   version:
     name: Compute version
