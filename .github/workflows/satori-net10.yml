@@ -1,0 +1,155 @@
+name: Satori .NET 10
+
+on:
+  workflow_call:
+    inputs:
+      prebuilt_run_id:
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  runtime:
+    name: Satori ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2022, rid: win-x64, arch: x64 }
+          - { os: windows-11-arm, rid: win-arm64, arch: arm64 }
+          - { os: ubuntu-22.04, rid: linux-x64, arch: x64 }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64, arch: arm64 }
+          - { os: macos-15-intel, rid: osx-x64, arch: x64 }
+          - { os: macos-15, rid: osx-arm64, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Read runtime pin
+        id: pin
+        shell: pwsh
+        run: |
+          $pin = Get-Content .github/satori-net10.json -Raw | ConvertFrom-Json
+          "repository=$($pin.repository)" >> $env:GITHUB_OUTPUT
+          "commit=$($pin.commit)" >> $env:GITHUB_OUTPUT
+          "sdk=$($pin.sdk)" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ steps.pin.outputs.sdk }}
+            10.0.x
+
+      - name: Cache compiled runtime
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: satori-payload
+          key: satori10-${{ matrix.os }}-${{ matrix.rid }}-${{ steps.pin.outputs.commit }}-${{ hashFiles('.github/satori-net10.json', '.github/workflows/satori-net10.yml', '.github/scripts/satori_runtime.py') }}
+
+      - name: Download previously validated runtime
+        id: prebuilt
+        if: steps.cache.outputs.cache-hit != 'true' && inputs.prebuilt_run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: satori-net10-${{ matrix.rid }}
+          path: satori-payload
+          run-id: ${{ inputs.prebuilt_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Select and verify runtime payload
+        id: payload
+        shell: bash
+        run: |
+          if [[ '${{ steps.cache.outputs.cache-hit }}' == 'true' || '${{ steps.prebuilt.outcome }}' == 'success' ]]; then
+            python3 .github/scripts/satori_runtime.py verify ${{ matrix.rid }} satori-payload
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Allow long source paths (Windows)
+        if: runner.os == 'Windows' && steps.payload.outputs.build == 'true'
+        run: git config --global core.longpaths true
+
+      - name: Checkout Satori
+        if: steps.payload.outputs.build == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.repository }}
+          ref: ${{ steps.pin.outputs.commit }}
+          path: satori-source
+
+      - name: Use the release SDK for runtime tooling
+        if: steps.payload.outputs.build == 'true'
+        shell: pwsh
+        env:
+          SDK_VERSION: ${{ steps.pin.outputs.sdk }}
+        run: |
+          $path = 'satori-source/global.json'
+          $json = Get-Content $path -Raw | ConvertFrom-Json
+          $json.sdk.version = $env:SDK_VERSION
+          $json.tools.dotnet = $env:SDK_VERSION
+          $json | ConvertTo-Json -Depth 20 | Set-Content $path
+          "DOTNET_INSTALL_DIR=$env:DOTNET_ROOT" >> $env:GITHUB_ENV
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux' && steps.payload.outputs.build == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm lld build-essential libicu-dev libkrb5-dev liblttng-ust-dev libssl-dev ninja-build python3
+          cmake --version
+
+      - name: macOS build dependencies
+        if: runner.os == 'macOS' && steps.payload.outputs.build == 'true'
+        run: brew install cmake ninja icu4c pkg-config
+
+      - name: Build runtime (Windows)
+        if: runner.os == 'Windows' && steps.payload.outputs.build == 'true'
+        shell: cmd
+        working-directory: satori-source
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: '4'
+        run: build.cmd clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest=
+
+      - name: Build runtime (Unix)
+        if: runner.os != 'Windows' && steps.payload.outputs.build == 'true'
+        working-directory: satori-source
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: '3'
+        run: ./build.sh clr.runtime+clr.jit+clr.corelib+clr.nativecorelib+clr.tools -c Release -arch ${{ matrix.arch }} /p:TreatWarningsAsErrors=false /p:_RepoToolManifest=
+
+      - name: Collect runtime and provenance
+        if: steps.payload.outputs.build == 'true'
+        shell: bash
+        run: python3 .github/scripts/satori_runtime.py pack ${{ matrix.rid }} satori-source --output satori-payload
+
+      - name: Build runtime smoke test
+        shell: bash
+        run: dotnet publish .github/runtime-probe/RuntimeProbe.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=false -p:PublishTrimmed=false -o runtime-probe
+
+      - name: Verify and apply runtime to smoke test
+        shell: bash
+        run: python3 .github/scripts/satori_runtime.py overlay ${{ matrix.rid }} satori-payload --output runtime-probe
+
+      - name: Run on the native architecture
+        shell: bash
+        run: dotnet runtime-probe/RuntimeProbe.dll
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: satori-net10-${{ matrix.rid }}
+          path: satori-payload/
+          if-no-files-found: error
+          retention-days: 90
