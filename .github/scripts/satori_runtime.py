@@ -8,7 +8,20 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 
-CONFIG = Path(__file__).resolve().parents[1] / "satori-net11.json"
+def default_config_path():
+    repo_root = Path(__file__).resolve().parents[1]
+    net10 = repo_root / "satori-net10.json"
+    net11 = repo_root / "satori-net11.json"
+    if net10.is_file() and not net11.is_file():
+        return net10
+    if net11.is_file() and not net10.is_file():
+        return net11
+    if net10.is_file():
+        return net10
+    return net11
+
+
+CONFIG = default_config_path()
 
 
 def runtime_files(rid):
@@ -64,6 +77,31 @@ def validate(directory, rid, config):
         check_architecture(directory / name, rid)
 
 
+def prepare_source(source, config):
+    global_json_path = source / "global.json"
+    if global_json_path.is_file():
+        global_json = json.loads(global_json_path.read_text())
+        global_json["sdk"]["version"] = config["sdk"]
+        if "tools" in global_json and "dotnet" in global_json["tools"]:
+            global_json["tools"]["dotnet"] = config["sdk"]
+        global_json_path.write_text(json.dumps(global_json, indent=2) + "\n")
+
+    override_xml = """
+  <PropertyGroup>
+    <NuGetAudit>false</NuGetAudit>
+    <NoWarn>$(NoWarn);NU1901;NU1902;NU1903;NU1904</NoWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>"""
+    for filename in ("Directory.Build.props", "Directory.Build.targets"):
+        filepath = source / filename
+        if filepath.is_file():
+            content = filepath.read_text(encoding="utf-8")
+            if "</Project>" in content and "<NuGetAudit>false</NuGetAudit>" not in content:
+                content = content.replace("</Project>", override_xml)
+                filepath.write_text(content, encoding="utf-8")
+
+
 def pack(source, output, rid, config):
     commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
     if commit != config["commit"]:
@@ -80,7 +118,8 @@ def pack(source, output, rid, config):
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
         shutil.copy2(binaries / name, output / name)
-    shutil.copy2(CONFIG.parent.parent / "satori-runtime" / "SATORI-LICENSE.txt", output / "SATORI-LICENSE.txt")
+    repo_root = Path(__file__).resolve().parents[2]
+    shutil.copy2(repo_root / "satori-runtime" / "SATORI-LICENSE.txt", output / "SATORI-LICENSE.txt")
     manifest = {**config, "schema": 1, "rid": rid, "files": {name: digest(output / name) for name in names}}
     (output / "satori-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     validate(output, rid, config)
@@ -89,8 +128,9 @@ def pack(source, output, rid, config):
 def overlay(directory, publish, rid, config):
     validate(directory, rid, config)
     configs = list(publish.glob("*.runtimeconfig.json"))
-    if len(configs) != 1 or json.loads(configs[0].read_text())["runtimeOptions"]["tfm"] != "net11.0":
-        raise ValueError("Refusing Satori 11 overlay on a different runtime")
+    expected_tfm = f"net{config['runtime_major']}.0"
+    if len(configs) != 1 or json.loads(configs[0].read_text())["runtimeOptions"]["tfm"] != expected_tfm:
+        raise ValueError(f"Refusing Satori {config['runtime_major']} overlay on a different runtime")
     for name in (*runtime_files(rid), "satori-manifest.json", "SATORI-LICENSE.txt"):
         shutil.copy2(directory / name, publish / name)
     validate(publish, rid, config)
@@ -98,16 +138,20 @@ def overlay(directory, publish, rid, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("pack", "verify", "overlay"))
+    parser.add_argument("action", choices=("pack", "verify", "overlay", "prepare"))
     parser.add_argument("rid", choices=("win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-x64", "osx-arm64"))
     parser.add_argument("directory", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--config", type=Path)
     args = parser.parse_args()
-    configuration = json.loads(CONFIG.read_text())
-    if args.action == "pack":
+    config_path = args.config if args.config else CONFIG
+    configuration = json.loads(config_path.read_text())
+    if args.action == "prepare":
+        prepare_source(args.directory, configuration)
+    elif args.action == "pack":
         pack(args.directory, args.output, args.rid, configuration)
     elif args.action == "overlay":
         overlay(args.directory, args.output, args.rid, configuration)
     else:
         validate(args.directory, args.rid, configuration)
-    print(f"Satori 11 {args.action}: {args.rid} OK")
+    print(f"Satori {configuration['runtime_major']} {args.action}: {args.rid} OK")

@@ -51,7 +51,7 @@ class SatoriRuntimeTest(unittest.TestCase):
     def test_pin_matches_sdk(self):
         global_json = json.loads((runtime.CONFIG.parent.parent / "global.json").read_text())
         self.assertEqual(global_json["sdk"]["version"], self.config["sdk"])
-        self.assertEqual(self.config["runtime_major"], 11)
+        self.assertEqual(self.config["runtime_major"], int(self.config["sdk"].split(".")[0]))
 
     def test_changed_binary_rejected(self):
         directory = self.payload("win-x64")
@@ -88,23 +88,44 @@ class SatoriRuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Incomplete"):
             runtime.validate(directory, "linux-arm64", self.config)
 
-    def test_overlay_does_not_touch_net10(self):
+    def test_overlay_does_not_touch_wrong_runtime(self):
         directory = self.payload("win-x64")
         publish = self.root / "publish"
         publish.mkdir()
-        (publish / "torii.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {"tfm": "net10.0"}}))
+        wrong_tfm = "net8.0" if self.config["runtime_major"] != 8 else "net9.0"
+        (publish / "torii.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {"tfm": wrong_tfm}}))
         (publish / "coreclr.dll").write_bytes(b"original")
         with self.assertRaisesRegex(ValueError, "different runtime"):
             runtime.overlay(directory, publish, "win-x64", self.config)
         self.assertEqual((publish / "coreclr.dll").read_bytes(), b"original")
 
-    def test_net11_overlay_verified(self):
+    def test_overlay_verified(self):
         directory = self.payload("osx-arm64")
         publish = self.root / "publish"
         publish.mkdir()
-        (publish / "torii.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {"tfm": "net11.0"}}))
+        (publish / "torii.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {"tfm": f"net{self.config['runtime_major']}.0"}}))
         runtime.overlay(directory, publish, "osx-arm64", self.config)
         runtime.validate(publish, "osx-arm64", self.config)
+
+    def test_prepare_source_disables_nuget_audit_and_sets_sdk(self):
+        source = self.root / "source"
+        source.mkdir()
+        (source / "global.json").write_text(json.dumps({"sdk": {"version": "99.0.0"}, "tools": {"dotnet": "99.0.0"}}))
+        (source / "Directory.Build.props").write_text("<Project>\n  <PropertyGroup>\n  </PropertyGroup>\n</Project>")
+        (source / "Directory.Build.targets").write_text("<Project>\n</Project>")
+        runtime.prepare_source(source, self.config)
+
+        global_json = json.loads((source / "global.json").read_text())
+        self.assertEqual(global_json["sdk"]["version"], self.config["sdk"])
+        self.assertEqual(global_json["tools"]["dotnet"], self.config["sdk"])
+
+        props = (source / "Directory.Build.props").read_text()
+        self.assertIn("<NuGetAudit>false</NuGetAudit>", props)
+        self.assertIn("NU1902", props)
+
+        targets = (source / "Directory.Build.targets").read_text()
+        self.assertIn("<NuGetAudit>false</NuGetAudit>", targets)
+        self.assertIn("NU1903", targets)
 
 
 if __name__ == "__main__":
