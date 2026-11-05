@@ -77,6 +77,31 @@ def validate(directory, rid, config):
         check_architecture(directory / name, rid)
 
 
+def prepare_source(source, config):
+    global_json_path = source / "global.json"
+    if global_json_path.is_file():
+        global_json = json.loads(global_json_path.read_text())
+        global_json["sdk"]["version"] = config["sdk"]
+        if "tools" in global_json and "dotnet" in global_json["tools"]:
+            global_json["tools"]["dotnet"] = config["sdk"]
+        global_json_path.write_text(json.dumps(global_json, indent=2) + "\n")
+
+    override_xml = """
+  <PropertyGroup>
+    <NuGetAudit>false</NuGetAudit>
+    <NoWarn>$(NoWarn);NU1901;NU1902;NU1903;NU1904</NoWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>"""
+    for filename in ("Directory.Build.props", "Directory.Build.targets"):
+        filepath = source / filename
+        if filepath.is_file():
+            content = filepath.read_text(encoding="utf-8")
+            if "</Project>" in content and "<NuGetAudit>false</NuGetAudit>" not in content:
+                content = content.replace("</Project>", override_xml)
+                filepath.write_text(content, encoding="utf-8")
+
+
 def pack(source, output, rid, config):
     commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
     if commit != config["commit"]:
@@ -113,7 +138,7 @@ def overlay(directory, publish, rid, config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("pack", "verify", "overlay"))
+    parser.add_argument("action", choices=("pack", "verify", "overlay", "prepare"))
     parser.add_argument("rid", choices=("win-x64", "win-arm64", "linux-x64", "linux-arm64", "osx-x64", "osx-arm64"))
     parser.add_argument("directory", type=Path)
     parser.add_argument("--output", type=Path)
@@ -121,7 +146,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config_path = args.config if args.config else CONFIG
     configuration = json.loads(config_path.read_text())
-    if args.action == "pack":
+    if args.action == "prepare":
+        prepare_source(args.directory, configuration)
+    elif args.action == "pack":
         pack(args.directory, args.output, args.rid, configuration)
     elif args.action == "overlay":
         overlay(args.directory, args.output, args.rid, configuration)

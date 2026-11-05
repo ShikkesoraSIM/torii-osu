@@ -107,6 +107,26 @@ class SatoriRuntimeTest(unittest.TestCase):
         runtime.overlay(directory, publish, "osx-arm64", self.config)
         runtime.validate(publish, "osx-arm64", self.config)
 
+    def test_prepare_source_disables_nuget_audit_and_sets_sdk(self):
+        source = self.root / "source"
+        source.mkdir()
+        (source / "global.json").write_text(json.dumps({"sdk": {"version": "99.0.0"}, "tools": {"dotnet": "99.0.0"}}))
+        (source / "Directory.Build.props").write_text("<Project>\n  <PropertyGroup>\n  </PropertyGroup>\n</Project>")
+        (source / "Directory.Build.targets").write_text("<Project>\n</Project>")
+        runtime.prepare_source(source, self.config)
+
+        global_json = json.loads((source / "global.json").read_text())
+        self.assertEqual(global_json["sdk"]["version"], self.config["sdk"])
+        self.assertEqual(global_json["tools"]["dotnet"], self.config["sdk"])
+
+        props = (source / "Directory.Build.props").read_text()
+        self.assertIn("<NuGetAudit>false</NuGetAudit>", props)
+        self.assertIn("NU1902", props)
+
+        targets = (source / "Directory.Build.targets").read_text()
+        self.assertIn("<NuGetAudit>false</NuGetAudit>", targets)
+        self.assertIn("NU1903", targets)
+
 
 if __name__ == "__main__":
     unittest.main()
