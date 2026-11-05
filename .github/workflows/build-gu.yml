@@ -2,10 +2,10 @@ name: Build Torii Nova
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master, develop, nova ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, nova ]
   workflow_dispatch:
     inputs:
       version:
