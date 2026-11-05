@@ -38,7 +38,7 @@
 
 ## What Torii is
 
-A buildable client + a small private server. The client is forked from osu! lazer with extra UI surfaces, a few new gameplay-adjacent systems, and performance work. The server is a separate project (`g0v0-server`) that hosts scores, leaderboards, multiplayer rooms, chat, and presence for users who choose to play there.
+A buildable client + a small private server. The client is forked from osu! lazer with extra UI surfaces, a few new gameplay-adjacent systems, and performance work. The server is a separate project ([`torii-server`](https://github.com/ShikkesoraSIM/torii-server), a fork of [`g0v0-server`](https://github.com/GooGuTeam/g0v0-server)) that hosts scores, leaderboards, multiplayer rooms, chat, and presence for users who choose to play there.
 
 **You do not need to use the Torii server to use the Torii client.** You can sign in against the official osu! server at any time — the client lets you switch via Settings → Torii → Server.
 
@@ -81,15 +81,24 @@ The two streams share the same install — switching is a one-click in settings 
 Cosmetic effects rendered around your username + avatar in user panels. Currently registered presets:
 
 - **Admin / Dev / Mod / QAT** — staff-only auras, server-assigned
-- **Supporter** — for community supporters
-- **Bug Finder** — for users who land merged bug fixes / detailed reports
+- **Consul (osu! / taiko / catch / mania)** — for each ruleset's advisors
+- **Feature Architect** — for community members whose feature requests landed in the May 2026 cohort
+- **Supporter** — while you're in an active supporter window
+- **Founder** — for the early-adopter cohort
 - **Goof** — for the goofs
+- **Bug Finder** — for users who reported real bugs
+- **Summer** — seasonal, earned through the Summer 2026 event
+- **Stardust** — the only aura you can buy (with Torii points); every other aura is earned
 
-Auras are server-attested. The client renders whatever the server says you're entitled to via `GET /api/v2/me/aura-catalog`; you can pick which one to display from the in-game settings picker.
+Further auras can ship as data from the Cosmetic Creator without client code changes. Auras are server-attested. The client renders whatever the server says you're entitled to via `GET /api/v2/me/aura-catalog`; you can pick which one to display from the in-game settings picker.
 
 ### Verified-client badge
 
 A small gradient torii-gate icon shown next to online users in the Friends / Online overlays — but **only** when the Torii server has matched their build hash to a CI-registered release. This means you can tell at a glance whether someone is on a verified Torii build vs. just any custom client connected to the server. The badge is not granted by self-attestation — it requires the executable's `osu.Game.dll` md5 to match a hash registered by CI on release.
+
+### Cosmetic store & Torii points
+
+Torii points are an in-game currency earned only by playing (never bought with real money); every earn and spend is recorded in a server-side ledger. The cosmetic store (a daily-rotating Store tab plus an Inventory tab for equipping) spends them on cursor trails, username colours, the separate accent-hue unlock and the Stardust aura.
 
 ### Torii Briefing
 
@@ -105,8 +114,9 @@ Torii gives players choice over their results screen presentation via **Settings
 
 ### Performance work
 
-- **Hiccup queue** — gameplay frame-time outliers are detected, snapshotted, and (with explicit opt-in) uploaded to the Torii server so we can see real-world stutter patterns instead of just our own profiles. Hiccup polling is paused during gameplay so we never *cause* a hiccup measuring one.
-- **Low latency providers** — NVIDIA Reflex (on RTX) and AMD Anti-Lag 2 (on RDNA) are wired into the Direct3D 11 backend, with a settings panel that shows which one applies to the current GPU.
+- **Satori GC** — desktop release builds replace the stock .NET garbage collector with [Satori](https://github.com/ppy/Satori), the low-pause GC official osu! also uses, to cut GC pauses in song select and gameplay.
+- **Thread rate** — input, audio and update threads run at a configurable 500–8000 Hz (default 2000) in Settings → Torii → Graphics.
+- **Potato mode** — a low-end preset in Settings → Torii → Graphics that strips most visual effects and restarts the game.
 
 ### Audio
 
@@ -172,15 +182,14 @@ Torii uses [Velopack](https://github.com/velopack/velopack) for updates. The rel
 
 Nova is where we test things that aren't safe to push to every Torii user yet. If you don't already know what's in Nova and why you want it, you almost certainly want to stay on stable.
 
-Switch via **Settings → General → Updates → Release stream → Torii Nova (Experimental)**. The client confirms before switching and downloads a fresh Nova build over your current install (data is preserved).
+Switch via **Settings → General → Updates → Release stream → Nova (Experimental)**. The client confirms before switching and downloads a fresh Nova build over your current install (data is preserved).
 
-What Nova currently adds on top of stable (everything else — the brand, icon, binary rename, audio fixes, badge, hidden D3D12 dropdown, config-migration — ships on stable too):
+What Nova currently adds on top of stable (the game code is otherwise the same as stable):
 
-- **`.NET 10` runtime chain** across the whole client. JIT improvements, lower-allocation GC, and SIMD path improvements that matter most for gameplay frame pacing. Stable is still on `.NET 8`.
-- **CoreCLR runtime** on Android, replacing Mono. Same JIT/GC improvements story as desktop.
-- **Deferred renderer as default** on first launch. Stable defaults to the framework's immediate renderer for safety; Nova flips this to Deferred so we can shake out edge cases at scale.
-- **Direct3D 12 backend (experimental, opt-in on both streams)** — a fully-wired D3D12 path in our Veldrid fork. **Deliberately hidden** from the in-settings renderer dropdown on both streams to keep curious users from picking it on a hunch; the backend can be opted into by editing `framework.ini` (`%APPDATA%\osu-torii\framework.ini`) and setting `Renderer = Deferred_Direct3D12`. Nova is where it gets dogfooded with the Deferred-default UX, while stable users on Direct3D 11 immediate keep their existing renderer untouched.
-- **Renderer dropdown re-labels** — Deferred entries display as `... (Nova)` (e.g. `Direct3D 11 (Nova)`) so you can tell which path you're on at a glance.
+- **.NET 11 runtime chain** across the whole client (stable is on `.NET 10`), including Android, which moves to the .NET 11 Android workload.
+- **Satori GC built for .NET 11** on desktop, in place of stable's .NET 10 Satori.
+
+Nova has stricter requirements than stable: x64 CPUs must support x86-64-v2 (SSE4.2 and POPCNT), macOS 14 or newer, Android 7.0 or newer on an ARM64 device, and on Linux a distribution compatible with Ubuntu 22.04 or newer. Older devices can stay on stable.
 
 When Nova features bed in, they get merged down to stable. Nothing in Nova is intended to live there forever — it's a buffer, not a separate product.
 
@@ -188,7 +197,7 @@ When Nova features bed in, they get merged down to stable. Nothing in Nova is in
 
 ## The Torii server
 
-`g0v0-server` is a Python (FastAPI) server that talks osu!'s v2 API + spectator + chat protocols. It hosts:
+[`torii-server`](https://github.com/ShikkesoraSIM/torii-server) (a fork of `g0v0-server`) is a Python (FastAPI) server that talks osu!'s v2 API + spectator + chat protocols. It hosts:
 
 - Scores + leaderboards (per-beatmap + global + country, with daily-challenge support)
 - Multiplayer rooms (osu!, taiko, catch, mania)
@@ -215,10 +224,11 @@ Grab the latest release from the [Releases page](https://github.com/ShikkesoraSI
 | Windows portable | `portable-win-x64.zip` / `portable-win-arm64.zip` |
 | Linux AppImage | `torii-linux-x64.AppImage` / `torii-linux-arm64.AppImage` |
 | Linux portable tarball | `portable-linux-x64.tar.gz` / `portable-linux-arm64.tar.gz` |
+| macOS app (with installer) | `Torii-macOS-Intel.zip` / `Torii-macOS-AppleSilicon.zip` |
+| macOS portable | `portable-osx-x64.zip` / `portable-osx-arm64.zip` |
+| Android | `torii.apk` |
 
-macOS and Android are not part of the current release and will return in a later build.
-
-This release changes the application identity, so it installs alongside an older Torii rather than updating it in place. Your data directory is untouched and shared between both, so beatmaps, scores, replays, and settings carry over.
+Torii isn't signed with a paid Apple certificate, so macOS blocks it on first launch; the `README.txt` inside the macOS app zip walks through allowing it.
 
 ---
 
@@ -273,7 +283,7 @@ Before opening a PR:
 
 - Run `dotnet format` on changed files.
 - Don't bump upstream-shared package versions without a good reason (we try to stay close to upstream so merges don't conflict).
-- If a change touches behaviour visible to a server, it probably needs a coordinated change in [`g0v0-server`](https://github.com/GooGuTeam/g0v0-server) — flag that in the PR.
+- If a change touches behaviour visible to a server, it probably needs a coordinated change in [`torii-server`](https://github.com/ShikkesoraSIM/torii-server) — flag that in the PR.
 
 ---
 
