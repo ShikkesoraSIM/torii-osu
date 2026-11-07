@@ -53,6 +53,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
         private double okHitWindow;
         private double mehHitWindow;
 
+        private double circleSize;
         private double overallDifficulty;
         private double approachRate;
         private double drainRate;
@@ -99,6 +100,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             okHitWindow = hitWindows.WindowFor(HitResult.Ok) / clockRate;
             mehHitWindow = hitWindows.WindowFor(HitResult.Meh) / clockRate;
 
+            circleSize = difficulty.CircleSize;
             approachRate = OsuDifficultyCalculator.CalculateRateAdjustedApproachRate(difficulty.ApproachRate, clockRate);
             overallDifficulty = OsuDifficultyCalculator.CalculateRateAdjustedOverallDifficulty(difficulty.OverallDifficulty, clockRate);
             drainRate = difficulty.DrainRate;
@@ -227,6 +229,24 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             }
 
             aimValue *= accuracy;
+
+            if (score.Mods.Any(h => h is OsuModRelax))
+            {
+                double safeOD = Math.Max(0.0, overallDifficulty);
+                double safeCS = Math.Max(0.0, circleSize);
+
+                // usa od con rate; tambien alcanza od bajo nativo y ez, no solo da.
+                double odDeficitBase = Math.Clamp((8.0 - safeOD) / 8.0, 0.0, 1.0);
+                double baseOdFactor = 1.0 - 0.25 * Math.Pow(odDeficitBase, 1.5);
+
+                // aproxima el efecto de cs alto con od bajo; no analiza el movimiento del cursor.
+                double csScale = Math.Clamp((safeCS - 4.0) / 3.0, 0.0, 1.0);
+                double odScale = Math.Clamp((8.5 - safeOD) / 8.5, 0.0, 1.0);
+                double swipeIntensity = csScale * odScale;
+                double swipeFactor = 1.0 - 0.55 * Math.Pow(swipeIntensity, 1.3);
+
+                aimValue *= baseOdFactor * swipeFactor;
+            }
 
             return aimValue;
         }
